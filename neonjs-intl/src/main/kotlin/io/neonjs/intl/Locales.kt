@@ -18,7 +18,7 @@ internal object Locales {
             val tag = l.toLanguageTag()
             if (tag.contains("-u-") || tag.contains("-x-") || tag.contains("-t-")) continue
             if (!LanguageTag.isStructurallyValid(tag)) continue
-            val c = try { LanguageTag.canonicalize(tag) } catch (e: Exception) { continue }
+            val c = try { LanguageTag.canonicalize(tag) } catch (_: Exception) { continue }
             out.add(c)
         }
         // language-region aliases of language-script-region locales whose script is the likely one (e.g. "zh-TW")
@@ -43,7 +43,7 @@ internal object Locales {
         val raw = configured ?: java.util.Locale.getDefault().toLanguageTag()
         val tag = try {
             LanguageTag.baseName(LanguageTag.canonicalize(raw))
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             "en-US"
         }
         val resolved = bestAvailable(tag) ?: "en-US"
@@ -69,12 +69,7 @@ internal object Locales {
     fun canonicalizeLocaleList(realm: Realm, locales: Any?): List<String> {
         if (locales === Undefined) return emptyList()
         val seen = ArrayList<String>()
-        val o: JSObject
-        if (locales is CharSequence || locales is JSIntlLocale) {
-            o = jsArray(realm, listOf(locales))
-        } else {
-            o = Ops.toObject(locales)
-        }
+        val o = if (locales is CharSequence || locales is JSIntlLocale) jsArray(realm, listOf(locales)) else Ops.toObject(locales)
         val len = Ops.toLength(o.get("length", o))
         var k = 0L
         while (k < len) {

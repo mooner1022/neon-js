@@ -50,14 +50,6 @@ internal class IntlMV private constructor(@JvmField val kind: Int, @JvmField val
         else -> value!!
     }
 
-    /** Exact decimal value (finite values only). */
-    fun toBigDecimal(): BigDecimal = when (val v = value) {
-        is Double -> BigDecimal(NumberConvShortest.toShortest(v))
-        is BigInteger -> BigDecimal(v)
-        is BigDecimal -> v
-        else -> BigDecimal.ZERO
-    }
-
     companion object {
         const val FINITE = 0
         const val NEG_ZERO = 1
@@ -128,7 +120,7 @@ internal class IntlMV private constructor(@JvmField val kind: Int, @JvmField val
             if (!isDecimalLiteral(body)) return NaN
             val bd = try {
                 BigDecimal(body)
-            } catch (e: RuntimeException) {
+            } catch (_: RuntimeException) {
                 // the literal is valid, so its exponent is out of BigDecimal's range: the value is 0 or infinite
                 if (body.all { it == '0' || it == '.' || it == 'e' || it == 'E' || it == '+' || it == '-' || it in '0'..'9' } &&
                     body.substringBefore('e').substringBefore('E').all { it == '0' || it == '.' }) {
@@ -329,7 +321,7 @@ internal object NumberFormatIcu {
     fun defaultNumberingSystem(dataLocale: String): String = try {
         val ns = NumberingSystem.getInstance(ULocale.forLanguageTag(dataLocale))
         if (SupportedValues.isSupportedNumberingSystem(ns.name)) ns.name else "latn"
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         "latn"
     }
 
@@ -338,7 +330,7 @@ internal object NumberFormatIcu {
     /** CurrencyDigits(currency) */
     fun currencyDigits(code: String): Int = try {
         Currency.getInstance(code).defaultFractionDigits
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         2
     }
 
@@ -422,7 +414,7 @@ internal object NumberFormatIcu {
         throw e
     } catch (e: TerminationException) {
         throw e
-    } catch (e: RuntimeException) {
+    } catch (_: RuntimeException) {
         throw JSException.rangeError("Unable to format the number")
     }
 

@@ -161,7 +161,7 @@ internal object LanguageTag {
         val input = build(p.language, p.script, p.region, if (posix) p.variants - "posix" else p.variants, p.extensions, p.privateUse)
         val icu = try {
             ULocale.createCanonical(ULocale.Builder().setLanguageTag(input).build()).toLanguageTag()
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
         val q = (if (icu != null) parse(icu) else null) ?: p

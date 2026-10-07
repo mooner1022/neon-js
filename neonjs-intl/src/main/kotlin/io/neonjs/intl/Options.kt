@@ -1,6 +1,7 @@
 package io.neonjs.intl
 
 import io.neonjs.runtime.*
+import kotlin.math.floor
 
 /** Option reading abstract operations of ECMA-402 §9.2 (GetOption, GetNumberOption, ...). */
 internal object Opt {
@@ -45,7 +46,7 @@ internal object Opt {
         if (value === Undefined) return fallback
         val d = Ops.toNumber(value)
         if (d.isNaN() || d < minimum || d > maximum) rangeErr("Value ${Ops.toDisplayString(value)} out of range")
-        return Math.floor(d).toInt()
+        return floor(d).toInt()
     }
 
     /** GetNumberOption(options, property, minimum, maximum, fallback) */
@@ -76,7 +77,7 @@ internal object Opt {
             var end = s.indexOf('-', start)
             if (end < 0) end = s.length
             val n = end - start
-            if (n < 3 || n > 8) return false
+            if (n !in 3..8) return false
             for (i in start until end) if (!LanguageTag.isAlnum(s[i])) return false
             if (end == s.length) return true
             start = end + 1

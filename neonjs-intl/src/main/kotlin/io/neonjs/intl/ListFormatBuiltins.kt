@@ -81,7 +81,7 @@ internal object ListFormatBuiltins {
         }
         val f = try {
             ListFormatter.getInstance(LocaleInfo.dataLocale(lf.dataLocale), type, width)
-        } catch (e: RuntimeException) {
+        } catch (_: RuntimeException) {
             rangeErr("Internal error in list format data")
         }
         lf.icu = f

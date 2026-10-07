@@ -24,7 +24,7 @@ internal object LocaleInfo {
             val r = if (maximize) ULocale.addLikelySubtags(u) else ULocale.minimizeSubtags(u)
             val tag = r.toLanguageTag()
             if (LanguageTag.isStructurallyValid(tag)) LanguageTag.canonicalize(tag) else base
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             base
         }
     }
@@ -51,7 +51,7 @@ internal object LocaleInfo {
     /** CanonicalUnicodeSubdivision: the region part of a valid "rg"/"sd" subdivision keyword. */
     private fun subdivisionRegion(locale: String, key: String): String? {
         val v = LanguageTag.unicodeKeyword(locale, key) ?: return null
-        if (v.length < 3 || v.length > 7) return null
+        if (v.length !in 3..7) return null
         val region = if (LanguageTag.isDigit(v[0])) v.substring(0, 3) else v.substring(0, 2)
         if (!LanguageTag.isRegionSubtag(region)) return null
         return region.uppercase()
@@ -80,10 +80,10 @@ internal object LocaleInfo {
     }
 
     private fun hourCyclesFor(key: String): List<String>? {
-        val e = try { timeData.get(key) } catch (ex: Exception) { return null }
+        val e = try { timeData.get(key) } catch (_: Exception) { return null }
         val out = LinkedHashSet<String>()
-        try { hcOf(e.get("preferred").string)?.let { out.add(it) } } catch (ex: Exception) {}
-        try { for (s in e.get("allowed").stringArray) hcOf(s)?.let { out.add(it) } } catch (ex: Exception) {}
+        try { hcOf(e.get("preferred").string)?.let { out.add(it) } } catch (_: Exception) {}
+        try { for (s in e.get("allowed").stringArray) hcOf(s)?.let { out.add(it) } } catch (_: Exception) {}
         return if (out.isEmpty()) null else out.toList()
     }
 

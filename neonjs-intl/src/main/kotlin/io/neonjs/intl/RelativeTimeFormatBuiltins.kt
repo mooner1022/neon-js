@@ -5,6 +5,7 @@ import com.ibm.icu.text.DisplayContext
 import com.ibm.icu.text.NumberFormat
 import com.ibm.icu.text.RelativeDateTimeFormatter
 import io.neonjs.runtime.*
+import kotlin.math.abs
 
 /** Intl.RelativeTimeFormat instance ([[InitializedRelativeTimeFormat]]). */
 class JSIntlRelativeTimeFormat internal constructor(proto: JSObject?) : JSObject(proto) {
@@ -114,7 +115,7 @@ internal object RelativeTimeFormatIcu {
             val nf = NumberFormat.getInstance(loc)
             nf.minimumFractionDigits = 0
             nf.maximumFractionDigits = 3
-            nf.roundingMode = java.math.BigDecimal.ROUND_HALF_UP
+            nf.roundingMode = com.ibm.icu.math.BigDecimal.ROUND_HALF_UP
             nf.isGroupingUsed = true
             val style = when (rtf.style) {
                 "short" -> RelativeDateTimeFormatter.Style.SHORT
@@ -153,7 +154,7 @@ internal object RelativeTimeFormatIcu {
         if (!fv.nextPosition(cfp)) return listOf(FmtPart("literal", text, null))
         val out = ArrayList<FmtPart>()
         if (cfp.start > 0) out.add(FmtPart("literal", text.substring(0, cfp.start), null))
-        val x = IntlMV.of(Math.abs(value))
+        val x = IntlMV.of(abs(value))
         val nf = numberFormat(realm, rtf)
         for (p in NumberFormatIcu.parts(realm, NumberFormatIcu.format(nf, x), arrayOf(x), false)) out.add(FmtPart(p.type, p.value, unit))
         if (cfp.limit < text.length) out.add(FmtPart("literal", text.substring(cfp.limit), null))

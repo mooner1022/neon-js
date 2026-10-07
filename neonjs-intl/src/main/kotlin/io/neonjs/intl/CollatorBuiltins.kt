@@ -130,7 +130,7 @@ internal object CollatorBuiltins {
         throw e
     } catch (e: TerminationException) {
         throw e
-    } catch (e: RuntimeException) {
+    } catch (_: RuntimeException) {
         rangeErr("Internal error in collation data")
     }
 
@@ -189,7 +189,7 @@ internal object CollatorBuiltins {
             val ctor = f.realm.intrinsic("%Intl.Collator%")
             // a collator built from a primitive locale string and no options is unobservable to construct: reuse it
             val coll = if (options === Undefined && (locales === Undefined || locales is CharSequence)) {
-                val key = if (locales === Undefined) "Collator:" else "Collator:" + locales.toString()
+                val key = if (locales === Undefined) "Collator:" else "Collator:$locales"
                 IntlState.of(f.realm).cached(key) { create(f.realm, ctor, locales, Undefined) }
             } else create(f.realm, ctor, locales, options)
             compareStrings(coll, s, that)

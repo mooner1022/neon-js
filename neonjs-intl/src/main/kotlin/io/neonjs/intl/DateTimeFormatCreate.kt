@@ -1,6 +1,7 @@
 package io.neonjs.intl
 
 import io.neonjs.runtime.*
+import kotlin.math.abs
 
 /** CreateDateTimeFormat and the time zone / Temporal format-record operations it relies on. */
 internal object DtfCreate {
@@ -65,7 +66,7 @@ internal object DtfCreate {
     }
 
     private fun typeOption(options: JSObject, name: String): String? {
-        val v = Opt.string(options, name, null, null) as String? ?: return null
+        val v = Opt.string(options, name, null, null) as? String ?: return null
         if (!Opt.isUnicodeType(v)) rangeErr("Invalid $name : $v")
         return v
     }
@@ -139,20 +140,20 @@ internal object DtfCreate {
         fun d2(i: Int): Int = if (i + 1 < s.length && LanguageTag.isDigit(s[i]) && LanguageTag.isDigit(s[i + 1])) (s[i] - '0') * 10 + (s[i + 1] - '0') else -1
         val sign = if (s[0] == '-') -1 else 1
         val h = d2(1)
-        if (h < 0 || h > 23) return null
+        if (h !in 0..23) return null
         val m = when (s.length) {
             3 -> 0
             5 -> d2(3)
             6 -> if (s[3] == ':') d2(4) else -1
             else -> -1
         }
-        if (m < 0 || m > 59) return null
+        if (m !in 0..59) return null
         return formatOffset(sign * (h * 60 + m))
     }
 
     fun formatOffset(minutes: Int): String {
         val sign = if (minutes < 0) '-' else '+'
-        val a = Math.abs(minutes)
+        val a = abs(minutes)
         return "$sign${(a / 60).toString().padStart(2, '0')}:${(a % 60).toString().padStart(2, '0')}"
     }
 
@@ -161,7 +162,7 @@ internal object DtfCreate {
         val z = io.neonjs.builtins.DateTime.zone
         if (z is java.time.ZoneOffset) return offsetId(z)
         TimeZones.find(z.id)?.let { return it.second }
-        val n = try { z.normalized() } catch (e: Exception) { null }
+        val n = try { z.normalized() } catch (_: Exception) { null }
         if (n is java.time.ZoneOffset) return offsetId(n)
         return "UTC"
     }

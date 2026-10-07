@@ -7,6 +7,7 @@ import io.neonjs.NeonEngine
 import io.neonjs.SandboxPolicy
 import io.neonjs.builtins.temporal.CalendarYearInfo
 import io.neonjs.builtins.temporal.TemporalCalendarSource
+import kotlin.math.abs
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
@@ -61,7 +62,7 @@ class TemporalCalendarsTest {
         for (id in provider.calendarIds()) {
             val s = source(id)
             val years = (-272_000..283_000 step 997).toMutableList()
-            years += (1290..1310) + (1590..1610) + (1690..1710) + (1895..1905) + (2095..2105) + (2295..2305) + (-3..3)
+            years += listOf(1290..1310, 1590..1610, 1690..1710, 1895..1905, 2095..2105, 2295..2305, -3..3).flatten()
             for (y in years) {
                 val a: CalendarYearInfo = s.yearInfo(y)
                 val b: CalendarYearInfo = s.yearInfo(y + 1)
@@ -73,7 +74,7 @@ class TemporalCalendarsTest {
                     if (m > 1) assertTrue(a.monthCodes[m - 1] > a.monthCodes[m - 2], "$id: month codes of $y are ordered")
                 }
                 assertEquals(2, a.monthCodes[0], "$id: $y starts with M01")
-                assertTrue(Math.abs(yearOf(s, a.start) - y) == 0, "$id: estimate for $y")
+                assertTrue(abs(yearOf(s, a.start) - y) == 0, "$id: estimate for $y")
             }
         }
     }
@@ -91,8 +92,8 @@ class TemporalCalendarsTest {
 
     @Test
     fun engineUsesTheProvider() {
-        assertEquals("5784 M06 5 am", eval("const d = Temporal.PlainDate.from('2024-03-15').withCalendar('hebrew'); `\${d.year} \${d.monthCode} \${d.day} \${d.era}`"))
-        assertEquals("2033 13 M11L", eval("const d = Temporal.PlainDate.from({ calendar: 'chinese', year: 2033, month: 12, day: 1 }); `\${d.year} \${d.monthsInYear} \${d.monthCode}`"))
+        assertEquals("5784 M06 5 am", eval($$"const d = Temporal.PlainDate.from('2024-03-15').withCalendar('hebrew'); `${d.year} ${d.monthCode} ${d.day} ${d.era}`"))
+        assertEquals("2033 13 M11L", eval($$"const d = Temporal.PlainDate.from({ calendar: 'chinese', year: 2033, month: 12, day: 1 }); `${d.year} ${d.monthsInYear} ${d.monthCode}`"))
         assertEquals("true", eval("String(Temporal.ZonedDateTime.from('2020-01-01T00:00[Asia/Calcutta]').equals('2020-01-01T00:00[Asia/Kolkata]'))"))
         assertEquals("false", eval("String(Temporal.ZonedDateTime.from('2020-01-01T00:00[Europe/Prague]').equals('2020-01-01T00:00[Europe/Bratislava]'))"))
         // SystemTimeZoneIdentifier reports the primary identifier of the sandbox's zone

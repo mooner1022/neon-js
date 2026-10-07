@@ -152,7 +152,7 @@ internal object DisplayNamesBuiltins {
         throw e
     } catch (e: TerminationException) {
         throw e
-    } catch (e: RuntimeException) {
+    } catch (_: RuntimeException) {
         null
     }
 }

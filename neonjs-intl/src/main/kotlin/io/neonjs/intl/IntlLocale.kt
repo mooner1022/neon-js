@@ -92,7 +92,7 @@ internal object LocaleBuiltins {
         opt["hc"] = Opt.string(options, "hourCycle", HOUR_CYCLES, null) as String?
         opt["kf"] = Opt.string(options, "caseFirst", CASE_FIRST, null) as String?
         val kn = Opt.boolean(options, "numeric", null)
-        opt["kn"] = if (kn == null) null else kn.toString()
+        opt["kn"] = kn?.toString()
         opt["nu"] = typeOption(options, "numberingSystem")
         val r = makeLocaleRecord(tag, opt)
         locale.locale = r["locale"]!!
@@ -108,7 +108,7 @@ internal object LocaleBuiltins {
     }
 
     private fun typeOption(options: JSObject, name: String): String? {
-        val v = Opt.string(options, name, null, null) as String? ?: return null
+        val v = Opt.string(options, name, null, null) as? String ?: return null
         if (!Opt.isUnicodeType(v)) rangeErr("Incorrect $name: $v")
         return v
     }

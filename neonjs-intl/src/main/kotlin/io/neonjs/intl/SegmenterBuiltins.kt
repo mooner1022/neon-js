@@ -99,12 +99,12 @@ internal object SegmenterBuiltins {
                     "sentence" -> BreakIterator.getSentenceInstance(ul)
                     else -> BreakIterator.getCharacterInstance(ul)
                 }
-            } catch (e: RuntimeException) {
+            } catch (_: RuntimeException) {
                 rangeErr("Internal error in segmentation data")
             }
             s.icu = proto
         }
-        val bi = proto!!.clone() as BreakIterator
+        val bi = proto!!.clone()
         bi.setText(text)
         return bi
     }

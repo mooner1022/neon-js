@@ -11,6 +11,8 @@ import io.neonjs.builtins.temporal.CalendarYearInfo
 import io.neonjs.builtins.temporal.TemporalCalendarProvider
 import io.neonjs.builtins.temporal.TemporalCalendarSource
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.ceil
+import kotlin.math.floor
 
 /**
  * Temporal's non-ISO calendars (ECMA-402 / Intl era and monthCode proposal) and IANA time zone link resolution.
@@ -30,7 +32,7 @@ class IcuTemporalCalendarProvider : TemporalCalendarProvider {
     override fun primaryTimeZoneId(id: String): String? {
         val iana = try {
             TimeZone.getIanaID(id)
-        } catch (e: RuntimeException) {
+        } catch (_: RuntimeException) {
             null
         } ?: return null
         return if (iana == TimeZone.UNKNOWN_ZONE_ID) null else iana
@@ -253,6 +255,7 @@ internal class PersianSource : TemporalCalendarSource {
     }
 
     override fun yearInfo(year: Int): CalendarYearInfo {
+        @Suppress("DEPRECATION") // ICU marks this constructor internal-only; it still builds the calendar directly
         val c = PersianCalendar(TimeZone.GMT_ZONE, ULocale.ROOT)
         val s = start(c, year)
         val e = start(c, year + 1)
@@ -324,7 +327,7 @@ internal class HebrewSource : TemporalCalendarSource {
     override fun monthsBeforeYear(year: Int): Long = monthsElapsed(year.toLong())
 
     override fun estimateYear(epochDay: Long): Int =
-        (Math.floor((epochDay - (EPOCH + Civil.RD_TO_EPOCH)) / 365.2468) + 1).toInt()
+        (floor((epochDay - (EPOCH + Civil.RD_TO_EPOCH)) / 365.2468) + 1).toInt()
 
     companion object {
         /** R.D. of 1 Tishri 1 AM (Julian -3761-10-07). */
@@ -353,11 +356,11 @@ internal class ChineseSource(private val korean: Boolean) : TemporalCalendarSour
     /** Local epoch-day time of mean new moon [k] (k = 0: 2000-01-06 14:20 UTC). */
     private fun meanNewMoon(k: Long): Double = NM0 + tz + k * SYN
 
-    private fun newMoonDay(k: Long): Long = Math.floor(meanNewMoon(k)).toLong()
+    private fun newMoonDay(k: Long): Long = floor(meanNewMoon(k)).toLong()
 
     /** The lunation containing local day [day]. */
     private fun lunationOf(day: Long): Long {
-        var k = Math.floor((day + 0.5 - (NM0 + tz)) / SYN).toLong()
+        var k = floor((day + 0.5 - (NM0 + tz)) / SYN).toLong()
         while (newMoonDay(k + 1) <= day) k++
         while (newMoonDay(k) > day) k--
         return k
@@ -371,11 +374,11 @@ internal class ChineseSource(private val korean: Boolean) : TemporalCalendarSour
         val a = newMoonDay(k).toDouble()
         val b = newMoonDay(k + 1).toDouble()
         val step = TROPICAL / 12
-        return Math.ceil((b - (WS0 + tz)) / step) - Math.ceil((a - (WS0 + tz)) / step) > 0
+        return ceil((b - (WS0 + tz)) / step) - ceil((a - (WS0 + tz)) / step) > 0
     }
 
     /** Lunation of the 11th month (containing the winter solstice) of Gregorian year [y]. */
-    private fun month11(y: Int): Long = lunationOf(Math.floor(solstice(y)).toLong())
+    private fun month11(y: Int): Long = lunationOf(floor(solstice(y)).toLong())
 
     /** Month codes of the sui from the 11th month of [y] - 1 (inclusive) to that of [y] (exclusive). */
     private fun suiCodes(y: Int): IntArray {
@@ -435,6 +438,7 @@ internal class ChineseSource(private val korean: Boolean) : TemporalCalendarSour
 
     // ---------------------------------------------------------------- ICU
 
+    @Suppress("DEPRECATION") // DangiCalendar's constructor is ICU-internal-only, like PersianCalendar's
     private fun newCalendar(): Calendar =
         if (korean) DangiCalendar(TimeZone.GMT_ZONE, ULocale.ROOT) else ChineseCalendar(TimeZone.GMT_ZONE, ULocale.ROOT)
 

@@ -96,7 +96,7 @@ internal object DtfData {
     private fun computeDefaultCalendar(dataLocale: String): String {
         val values = try {
             Calendar.getKeywordValuesForLocale("calendar", ULocale.forLanguageTag(dataLocale), true)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             return "gregory"
         }
         val ca = values.firstOrNull()?.let { LocaleInfo.calendarToBcp47(it) } ?: "gregory"
@@ -107,7 +107,7 @@ internal object DtfData {
         return try {
             val ns = NumberingSystem.getInstance(ULocale.forLanguageTag(dataLocale))
             if (!ns.isAlgorithmic && SupportedValues.isSupportedNumberingSystem(ns.name)) ns.name else "latn"
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             "latn"
         }
     }
@@ -222,9 +222,9 @@ internal object DtfData {
         return out
     }
 
-    private fun textWidth(n: Int): String = when {
-        n == 4 -> "long"
-        n == 5 -> "narrow"
+    private fun textWidth(n: Int): String = when (n) {
+        4 -> "long"
+        5 -> "narrow"
         else -> "short"
     }
 

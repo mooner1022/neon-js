@@ -207,8 +207,8 @@ internal object NumberFormatBuiltins {
     fun isWellFormedUnitIdentifier(unit: String): Boolean {
         if (unit in SupportedValues.unitSet) return true
         val i = unit.indexOf("-per-")
-        if (i < 0 || unit.indexOf("-per-", i + 1) >= 0) return false
-        return unit.substring(0, i) in SupportedValues.unitSet && unit.substring(i + 5) in SupportedValues.unitSet
+        return i >= 0 && unit.indexOf("-per-", i + 1) < 0 &&
+            unit.substring(0, i) in SupportedValues.unitSet && unit.substring(i + 5) in SupportedValues.unitSet
     }
 
     fun formatToString(realm: Realm, nf: JSIntlNumberFormat, x: IntlMV): String =

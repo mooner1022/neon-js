@@ -98,7 +98,7 @@ private class IsoDurationParser(val s: String) {
             val start = i
             while (i < s.length && s[i] in '0'..'9') i++
             val n = i - start
-            if (n < 1 || n > 9) return INVALID
+            if (n !in 1..9) return INVALID
             return s.substring(start, i)
         }
         return null
@@ -197,7 +197,7 @@ internal object DurationFormatPattern {
     private fun digitalPatterns(dataLocale: String): Array<String> = try {
         val b = UResourceBundle.getBundleInstance(ICUData.ICU_UNIT_BASE_NAME, ULocale.forLanguageTag(dataLocale)) as ICUResourceBundle
         arrayOf(b.getStringWithFallback("durationUnits/hm"), b.getStringWithFallback("durationUnits/ms"))
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         arrayOf("h:mm", "m:ss")
     }
 

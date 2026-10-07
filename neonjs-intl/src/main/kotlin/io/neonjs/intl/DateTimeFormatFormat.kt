@@ -11,6 +11,7 @@ import io.neonjs.builtins.temporal.*
 import io.neonjs.runtime.*
 import java.math.BigInteger
 import java.util.IdentityHashMap
+import kotlin.math.abs
 
 /** ICU objects of one DateTimeFormat. Not thread-safe; owned by a single Intl.DateTimeFormat instance. */
 internal class DtfIcu(val uloc: ULocale, val gen: DateTimePatternGenerator, val zone: TimeZone) {
@@ -63,11 +64,11 @@ internal class DtfIcu(val uloc: ULocale, val gen: DateTimePatternGenerator, val 
 internal const val NNBSP = ' '
 
 /** A value to format: the format record, the epoch milliseconds and whether to format in UTC (plain Temporal types). */
-internal class DtfValue(val format: DtfFormat, val ms: Long, val utc: Boolean, val kind: String)
+internal class DtfValue(val format: DtfFormat, val ms: Long, val utc: Boolean)
 
 /** FormatDateTime, FormatDateTimeToParts, FormatDateTimeRange(ToParts). */
 internal object DtfFormatting {
-    private val MS_PER_DAY = 86_400_000L
+    private const val MS_PER_DAY = 86_400_000L
     private val NS_PER_MS: BigInteger = BigInteger.valueOf(1_000_000L)
 
     /** ToDateTimeFormattable */
@@ -95,28 +96,28 @@ internal object DtfFormatting {
         is Double -> {
             val tc = timeClip(x)
             if (tc.isNaN()) rangeErr("Invalid time value")
-            DtfValue(dtf.format, tc.toLong(), false, "date")
+            DtfValue(dtf.format, tc.toLong(), false)
         }
         is JSTemporalPlainDate -> {
             checkCalendar(dtf, x.calendar, true)
-            DtfValue(temporal(dtf, "date"), epochMs(x.date, TimeRec.NOON), true, "date-plain")
+            DtfValue(temporal(dtf, "date"), epochMs(x.date, TimeRec.NOON), true)
         }
         is JSTemporalPlainDateTime -> {
             checkCalendar(dtf, x.calendar, true)
-            DtfValue(temporal(dtf, "datetime"), epochMs(x.dt.date, x.dt.time), true, "datetime")
+            DtfValue(temporal(dtf, "datetime"), epochMs(x.dt.date, x.dt.time), true)
         }
         is JSTemporalPlainYearMonth -> {
             checkCalendar(dtf, x.calendar, false)
-            DtfValue(temporal(dtf, "year-month"), epochMs(x.date, TimeRec.NOON), true, "year-month")
+            DtfValue(temporal(dtf, "year-month"), epochMs(x.date, TimeRec.NOON), true)
         }
         is JSTemporalPlainMonthDay -> {
             checkCalendar(dtf, x.calendar, false)
-            DtfValue(temporal(dtf, "month-day"), epochMs(x.date, TimeRec.NOON), true, "month-day")
+            DtfValue(temporal(dtf, "month-day"), epochMs(x.date, TimeRec.NOON), true)
         }
-        is JSTemporalPlainTime -> DtfValue(temporal(dtf, "time"), epochMs(IsoDate(1970, 1, 1), x.time), true, "time")
+        is JSTemporalPlainTime -> DtfValue(temporal(dtf, "time"), epochMs(IsoDate(1970, 1, 1), x.time), true)
         is JSTemporalInstant -> {
             val ms = floorDiv(x.epochNs, NS_PER_MS).toLong()
-            DtfValue(temporal(dtf, "instant"), ms, false, "instant")
+            DtfValue(temporal(dtf, "instant"), ms, false)
         }
         is JSTemporalZonedDateTime -> typeErr("Temporal.ZonedDateTime is not supported by DateTimeFormat format methods; use toLocaleString")
         else -> typeErr("Invalid date value")
@@ -129,7 +130,7 @@ internal object DtfFormatting {
 
     /** TimeClip */
     fun timeClip(t: Double): Double {
-        if (!t.isFinite() || Math.abs(t) > 8.64e15) return Double.NaN
+        if (!t.isFinite() || abs(t) > 8.64e15) return Double.NaN
         return Ops.integerPart(t) + 0.0
     }
 
@@ -139,7 +140,7 @@ internal object DtfFormatting {
         throw e
     } catch (e: TerminationException) {
         throw e
-    } catch (e: RuntimeException) {
+    } catch (_: RuntimeException) {
         rangeErr("Unable to format the date")
     }
 
@@ -189,6 +190,7 @@ internal object DtfFormatting {
         return false
     }
 
+    @Suppress("DEPRECATION") // ICU marks RELATED_YEAR internal, but still reports related-year fields with it
     private fun typeOf(f: DateFormat.Field, usesYearName: Boolean): String = when (f) {
         DateFormat.Field.ERA -> "era"
         DateFormat.Field.YEAR, DateFormat.Field.EXTENDED_YEAR, DateFormat.Field.YEAR_WOY -> if (usesYearName) "yearName" else "year"
@@ -279,9 +281,9 @@ internal object DtfFormatting {
         if (hc != "h11" && hc != "h24") return value
         if (value.isEmpty() || !value.all { it in '0'..'9' }) return value
         val h = value.toInt()
-        val nh = when {
-            hc == "h11" && h == 12 -> 0
-            hc == "h24" && h == 0 -> 24
+        val nh = when (hc) {
+            "h11" if h == 12 -> 0
+            "h24" if h == 0 -> 24
             else -> return value
         }
         return if (twoDigit) nh.toString().padStart(2, '0') else nh.toString()
