@@ -6,6 +6,7 @@ import io.neonjs.compiler.Source
 import io.neonjs.jit.CodeCache
 import io.neonjs.jit.CodeDefiner
 import io.neonjs.jit.CompiledCode
+import io.neonjs.jit.GeneratedClass
 import io.neonjs.jit.JitInput
 import io.neonjs.jit.JvmCodeDefiner
 import io.neonjs.jit.JvmCompiler
@@ -25,6 +26,22 @@ class JitTest {
         override fun define(name: String, bytes: ByteArray, parent: ClassLoader): Class<*> {
             defined.incrementAndGet()
             return jvm.define(name, bytes, parent)
+        }
+    }
+
+    /** Records the batch sizes it is given; rejects classes whose name contains [reject]. */
+    private class BatchRecorder(val reject: String? = null) : CodeDefiner {
+        val batches = ArrayList<Int>()
+        private val jvm = JvmCodeDefiner()
+        override fun define(name: String, bytes: ByteArray, parent: ClassLoader): Class<*> {
+            if (reject != null && name.contains(reject)) throw IllegalStateException("rejected")
+            return jvm.define(name, bytes, parent)
+        }
+
+        override fun defineAll(classes: List<GeneratedClass>, parent: ClassLoader): List<Class<*>> {
+            synchronized(batches) { batches.add(classes.size) }
+            if (reject != null && classes.any { it.name.contains(reject) }) throw IllegalStateException("batch rejected")
+            return classes.map { jvm.define(it.name, it.bytes, parent) }
         }
     }
 
@@ -111,5 +128,31 @@ class JitTest {
         }
         assertNull(ref.get(), "unused compiled code is collected")
         assertNull(CodeCache.of(d)[identity])
+    }
+
+    @Test
+    fun aBatchIsDefinedAtOnceWithOneClassPerIdentity() {
+        val d = BatchRecorder()
+        val f = function("function f(x) { return x + 'one' }")
+        val g = function("function f(x) { return x * 2 }")
+        val sameAsF = function("function f(x) { return x + 'two' }")
+        val gen = function("function* f() { yield 1 }")
+        val shared = JvmCompiler.sharedCount.get()
+        val r = JvmCompiler.compileAll(listOf(f, g, sameAsF, gen), d)
+        assertNotNull(r[0])
+        assertNotNull(r[1])
+        assertSame(r[0], r[2], "one class for both")
+        assertNull(r[3], "generators are not compiled")
+        assertEquals(listOf(2), d.batches)
+        assertEquals(1, JvmCompiler.sharedCount.get() - shared)
+    }
+
+    @Test
+    fun aClassTheDefinerRejectsFailsAlone() {
+        val d = BatchRecorder(reject = "bad")
+        val r = JvmCompiler.compileAll(listOf(function("function good(x) { return x }", "good"), function("function bad(x) { return -x }", "bad")), d)
+        assertNotNull(r[0])
+        assertNull(r[1])
+        assertEquals(listOf(2), d.batches, "the batch failed, then the classes were defined one by one")
     }
 }

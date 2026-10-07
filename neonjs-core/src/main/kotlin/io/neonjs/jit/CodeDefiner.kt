@@ -23,7 +23,18 @@ interface CodeDefiner {
 
     /** Defines the public class [name] (binary name) from [bytes]; the classes it references resolve through [parent]. */
     fun define(name: String, bytes: ByteArray, parent: ClassLoader): Class<*>
+
+    /**
+     * Defines [classes] (distinct names, none referring to another) together; element i of the result is the class
+     * of `classes[i]`. Definers whose unit of definition is costly (a dex file and a class loader on Android)
+     * override this to define a batch at once; if it throws, the caller defines the classes one by one.
+     */
+    fun defineAll(classes: List<GeneratedClass>, parent: ClassLoader): List<Class<*>> =
+        classes.map { define(it.name, it.bytes, parent) }
 }
+
+/** A class generated at run time: binary name and class file. */
+class GeneratedClass(@JvmField val name: String, @JvmField val bytes: ByteArray)
 
 /**
  * The definer for standard JVMs: JIT code becomes hidden classes (unloaded with their code block); other classes get a

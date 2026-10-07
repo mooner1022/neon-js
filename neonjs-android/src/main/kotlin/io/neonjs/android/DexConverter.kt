@@ -7,11 +7,12 @@ import com.android.dx.dex.DexOptions
 import com.android.dx.dex.cf.CfOptions
 import com.android.dx.dex.cf.CfTranslator
 import com.android.dx.dex.file.DexFile
+import io.neonjs.jit.GeneratedClass
 import java.util.ServiceLoader
 
 /**
- * Translates one generated JVM class file into a dex file holding just that class, in memory. [DxConverter] (dx) is
- * built in; the `neonjs-android-d8` module adds one based on D8.
+ * Translates generated JVM class files into a dex file, in memory. [DxConverter] (dx) is built in; the
+ * `neonjs-android-d8` module adds one based on D8.
  */
 interface DexConverter {
     /** Short name of the converter; part of [DexCodeDefiner]'s cache key, since converters emit different dex. */
@@ -21,10 +22,13 @@ interface DexConverter {
     val classFileVersion: Int
 
     /**
-     * The dex file holding the class [name] (binary name) of class file [classBytes], for devices of API level
-     * [minSdk] and up. Throws when the class cannot be translated.
+     * One dex file holding all of [classes] (distinct names, none referring to another), for devices of API level
+     * [minSdk] and up. Throws when a class cannot be translated or the classes do not fit one dex file.
      */
-    fun toDex(name: String, classBytes: ByteArray, minSdk: Int): ByteArray
+    fun toDex(classes: List<GeneratedClass>, minSdk: Int): ByteArray
+
+    /** The dex file holding just the class [name] (binary name) of class file [classBytes]. */
+    fun toDex(name: String, classBytes: ByteArray, minSdk: Int): ByteArray = toDex(listOf(GeneratedClass(name, classBytes)), minSdk)
 }
 
 /** dx, the class-file-to-dex translator of the Android SDK before D8, as rhino-android uses it. */
@@ -36,18 +40,22 @@ object DxConverter : DexConverter {
 
     /**
      * dx's intern tables are concurrent, but `com.android.dx.ssa.Optimizer` keeps its options in static fields that
-     * every translation writes. Conversions happen once per compiled function, so they are serialized.
+     * every translation writes. Conversions happen once per batch of compiled functions, so they are serialized.
      */
     private val lock = Any()
 
-    override fun toDex(name: String, classBytes: ByteArray, minSdk: Int): ByteArray = synchronized(lock) {
+    override fun toDex(classes: List<GeneratedClass>, minSdk: Int): ByteArray = synchronized(lock) {
         val options = DexOptions()
         options.minSdkVersion = minSdk
         val dex = DexFile(options)
-        val cf = DirectClassFile(classBytes, name.replace('.', '/') + ".class", true)
-        cf.setAttributeFactory(StdAttributeFactory.THE_ONE)
-        cf.magic // parses the class file now, so a malformed one fails here
-        dex.add(CfTranslator.translate(DxContext(), cf, null, CfOptions(), options, dex))
+        val context = DxContext()
+        val cfOptions = CfOptions()
+        for (c in classes) {
+            val cf = DirectClassFile(c.bytes, c.name.replace('.', '/') + ".class", true)
+            cf.setAttributeFactory(StdAttributeFactory.THE_ONE)
+            cf.magic // parses the class file now, so a malformed one fails here
+            dex.add(CfTranslator.translate(context, cf, null, cfOptions, options, dex))
+        }
         dex.toDex(null, false)
     }
 }
@@ -82,4 +90,10 @@ object DexConverters {
     @JvmStatic
     fun isDex(bytes: ByteArray): Boolean =
         bytes.size > 8 && bytes[0] == 'd'.code.toByte() && bytes[1] == 'e'.code.toByte() && bytes[2] == 'x'.code.toByte() && bytes[3] == '\n'.code.toByte()
+
+    /** Number of classes defined in dex file [bytes] (`class_defs_size` in the header). */
+    @JvmStatic
+    fun classCount(bytes: ByteArray): Int =
+        (bytes[0x60].toInt() and 0xff) or ((bytes[0x61].toInt() and 0xff) shl 8) or
+            ((bytes[0x62].toInt() and 0xff) shl 16) or ((bytes[0x63].toInt() and 0xff) shl 24)
 }

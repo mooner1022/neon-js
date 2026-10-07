@@ -114,31 +114,101 @@ object JvmCompiler {
 
     /**
      * Compiles [cb] into a class defined by [definer], or reuses the code of a block with the same identity; returns
-     * null (and marks the block) on bailout.
+     * null (and counts the failure) when it cannot be compiled.
      */
-    fun compile(cb: CodeBlock, definer: CodeDefiner = CodeDefiners.default): CompiledCode? {
-        if (!canCompile(cb)) return null
-        if (!CodeDefiners.isUsable(definer)) return fail("no usable code definer on this platform")
-        return try {
-            val input = JitInput(cb)
-            // visible classes live in the engine's class loader under counter names: never shared
-            val cache = if (JvmCodeDefiner.VISIBLE_CLASSES) null else CodeCache.of(definer)
-            cache?.get(input.identity)?.let {
-                sharedCount.incrementAndGet()
-                return it
+    fun compile(cb: CodeBlock, definer: CodeDefiner = CodeDefiners.default): CompiledCode? = compileAll(listOf(cb), definer)[0]
+
+    /**
+     * Compiles [blocks] together: blocks with the same identity get one class, classes compiled before come from the
+     * definer's [CodeCache], and the new classes are defined with one [CodeDefiner.defineAll] call (one dex file on
+     * Android). Element i of the result is the code for `blocks[i]`, or null if it cannot be compiled. Never throws.
+     */
+    fun compileAll(blocks: List<CodeBlock>, definer: CodeDefiner): List<CompiledCode?> {
+        val out = arrayOfNulls<CompiledCode>(blocks.size)
+        val usable = CodeDefiners.isUsable(definer)
+        // visible classes live in the engine's class loader under counter names: never shared
+        val cache = if (JvmCodeDefiner.VISIBLE_CLASSES) null else CodeCache.of(definer)
+        // identity -> input and the blocks wanting it, in order
+        val inputs = LinkedHashMap<String, JitInput>()
+        val wanting = HashMap<String, MutableList<Int>>()
+        for ((i, cb) in blocks.withIndex()) {
+            if (!canCompile(cb)) continue
+            if (!usable) {
+                fail("no usable code definer on this platform")
+                continue
             }
-            val (name, bytes) = generate(input, definer.classFileVersion)
-            val cls = definer.define(name, bytes, JvmCompiler::class.java.classLoader)
-            val r = cls.getDeclaredConstructor().newInstance() as CompiledCode
-            compiledCount.incrementAndGet()
-            cache?.putIfAbsent(input.identity, r) ?: r
-        } catch (e: JitBailout) {
-            fail(e.message ?: "bailout")
-        } catch (e: org.objectweb.asm.MethodTooLargeException) {
-            fail("method too large")
+            try {
+                val input = JitInput(cb)
+                val id = if (cache == null) "#$i" else input.identity
+                val known = cache?.get(id)
+                if (known != null) {
+                    out[i] = known
+                    sharedCount.incrementAndGet()
+                    continue
+                }
+                inputs.putIfAbsent(id, input)
+                wanting.getOrPut(id) { ArrayList(1) }.add(i)
+            } catch (e: Throwable) {
+                failure(e)
+            }
+        }
+        if (inputs.isEmpty()) return out.asList()
+        // generate
+        val ids = ArrayList<String>(inputs.size)
+        val classes = ArrayList<GeneratedClass>(inputs.size)
+        for ((id, input) in inputs) {
+            try {
+                val (name, bytes) = generate(input, definer.classFileVersion)
+                ids.add(id)
+                classes.add(GeneratedClass(name, bytes))
+            } catch (e: Throwable) {
+                repeat(wanting[id]!!.size) { failure(e) }
+            }
+        }
+        // define (one batch; if the definer rejects it, class by class so one bad class fails alone)
+        val loader = JvmCompiler::class.java.classLoader
+        val defined: List<Class<*>?> = try {
+            definer.defineAll(classes, loader).also { check(it.size == classes.size) { "defineAll returned ${it.size} classes for ${classes.size}" } }
         } catch (e: Throwable) {
-            if (System.getProperty("neonjs.jit.debug") != null) e.printStackTrace()
-            fail("${e.javaClass.simpleName}: ${e.message}")
+            if (classes.size == 1) {
+                repeat(wanting[ids[0]]!!.size) { failure(e) }
+                listOf(null)
+            } else classes.mapIndexed { k, c ->
+                try {
+                    definer.define(c.name, c.bytes, loader)
+                } catch (e2: Throwable) {
+                    repeat(wanting[ids[k]]!!.size) { failure(e2) }
+                    null
+                }
+            }
+        }
+        for ((k, cls) in defined.withIndex()) {
+            if (cls == null) continue
+            val id = ids[k]
+            val code = try {
+                cls.getDeclaredConstructor().newInstance() as CompiledCode
+            } catch (e: Throwable) {
+                repeat(wanting[id]!!.size) { failure(e) }
+                continue
+            }
+            compiledCount.incrementAndGet()
+            val shared = cache?.putIfAbsent(id, code) ?: code
+            for ((n, i) in wanting[id]!!.withIndex()) {
+                out[i] = shared
+                if (n > 0) sharedCount.incrementAndGet()
+            }
+        }
+        return out.asList()
+    }
+
+    private fun failure(e: Throwable) {
+        when (e) {
+            is JitBailout -> fail(e.message ?: "bailout")
+            is org.objectweb.asm.MethodTooLargeException -> fail("method too large")
+            else -> {
+                if (System.getProperty("neonjs.jit.debug") != null) e.printStackTrace()
+                fail("${e.javaClass.simpleName}: ${e.message}")
+            }
         }
     }
 

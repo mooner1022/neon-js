@@ -9,13 +9,15 @@ import com.android.tools.r8.Diagnostic
 import com.android.tools.r8.DiagnosticsHandler
 import com.android.tools.r8.origin.Origin
 import io.neonjs.android.DexConverter
+import io.neonjs.jit.GeneratedClass
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 /**
  * Translates generated classes with D8, the dexer that replaced dx in the Android SDK (maintained, no Java 8 class
- * file ceiling). D8 is built for whole-program builds: a run has a fixed cost of a few milliseconds on a phone, several
- * times dx's for the one small class the engine converts at a time, and the r8 library adds several megabytes of dex.
+ * file ceiling). D8 is built for whole-program builds: a run has a fixed cost of several milliseconds on a phone, many
+ * times dx's, so it suits batches of classes (background compilation) far better than one class at a time; the r8
+ * library adds several megabytes of dex.
  *
  * Desugaring is off: generated code uses neither lambdas nor Java library APIs that would need it.
  */
@@ -24,28 +26,34 @@ class D8Converter : DexConverter {
 
     override val classFileVersion: Int get() = 61
 
-    override fun toDex(name: String, classBytes: ByteArray, minSdk: Int): ByteArray {
-        var dex: ByteArray? = null
+    override fun toDex(classes: List<GeneratedClass>, minSdk: Int): ByteArray {
+        val files = ArrayList<ByteArray>(1)
         val errors = Errors()
-        val command = D8Command.builder(errors)
-            .addClassProgramData(classBytes, Origin.unknown())
+        val builder = D8Command.builder(errors)
+        for (c in classes) builder.addClassProgramData(c.bytes, Origin.unknown())
+        val command = builder
             .setMinApiLevel(minSdk)
             .setMode(CompilationMode.RELEASE)
             .setDisableDesugaring(true)
             .setProgramConsumer(object : DexIndexedConsumer {
                 override fun accept(fileIndex: Int, data: ByteDataView, descriptors: Set<String>, handler: DiagnosticsHandler) {
-                    dex = data.copyByteData()
+                    synchronized(files) { files.add(data.copyByteData()) }
                 }
 
                 override fun finished(handler: DiagnosticsHandler) {}
             })
             .build()
+        val what = if (classes.size == 1) classes[0].name else "${classes.size} classes"
         try {
             D8.run(command, EXECUTOR)
         } catch (e: Exception) {
-            throw IllegalStateException("D8 cannot translate $name: ${errors.text.ifEmpty { e.toString() }}", e)
+            throw IllegalStateException("D8 cannot translate $what: ${errors.text.ifEmpty { e.toString() }}", e)
         }
-        return dex ?: throw IllegalStateException("D8 produced no dex for $name: ${errors.text}")
+        return when (files.size) {
+            1 -> files[0]
+            0 -> throw IllegalStateException("D8 produced no dex for $what: ${errors.text}")
+            else -> throw IllegalStateException("$what do not fit one dex file")
+        }
     }
 
     /** Keeps errors for the exception message; warnings and infos are not useful for one generated class. */
