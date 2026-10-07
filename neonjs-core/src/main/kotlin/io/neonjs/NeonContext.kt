@@ -57,7 +57,7 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
             br = HostBridge(realm, engine.hostAccess, this)
             realm.hostData = this
             agent.hostExceptionHandler = { e, rr -> hostErrorToJS(e, rr) }
-            if (p.exposeJavaGlobal) realm.enter { installJavaGlobal(realm, br!!) }
+            if (p.exposeJavaGlobal) realm.enter { installJavaGlobal(realm, br) }
             engine.console?.let { c -> realm.enter { io.neonjs.ext.ConsoleBuiltins.install(realm, c) } }
             if (engine.webGlobals) realm.enter { io.neonjs.ext.WebGlobals.install(realm, p.maxTimers) }
         }
@@ -245,9 +245,8 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
 
     /** Creates a JS function object backed by a host function (not bound to a global name). */
     fun createFunction(name: String, fn: HostFunction): NeonValue = guarded {
-        val f = NativeFunction(realm, name, 0, { _, thisArg, args, _ ->
+        val f = NativeFunction(realm, name, 0, { _, _, args, _ ->
             val wrapped = Array(args.size) { NeonValue(this, args[it]) }
-            @Suppress("UNUSED_VARIABLE") val t = thisArg
             try {
                 bridge.toJS(fn.call(wrapped))
             } catch (e: NeonException) {
@@ -268,7 +267,6 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
     fun exposeClass(name: String, cls: Class<*>) = guarded {
         if (!engine.hostAccess.isClassAccessible(cls)) throw NeonException("Host access policy does not allow class ${cls.name}")
         realm.globalObject.defineOwn(name, HostClassObject(bridge, cls), Attr.WC)
-        Unit
     }
 
     /** Converts a host value into a JS value of this context. */
@@ -349,8 +347,7 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
         }), Attr.WC)
         javaObj.defineOwn("to", NativeFunction(realm, "to", 2, { _, _, args, _ ->
             // Java.to(jsArray, "int[]" | Java.type(...)) -> Java array or List
-            val ta = args.arg(1)
-            val t: Class<*> = when (ta) {
+            val t: Class<*> = when (val ta = args.arg(1)) {
                 is HostClassObject -> ta.cls
                 Undefined -> Array<Any>::class.java
                 else -> lookupClass(Ops.toString(ta))
@@ -391,9 +388,9 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
         if (!engine.hostAccess.isLookupAllowed(n)) throw JSException.typeError("Access to host class $n is not allowed")
         val c = try {
             HostBridge.classForName(n, Thread.currentThread().contextClassLoader ?: javaClass.classLoader)
-        } catch (e: ClassNotFoundException) {
+        } catch (_: ClassNotFoundException) {
             throw JSException.typeError("Unknown host class $n")
-        } catch (e: LinkageError) {
+        } catch (_: LinkageError) {
             throw JSException.typeError("Cannot load host class $n")
         }
         if (!engine.hostAccess.isClassAccessible(c)) throw JSException.typeError("Access to host class $n is not allowed")

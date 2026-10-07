@@ -136,7 +136,7 @@ class NeonValue internal constructor(val context: NeonContext, @PublishedApi int
 
     override fun toString(): String = try {
         context.call { Ops.toDisplayString(if (raw is JSObject && raw !is HostObject) Ops.toString(raw) else raw) }
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         "[${typeOf()}]"
     }
 
