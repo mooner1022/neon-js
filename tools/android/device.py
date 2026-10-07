@@ -42,11 +42,28 @@ class Device:
 
 
 def split_vm_options(args):
-    """Leading -D options go to the VM (before app_process's class directory)."""
+    """Leading -D and -X options go to the VM (before app_process's class directory)."""
     i = 0
-    while i < len(args) and args[i].startswith('-D'):
+    while i < len(args) and args[i].startswith(('-D', '-X')):
         i += 1
     return args[:i], args[i:]
+
+
+def crash_report(lines):
+    """The runtime's abort message and the crashing thread's native backtrace from debuggerd's crash log output."""
+    debug = [l.split(': ', 1)[1] if ': ' in l else l for l in lines if ' F DEBUG ' in l]
+    start = max((i for i, l in enumerate(debug) if l.startswith('*** *** ***')), default=None)
+    if start is None:
+        return [l for l in lines if 'Abort message' in l or 'Fatal signal' in l][-2:]
+    out, in_backtrace = [], False
+    for l in debug[start + 1:]:
+        if l.startswith('backtrace:'):
+            in_backtrace = True
+        elif in_backtrace and not l.lstrip().startswith('#'):
+            break
+        if in_backtrace or l.startswith(('pid:', 'signal', 'Abort message')):
+            out.append(l)
+    return out[:80]
 
 
 def install(dev, bundle, name):
@@ -101,10 +118,9 @@ def run(dev, name, rest):
         DIR, DIR, name, ' '.join(shlex.quote(o) for o in vm), DIR, ' '.join(shlex.quote(a) for a in rest))
     rc = dev.shell(cmd)
     if rc >= 128:
-        # killed by a signal (the runtime aborted): say why, from the crash log
-        lines = dev.out('logcat -d -b crash -t 300 2>/dev/null; logcat -d -t 2000 2>/dev/null').splitlines()
-        why = [l for l in lines if 'Abort message' in l or 'Fatal signal' in l]
-        print('app_process died with signal %d%s' % (rc - 128, ''.join('\n  ' + l.strip() for l in why[-4:])))
+        # killed by a signal (the runtime aborted): say why and where, from the crash log
+        lines = dev.out('logcat -d -b crash -t 1000 2>/dev/null; logcat -d -t 5000 2>/dev/null').splitlines()
+        print('app_process died with signal %d%s' % (rc - 128, ''.join('\n  ' + l.rstrip() for l in crash_report(lines))))
     return rc
 
 
