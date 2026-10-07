@@ -94,7 +94,7 @@ private fun cliMain(args: Array<String>) {
                 failed = true
                 when (e) {
                     is JSException -> {
-                        System.err.println("Uncaught " + Inspector.inspect(e.value).let { s -> if (e.value is JSErrorObject) s else "$s" })
+                        System.err.println("Uncaught " + Inspector.inspect(e.value).let { s -> if (e.value is JSErrorObject) s else s })
                         if (e.value !is JSErrorObject) e.jsStack?.let { System.err.println(it) }
                     }
                     is StackOverflowError -> System.err.println("Uncaught RangeError: Maximum call stack size exceeded")
@@ -182,10 +182,10 @@ private fun repl(realm: Realm, agent: Agent) {
             agent.runJobs()
             println(Inspector.inspect(r))
         } catch (e: JSException) {
-            if (isIncomplete(src, e)) continue
+            if (isIncomplete(e)) continue
             buf.setLength(0)
             System.err.println("Uncaught " + Inspector.inspect(e.value))
-        } catch (e: StackOverflowError) {
+        } catch (_: StackOverflowError) {
             buf.setLength(0)
             System.err.println("Uncaught RangeError: Maximum call stack size exceeded")
         }
@@ -193,12 +193,11 @@ private fun repl(realm: Realm, agent: Agent) {
 }
 
 /** A syntax error at end of input means the user is still typing a multi-line construct. */
-private fun isIncomplete(src: String, e: JSException): Boolean {
+private fun isIncomplete(e: JSException): Boolean {
     val v = e.value as? JSErrorObject ?: return false
     val msg = Ops.toString(v.get("message", v))
-    if (Ops.toString(v.get("name", v)) != "SyntaxError") return false
-    return msg.contains("end of input", ignoreCase = true) || msg.contains("Unexpected EOF", ignoreCase = true) ||
-        msg.contains("Unterminated template", ignoreCase = true) || msg.contains("Unterminated comment", ignoreCase = true)
+    return Ops.toString(v.get("name", v)) == "SyntaxError" && (msg.contains("end of input", ignoreCase = true) || msg.contains("Unexpected EOF", ignoreCase = true) ||
+            msg.contains("Unterminated template", ignoreCase = true) || msg.contains("Unterminated comment", ignoreCase = true))
 }
 
 /** Resolves relative specifiers against the importing module's file URL. */
