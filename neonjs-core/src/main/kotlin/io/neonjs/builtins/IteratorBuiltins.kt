@@ -10,7 +10,7 @@ class IteratorHelperObject(proto: JSObject?, @JvmField val underlying: IteratorR
     @JvmField var inner: IteratorRecord? = null
     @JvmField var counter = 0.0
     @JvmField var extra: Any? = null
-    /** [[UnderlyingIterators]] of helpers over several iterators (Iterator.zip/zipKeyed); closed in reverse order. */
+    /** `[[UnderlyingIterators]]` of helpers over several iterators (Iterator.zip/zipKeyed); closed in reverse order. */
     @JvmField var openIters: MutableList<IteratorRecord>? = null
 }
 

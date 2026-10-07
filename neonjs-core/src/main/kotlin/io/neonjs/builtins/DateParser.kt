@@ -129,7 +129,7 @@ internal object DateParser {
 
     /**
      * Permissive tokenizer: numbers (year, month, day by position), month names, h:mm[:ss[.fff]] with AM/PM, time zone
-     * abbreviations, ±hh[mm] offsets after a time, and parenthesized comments. Leading words (weekdays) are ignored.
+     * abbreviations, `±hh[mm]` offsets after a time, and parenthesized comments. Leading words (weekdays) are ignored.
      * Missing fields default to 2001-01-01 00:00:00 local time.
      */
     private class Legacy(src: String) {

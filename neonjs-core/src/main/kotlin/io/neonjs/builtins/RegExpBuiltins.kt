@@ -17,27 +17,27 @@ import io.neonjs.regexp.RegExpSyntaxError
 import io.neonjs.runtime.*
 import io.neonjs.vm.*
 
-/** RegExp instance: an ordinary object with the [[OriginalSource]], [[OriginalFlags]] and [[RegExpMatcher]] slots. */
+/** RegExp instance: an ordinary object with the `[[OriginalSource]]`, `[[OriginalFlags]]` and `[[RegExpMatcher]]` slots. */
 class JSRegExp(proto: JSObject?) : JSObject(proto) {
     @JvmField var originalSource: String = ""
     @JvmField var originalFlags: String = ""
     @JvmField var program: RegExpProgram? = null
-    /** [[Realm]] (legacy RegExp features): the current realm when the object was allocated. */
+    /** `[[Realm]]` (legacy RegExp features): the current realm when the object was allocated. */
     @JvmField var realm: Realm? = null
-    /** [[LegacyFeaturesEnabled]]: allocated by the realm's own %RegExp% (not a subclass or a cross-realm newTarget). */
+    /** `[[LegacyFeaturesEnabled]]`: allocated by the realm's own %RegExp% (not a subclass or a cross-realm newTarget). */
     @JvmField var legacyFeatures = false
 
     override val className: String get() = "RegExp"
 }
 
 /**
- * The legacy static slots of a realm's %RegExp% (proposal-regexp-legacy-features): [[RegExpInput]],
- * [[RegExpLastMatch]], [[RegExpParen1]]-[[RegExpParen9]], [[RegExpLastParen]], [[RegExpLeftContext]] and
- * [[RegExpRightContext]]. The match slots are kept as positions into [subject] and only materialized by the accessors,
+ * The legacy static slots of a realm's %RegExp% (proposal-regexp-legacy-features): `[[RegExpInput]]`,
+ * `[[RegExpLastMatch]]`, `[[RegExpParen1]]`-`[[RegExpParen9]]`, `[[RegExpLastParen]]`, `[[RegExpLeftContext]]` and
+ * `[[RegExpRightContext]]`. The match slots are kept as positions into [subject] and only materialized by the accessors,
  * so a successful exec copies no substrings.
  */
 internal class LegacyRegExpStatics {
-    /** [[RegExpInput]]; null when empty (invalidated). */
+    /** `[[RegExpInput]]`; null when empty (invalidated). */
     @JvmField var input: String? = ""
     /** Subject of the recorded match; null when the match slots are empty (invalidated). */
     @JvmField var subject: String? = ""
@@ -92,7 +92,7 @@ internal class LegacyRegExpStatics {
     fun rightContext(): String? = subject?.substring(pos[1])
 }
 
-/** %RegExpStringIteratorPrototype% instance (result of RegExp.prototype[Symbol.matchAll]). */
+/** %RegExpStringIteratorPrototype% instance (result of `RegExp.prototype[Symbol.matchAll]`). */
 class RegExpStringIterator(
     proto: JSObject?,
     @JvmField val matcher: JSObject,
@@ -655,7 +655,7 @@ internal object RegExpBuiltins {
     }
 
     /**
-     * Global RegExp.prototype[Symbol.replace] for a regexp using the builtin exec: same observable behaviour as the
+     * Global `RegExp.prototype[Symbol.replace]` for a regexp using the builtin exec: same observable behaviour as the
      * generic algorithm, without materializing the intermediate match objects.
      */
     private fun fastReplaceAll(realm: Realm, rx: JSRegExp, s: String, fullUnicode: Boolean, fn: JSObject?, template: String): String {

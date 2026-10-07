@@ -5,7 +5,7 @@ package io.neonjs.runtime
  *
  * [special] bits tell the generic algorithms when a subclass customises behaviour:
  *  - [EXOTIC_OWN]: own properties are not (only) stored in [props]; algorithms use the virtual [getOwnProperty].
- *  - [SPECIAL_GET]/[SPECIAL_SET]/[SPECIAL_HAS]: [[Get]]/[[Set]]/[[HasProperty]] are overridden and must be called
+ *  - [SPECIAL_GET]/[SPECIAL_SET]/[SPECIAL_HAS]: `[[Get]]`/`[[Set]]`/`[[HasProperty]]` are overridden and must be called
  *    even when the object appears in a prototype chain.
  */
 open class JSObject(@JvmField var proto: JSObject?) {
@@ -88,7 +88,7 @@ open class JSObject(@JvmField var proto: JSObject?) {
         return p
     }
 
-    /** [[GetOwnProperty]] */
+    /** `[[GetOwnProperty]]` */
     open fun getOwnProperty(key: Any): PropertyDescriptor? = ordinaryGetOwnProperty(key)
 
     fun ordinaryGetOwnProperty(key: Any): PropertyDescriptor? {
@@ -102,7 +102,7 @@ open class JSObject(@JvmField var proto: JSObject?) {
         } else PropertyDescriptor.data(p.values[i], f)
     }
 
-    /** Fast own-value lookup used by [[Get]]: returns [NotFound] when absent; invokes getters with [receiver]. */
+    /** Fast own-value lookup used by `[[Get]]`: returns [NotFound] when absent; invokes getters with [receiver]. */
     open fun getOwnValue(key: Any, receiver: Any?): Any? {
         val p = props ?: return NotFound
         val i = p.find(key)
@@ -129,7 +129,7 @@ open class JSObject(@JvmField var proto: JSObject?) {
         return p.find(key) >= 0
     }
 
-    /** [[DefineOwnProperty]] */
+    /** `[[DefineOwnProperty]]` */
     open fun defineOwnProperty(key: Any, desc: PropertyDescriptor): Boolean = ordinaryDefineOwnProperty(key, desc)
 
     fun ordinaryDefineOwnProperty(key: Any, desc: PropertyDescriptor): Boolean {

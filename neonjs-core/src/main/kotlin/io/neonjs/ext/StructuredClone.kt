@@ -14,7 +14,7 @@ import java.util.IdentityHashMap
 /**
  * `structuredClone(value, { transfer })` (HTML StructuredSerializeWithTransfer + StructuredDeserialize within one
  * realm). Clones primitives (not symbols), plain objects and arrays (own enumerable string-keyed properties, read
- * with [[Get]]), Boolean / Number / BigInt / String wrappers, Date, RegExp, Map, Set, ArrayBuffer (transferable),
+ * with `[[Get]]`), Boolean / Number / BigInt / String wrappers, Date, RegExp, Map, Set, ArrayBuffer (transferable),
  * SharedArrayBuffer (shared), typed arrays, DataView, Error objects and DOMExceptions, preserving shared references
  * and cycles. Anything else (functions, symbols, proxies, promises, weak collections, host objects…) is a
  * DataCloneError.

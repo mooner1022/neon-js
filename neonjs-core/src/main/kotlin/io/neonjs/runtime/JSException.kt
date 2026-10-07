@@ -55,7 +55,7 @@ class JSException(@JvmField val value: Any?) : RuntimeException(null, null, fals
     }
 }
 
-/** Ordinary object with an [[ErrorData]] internal slot. */
+/** Ordinary object with an `[[ErrorData]]` internal slot. */
 open class JSErrorObject(proto: JSObject?) : JSObject(proto) {
     override val className: String get() = "Error"
     /** Captured JS stack trace (without the "Name: message" header). */

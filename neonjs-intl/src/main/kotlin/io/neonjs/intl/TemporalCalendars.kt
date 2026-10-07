@@ -94,7 +94,7 @@ internal object Civil {
     /** R.D. (Calendrical Calculations fixed day, R.D. 1 = 0001-01-01) to epoch day. */
     const val RD_TO_EPOCH = -719163L
 
-    /** Epoch day of the julian day number [jd]. */
+    /** Julian day number of epoch day 0 (1970-01-01): epoch day = `jd - JD_EPOCH`. */
     const val JD_EPOCH = 2440588L
 
     fun info(starts: LongArray, codes: IntArray, leap: Boolean) = CalendarYearInfo(starts, codes, leap)

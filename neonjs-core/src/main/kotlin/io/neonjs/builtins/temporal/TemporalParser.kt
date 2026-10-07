@@ -278,7 +278,7 @@ internal object TemporalParser {
         return true
     }
 
-    /** DateSpec[Extended] with IsValidDate. */
+    /** `DateSpec[Extended]` with IsValidDate. */
     private fun parseDate(c: Cur, r: IsoParse): Boolean {
         val start = c.i
         if (!parseYear(c, r)) { c.i = start; return false }
@@ -406,7 +406,7 @@ internal object TemporalParser {
     // ------------------------------------------------------------------ offsets
 
     /**
-     * UTCOffset[SubMinutePrecision]: returns offset nanoseconds or null, advancing [c] past the match. [hadSecondsOut]
+     * `UTCOffset[SubMinutePrecision]`: returns offset nanoseconds or null, advancing [c] past the match. [hadSecondsOut]
      * (if given) receives whether a seconds component was present.
      */
     private fun parseOffset(c: Cur, subMinute: Boolean, hadSecondsOut: BooleanArray? = null): Long? {
@@ -456,7 +456,7 @@ internal object TemporalParser {
         return if (sign == '-') -total else total
     }
 
-    /** DateTimeUTCOffset[Z]? (optional); returns false on a malformed offset. */
+    /** `DateTimeUTCOffset[Z]?` (optional); returns false on a malformed offset. */
     private fun parseDateTimeOffset(c: Cur, r: IsoParse, allowZ: Boolean): Boolean {
         val ch = c.peek()
         if (ch == 'Z' || ch == 'z') {

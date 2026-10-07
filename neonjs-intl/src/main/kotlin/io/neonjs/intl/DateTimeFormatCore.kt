@@ -17,7 +17,7 @@ internal class DtfFormat(val fields: LinkedHashMap<String, String>, val pattern:
     val hasHour: Boolean get() = "hour" in fields
 }
 
-/** Intl.DateTimeFormat instance ([[InitializedDateTimeFormat]]). */
+/** Intl.DateTimeFormat instance (`[[InitializedDateTimeFormat]]`). */
 internal class JSIntlDateTimeFormat(proto: JSObject?) : JSObject(proto) {
     @JvmField var locale = ""
     @JvmField var dataLocale = ""
@@ -29,7 +29,7 @@ internal class JSIntlDateTimeFormat(proto: JSObject?) : JSObject(proto) {
     @JvmField var timeStyle: String? = null
     @JvmField var boundFormat: JSObject? = null
 
-    /** [[DateTimeFormat]] */
+    /** `[[DateTimeFormat]]` */
     lateinit var format: DtfFormat
 
     /** The format options record of CreateDateTimeFormat (components requested by the caller) and its hc. */
@@ -40,7 +40,7 @@ internal class JSIntlDateTimeFormat(proto: JSObject?) : JSObject(proto) {
     /** ICU objects, created on first use; owned by this instance (never shared, they are not thread-safe). */
     var icu: DtfIcu? = null
 
-    /** Lazily computed [[TemporalPlain...Format]] records (null entry = no overlapping fields). */
+    /** Lazily computed `[[TemporalPlain...Format]]` records (null entry = no overlapping fields). */
     val temporalFormats = HashMap<String, DtfFormat?>()
 }
 

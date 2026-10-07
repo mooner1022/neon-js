@@ -333,7 +333,7 @@ class JSArray(proto: JSObject?, capacity: Int = 0) : JSObject(proto) {
         return out
     }
 
-    /** Snapshot of elements [0, length) for internal use (holes become Undefined via [[Get]]). */
+    /** Snapshot of elements `[0, length)` for internal use (holes become Undefined via `[[Get]]`). */
     fun toList(): List<Any?> {
         val n = length.toInt()
         val out = ArrayList<Any?>(n)

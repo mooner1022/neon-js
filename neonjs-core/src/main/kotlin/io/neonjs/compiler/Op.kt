@@ -3,7 +3,7 @@ package io.neonjs.compiler
 /**
  * Stack bytecode opcodes shared by the interpreter and the JVM bytecode backend. Each instruction is an opcode
  * followed by a fixed number of int operands (except JUMP_TABLE: reg count t0..t(count-1) default).
- * GENERATED from the table at the bottom of this file; keep [NAMES], [OPERANDS] and [EFFECTS] in sync.
+ * GENERATED from the table at the bottom of this file; keep [names], [operands] and [effects] in sync.
  */
 object Op {
     const val VAR = Int.MIN_VALUE

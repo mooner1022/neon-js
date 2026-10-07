@@ -5,7 +5,7 @@ import com.ibm.icu.text.ListFormatter
 import io.neonjs.runtime.*
 import io.neonjs.vm.Iteration
 
-/** Intl.ListFormat instance ([[InitializedListFormat]]). */
+/** Intl.ListFormat instance (`[[InitializedListFormat]]`). */
 class JSIntlListFormat internal constructor(proto: JSObject?) : JSObject(proto) {
     @JvmField var locale: String = ""
     @JvmField internal var dataLocale: String = ""

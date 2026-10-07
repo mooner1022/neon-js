@@ -3,7 +3,7 @@ package io.neonjs.builtins
 import io.neonjs.runtime.*
 import java.math.BigInteger
 
-/** Object created by JSON.rawJSON ([[IsRawJSON]]). */
+/** Object created by JSON.rawJSON (`[[IsRawJSON]]`). */
 class RawJSONObject(@JvmField val raw: String) : JSObject(null)
 
 internal object JSONBuiltins {

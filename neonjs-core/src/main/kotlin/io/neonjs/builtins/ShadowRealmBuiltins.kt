@@ -3,7 +3,7 @@ package io.neonjs.builtins
 import io.neonjs.runtime.*
 import io.neonjs.vm.*
 
-/** ShadowRealm instance: [[ShadowRealm]] slot. */
+/** ShadowRealm instance: `[[ShadowRealm]]` slot. */
 class JSShadowRealm(proto: JSObject?, @JvmField val shadowRealm: Realm) : JSObject(proto) {
     override val className: String get() = "ShadowRealm"
 }

@@ -314,7 +314,6 @@ object JvmCompiler {
 
         fun pushUndefined() = getstatic("io/neonjs/runtime/Undefined", "INSTANCE", "Lio/neonjs/runtime/Undefined;")
 
-        /** Pops [n] stack values into a fresh Object[] (keeping order). */
         /** Value on the stack is [io.neonjs.vm.Interpreter.TAIL]: return it so the caller performs the tail call. */
         fun returnIfTail() {
             mv.visitInsn(DUP)

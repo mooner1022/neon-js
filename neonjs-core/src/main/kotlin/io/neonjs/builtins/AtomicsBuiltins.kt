@@ -35,7 +35,7 @@ internal object AtomicsBuiltins {
     /** Waiter Record of a blocked Atomics.wait call. */
     class SyncWaiter(@JvmField val cond: Condition) : Waiter()
 
-    /** Waiter Record of Atomics.waitAsync ([[PromiseCapability]] is [promise] of [realm], owned by [agent]). */
+    /** Waiter Record of Atomics.waitAsync (`[[PromiseCapability]]` is [promise] of [realm], owned by [agent]). */
     class AsyncWaiter(
         @JvmField val agent: Agent,
         @JvmField val realm: Realm,

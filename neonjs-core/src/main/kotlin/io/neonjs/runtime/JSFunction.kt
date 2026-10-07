@@ -1,6 +1,6 @@
 package io.neonjs.runtime
 
-/** Base class for function objects that carry a [[Realm]]. */
+/** Base class for function objects that carry a `[[Realm]]`. */
 abstract class JSFunction(@JvmField val realm: Realm, proto: JSObject?) : JSObject(proto) {
     init {
         special = special or CALLABLE

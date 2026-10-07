@@ -671,7 +671,7 @@ object Rt {
     fun declareEval(f: Frame, info: DeclInfo, fns: Array<Any?>) = Evaluator.evalDeclarationInstantiation(f, info, fns)
 }
 
-/** Unmapped arguments exotic (ordinary object with [[ParameterMap]] undefined, tagged for toString). */
+/** Unmapped arguments exotic (ordinary object with `[[ParameterMap]]` undefined, tagged for toString). */
 open class JSArgumentsObject(proto: JSObject?) : JSObject(proto) {
     override val className: String get() = "Arguments"
 }

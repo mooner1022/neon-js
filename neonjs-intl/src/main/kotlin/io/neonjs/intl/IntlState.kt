@@ -11,7 +11,7 @@ internal class IntlState {
     /** DefaultLocale(), resolved on first use. */
     @JvmField var defaultLocale: String? = null
 
-    /** %Intl%.[[FallbackSymbol]] */
+    /** `%Intl%.[[FallbackSymbol]]` */
     @JvmField val fallbackSymbol = JSSymbol("IntlLegacyConstructedSymbol")
 
     /** Small LRU cache for the locale-sensitive convenience methods (toLocaleString & co.). */

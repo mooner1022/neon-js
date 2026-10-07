@@ -11,7 +11,7 @@ class JSTypedArray internal constructor(
     @JvmField val type: ElementType,
     @JvmField val buffer: JSArrayBuffer,
     @JvmField val byteOffset: Int,
-    /** [[ArrayLength]], or -1 (auto) for length-tracking views of resizable buffers. */
+    /** `[[ArrayLength]]`, or -1 (auto) for length-tracking views of resizable buffers. */
     @JvmField val fixedLength: Int,
 ) : JSObject(proto), TypedArrayLike {
     init {
@@ -731,7 +731,7 @@ internal object TypedArrayBuiltins {
         proto.defineOwn("toString", realm.arrayPrototype.get("toString"), Attr.WC)
     }
 
-    /** SortIndexedProperties with CompareTypedArrayElements; reads through [[Get]]. */
+    /** SortIndexedProperties with CompareTypedArrayElements; reads through `[[Get]]`. */
     private fun sortedValues(ta: JSTypedArray, len: Int, cmp: Any?): Array<Any?> {
         if (cmp === Undefined) {
             // no user code can run: sort the raw numeric values directly

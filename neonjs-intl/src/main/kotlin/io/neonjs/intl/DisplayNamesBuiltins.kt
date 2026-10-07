@@ -7,7 +7,7 @@ import com.ibm.icu.text.LocaleDisplayNames
 import com.ibm.icu.util.ULocale
 import io.neonjs.runtime.*
 
-/** Intl.DisplayNames instance ([[InitializedDisplayNames]]). */
+/** Intl.DisplayNames instance (`[[InitializedDisplayNames]]`). */
 class JSIntlDisplayNames internal constructor(proto: JSObject?) : JSObject(proto) {
     @JvmField var locale: String = ""
     @JvmField internal var dataLocale: String = ""

@@ -9,7 +9,7 @@ import com.ibm.icu.text.PluralRules
 import com.ibm.icu.util.ULocale
 import io.neonjs.runtime.*
 
-/** Intl.PluralRules instance ([[InitializedPluralRules]]). */
+/** Intl.PluralRules instance (`[[InitializedPluralRules]]`). */
 class JSIntlPluralRules internal constructor(proto: JSObject?) : JSObject(proto) {
     @JvmField var locale: String = ""
     @JvmField internal var dataLocale: String = ""

@@ -24,7 +24,7 @@ interface TemporalCalendarProvider {
 }
 
 /**
- * Year-level structure of one calendar in terms of arithmetic years (the [[Year]] of a Calendar Date Record).
+ * Year-level structure of one calendar in terms of arithmetic years (the `[[Year]]` of a Calendar Date Record).
  * Everything else (eras, month codes in fields, arithmetic, reference dates) is computed by Temporal from this.
  *
  * Calls are pure, may happen on any thread, and are only made for |year| <= [NonIsoCalendar.MAX_YEAR]. Results are

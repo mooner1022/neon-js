@@ -4,7 +4,7 @@ import com.ibm.icu.text.BreakIterator
 import io.neonjs.runtime.*
 import io.neonjs.vm.Iteration
 
-/** Intl.Segmenter instance ([[InitializedSegmenter]]). */
+/** Intl.Segmenter instance (`[[InitializedSegmenter]]`). */
 class JSIntlSegmenter internal constructor(proto: JSObject?) : JSObject(proto) {
     @JvmField var locale: String = ""
     @JvmField internal var dataLocale: String = ""
@@ -13,13 +13,13 @@ class JSIntlSegmenter internal constructor(proto: JSObject?) : JSObject(proto) {
     @JvmField internal var icu: BreakIterator? = null
 }
 
-/** %Segments% instance ([[SegmentsSegmenter]], [[SegmentsString]]). */
+/** %Segments% instance (`[[SegmentsSegmenter]]`, `[[SegmentsString]]`). */
 class JSIntlSegments internal constructor(proto: JSObject?, @JvmField val segmenter: JSIntlSegmenter, @JvmField val string: String) : JSObject(proto) {
     /** Break iterator over [string], private to this object (used by containing()). */
     @JvmField internal var bi: BreakIterator? = null
 }
 
-/** %SegmentIterator% instance ([[IteratingSegmenter]], [[IteratedString]], [[IteratedStringNextSegmentCodeUnitIndex]]). */
+/** %SegmentIterator% instance (`[[IteratingSegmenter]]`, `[[IteratedString]]`, `[[IteratedStringNextSegmentCodeUnitIndex]]`). */
 class JSIntlSegmentIterator internal constructor(proto: JSObject?, @JvmField val segmenter: JSIntlSegmenter, @JvmField val string: String) : JSObject(proto) {
     @JvmField var nextIndex: Int = 0
     @JvmField internal var bi: BreakIterator? = null

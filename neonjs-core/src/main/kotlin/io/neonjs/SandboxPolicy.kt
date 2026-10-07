@@ -24,9 +24,9 @@ class SandboxPolicy private constructor(b: Builder) {
     /** Makes Math.random deterministic (seeded) and Date.now return [fixedTimeMillis] when set. */
     val randomSeed: Long? = b.randomSeed
     val fixedTimeMillis: Long? = b.fixedTimeMillis
-    /** Default locale for Intl (BCP 47); null = the host's ("en-US" when [deterministic] is used). */
+    /** Default locale for Intl (BCP 47); null = the host's ("en-US" when [Builder.deterministic] is used). */
     val defaultLocale: String? = b.defaultLocale ?: if (b.randomSeed != null) "en-US" else null
-    /** Local time zone seen by Date and Temporal.Now; null = the host's (UTC when [deterministic] is used). */
+    /** Local time zone seen by Date and Temporal.Now; null = the host's (UTC when [Builder.deterministic] is used). */
     val timeZone: java.time.ZoneId? = b.timeZone ?: if (b.randomSeed != null) java.time.ZoneOffset.UTC else null
     /** Most timers (`setTimeout` / `setInterval`, see NeonEngine.Builder.webGlobals) a context may have pending. */
     val maxTimers: Int = b.maxTimers

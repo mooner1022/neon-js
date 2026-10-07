@@ -6,7 +6,7 @@ import com.ibm.icu.text.RuleBasedCollator
 import com.ibm.icu.util.ULocale
 import io.neonjs.runtime.*
 
-/** Intl.Collator instance ([[InitializedCollator]]). */
+/** Intl.Collator instance (`[[InitializedCollator]]`). */
 class JSIntlCollator internal constructor(proto: JSObject?) : JSObject(proto) {
     @JvmField var locale: String = ""
     @JvmField internal var dataLocale: String = ""
@@ -91,7 +91,7 @@ internal object CollatorBuiltins {
         return c
     }
 
-    /** [[SortLocaleData]] / [[SearchLocaleData]] for the relevant extension keys. */
+    /** `[[SortLocaleData]]` / `[[SearchLocaleData]]` for the relevant extension keys. */
     private fun keyData(locale: String, key: String, usage: String): List<String?> = when (key) {
         "co" -> if (usage == "search") listOf(null) else listOf<String?>(null) + collationsFor(locale)
         "kn" -> listOf("false", "true")

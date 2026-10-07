@@ -7,7 +7,7 @@ import com.ibm.icu.text.RelativeDateTimeFormatter
 import io.neonjs.runtime.*
 import kotlin.math.abs
 
-/** Intl.RelativeTimeFormat instance ([[InitializedRelativeTimeFormat]]). */
+/** Intl.RelativeTimeFormat instance (`[[InitializedRelativeTimeFormat]]`). */
 class JSIntlRelativeTimeFormat internal constructor(proto: JSObject?) : JSObject(proto) {
     @JvmField var locale: String = ""
     @JvmField internal var dataLocale: String = ""
@@ -16,7 +16,7 @@ class JSIntlRelativeTimeFormat internal constructor(proto: JSObject?) : JSObject
     @JvmField var numeric: String = "always"
     /** ICU RelativeDateTimeFormatter (owns a DecimalFormat, so never shared); created on first use. */
     @JvmField internal var icu: Any? = null
-    /** [[NumberFormat]]: formats the number inside ICU's pattern (Intl.NumberFormat semantics, e.g. min2 grouping). */
+    /** `[[NumberFormat]]`: formats the number inside ICU's pattern (Intl.NumberFormat semantics, e.g. min2 grouping). */
     @JvmField internal var numberFormat: JSIntlNumberFormat? = null
 }
 
@@ -139,7 +139,7 @@ internal object RelativeTimeFormatIcu {
 
     /**
      * PartitionRelativeTimePattern: ICU picks the pattern (and plural form); the number inside it is formatted by
-     * [[NumberFormat]]. Number parts carry the unit.
+     * `[[NumberFormat]]`. Number parts carry the unit.
      */
     fun partition(realm: Realm, rtf: JSIntlRelativeTimeFormat, value: Double, unit0: String): List<FmtPart> {
         if (value.isNaN() || value.isInfinite()) rangeErr("Invalid value: ${NumberConvShortest.toShortest(value)}")

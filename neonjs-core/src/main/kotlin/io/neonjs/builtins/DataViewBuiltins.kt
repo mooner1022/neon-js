@@ -7,7 +7,7 @@ class JSDataView internal constructor(
     proto: JSObject?,
     @JvmField val buffer: JSArrayBuffer,
     @JvmField val byteOffset: Int,
-    /** [[ByteLength]], or -1 (auto) for length-tracking views of resizable buffers. */
+    /** `[[ByteLength]]`, or -1 (auto) for length-tracking views of resizable buffers. */
     @JvmField val fixedByteLength: Int,
 ) : JSObject(proto) {
     /** GetViewByteLength, or -1 when IsViewOutOfBounds (which includes a detached buffer). */

@@ -2,7 +2,7 @@ package io.neonjs.intl
 
 import io.neonjs.runtime.*
 
-/** Intl.DurationFormat instance ([[InitializedDurationFormat]]). */
+/** Intl.DurationFormat instance (`[[InitializedDurationFormat]]`). */
 class JSIntlDurationFormat internal constructor(proto: JSObject?) : JSObject(proto) {
     @JvmField var locale: String = ""
     @JvmField internal var dataLocale: String = ""

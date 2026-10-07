@@ -14,7 +14,7 @@ package io.neonjs.runtime
  * Transition trees are per prototype object, so they are only touched by the agent that owns that object (contexts
  * are single-threaded) and never shared between contexts; they die with their prototype.
  *
- * Objects with overridden [[Get]]/[[Set]]/[[HasProperty]] (proxies, host objects, namespaces...) carry [UNCACHEABLE].
+ * Objects with overridden `[[Get]]`/`[[Set]]`/`[[HasProperty]]` (proxies, host objects, namespaces...) carry [UNCACHEABLE].
  */
 class Shape private constructor(
     /** Key appended by the edge from the parent (null for roots and unique shapes). */
@@ -88,7 +88,7 @@ class Shape private constructor(
         /** Bound on the number of shapes per transition tree (bounds memory under adversarial key patterns). */
         const val MAX_TREE_SIZE = 16384
 
-        /** Shape of maps whose owner has exotic [[Get]]/[[Set]]: never cached, never changes. */
+        /** Shape of maps whose owner has exotic `[[Get]]`/`[[Set]]`: never cached, never changes. */
         @JvmField val UNCACHEABLE = Shape(null, 0, 0, null, null, false)
 
         /** A fresh token not shared with any other map. */

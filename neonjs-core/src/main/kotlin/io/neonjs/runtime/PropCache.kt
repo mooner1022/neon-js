@@ -113,7 +113,7 @@ object PropCache {
         hs != null && hs.cacheable && h.special and SPECIAL_ACCESS == 0 &&
             (h.special and JSObject.EXOTIC_OWN == 0 || h.icSafeKey(key))
 
-    /** Computes the entry describing how [[Get]] of [key] resolves on [o], without running any guest code. */
+    /** Computes the entry describing how `[[Get]]` of [key] resolves on [o], without running any guest code. */
     private fun buildGet(o: JSObject, key: Any, sh: Shape): PropIC? {
         var h = o
         var hs: Shape? = sh

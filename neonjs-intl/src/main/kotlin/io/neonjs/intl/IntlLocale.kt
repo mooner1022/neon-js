@@ -2,7 +2,7 @@ package io.neonjs.intl
 
 import io.neonjs.runtime.*
 
-/** Intl.Locale instance ([[InitializedLocale]]). All slots are canonical strings; null means undefined. */
+/** Intl.Locale instance (`[[InitializedLocale]]`). All slots are canonical strings; null means undefined. */
 class JSIntlLocale internal constructor(proto: JSObject?) : JSObject(proto) {
     @JvmField var locale: String = ""
     @JvmField var calendar: String? = null

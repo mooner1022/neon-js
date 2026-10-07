@@ -3,7 +3,7 @@ package io.neonjs.intl
 import io.neonjs.runtime.*
 import java.math.BigInteger
 
-/** Intl.NumberFormat instance ([[InitializedNumberFormat]]). */
+/** Intl.NumberFormat instance (`[[InitializedNumberFormat]]`). */
 class JSIntlNumberFormat internal constructor(proto: JSObject?) : JSObject(proto) {
     @JvmField var locale: String = ""
     @JvmField internal var dataLocale: String = ""

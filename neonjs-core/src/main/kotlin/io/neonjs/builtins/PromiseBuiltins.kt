@@ -150,13 +150,13 @@ internal object PromiseBuiltins {
         return cap.promise
     }
 
-    /** Shared state of one PerformPromiseAllKeyed: the entries list and [[RemainingElements]]. */
+    /** Shared state of one PerformPromiseAllKeyed: the entries list and `[[RemainingElements]]`. */
     private class KeyedState(@JvmField val cap: PromiseCapability) {
         @JvmField val keys = ArrayList<Any>()
         @JvmField val values = ArrayList<Any?>()
         @JvmField var remaining = 1
 
-        /** Decrements [[RemainingElements]]; at zero resolves with CreateKeyedPromiseCombinatorResultObject(entries). */
+        /** Decrements `[[RemainingElements]]`; at zero resolves with CreateKeyedPromiseCombinatorResultObject(entries). */
         fun elementDone(): Any? {
             if (--remaining != 0) return Undefined
             val obj = JSObject(null)

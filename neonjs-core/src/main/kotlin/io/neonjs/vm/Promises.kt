@@ -2,7 +2,7 @@ package io.neonjs.vm
 
 import io.neonjs.runtime.*
 
-/** Promise instance with [[PromiseState]] etc. */
+/** Promise instance with `[[PromiseState]]` etc. */
 class JSPromise(proto: JSObject?) : JSObject(proto) {
     @JvmField var state = PENDING
     @JvmField var result: Any? = Undefined
@@ -70,7 +70,7 @@ object Promises {
         return resolve to reject
     }
 
-    /** The [[Resolve]] steps of promise resolve functions. */
+    /** The `[[Resolve]]` steps of promise resolve functions. */
     @JvmStatic
     fun resolvePromise(realm: Realm, promise: JSPromise, resolution: Any?) {
         if (resolution === promise) {

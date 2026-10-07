@@ -31,7 +31,7 @@ class JSArrayBuffer internal constructor(
     /** Backing bytes (capacity may exceed the byte length; never use `data.size` as the length). */
     @JvmField var data: ByteArray,
     byteLength: Int,
-    /** [[ArrayBufferMaxByteLength]], or -1 for fixed-length buffers. */
+    /** `[[ArrayBufferMaxByteLength]]`, or -1 for fixed-length buffers. */
     @JvmField val maxByteLength: Int,
     /** Non-null for SharedArrayBuffers. */
     @JvmField val block: SharedDataBlock?,
@@ -39,7 +39,7 @@ class JSArrayBuffer internal constructor(
     private var ownByteLength = byteLength
     @JvmField var detached = false
     /**
-     * [[ArrayBufferIsImmutable]] (proposal-immutable-arraybuffer): set only on buffers created by
+     * `[[ArrayBufferIsImmutable]]` (proposal-immutable-arraybuffer): set only on buffers created by
      * AllocateImmutableArrayBuffer, which are fixed-length and can be neither detached, resized nor written.
      */
     @JvmField var immutable = false

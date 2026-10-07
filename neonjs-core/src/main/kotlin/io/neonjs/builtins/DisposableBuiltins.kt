@@ -222,7 +222,7 @@ internal fun awaitValue(realm: Realm, value: Any?, onFulfilled: (Any?) -> Unit, 
     Promises.thenHost(realm, promise, { v -> onFulfilled(v); Undefined }, { e -> onRejected(e); Undefined })
 }
 
-/** DisposableStack / AsyncDisposableStack instance ([[DisposableState]] or [[AsyncDisposableState]]). */
+/** DisposableStack / AsyncDisposableStack instance (`[[DisposableState]]` or `[[AsyncDisposableState]]`). */
 class JSDisposableStack(proto: JSObject?, @JvmField val isAsync: Boolean) : JSObject(proto) {
     @JvmField var disposed = false
     @JvmField var capability = DisposeCapability()

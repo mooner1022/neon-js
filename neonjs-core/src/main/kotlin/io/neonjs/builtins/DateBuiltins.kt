@@ -2,7 +2,7 @@ package io.neonjs.builtins
 
 import io.neonjs.runtime.*
 
-/** Date instance: an ordinary object with a [[DateValue]] internal slot holding a time value (or NaN). */
+/** Date instance: an ordinary object with a `[[DateValue]]` internal slot holding a time value (or NaN). */
 class JSDate(proto: JSObject?, @JvmField var timeValue: Double) : JSObject(proto) {
     override val className: String get() = "Date"
 }

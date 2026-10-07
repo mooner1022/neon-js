@@ -70,7 +70,7 @@ internal object DateTimeFormatBuiltins {
     private fun thisDtf(t: Any?, method: String): JSIntlDateTimeFormat =
         t as? JSIntlDateTimeFormat ?: typeErr("Method Intl.DateTimeFormat.prototype.$method called on incompatible receiver ${Ops.describe(t)}")
 
-    /** UnwrapDateTimeFormat followed by the [[InitializedDateTimeFormat]] check. */
+    /** UnwrapDateTimeFormat followed by the `[[InitializedDateTimeFormat]]` check. */
     private fun unwrap(realm: Realm, t: Any?, method: String): JSIntlDateTimeFormat {
         if (t !is JSObject) typeErr("Method Intl.DateTimeFormat.prototype.$method called on incompatible receiver ${Ops.describe(t)}")
         if (t is JSIntlDateTimeFormat) return t
