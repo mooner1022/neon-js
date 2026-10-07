@@ -8,6 +8,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.system.exitProcess
 
 class Result(val path: String, val passed: Boolean, val skipped: Boolean, val message: String?)
 
@@ -20,6 +21,7 @@ fun main(args: Array<String>) {
     var verbose = false
     var timeoutMs = 10000L
     var mode = 0
+    var known = emptySet<String>()
     var i = 0
     while (i < args.size) {
         when (val a = args[i]) {
@@ -32,6 +34,7 @@ fun main(args: Array<String>) {
             "--mode" -> mode = when (args[++i]) { "compiled" -> 1; "adaptive" -> 2; else -> 0 }
             "--staging" -> includeStaging = true
             "--intl" -> includeIntl = true
+            "--known" -> known = File(args[++i]).readLines().map { it.substringBefore('#').trim() }.filter { it.isNotEmpty() }.toSet()
             else -> filters.add(a)
         }
         i++
@@ -65,12 +68,18 @@ fun main(args: Array<String>) {
     pool.shutdown()
     pool.awaitTermination(1, TimeUnit.DAYS)
     val elapsed = System.currentTimeMillis() - start
-    report(results.values.toList(), outFile, verbose, elapsed)
+    val failed = report(results.values.toList(), outFile, verbose, elapsed)
     if (mode != 0) {
         System.err.println("JIT compiled=${io.neonjs.jit.JvmCompiler.compiledCount} shared=${io.neonjs.jit.JvmCompiler.sharedCount} failed=${io.neonjs.jit.JvmCompiler.failedCount}" +
             " background batches=${io.neonjs.jit.JitQueue.batches} blocks=${io.neonjs.jit.JitQueue.batchedBlocks} takenOver=${io.neonjs.jit.JitQueue.takenOver}")
         io.neonjs.jit.JvmCompiler.failureReasons.entries.sortedByDescending { it.value.get() }.take(15).forEach { System.err.println("  ${it.value} ${it.key}") }
     }
+    // exit status 1 when a test failed that the --known list does not expect
+    val unexpected = failed.filter { it !in known }
+    if (known.isNotEmpty()) println("known failures: ${failed.size - unexpected.size} of ${known.size} listed; unexpected: ${unexpected.size}")
+    for (p in unexpected.take(20)) println("UNEXPECTED $p")
+    System.out.flush()
+    exitProcess(if (unexpected.isEmpty()) 0 else 1)
 }
 
 /** intl402/ (ECMA-402) and staging/ run only on request (--intl, --staging). */
@@ -139,7 +148,8 @@ fun runExec(exec: Exec, f: File, rel: String): Result {
     return Result(rel, true, false, null)
 }
 
-fun report(results: List<Result>, outFile: String?, verbose: Boolean, elapsed: Long) {
+/** Prints the summary (and writes failures to [outFile]); returns the paths of the failed tests. */
+fun report(results: List<Result>, outFile: String?, verbose: Boolean, elapsed: Long): List<String> {
     val byDir = java.util.TreeMap<String, IntArray>()
     for (r in results) {
         val parts = r.path.split('/')
@@ -164,4 +174,5 @@ fun report(results: List<Result>, outFile: String?, verbose: Boolean, elapsed: L
             }
         }
     }
+    return results.filter { !it.passed && !it.skipped }.map { it.path }.sorted()
 }

@@ -1,0 +1,5 @@
+# Test262 failures the engine expects (paths relative to test/), for the runner's --known option.
+# ICU 78 data: a Chinese-calendar month boundary in 2030 where ICU's astronomy differs from the table Temporal uses
+intl402/DateTimeFormat/prototype/formatToParts/compare-to-temporal-lunisolar.js
+# ICU 78 data: islamic-civil eras that ICU does not distinguish
+intl402/DateTimeFormat/prototype/formatToParts/era.js
