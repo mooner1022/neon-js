@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # the Test262 revision the engine is tested against (third_party/test262 locally)
+  TEST262_COMMIT: 5992dc3b60faf62a48fd6be8a40ae9d9a8c84d81
+
+jobs:
+  jvm:
+    name: Build, unit tests, Test262
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build and unit tests
+        run: ./gradlew build :neonjs-test262:installDist
+      - name: Check out Test262
+        run: |
+          git init -q third_party/test262
+          git -C third_party/test262 fetch -q --depth 1 https://github.com/tc39/test262.git "$TEST262_COMMIT"
+          git -C third_party/test262 checkout -q FETCH_HEAD
+      - name: Test262, interpreter
+        run: neonjs-test262/build/install/neonjs-test262/bin/neonjs-test262 --root third_party/test262 --mode interpreter
+      - name: Test262, compiled
+        run: neonjs-test262/build/install/neonjs-test262/bin/neonjs-test262 --root third_party/test262 --mode compiled
+      - name: Test262, adaptive
+        run: neonjs-test262/build/install/neonjs-test262/bin/neonjs-test262 --root third_party/test262 --mode adaptive
+      - name: Test262, compiled, every generated class translated by dx (Android code generation)
+        env:
+          JAVA_OPTS: -Dneonjs.codeDefiner=io.neonjs.android.DexCheckingDefiner
+        run: neonjs-test262/build/install/neonjs-test262/bin/neonjs-test262 --root third_party/test262 --mode compiled
+      - name: Test262 intl402
+        run: >-
+          neonjs-test262/build/install/neonjs-test262/bin/neonjs-test262 --root third_party/test262 --intl
+          --known neonjs-test262/known-failures.txt test/intl402
