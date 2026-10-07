@@ -131,6 +131,54 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
 
     // ------------------------------------------------------------------ JS -> host
 
+    /**
+     * Calls of interface default methods on proxies. `InvocationHandler.invokeDefault` (JDK 16+) is absent on Android;
+     * there a method handle with private access to the interface invokes the default implementation, as Retrofit does:
+     * the lookup comes from `MethodHandles.privateLookupIn` (Android 13+) or from `Lookup`'s (Class, int) constructor.
+     */
+    private object DefaultMethods {
+        val HAS_INVOKE_DEFAULT = try {
+            InvocationHandler::class.java.getMethod("invokeDefault", Any::class.java, Method::class.java, Array<Any>::class.java)
+            true
+        } catch (e: Throwable) {
+            false
+        }
+        private val PRIVATE_LOOKUP_IN: Method? = try {
+            java.lang.invoke.MethodHandles::class.java.getMethod("privateLookupIn", Class::class.java, java.lang.invoke.MethodHandles.Lookup::class.java)
+        } catch (e: Throwable) {
+            null
+        }
+        private val LOOKUP_CONSTRUCTOR: Constructor<java.lang.invoke.MethodHandles.Lookup>? by lazy {
+            try {
+                java.lang.invoke.MethodHandles.Lookup::class.java.getDeclaredConstructor(Class::class.java, Int::class.javaPrimitiveType).also { it.isAccessible = true }
+            } catch (e: Throwable) {
+                null
+            }
+        }
+        private val handles = java.util.concurrent.ConcurrentHashMap<Method, java.lang.invoke.MethodHandle>()
+
+        /** A handle invoking [method]'s default implementation (not dispatching to the proxy) on its receiver. */
+        fun special(method: Method): java.lang.invoke.MethodHandle = handles.getOrPut(method) {
+            val iface = method.declaringClass
+            var failure: Throwable? = null
+            for (make in listOf(
+                { PRIVATE_LOOKUP_IN?.invoke(null, iface, java.lang.invoke.MethodHandles.lookup()) as java.lang.invoke.MethodHandles.Lookup? },
+                { LOOKUP_CONSTRUCTOR?.newInstance(iface, ALL_MODES) },
+            )) {
+                try {
+                    val lookup = make() ?: continue
+                    return@getOrPut lookup.unreflectSpecial(method, iface)
+                } catch (e: Throwable) {
+                    failure = (e as? InvocationTargetException)?.targetException ?: e
+                }
+            }
+            throw failure ?: UnsupportedOperationException("no private method handle lookup")
+        }
+
+        /** PUBLIC | PRIVATE | PROTECTED | PACKAGE. */
+        private const val ALL_MODES = 15
+    }
+
     companion object {
         const val IMPOSSIBLE = Int.MAX_VALUE
         /** Largest Java array created from JS (elements); larger requests are a RangeError. */
@@ -398,11 +446,16 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         return Proxy.newProxyInstance(iface.classLoader ?: javaClass.classLoader, arrayOf(iface), handler)
     }
 
-    /** Runs the default implementation of an interface method the JS object does not provide (JDK 16+, Android 31+). */
-    private fun invokeDefault(proxy: Any, method: Method, args: Array<Any?>?): Any? = try {
-        InvocationHandler.invokeDefault(proxy, method, *(args ?: emptyArray()))
-    } catch (e: NoSuchMethodError) {
-        throw JSException.typeError("${method.name} is not implemented (default interface methods need JDK 16+ / Android API 31+)")
+    /** Runs the default implementation of an interface method the JS object does not provide. */
+    private fun invokeDefault(proxy: Any, method: Method, args: Array<Any?>?): Any? {
+        val a = args ?: emptyArray()
+        if (DefaultMethods.HAS_INVOKE_DEFAULT) return InvocationHandler.invokeDefault(proxy, method, *a)
+        val handle = try {
+            DefaultMethods.special(method)
+        } catch (e: Throwable) {
+            throw JSException.typeError("${method.name} is not implemented (the platform cannot call default methods: $e)")
+        }
+        return handle.bindTo(proxy).invokeWithArguments(*a)
     }
 
     // ------------------------------------------------------------------ invocation

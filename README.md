@@ -267,8 +267,8 @@ interpreter (`Java.extend` throws a TypeError). Emitting dex directly, without c
 Without a device, `-Dneonjs.codeDefiner=io.neonjs.android.DexCheckingDefiner` runs any test suite on a JVM with every
 generated class translated by dx first (the whole Test262 main suite passes this way, also with D8:
 `neonjs-android-d8` on the class path and `-Dneonjs.dexConverter=d8`); `-Dneonjs.codeDefiner=isolated`
-reproduces the class loading conditions only. Limits on Android: default methods of host interfaces implemented by JS
-objects need API 31+, and memory-allocation limits (`maxAllocatedBytes`) are unavailable (HotSpot only).
+reproduces the class loading conditions only. Limit on Android: memory-allocation limits (`maxAllocatedBytes`) are
+unavailable (HotSpot only).
 
 ## Project layout
 
