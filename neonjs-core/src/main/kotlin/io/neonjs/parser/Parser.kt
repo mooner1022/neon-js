@@ -40,7 +40,6 @@ internal class ParserImpl(src: String, options: ParseOptions) : ExpressionParser
     fun parseTopLevel(): Program {
         enterScope(SCOPE_TOP)
         next()
-        val p = SP(0, 1, 0)
         val body = parseStatementListTop()
         if (inModule) {
             resolvePendingExports()
@@ -52,7 +51,6 @@ internal class ParserImpl(src: String, options: ParseOptions) : ExpressionParser
         prog.start = 0; prog.end = src.length; prog.line = 1; prog.col = 0
         prog.strict = strict
         prog.source = src
-        @Suppress("UNUSED_VARIABLE") val u = p
         exitScope()
         return prog
     }
@@ -112,12 +110,9 @@ internal class ParserImpl(src: String, options: ParseOptions) : ExpressionParser
         if (isAsync) expectContextual("async")
         expectKw("function")
         if (isGenerator) expect(T.STAR)
-        val ip = sp()
         if (!isContextual("anonymous")) unexpected()
         next()
-        val id = fin(Identifier("anonymous"), ip)
         val fn = parseFunctionRest(p, null, isAsync, isGenerator, FunctionKind.NORMAL, false)
-        @Suppress("UNUSED_VARIABLE") val u = id
         if (type != T.EOF) unexpected()
         return fn
     }
@@ -159,29 +154,25 @@ internal class ParserImpl(src: String, options: ParseOptions) : ExpressionParser
 
     /** Is the current `let` the start of a lexical declaration? */
     private fun isLet(context: String?): Boolean {
-        if (!isContextual("let")) return false
-        return lookahead {
+        return isContextual("let") && lookahead {
             if (type == T.LBRACKET) return@lookahead true
             if (context != null) return@lookahead false
             if (type == T.LBRACE) return@lookahead true
             if (type == T.NAME) {
                 val v = lex.value as String
-                if (!lex.escaped && (v == "in" || v == "instanceof")) return@lookahead false
                 // `let` followed by an identifier on the next line is still a declaration, except `let \n let`?
-                return@lookahead true
+                return@lookahead lex.escaped || (v != "in" && v != "instanceof")
             }
             false
         }
     }
 
     private fun isAsyncFunction(): Boolean {
-        if (!isContextual("async")) return false
-        return lookahead { isKw("function") && !lex.nlBefore }
+        return isContextual("async") && lookahead { isKw("function") && !lex.nlBefore }
     }
 
     private fun isUsing(isFor: Boolean): Boolean {
-        if (!isContextual("using")) return false
-        return lookahead {
+        return isContextual("using") && lookahead {
             if (lex.nlBefore || type != T.NAME) return@lookahead false
             val v = lex.value as String
             if (isFor && v == "of" && !lex.escaped) {
@@ -193,8 +184,7 @@ internal class ParserImpl(src: String, options: ParseOptions) : ExpressionParser
     }
 
     private fun isAwaitUsing(): Boolean {
-        if (!isContextual("await") || !inAsync) return false
-        return lookahead {
+        return isContextual("await") && inAsync && lookahead {
             if (lex.nlBefore || !isContextual("using")) return@lookahead false
             lookahead { !lex.nlBefore && type == T.NAME }
         }
@@ -295,13 +285,11 @@ internal class ParserImpl(src: String, options: ParseOptions) : ExpressionParser
             }
         }
         val startType = type
-        val maybeName = if (type == T.NAME) lex.value as String else null
         val expr = parseExpression()
         if (startType == T.NAME && expr is Identifier && !expr.parenthesized && type == T.COLON) {
             next()
             return parseLabeled(p, expr, context)
         }
-        @Suppress("UNUSED_VARIABLE") val u = maybeName
         semicolon()
         return fin(ExpressionStatement(expr), p)
     }
@@ -468,7 +456,7 @@ internal class ParserImpl(src: String, options: ParseOptions) : ExpressionParser
                 curStmts = ArrayList()
             } else {
                 if (curStmts == null) unexpected()
-                curStmts!!.add(parseStatement(null))
+                curStmts.add(parseStatement(null))
             }
         }
         flush()
@@ -491,7 +479,7 @@ internal class ParserImpl(src: String, options: ParseOptions) : ExpressionParser
                 param = parseBindingAtom()
                 val simple = param is Identifier
                 enterScope(if (simple) SCOPE_SIMPLE_CATCH else 0)
-                if (simple) checkLValSimple(param!!, Bind.SIMPLE_CATCH) else checkLValPattern(param!!, Bind.LEXICAL)
+                if (simple) checkLValSimple(param, Bind.SIMPLE_CATCH) else checkLValPattern(param, Bind.LEXICAL)
                 expect(T.RPAREN)
             } else enterScope(0)
             val body = parseBlock(false)
@@ -688,7 +676,7 @@ internal class ParserImpl(src: String, options: ParseOptions) : ExpressionParser
     }
 
     private fun parseWithClause(): List<ImportAttribute> {
-        if (!(isKw("with") || (isContextual("assert") && !lex.nlBefore && false))) return emptyList()
+        if (!isKw("with")) return emptyList()
         next()
         expect(T.LBRACE)
         val attrs = ArrayList<ImportAttribute>()
@@ -887,10 +875,9 @@ internal class ParserImpl(src: String, options: ParseOptions) : ExpressionParser
             source = parseModuleSource()
             attrs = parseWithClause()
         } else {
-            for ((local, pos, isStrOrEsc) in localChecks) {
+            for ((local, pos, _) in localChecks) {
                 if (specs.first { it.start == pos }.localIsString) raise(pos, "A string literal cannot be used as an exported binding without 'from'")
                 if (keywords.contains(local) || strictReserved.contains(local) || local == "await") raise(pos, "Unexpected reserved word '$local'")
-                @Suppress("UNUSED_VARIABLE") val u = isStrOrEsc
                 if (!declaredAtTop(local)) undefinedExports.putIfAbsent(local, pos)
             }
         }

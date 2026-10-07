@@ -5,7 +5,6 @@ internal class SP(@JvmField val start: Int, @JvmField val line: Int, @JvmField v
 internal abstract class ExpressionParser(src: String, options: ParseOptions) : ParserBase(src, options) {
 
     fun sp() = SP(lex.start, lex.tokLine, lex.tokCol)
-    fun spOf(n: Node) = SP(n.start, n.line, n.col)
     fun <N : Node> fin(n: N, p: SP): N {
         n.start = p.start; n.line = p.line; n.col = p.col; n.end = lex.prevEnd
         return n
@@ -39,7 +38,6 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
         }
         var ownErrors = false
         var refErrors = refErrors0
-        var oldParenAssign = -1
         var oldTrailingComma = -1
         var oldDoubleProto = -1
         if (refErrors != null) {
@@ -52,11 +50,9 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
             ownErrors = true
         }
         val p = sp()
-        val startType = type
         var left = parseMaybeConditional(noIn, refErrors)
         if (type.isAssign) {
             val op = type.text
-            val opPos = lex.start
             val annexBCall = !strict && left is CallExpression && !left.parenthesized && type != T.AND_ASSIGN && type != T.OR_ASSIGN && type != T.NULLISH_ASSIGN
             if (type == T.ASSIGN && !annexBCall) {
                 left = toAssignable(left, false, refErrors)
@@ -82,7 +78,6 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
         }
         if (oldTrailingComma > -1) refErrors.trailingComma = oldTrailingComma
         if (oldDoubleProto > -1 && refErrors.doubleProto < 0) refErrors.doubleProto = oldDoubleProto
-        @Suppress("UNUSED_VARIABLE") val unused = startType
         return left
     }
 
@@ -96,7 +91,7 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
         return false
     }
 
-    fun checkPatternErrors(refErrors: DestructuringErrors?, isAssign: Boolean) {
+    fun checkPatternErrors(refErrors: DestructuringErrors?) {
         if (refErrors == null) return
         if (refErrors.trailingComma > -1) raise(refErrors.trailingComma, "Comma is not permitted after the rest element")
     }
@@ -217,7 +212,6 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
         if (type == T.STARSTAR) {
             if (sawUnary) unexpected()
             next()
-            val rp = sp()
             val right = parseMaybeUnary(null, false, noIn)
             if (right is PrivateIdentifier) unexpected(right.start)
             return fin(BinaryExpression("**", expr, right), p)
@@ -281,9 +275,9 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
                 val oldAwaitIdent = awaitIdentPos
                 yieldPos = -1; awaitPos = -1; awaitIdentPos = -1
                 next()
-                val args = parseExprList(T.RPAREN, true, false, refErrors, maybeAsyncArrow && !optionalChained)
+                val args = parseExprList(T.RPAREN, true, false, refErrors)
                 if (maybeAsyncArrow && !optional && !optionalChained && type == T.ARROW && !lex.nlBefore) {
-                    checkPatternErrors(refErrors, false)
+                    checkPatternErrors(refErrors)
                     checkYieldAwaitInDefaultParams()
                     if (awaitIdentPos > -1) raise(awaitIdentPos, "Cannot use 'await' as identifier inside an async function")
                     yieldPos = oldYield; awaitPos = oldAwait; awaitIdentPos = oldAwaitIdent
@@ -414,10 +408,10 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
                 validateRegExp(node)
                 return node
             }
-            T.LPAREN -> return parseParenAndDistinguishExpression(noIn, refErrors)
+            T.LPAREN -> return parseParenAndDistinguishExpression(noIn)
             T.LBRACKET -> {
                 next()
-                val elements = parseExprList(T.RBRACKET, true, true, refErrors, false)
+                val elements = parseExprList(T.RBRACKET, true, true, refErrors)
                 return fin(ArrayLiteral(elements.toMutableList()), p)
             }
             T.LBRACE -> return parseObj(false, refErrors)
@@ -435,7 +429,6 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
     fun parseIdentReference(): Identifier {
         val p = sp()
         val name = lex.value as? String ?: unexpected()
-        val escaped = lex.escaped
         checkUnreserved(name, p.start)
         if (name == "await" && awaitIdentPos < 0) awaitIdentPos = p.start
         next()
@@ -483,7 +476,7 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
         }
         val cp = sp()
         val callee = parseSubscripts(parseExprAtom(null, false), cp, true, false)
-        val args = if (eat(T.LPAREN)) parseExprList(T.RPAREN, true, false, null, false).map { it!! } else emptyList()
+        val args = if (eat(T.LPAREN)) parseExprList(T.RPAREN, true, false, null).map { it!! } else emptyList()
         return fin(NewExpression(callee, args), p)
     }
 
@@ -527,7 +520,7 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
     }
 
     /** Parses comma separated expressions until [close]. Allows holes for arrays. */
-    fun parseExprList(close: T, allowTrailingComma: Boolean, allowEmpty: Boolean, refErrors: DestructuringErrors?, trackAwaitIdent: Boolean): List<Node?> {
+    fun parseExprList(close: T, allowTrailingComma: Boolean, allowEmpty: Boolean, refErrors: DestructuringErrors?): List<Node?> {
         val elts = ArrayList<Node?>()
         var first = true
         while (!eat(close)) {
@@ -558,7 +551,7 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
         if (awaitPos > -1) raise(awaitPos, "Await expression cannot be a default value")
     }
 
-    fun parseParenAndDistinguishExpression(noIn: Boolean, refErrors0: DestructuringErrors?): Node {
+    fun parseParenAndDistinguishExpression(noIn: Boolean): Node {
         val p = sp()
         next()
         val innerP = sp()
@@ -591,12 +584,12 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
         val innerEnd = lex.prevEnd
         expect(T.RPAREN)
         if (type == T.ARROW && !canInsertSemicolon()) {
-            checkPatternErrors(refErrors, false)
+            checkPatternErrors(refErrors)
             checkYieldAwaitInDefaultParams()
             yieldPos = oldYield
             awaitPos = oldAwait
             next()
-            return parseArrowExpression(p, exprList.toMutableList<Node?>(), false, noIn)
+            return parseArrowExpression(p, exprList.toMutableList(), false, noIn)
         }
         if (exprList.isEmpty() || lastIsComma) unexpected(lex.prevEnd - 1)
         if (spreadStart > -1) unexpected(spreadStart)
@@ -715,15 +708,15 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
         }
         val containsEsc = lex.escaped
         var keyInfo = parsePropertyName()
-        if (!isPattern && !containsEsc && !isGenerator && !keyInfo.computed && keyInfo.key is Identifier && isAsyncProp(keyInfo.key as Identifier)) {
+        if (!isPattern && !containsEsc && !isGenerator && !keyInfo.computed && keyInfo.key is Identifier && isAsyncProp(keyInfo.key)) {
             isAsync = true
             isGenerator = eat(T.STAR)
             keyInfo = parsePropertyName()
         } else if (!isPattern && !containsEsc && !isGenerator && !keyInfo.computed && keyInfo.key is Identifier &&
-            ((keyInfo.key as Identifier).name == "get" || (keyInfo.key as Identifier).name == "set") &&
+            (keyInfo.key.name == "get" || keyInfo.key.name == "set") &&
             type != T.COMMA && type != T.RBRACE && type != T.COLON && type != T.LPAREN && type != T.ASSIGN
         ) {
-            kind = if ((keyInfo.key as Identifier).name == "get") PropKind.GET else PropKind.SET
+            kind = if (keyInfo.key.name == "get") PropKind.GET else PropKind.SET
             keyInfo = parsePropertyName()
         }
         return parsePropertyValue(p, keyInfo, isPattern, isGenerator, isAsync, kind, refErrors, containsEsc)
@@ -933,11 +926,9 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
             val oldLabels = withFreshLabels()
             val bp = sp()
             expect(T.LBRACE)
-            var sawUseStrict = false
             val body = parseBlockBody(true, true) { directive ->
                 if (directive.raw.length == 12 && directive.raw.substring(1, 11) == "use strict") {
                     if (!fn.hasSimpleParams) raise(directive.start, "Illegal 'use strict' directive in function with non-simple parameter list")
-                    sawUseStrict = true
                     strict = true
                 }
             }
@@ -950,7 +941,6 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
                 if (n == "eval" || n == "arguments") raise(fn.id!!.start, "Unexpected eval or arguments in strict mode")
                 if (strictReserved.contains(n) && !oldStrict) raise(fn.id!!.start, "Unexpected strict mode reserved word '$n'")
             }
-            @Suppress("UNUSED_VARIABLE") val u = sawUseStrict
         }
         fn.strict = strict
         strict = oldStrict
@@ -1052,22 +1042,26 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
             is ObjectPattern, is ArrayPattern, is AssignmentPattern, is RestElement -> return node
             is ObjectLiteral -> {
                 if (node.parenthesized) raise(node.start, "Invalid destructuring assignment target")
-                if (refErrors != null) checkPatternErrors(refErrors, true)
+                if (refErrors != null) checkPatternErrors(refErrors)
                 val props = ArrayList<Node>()
                 for ((i, prop) in node.properties.withIndex()) {
-                    if (prop is SpreadElement) {
-                        val arg = prop.argument
-                        if (i != node.properties.size - 1) raise(prop.start, "Rest element must be last element")
-                        if (arg !is Identifier && (isBinding || arg !is MemberExpression)) raise(arg.start, "Invalid rest element")
-                        if (arg.parenthesized && isBinding) raise(arg.start, "Invalid rest element")
-                        val r = RestElement(toAssignable(arg, isBinding, null))
-                        r.start = prop.start; r.end = prop.end; r.line = prop.line; r.col = prop.col
-                        props.add(r)
-                    } else if (prop is Property) {
-                        if (prop.kind != PropKind.INIT || prop.method) raise(prop.key.start, "Object pattern can't contain getter or setter")
-                        prop.value = toAssignable(prop.value, isBinding, null)
-                        props.add(prop)
-                    } else props.add(prop)
+                    when (prop) {
+                        is SpreadElement -> {
+                            val arg = prop.argument
+                            if (i != node.properties.size - 1) raise(prop.start, "Rest element must be last element")
+                            if (arg !is Identifier && (isBinding || arg !is MemberExpression)) raise(arg.start, "Invalid rest element")
+                            if (arg.parenthesized && isBinding) raise(arg.start, "Invalid rest element")
+                            val r = RestElement(toAssignable(arg, isBinding, null))
+                            r.start = prop.start; r.end = prop.end; r.line = prop.line; r.col = prop.col
+                            props.add(r)
+                        }
+                        is Property -> {
+                            if (prop.kind != PropKind.INIT || prop.method) raise(prop.key.start, "Object pattern can't contain getter or setter")
+                            prop.value = toAssignable(prop.value, isBinding, null)
+                            props.add(prop)
+                        }
+                        else -> props.add(prop)
+                    }
                 }
                 val pat = ObjectPattern(props)
                 pat.start = node.start; pat.end = node.end; pat.line = node.line; pat.col = node.col
@@ -1075,7 +1069,7 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
             }
             is ArrayLiteral -> {
                 if (node.parenthesized) raise(node.start, "Invalid destructuring assignment target")
-                if (refErrors != null) checkPatternErrors(refErrors, true)
+                if (refErrors != null) checkPatternErrors(refErrors)
                 val elts = ArrayList<Node?>()
                 for ((i, e) in node.elements.withIndex()) {
                     if (e is SpreadElement) {
@@ -1146,7 +1140,7 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
             } else checkLValSimple(expr, bind)
             else -> {
                 checkLValSimple(expr, bind)
-                if (bind == Bind.NONE && expr !is Identifier && expr !is MemberExpression) raise(expr.start, "Invalid left-hand side in assignment")
+                if (bind == Bind.NONE && expr !is MemberExpression) raise(expr.start, "Invalid left-hand side in assignment")
             }
         }
     }
@@ -1187,7 +1181,7 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
                     e = fin(MemberExpression(e, parsePropertyAccessName(), false, false), p)
                 }
                 if (eat(T.LPAREN)) {
-                    val args = parseExprList(T.RPAREN, true, false, null, false).map { it!! }
+                    val args = parseExprList(T.RPAREN, true, false, null).map { it!! }
                     e = fin(CallExpression(e, args, false), p)
                 }
             }
@@ -1234,9 +1228,9 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
                 ctor = el.value
             }
             if (decs.isNotEmpty()) {
-                when {
-                    el is MethodDefinition && el.kind != MethodKind.CONSTRUCTOR -> el.decorators = decs
-                    el is PropertyDefinition -> el.decorators = decs
+                when (el) {
+                    is MethodDefinition if el.kind != MethodKind.CONSTRUCTOR -> el.decorators = decs
+                    is PropertyDefinition -> el.decorators = decs
                     else -> raise(decStart, "Decorators are not valid here")
                 }
             }
@@ -1315,7 +1309,6 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
                 isAccessor = true
             } else lex.restore(save)
         }
-        val keyP = sp()
         val keyInfo = parsePropertyName(allowPrivate = true)
         val key = keyInfo.key
         val keyStr: String? = if (keyInfo.computed) null else when (key) {
@@ -1327,7 +1320,7 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
 
         if (type == T.LPAREN && !isAccessor) {
             // method
-            val isCtor = !isStatic && keyStr == "constructor" && key !is PrivateIdentifier
+            val isCtor = !isStatic && keyStr == "constructor"
             if (isCtor) {
                 if (kind != MethodKind.METHOD) raise(key.start, "Class constructor may not be an accessor")
                 if (isGenerator) raise(key.start, "Class constructor may not be a generator")
