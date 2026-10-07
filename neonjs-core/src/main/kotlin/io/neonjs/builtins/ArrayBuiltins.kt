@@ -160,7 +160,7 @@ internal object ArrayBuiltins {
         proto.method(realm, "every", 1) { _, t, args, _ ->
             val o = Ops.toObject(t)
             val n = len(o)
-            val cb = callable(args.arg(0), "every")
+            val cb = callable(args.arg(0))
             var r = true
             var k = 0L
             while (k < n) {
@@ -188,7 +188,7 @@ internal object ArrayBuiltins {
         proto.method(realm, "filter", 1) { f, t, args, _ ->
             val o = Ops.toObject(t)
             val n = len(o)
-            val cb = callable(args.arg(0), "filter")
+            val cb = callable(args.arg(0))
             val a = speciesCreate(f.realm, o, 0)
             var to = 0L
             var k = 0L
@@ -212,7 +212,7 @@ internal object ArrayBuiltins {
             proto.method(realm, name, 1) { _, t, args, _ ->
                 val o = Ops.toObject(t)
                 val n = len(o)
-                val cb = callable(args.arg(0), name)
+                val cb = callable(args.arg(0))
                 var result: Any? = if (wantIndex) -1.0 else Undefined
                 var k = if (fromEnd) n - 1 else 0L
                 while (if (fromEnd) k >= 0 else k < n) {
@@ -241,7 +241,7 @@ internal object ArrayBuiltins {
         proto.method(realm, "flatMap", 1) { f, t, args, _ ->
             val o = Ops.toObject(t)
             val n = len(o)
-            val cb = callable(args.arg(0), "flatMap")
+            val cb = callable(args.arg(0))
             val a = speciesCreate(f.realm, o, 0)
             flatten(a, o, n, 0, 1.0, cb, args.arg(1))
             a
@@ -249,7 +249,7 @@ internal object ArrayBuiltins {
         proto.method(realm, "forEach", 1) { _, t, args, _ ->
             val o = Ops.toObject(t)
             val n = len(o)
-            val cb = callable(args.arg(0), "forEach")
+            val cb = callable(args.arg(0))
             var k = 0L
             while (k < n) {
                 val pk = key(k)
@@ -324,7 +324,7 @@ internal object ArrayBuiltins {
         proto.method(realm, "map", 1) { f, t, args, _ ->
             val o = Ops.toObject(t)
             val n = len(o)
-            val cb = callable(args.arg(0), "map")
+            val cb = callable(args.arg(0))
             val a = speciesCreate(f.realm, o, n)
             var k = 0L
             while (k < n) {
@@ -368,7 +368,7 @@ internal object ArrayBuiltins {
             proto.method(realm, name, 1) { _, t, args, _ ->
                 val o = Ops.toObject(t)
                 val n = len(o)
-                val cb = callable(args.arg(0), name)
+                val cb = callable(args.arg(0))
                 var k = if (right) n - 1 else 0L
                 var acc: Any?
                 if (args.size >= 2) acc = args[1]
@@ -462,7 +462,7 @@ internal object ArrayBuiltins {
         proto.method(realm, "some", 1) { _, t, args, _ ->
             val o = Ops.toObject(t)
             val n = len(o)
-            val cb = callable(args.arg(0), "some")
+            val cb = callable(args.arg(0))
             var r = false
             var k = 0L
             while (k < n) {
@@ -610,7 +610,7 @@ internal object ArrayBuiltins {
             }
             a
         }
-        proto.method(realm, "toString", 0) { f, t, _, _ ->
+        proto.method(realm, "toString", 0) { _, t, _, _ ->
             val o = Ops.toObject(t)
             val join = o.get("join", o)
             if (Ops.isCallable(join)) (join as JSObject).call(o, EMPTY_ARGS)

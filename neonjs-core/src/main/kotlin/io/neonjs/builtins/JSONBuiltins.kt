@@ -229,7 +229,7 @@ internal object JSONBuiltins {
             }
         }
         val ctx = JSObject(realm.objectPrototype)
-        if (n != null && n.source != null && v !is JSObject) ctx.createDataProperty("source", n.source)
+        if (n?.source != null && v !is JSObject) ctx.createDataProperty("source", n.source)
         return reviver.call(holder, arrayOf(if (name is Int) name.toString() else name, v, ctx))
     }
 

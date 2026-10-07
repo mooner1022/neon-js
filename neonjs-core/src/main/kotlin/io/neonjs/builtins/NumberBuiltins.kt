@@ -2,6 +2,25 @@ package io.neonjs.builtins
 
 import io.neonjs.runtime.*
 import java.math.BigInteger
+import kotlin.math.abs
+import kotlin.math.acos
+import kotlin.math.asin
+import kotlin.math.atan
+import kotlin.math.atan2
+import kotlin.math.cbrt
+import kotlin.math.ceil
+import kotlin.math.cos
+import kotlin.math.cosh
+import kotlin.math.expm1
+import kotlin.math.floor
+import kotlin.math.ln
+import kotlin.math.ln1p
+import kotlin.math.log10
+import kotlin.math.sin
+import kotlin.math.sinh
+import kotlin.math.sqrt
+import kotlin.math.tan
+import kotlin.math.tanh
 
 internal object NumberBuiltins {
     fun thisNumber(t: Any?, method: String): Double = when (t) {
@@ -34,7 +53,7 @@ internal object NumberBuiltins {
         ctor.method(realm, "isNaN", 1) { _, _, args, _ -> val v = args.arg(0); v is Double && v.isNaN() }
         ctor.method(realm, "isSafeInteger", 1) { _, _, args, _ ->
             val v = args.arg(0)
-            v is Double && Ops.isIntegral(v) && Math.abs(v) <= 9007199254740991.0
+            v is Double && Ops.isIntegral(v) && abs(v) <= 9007199254740991.0
         }
 
         proto.method(realm, "toExponential", 1) { _, t, args, _ ->
@@ -85,40 +104,40 @@ internal object MathBuiltins {
         val m = JSObject(realm.objectPrototype)
         realm.global("Math", m)
         m.value("E", Math.E, Attr.NONE)
-        m.value("LN10", Math.log(10.0), Attr.NONE)
-        m.value("LN2", Math.log(2.0), Attr.NONE)
-        m.value("LOG10E", 1.0 / Math.log(10.0), Attr.NONE)
-        m.value("LOG2E", 1.0 / Math.log(2.0), Attr.NONE)
+        m.value("LN10", ln(10.0), Attr.NONE)
+        m.value("LN2", ln(2.0), Attr.NONE)
+        m.value("LOG10E", 1.0 / ln(10.0), Attr.NONE)
+        m.value("LOG2E", 1.0 / ln(2.0), Attr.NONE)
         m.value("PI", Math.PI, Attr.NONE)
-        m.value("SQRT1_2", Math.sqrt(0.5), Attr.NONE)
-        m.value("SQRT2", Math.sqrt(2.0), Attr.NONE)
+        m.value("SQRT1_2", sqrt(0.5), Attr.NONE)
+        m.value("SQRT2", sqrt(2.0), Attr.NONE)
         m.value(JSSymbol.toStringTag, "Math", Attr.CONFIGURABLE)
         fun f1(name: String, op: (Double) -> Double) {
             m.method(realm, name, 1) { _, _, args, _ -> op(Ops.toNumber(args.arg(0))) }
         }
-        f1("abs") { Math.abs(it) }
-        f1("acos") { Math.acos(it) }
+        f1("abs") { abs(it) }
+        f1("acos") { acos(it) }
         f1("acosh") { x -> MathExtra.acosh(x) }
-        f1("asin") { Math.asin(it) }
+        f1("asin") { asin(it) }
         f1("asinh") { x -> MathExtra.asinh(x) }
-        f1("atan") { Math.atan(it) }
+        f1("atan") { atan(it) }
         f1("atanh") { x -> MathExtra.atanh(x) }
-        f1("cbrt") { Math.cbrt(it) }
-        f1("ceil") { Math.ceil(it) }
+        f1("cbrt") { cbrt(it) }
+        f1("ceil") { ceil(it) }
         f1("clz32") { x -> Integer.numberOfLeadingZeros(Ops.toInt32(x)).toDouble() }
-        f1("cos") { Math.cos(it) }
-        f1("cosh") { Math.cosh(it) }
+        f1("cos") { cos(it) }
+        f1("cosh") { cosh(it) }
         f1("exp") { Math.exp(it) }
-        f1("expm1") { Math.expm1(it) }
-        f1("floor") { Math.floor(it) }
+        f1("expm1") { expm1(it) }
+        f1("floor") { floor(it) }
         f1("fround") { x -> x.toFloat().toDouble() }
-        f1("log") { Math.log(it) }
-        f1("log1p") { Math.log1p(it) }
-        f1("log10") { Math.log10(it) }
+        f1("log") { ln(it) }
+        f1("log1p") { ln1p(it) }
+        f1("log10") { log10(it) }
         f1("log2") { x ->
-            val r = Math.log(x) / Math.log(2.0)
+            val r = ln(x) / ln(2.0)
             val ri = Math.rint(r)
-            if (x > 0 && Math.abs(r - ri) < 1e-12 && Math.pow(2.0, ri) == x) ri else r
+            if (x > 0 && abs(r - ri) < 1e-12 && Math.pow(2.0, ri) == x) ri else r
         }
         f1("round") { x ->
             if (x.isNaN() || x.isInfinite()) x
@@ -126,22 +145,22 @@ internal object MathBuiltins {
             else if (x > 0 && x < 0.5) 0.0
             else if (x < 0 && x >= -0.5) -0.0
             else {
-                val fl = Math.floor(x)
+                val fl = floor(x)
                 if (x - fl >= 0.5) fl + 1 else fl
             }
         }
         f1("sign") { x -> if (x.isNaN()) x else if (x > 0) 1.0 else if (x < 0) -1.0 else x }
-        f1("sin") { Math.sin(it) }
-        f1("sinh") { Math.sinh(it) }
-        f1("sqrt") { Math.sqrt(it) }
-        f1("tan") { Math.tan(it) }
-        f1("tanh") { Math.tanh(it) }
-        f1("trunc") { x -> if (x.isNaN() || x.isInfinite()) x else if (x < 0) Math.ceil(x) else Math.floor(x) }
+        f1("sin") { sin(it) }
+        f1("sinh") { sinh(it) }
+        f1("sqrt") { sqrt(it) }
+        f1("tan") { tan(it) }
+        f1("tanh") { tanh(it) }
+        f1("trunc") { x -> if (x.isNaN() || x.isInfinite()) x else if (x < 0) ceil(x) else floor(x) }
         f1("f16round") { x -> Float16.round(x) }
         m.method(realm, "atan2", 2) { _, _, args, _ ->
             val y = Ops.toNumber(args.arg(0))
             val x = Ops.toNumber(args.arg(1))
-            Math.atan2(y, x)
+            atan2(y, x)
         }
         m.method(realm, "hypot", 2) { _, _, args, _ ->
             val nums = DoubleArray(args.size) { Ops.toNumber(args[it]) }
@@ -155,7 +174,7 @@ internal object MathBuiltins {
             else if (nan) Double.NaN
             else {
                 var max = 0.0
-                for (d in nums) max = maxOf(max, Math.abs(d))
+                for (d in nums) max = maxOf(max, abs(d))
                 if (max == 0.0) 0.0
                 else {
                     var sum = 0.0
@@ -167,7 +186,7 @@ internal object MathBuiltins {
                         comp = (t - sum) - y
                         sum = t
                     }
-                    Math.sqrt(sum) * max
+                    sqrt(sum) * max
                 }
             }
         }
@@ -204,7 +223,7 @@ object Float16 {
         if (d.isNaN()) return 0x7E00.toShort()
         val bits = java.lang.Double.doubleToRawLongBits(d)
         val sign = ((bits ushr 48) and 0x8000L).toInt()
-        val ad = Math.abs(d)
+        val ad = abs(d)
         if (ad >= 65520.0) return (sign or 0x7C00).toShort()
         if (ad < 2.9802322387695312E-8) return sign.toShort() // < 2^-25 rounds to zero (ties to even at 2^-25 -> 0)
         // use exact rounding via BigDecimal-free approach: scale into subnormal/normal ranges
@@ -340,37 +359,37 @@ internal object MathExtra {
 
     fun asinh(x: Double): Double {
         if (x == 0.0 || !x.isFinite()) return x
-        val a = Math.abs(x)
+        val a = abs(x)
         val r = when {
-            a > TWO28 -> Math.log(a) + LN2
-            a > 2.0 -> Math.log(2.0 * a + 1.0 / (Math.sqrt(a * a + 1.0) + a))
+            a > TWO28 -> ln(a) + LN2
+            a > 2.0 -> ln(2.0 * a + 1.0 / (sqrt(a * a + 1.0) + a))
             a < 1.0 / TWO28 -> a
-            else -> Math.log1p(a + a * a / (1.0 + Math.sqrt(1.0 + a * a)))
+            else -> ln1p(a + a * a / (1.0 + sqrt(1.0 + a * a)))
         }
         return if (x < 0) -r else r
     }
 
     fun acosh(x: Double): Double = when {
         x.isNaN() || x < 1.0 -> Double.NaN
-        x >= TWO28 -> if (x.isInfinite()) x else Math.log(x) + LN2
+        x >= TWO28 -> if (x.isInfinite()) x else ln(x) + LN2
         x == 1.0 -> 0.0
-        x > 2.0 -> Math.log(2.0 * x - 1.0 / (x + Math.sqrt(x * x - 1.0)))
+        x > 2.0 -> ln(2.0 * x - 1.0 / (x + sqrt(x * x - 1.0)))
         else -> {
             val t = x - 1.0
-            Math.log1p(t + Math.sqrt(2.0 * t + t * t))
+            ln1p(t + sqrt(2.0 * t + t * t))
         }
     }
 
     fun atanh(x: Double): Double {
         if (x.isNaN()) return x
-        val a = Math.abs(x)
+        val a = abs(x)
         if (a > 1.0) return Double.NaN
         if (a == 1.0) return if (x > 0) Double.POSITIVE_INFINITY else Double.NEGATIVE_INFINITY
         if (a < 1.0 / TWO28) return x
         val r = if (a < 0.5) {
             val t = a + a
-            0.5 * Math.log1p(t + t * a / (1.0 - a))
-        } else 0.5 * Math.log1p((a + a) / (1.0 - a))
+            0.5 * ln1p(t + t * a / (1.0 - a))
+        } else 0.5 * ln1p((a + a) / (1.0 - a))
         return if (x < 0) -r else r
     }
 }

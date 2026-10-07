@@ -3,6 +3,7 @@ package io.neonjs.builtins
 import io.neonjs.runtime.*
 import io.neonjs.vm.Iteration
 import java.math.BigInteger
+import kotlin.math.floor
 
 /** TypedArray instance: an integer-indexed exotic object viewing an [JSArrayBuffer]. */
 class JSTypedArray internal constructor(
@@ -143,8 +144,7 @@ class JSTypedArray internal constructor(
     }
 
     override fun preventExtensions(): Boolean {
-        if (!isFixedLength()) return false
-        return super.preventExtensions()
+        return isFixedLength() && super.preventExtensions()
     }
 
     companion object {
@@ -166,7 +166,7 @@ class JSTypedArray internal constructor(
             // ToString(Number) always starts with a digit, '-', "Infinity" or "NaN"
             if (!(c in '0'..'9' || c == '-' || c == 'I' || c == 'N')) return NOT_NUMERIC
             val n = Ops.canonicalNumericIndexString(s) ?: return NOT_NUMERIC
-            if (n >= 0 && n <= Int.MAX_VALUE && n == Math.floor(n) && !(n == 0.0 && 1.0 / n < 0)) return n.toInt()
+            if (n >= 0 && n <= Int.MAX_VALUE && n == floor(n) && !(n == 0.0 && 1.0 / n < 0)) return n.toInt()
             return -1
         }
     }
@@ -306,7 +306,7 @@ internal object TypedArrayBuiltins {
         }
         var si = srcIndex
         var di = dstIndex
-        for (k in 0 until count) {
+        repeat(count) {
             BufferOps.store(dst, di, dstType, BufferOps.load(src, si, srcType))
             si += srcType.size
             di += dstType.size
@@ -432,7 +432,7 @@ internal object TypedArrayBuiltins {
         proto.method(realm, "every", 1) { _, t, args, _ ->
             val ta = validate(t, "%TypedArray%.prototype.every")
             val len = ta.lengthOrOOB()
-            val cb = callable(args.arg(0), "every")
+            val cb = callable(args.arg(0))
             var r = true
             for (k in 0 until len) {
                 if (!Ops.toBoolean(cb.call(args.arg(1), arrayOf(ta.getIndex(k), k.toDouble(), ta)))) { r = false; break }
@@ -442,7 +442,7 @@ internal object TypedArrayBuiltins {
         proto.method(realm, "some", 1) { _, t, args, _ ->
             val ta = validate(t, "%TypedArray%.prototype.some")
             val len = ta.lengthOrOOB()
-            val cb = callable(args.arg(0), "some")
+            val cb = callable(args.arg(0))
             var r = false
             for (k in 0 until len) {
                 if (Ops.toBoolean(cb.call(args.arg(1), arrayOf(ta.getIndex(k), k.toDouble(), ta)))) { r = true; break }
@@ -452,7 +452,7 @@ internal object TypedArrayBuiltins {
         proto.method(realm, "forEach", 1) { _, t, args, _ ->
             val ta = validate(t, "%TypedArray%.prototype.forEach")
             val len = ta.lengthOrOOB()
-            val cb = callable(args.arg(0), "forEach")
+            val cb = callable(args.arg(0))
             for (k in 0 until len) cb.call(args.arg(1), arrayOf(ta.getIndex(k), k.toDouble(), ta))
             Undefined
         }
@@ -487,7 +487,7 @@ internal object TypedArrayBuiltins {
         proto.method(realm, "filter", 1) { f, t, args, _ ->
             val ta = validate(t, "%TypedArray%.prototype.filter")
             val len = ta.lengthOrOOB()
-            val cb = callable(args.arg(0), "filter")
+            val cb = callable(args.arg(0))
             val kept = ArrayList<Any>()
             for (k in 0 until len) {
                 val v = ta.getIndex(k)
@@ -504,7 +504,7 @@ internal object TypedArrayBuiltins {
             proto.method(realm, name, 1) { _, t, args, _ ->
                 val ta = validate(t, "%TypedArray%.prototype.$name")
                 val len = ta.lengthOrOOB()
-                val cb = callable(args.arg(0), name)
+                val cb = callable(args.arg(0))
                 var result: Any? = if (wantIndex) -1.0 else Undefined
                 var k = if (fromEnd) len - 1 else 0
                 while (if (fromEnd) k >= 0 else k < len) {
@@ -580,7 +580,7 @@ internal object TypedArrayBuiltins {
         proto.method(realm, "map", 1) { f, t, args, _ ->
             val ta = validate(t, "%TypedArray%.prototype.map")
             val len = ta.lengthOrOOB()
-            val cb = callable(args.arg(0), "map")
+            val cb = callable(args.arg(0))
             val a = speciesCreate(f.realm, ta, arrayOf(len.toDouble()), true)
             for (k in 0 until len) a.setIndex(k, cb.call(args.arg(1), arrayOf(ta.getIndex(k), k.toDouble(), ta)))
             a
@@ -589,7 +589,7 @@ internal object TypedArrayBuiltins {
             proto.method(realm, name, 1) { _, t, args, _ ->
                 val ta = validate(t, "%TypedArray%.prototype.$name")
                 val len = ta.lengthOrOOB()
-                val cb = callable(args.arg(0), name)
+                val cb = callable(args.arg(0))
                 if (len == 0 && args.size < 2) typeErr("Reduce of empty array with no initial value")
                 var k = if (right) len - 1 else 0
                 var acc: Any?

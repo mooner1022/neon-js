@@ -242,7 +242,7 @@ internal object RegExpBuiltins {
     }
 
     private fun installLegacyStatics(realm: Realm, ctor: JSObject) {
-        for (name in listOf("input", "\$_")) {
+        for (name in listOf("input", $$"$_")) {
             ctor.accessor(realm, name, { f, t, _, _ ->
                 staticsFor(f, t, name).input ?: emptySlot(name)
             }, { f, t, args, _ ->
@@ -251,17 +251,17 @@ internal object RegExpBuiltins {
                 Undefined
             })
         }
-        for ((name, k) in listOf("lastMatch" to 0, "\$&" to 0, "lastParen" to 10, "\$+" to 10)) {
+        for ((name, k) in listOf("lastMatch" to 0, "$&" to 0, "lastParen" to 10, "$+" to 10)) {
             legacyGetter(realm, ctor, name) { f, t, _, _ -> staticsFor(f, t, name).slot(k) ?: emptySlot(name) }
         }
-        for (name in listOf("leftContext", "\$`")) {
+        for (name in listOf("leftContext", "$`")) {
             legacyGetter(realm, ctor, name) { f, t, _, _ -> staticsFor(f, t, name).leftContext() ?: emptySlot(name) }
         }
-        for (name in listOf("rightContext", "\$'")) {
+        for (name in listOf("rightContext", "$'")) {
             legacyGetter(realm, ctor, name) { f, t, _, _ -> staticsFor(f, t, name).rightContext() ?: emptySlot(name) }
         }
         for (k in 1..9) {
-            val name = "\$" + k
+            val name = "$" + k
             ctor.getter(realm, name) { f, t, _, _ -> staticsFor(f, t, name).slot(k) ?: emptySlot(name) }
         }
     }
@@ -366,7 +366,7 @@ internal object RegExpBuiltins {
 
     private inline fun <T> guardStack(block: () -> T): T = try {
         block()
-    } catch (e: RegExpStackOverflowError) {
+    } catch (_: RegExpStackOverflowError) {
         throw JSException.rangeError("Maximum call stack size exceeded (regular expression too complex)")
     }
 
@@ -380,7 +380,7 @@ internal object RegExpBuiltins {
         val sticky = flags and FLAG_STICKY != 0
         if (!global && !sticky) lastIndex = 0
         if (lastIndex > length) {
-            if (global || sticky) r.setOrThrow("lastIndex", 0.0)
+            r.setOrThrow("lastIndex", 0.0) // only global or sticky regexps get here: lastIndex is 0 otherwise
             return Null
         }
         val m = newMatcher(realm, prog, s)
@@ -919,7 +919,7 @@ internal object RegExpBuiltins {
             for (cu in Character.toChars(cp)) {
                 sb.append("\\u")
                 val h = Integer.toHexString(cu.code)
-                for (k in h.length until 4) sb.append('0')
+                repeat(4 - h.length) { sb.append('0') }
                 sb.append(h)
             }
             return

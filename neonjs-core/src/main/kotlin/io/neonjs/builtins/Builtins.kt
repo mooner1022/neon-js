@@ -39,8 +39,6 @@ internal fun makeCtor(realm: Realm, name: String, length: Int, proto: JSObject?,
 
 internal fun Realm.global(name: String, v: Any?, attrs: Int = Attr.WC) = globalObject.defineOwn(name, v, attrs)
 
-internal fun argInt(args: Array<Any?>, i: Int): Double = Ops.toIntegerOrInfinity(args.arg(i))
-
 /** Relative index helper used by slice/splice/at etc. */
 internal fun relIndex(v: Any?, len: Long, default: Long): Long {
     if (v === Undefined) return default
@@ -51,9 +49,7 @@ internal fun relIndex(v: Any?, len: Long, default: Long): Long {
 internal fun typeErr(msg: String): Nothing = throw JSException.typeError(msg)
 internal fun rangeErr(msg: String): Nothing = throw JSException.rangeError(msg)
 
-internal fun requireObject(v: Any?, what: String): JSObject = v as? JSObject ?: typeErr("$what called on non-object")
-
-internal fun callable(v: Any?, what: String): JSObject {
+internal fun callable(v: Any?): JSObject {
     if (!Ops.isCallable(v)) typeErr("${Ops.describe(v)} is not a function")
     return v as JSObject
 }
@@ -188,13 +184,12 @@ internal object ObjectBuiltins {
             }
             to
         }
-        ctor.method(realm, "create", 2) { f, _, args, _ ->
+        ctor.method(realm, "create", 2) { _, _, args, _ ->
             val p = args.arg(0)
             if (p !is JSObject && p !== Null) typeErr("Object prototype may only be an Object or null: ${Ops.toDisplayString(p)}")
             val o = JSObject(p as? JSObject)
             val props = args.arg(1)
             if (props !== Undefined) defineProperties(o, props)
-            @Suppress("UNUSED_VARIABLE") val u = f
             o
         }
         ctor.method(realm, "defineProperties", 2) { _, _, args, _ ->
@@ -253,7 +248,7 @@ internal object ObjectBuiltins {
         }
         ctor.method(realm, "getOwnPropertySymbols", 1) { f, _, args, _ ->
             val o = Ops.toObject(args.arg(0))
-            Builtins.arrayOf(f.realm, o.ownPropertyKeys().filter { it is JSSymbol })
+            Builtins.arrayOf(f.realm, o.ownPropertyKeys().filterIsInstance<JSSymbol>())
         }
         ctor.method(realm, "getPrototypeOf", 1) { _, _, args, _ -> Ops.toObject(args.arg(0)).getPrototypeOf() ?: Null }
         ctor.method(realm, "groupBy", 2) { f, _, args, _ ->
@@ -459,7 +454,7 @@ internal object FunctionBuiltins {
             val list = if (arr === Undefined || arr === Null) EMPTY_ARGS else Ops.createListFromArrayLike(arr)
             (t as JSObject).call(args.arg(0), list)
         }
-        proto.method(realm, "bind", 1) { f, t, args, _ ->
+        proto.method(realm, "bind", 1) { _, t, args, _ ->
             if (!Ops.isCallable(t)) typeErr("Bind must be called on a function")
             val target = t as JSObject
             val boundArgs = if (args.size > 1) args.copyOfRange(1, args.size) else EMPTY_ARGS
@@ -468,15 +463,16 @@ internal object FunctionBuiltins {
             if (target.hasOwnProperty("length")) {
                 val tl = target.get("length", target)
                 if (tl is Double) {
-                    len = if (tl == Double.POSITIVE_INFINITY) tl
-                    else if (tl == Double.NEGATIVE_INFINITY) 0.0
-                    else maxOf(0.0, Ops.integerPart(tl) - boundArgs.size)
+                    len = when (tl) {
+                        Double.POSITIVE_INFINITY -> tl
+                        Double.NEGATIVE_INFINITY -> 0.0
+                        else -> maxOf(0.0, Ops.integerPart(tl) - boundArgs.size)
+                    }
                 }
             }
             bf.defineOwn("length", len, Attr.CONFIGURABLE)
             val tn = target.get("name", target)
             bf.defineOwn("name", "bound " + (if (tn is CharSequence) tn.toString() else ""), Attr.CONFIGURABLE)
-            @Suppress("UNUSED_VARIABLE") val u = f
             bf
         }
         proto.method(realm, "call", 1) { _, t, args, _ ->
@@ -484,9 +480,9 @@ internal object FunctionBuiltins {
             (t as JSObject).call(args.arg(0), if (args.size > 1) args.copyOfRange(1, args.size) else EMPTY_ARGS)
         }
         proto.method(realm, "toString", 0) { _, t, _, _ ->
-            when {
-                t is JSFunction -> t.sourceText()
-                t is JSObject && t.isCallable -> "function () { [native code] }"
+            when (t) {
+                is JSFunction -> t.sourceText()
+                is JSObject if t.isCallable -> "function () { [native code] }"
                 else -> typeErr("Function.prototype.toString requires that 'this' be a Function")
             }
         }
@@ -651,7 +647,7 @@ internal object BooleanBuiltins {
     fun install(realm: Realm) {
         val proto = JSPrimitiveWrapper(realm.objectPrototype, false)
         realm.booleanPrototype = proto
-        val ctor = makeCtor(realm, "Boolean", 1, proto) { f, _, args, nt ->
+        val ctor = makeCtor(realm, "Boolean", 1, proto) { _, _, args, nt ->
             val b = Ops.toBoolean(args.arg(0))
             if (nt == null) b else JSPrimitiveWrapper(Ops.getPrototypeFromConstructor(nt) { it.booleanPrototype }, b)
         }

@@ -8,6 +8,8 @@ import java.time.ZoneOffset
 import java.time.zone.ZoneRules
 import java.util.Locale
 import java.util.TimeZone
+import kotlin.math.abs
+import kotlin.math.floor
 
 /**
  * Time value arithmetic of ECMA-262 §21.4.1 (Day, YearFromTime, MakeDay, TimeClip, ...), the host local time zone
@@ -46,7 +48,7 @@ object DateTime {
     // ------------------------------------------------------------------ decomposition of time values
 
     /** Day(t) */
-    fun day(t: Double): Double = Math.floor(t / MS_PER_DAY)
+    fun day(t: Double): Double = floor(t / MS_PER_DAY)
 
     /** TimeWithinDay(t) */
     fun timeWithinDay(t: Double): Double = posMod(t, MS_PER_DAY)
@@ -63,9 +65,9 @@ object DateTime {
     /** DateFromTime(t), 1-based. */
     fun dateFromTime(t: Double): Double = civilDate(civilOf(t)).toDouble()
 
-    fun hourFromTime(t: Double): Double = Math.floor(timeWithinDay(t) / MS_PER_HOUR)
-    fun minFromTime(t: Double): Double = Math.floor(timeWithinDay(t) / MS_PER_MINUTE) % 60
-    fun secFromTime(t: Double): Double = Math.floor(timeWithinDay(t) / MS_PER_SECOND) % 60
+    fun hourFromTime(t: Double): Double = floor(timeWithinDay(t) / MS_PER_HOUR)
+    fun minFromTime(t: Double): Double = floor(timeWithinDay(t) / MS_PER_MINUTE) % 60
+    fun secFromTime(t: Double): Double = floor(timeWithinDay(t) / MS_PER_SECOND) % 60
     fun msFromTime(t: Double): Double = timeWithinDay(t) % MS_PER_SECOND
 
     /** Non-negative remainder; never returns -0. */
@@ -131,8 +133,8 @@ object DateTime {
         val y = Ops.integerPart(year)
         val m = Ops.integerPart(month)
         val dt = Ops.integerPart(date)
-        val ym = y + Math.floor(m / 12)
-        if (!ym.isFinite() || Math.abs(ym) > MAX_YEAR) return Double.NaN
+        val ym = y + floor(m / 12)
+        if (!ym.isFinite() || abs(ym) > MAX_YEAR) return Double.NaN
         val mn = posMod(m, 12.0).toInt()
         return daysFromCivil(ym.toLong(), mn, 1).toDouble() + dt - 1
     }
@@ -153,7 +155,7 @@ object DateTime {
 
     /** TimeClip(time) */
     fun timeClip(time: Double): Double =
-        if (!time.isFinite() || Math.abs(time) > MAX_TIME) Double.NaN else Ops.integerPart(time)
+        if (!time.isFinite() || abs(time) > MAX_TIME) Double.NaN else Ops.integerPart(time)
 
     // ------------------------------------------------------------------ local time zone
 
@@ -224,10 +226,10 @@ object DateTime {
     /** TimeZoneString(tv), e.g. "+0900 (Korean Standard Time)". */
     fun timeZoneString(tv: Double): String {
         val offset = offsetAt(tv)
-        val abs = Math.abs(offset)
+        val a = abs(offset)
         val sign = if (offset >= 0) "+" else "-"
         val dst = !rules.isFixedOffset && rules.isDaylightSavings(Instant.ofEpochMilli(lookupMs(tv)))
-        return "$sign${pad(hourFromTime(abs).toInt(), 2)}${pad(minFromTime(abs).toInt(), 2)} (${zoneNames[if (dst) 1 else 0]})"
+        return "$sign${pad(hourFromTime(a).toInt(), 2)}${pad(minFromTime(a).toInt(), 2)} (${zoneNames[if (dst) 1 else 0]})"
     }
 
     /** ToDateString(tv): the format of Date.prototype.toString. */
@@ -249,7 +251,7 @@ object DateTime {
     fun toISOString(tv: Double): String {
         val c = civilOf(tv)
         val y = civilYear(c)
-        val year = if (y in 0..9999) pad(y, 4) else (if (y < 0) "-" else "+") + pad(Math.abs(y), 6)
+        val year = if (y in 0..9999) pad(y, 4) else (if (y < 0) "-" else "+") + pad(abs(y), 6)
         return "$year-${pad(civilMonth(c) + 1, 2)}-${pad(civilDate(c), 2)}T${pad(hourFromTime(tv).toInt(), 2)}:" +
             "${pad(minFromTime(tv).toInt(), 2)}:${pad(secFromTime(tv).toInt(), 2)}.${pad(msFromTime(tv).toInt(), 3)}Z"
     }

@@ -338,7 +338,7 @@ internal object GlobalBuiltins {
         if (lit.startsWith(".")) lit = "0$lit"
         lit = lit.replace(".e", ".0e").replace(".E", ".0E")
         if (lit.endsWith(".")) lit += "0"
-        val v = try { java.lang.Double.parseDouble(lit) } catch (e: NumberFormatException) { return Double.NaN }
+        val v = try { java.lang.Double.parseDouble(lit) } catch (_: NumberFormatException) { return Double.NaN }
         return if (neg) -v else v
     }
 
@@ -358,7 +358,7 @@ internal object GlobalBuiltins {
         var r = Ops.toInt32(radixArg)
         var stripPrefix = true
         if (r != 0) {
-            if (r < 2 || r > 36) return Double.NaN
+            if (r !in 2..36) return Double.NaN
             if (r != 16) stripPrefix = false
         } else r = 10
         if (stripPrefix && s.length >= 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
@@ -459,15 +459,14 @@ internal object URICoding {
                 octets[j] = bb
                 k += 3
             }
-            var cp = when (nBytes) {
+            val cp = when (nBytes) {
                 2 -> ((octets[0] and 0x1F) shl 6) or (octets[1] and 0x3F)
                 3 -> ((octets[0] and 0x0F) shl 12) or ((octets[1] and 0x3F) shl 6) or (octets[2] and 0x3F)
                 else -> ((octets[0] and 0x07) shl 18) or ((octets[1] and 0x3F) shl 12) or ((octets[2] and 0x3F) shl 6) or (octets[3] and 0x3F)
             }
             val min = when (nBytes) { 2 -> 0x80; 3 -> 0x800; else -> 0x10000 }
-            if (cp < min || cp > 0x10FFFF || (cp in 0xD800..0xDFFF)) throw JSException.uriError("URI malformed")
+            if (cp !in min..0x10FFFF || cp in 0xD800..0xDFFF) throw JSException.uriError("URI malformed")
             sb.appendCodePoint(cp)
-            @Suppress("UNUSED_VALUE") cp = 0
         }
         return sb.toString()
     }

@@ -111,11 +111,11 @@ internal object IteratorBuiltins {
 
         ctor.method(realm, "from", 1) { f, _, args, _ ->
             val o = args.arg(0)
-            val rec = getIteratorFlattenable(f.realm, o, true)
+            val rec = getIteratorFlattenable(o, true)
             if (Ops.ordinaryHasInstance(ctor, rec.iterator)) rec.iterator
             else WrappedIteratorObject(wp, rec)
         }
-        ctor.method(realm, "concat", 0) { f, _, args, _ ->
+        ctor.method(realm, "concat", 0) { _, _, args, _ ->
             val iterables = ArrayList<Pair<JSObject, Any?>>()
             for (a in args) {
                 if (a !is JSObject) typeErr("Iterator.concat requires iterable objects")
@@ -152,7 +152,7 @@ internal object IteratorBuiltins {
         }
 
         val proto = ip
-        proto.method(realm, "map", 1) { f, t, args, _ ->
+        proto.method(realm, "map", 1) { _, t, args, _ ->
             val o = requireIterObj(t)
             val mapper = args.arg(0)
             if (!Ops.isCallable(mapper)) closeAndThrow(o, "${Ops.describe(mapper)} is not a function")
@@ -169,7 +169,7 @@ internal object IteratorBuiltins {
                 }
             }
         }
-        proto.method(realm, "filter", 1) { f, t, args, _ ->
+        proto.method(realm, "filter", 1) { _, t, args, _ ->
             val o = requireIterObj(t)
             val pred = args.arg(0)
             if (!Ops.isCallable(pred)) closeAndThrow(o, "${Ops.describe(pred)} is not a function")
@@ -189,7 +189,7 @@ internal object IteratorBuiltins {
                 res
             }
         }
-        proto.method(realm, "take", 1) { f, t, args, _ ->
+        proto.method(realm, "take", 1) { _, t, args, _ ->
             val o = requireIterObj(t)
             val limit = numericLimit(o, args.arg(0))
             val rec = getIteratorDirect(o)
@@ -205,7 +205,7 @@ internal object IteratorBuiltins {
                 }
             }
         }
-        proto.method(realm, "drop", 1) { f, t, args, _ ->
+        proto.method(realm, "drop", 1) { _, t, args, _ ->
             val o = requireIterObj(t)
             val limit = numericLimit(o, args.arg(0))
             val rec = getIteratorDirect(o)
@@ -248,7 +248,7 @@ internal object IteratorBuiltins {
                     if (v === NotFound) break
                     try {
                         val mapped = (mapper as JSObject).call(Undefined, arrayOf(v, h.counter++))
-                        h.inner = getIteratorFlattenable(f.realm, mapped, false)
+                        h.inner = getIteratorFlattenable(mapped, false)
                     } catch (t: Throwable) {
                         Iteration.closeAndRethrow(rec, t)
                     }
@@ -455,7 +455,7 @@ internal object IteratorBuiltins {
                 }
                 if (next === NotFound) break
                 val iter = try {
-                    getIteratorFlattenable(f.realm, next, false)
+                    getIteratorFlattenable(next, false)
                 } catch (t: Throwable) {
                     closeAllAndThrow(listOf(inputIter) + iters, t)
                 }
@@ -512,7 +512,7 @@ internal object IteratorBuiltins {
                 }
                 if (value === Undefined) continue
                 val iter = try {
-                    getIteratorFlattenable(f.realm, value, false)
+                    getIteratorFlattenable(value, false)
                 } catch (t: Throwable) {
                     closeAllAndThrow(iters, t)
                 }
@@ -731,14 +731,13 @@ internal object IteratorBuiltins {
     }
 
     /** GetIteratorFlattenable(obj, primitiveHandling) */
-    fun getIteratorFlattenable(realm: Realm, obj: Any?, iterateStrings: Boolean): IteratorRecord {
+    fun getIteratorFlattenable(obj: Any?, iterateStrings: Boolean): IteratorRecord {
         if (obj !is JSObject) {
             if (!(iterateStrings && obj is CharSequence)) typeErr("${Ops.describe(obj)} is not an object")
         }
         val m = Ops.getMethod(obj, JSSymbol.iterator)
         val it = if (m === Undefined) obj else Ops.call(m, obj, EMPTY_ARGS)
         if (it !is JSObject) typeErr("${Ops.describe(it)} is not an object")
-        @Suppress("UNUSED_VARIABLE") val u = realm
         return getIteratorDirect(it)
     }
 

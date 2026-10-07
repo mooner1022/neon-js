@@ -6,15 +6,18 @@ import java.lang.invoke.VarHandle
 import java.math.BigInteger
 import java.nio.ByteOrder
 import java.util.concurrent.locks.ReentrantLock
+import kotlin.math.floor
 
 /**
  * Shared Data Block of a SharedArrayBuffer. One block may be referenced by SharedArrayBuffer objects living in
  * different agents (threads); all of them see the same [data]. Growable blocks are allocated at their maximum size up
  * front so [data] never changes; only [byteLength] grows.
  */
-class SharedDataBlock internal constructor(@JvmField val data: ByteArray, byteLength: Int, @JvmField val maxByteLength: Int) {
-    @Volatile @JvmField var byteLength: Int = byteLength
-
+class SharedDataBlock internal constructor(
+    @JvmField val data: ByteArray,
+    @Volatile @JvmField var byteLength: Int,
+    @JvmField val maxByteLength: Int,
+) {
     /** Critical section for atomic operations, the waiter lists (Atomics.wait / Atomics.notify) and grow. */
     @JvmField val lock = ReentrantLock()
 
@@ -47,7 +50,7 @@ class JSArrayBuffer internal constructor(
     /** ArrayBufferByteLength (0 when detached). */
     fun byteLength(): Int {
         val b = block
-        return if (b != null) b.byteLength else ownByteLength
+        return b?.byteLength ?: ownByteLength
     }
 
     internal fun detach() {
@@ -93,7 +96,7 @@ enum class ElementType(val jsName: String, @JvmField val size: Int, @JvmField va
     val ctorName: String get() = jsName + "Array"
 
     /** ToNumber / ToBigInt as required before storing into this element type. */
-    fun coerce(v: Any?): Any = if (isBigInt) Ops.toBigInt(v) else if (v is Double) v else Ops.toNumber(v)
+    fun coerce(v: Any?): Any = if (isBigInt) Ops.toBigInt(v) else v as? Double ?: Ops.toNumber(v)
 }
 
 /**
@@ -133,7 +136,7 @@ internal object BufferOps {
     @JvmField val USE_VAR_HANDLES: Boolean = !java.lang.Boolean.getBoolean("neonjs.noVarHandle") && try {
         ByteViews.I16_LE
         true
-    } catch (e: Throwable) {
+    } catch (_: Throwable) {
         false
     }
 
@@ -152,7 +155,7 @@ internal object BufferOps {
         Agent.current.get()?.reserveAllocation(len)
         try {
             return ByteArray(len.toInt())
-        } catch (e: OutOfMemoryError) {
+        } catch (_: OutOfMemoryError) {
             rangeErr("Array buffer allocation failed")
         }
     }
@@ -236,7 +239,7 @@ internal object BufferOps {
     fun clamp(d: Double): Int {
         if (!(d > 0)) return 0
         if (d >= 255) return 255
-        val f = Math.floor(d)
+        val f = floor(d)
         val diff = d - f
         if (diff < 0.5) return f.toInt()
         if (diff > 0.5) return f.toInt() + 1
@@ -282,13 +285,6 @@ internal object ArrayBufferBuiltins {
         System.arraycopy(from, fromIndex, b.data, 0, count)
         b.immutable = true
         return b
-    }
-
-    /** CloneArrayBuffer(srcBuffer, srcByteOffset, srcLength) into a new %ArrayBuffer%. */
-    fun clone(realm: Realm, src: JSArrayBuffer, offset: Int, length: Int): JSArrayBuffer {
-        val target = allocate(realm, null, length.toLong())
-        System.arraycopy(src.data, offset, target.data, 0, length)
-        return target
     }
 
     private fun thisBuffer(t: Any?, method: String, shared: Boolean): JSArrayBuffer {
@@ -402,11 +398,11 @@ internal object ArrayBufferBuiltins {
     private fun installSharedArrayBuffer(realm: Realm) {
         val proto = JSObject(realm.objectPrototype)
         realm.intrinsics["%SharedArrayBuffer.prototype%"] = proto
-        val ctor = makeCtor(realm, "SharedArrayBuffer", 1, proto) { f, _, args, nt ->
+        val ctor = makeCtor(realm, "SharedArrayBuffer", 1, proto) { _, _, args, nt ->
             if (nt == null) typeErr("Constructor SharedArrayBuffer requires 'new'")
             val byteLength = Ops.toIndex(args.arg(0))
             val max = maxByteLengthOption(args.arg(1))
-            allocateShared(f.realm, nt, byteLength, max)
+            allocateShared(nt, byteLength, max)
         }
         realm.intrinsics["%SharedArrayBuffer%"] = ctor
         realm.global("SharedArrayBuffer", ctor)
@@ -453,7 +449,7 @@ internal object ArrayBufferBuiltins {
     }
 
     /** AllocateSharedArrayBuffer(constructor, byteLength [, maxByteLength]) */
-    fun allocateShared(realm: Realm, ctor: JSObject, byteLength: Long, maxByteLength: Long): JSArrayBuffer {
+    fun allocateShared(ctor: JSObject, byteLength: Long, maxByteLength: Long): JSArrayBuffer {
         if (maxByteLength >= 0 && byteLength > maxByteLength) rangeErr("byteLength exceeds maxByteLength")
         val proto = Ops.getPrototypeFromConstructor(ctor) { it.intrinsic("%SharedArrayBuffer.prototype%") }
         val data = BufferOps.allocate(if (maxByteLength >= 0) maxByteLength else byteLength)

@@ -83,7 +83,7 @@ internal object DateParser {
                     }
                     val count = p - start
                     if (count == 0) return null
-                    for (i in count until 3) ms *= 10
+                    repeat(3 - count) { ms *= 10 }
                 }
             }
             if (at('Z')) {
@@ -309,7 +309,7 @@ internal object DateParser {
                     } else if (p - start > 2) {
                         year = v
                         hasYear = true
-                    } else if (v < 1 || v > 31) {
+                    } else if (v !in 1..31) {
                         year = twoDigitYear(v)
                         hasYear = true
                     } else {

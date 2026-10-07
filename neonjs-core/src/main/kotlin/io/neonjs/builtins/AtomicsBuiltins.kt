@@ -206,7 +206,7 @@ internal object AtomicsBuiltins {
     private val HAS_SPIN_WAIT = try {
         Thread::class.java.getMethod("onSpinWait")
         true
-    } catch (e: Throwable) {
+    } catch (_: Throwable) {
         false
     }
 
@@ -416,7 +416,7 @@ internal object AtomicsBuiltins {
                     if (remaining <= 0) break
                     try {
                         waiter.cond.awaitNanos(minOf(remaining, WAIT_SLICE_NANOS))
-                    } catch (e: InterruptedException) {
+                    } catch (_: InterruptedException) {
                         Thread.currentThread().interrupt()
                         throw InterruptedExecutionException("Execution interrupted")
                     }

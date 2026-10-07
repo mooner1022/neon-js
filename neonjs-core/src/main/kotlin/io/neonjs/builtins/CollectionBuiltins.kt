@@ -2,6 +2,7 @@ package io.neonjs.builtins
 
 import io.neonjs.runtime.*
 import io.neonjs.vm.*
+import java.lang.ref.ReferenceQueue
 import java.lang.ref.WeakReference
 
 /**
@@ -142,9 +143,9 @@ class JSWeakRef(proto: JSObject?, target: Any) : JSObject(proto) {
 }
 
 class JSFinalizationRegistry(proto: JSObject?, @JvmField val cleanup: JSObject, @JvmField val realm: Realm) : JSObject(proto) {
-    class Cell(target: Any, val held: Any?, val token: Any?, q: java.lang.ref.ReferenceQueue<Any>, val owner: JSFinalizationRegistry) : java.lang.ref.WeakReference<Any>(target, q)
+    class Cell(target: Any, val held: Any?, val token: Any?, q: ReferenceQueue<Any>, val owner: JSFinalizationRegistry) : WeakReference<Any>(target, q)
     val cells = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Cell, Boolean>())
-    val queue = java.lang.ref.ReferenceQueue<Any>()
+    val queue = ReferenceQueue<Any>()
 }
 
 internal object CollectionBuiltins {
@@ -201,7 +202,7 @@ internal object CollectionBuiltins {
         proto.method(realm, "has", 1) { _, t, args, _ -> thisMap(t, "has").table.has(args.arg(0)) }
         proto.method(realm, "forEach", 1) { _, t, args, _ ->
             val m = thisMap(t, "forEach")
-            val cb = callable(args.arg(0), "forEach")
+            val cb = callable(args.arg(0))
             m.table.forEachLive { k, v -> cb.call(args.arg(1), arrayOf(if (isSet) k else v, k, m)) }
             Undefined
         }
@@ -250,7 +251,7 @@ internal object CollectionBuiltins {
             }
             proto.method(realm, "getOrInsertComputed", 2) { _, t, args, _ ->
                 val m = thisMap(t, "getOrInsertComputed")
-                val cb = callable(args.arg(1), "getOrInsertComputed")
+                val cb = callable(args.arg(1))
                 var k = args.arg(0)
                 if (k is Double && k == 0.0) k = 0.0
                 if (m.table.has(k)) m.table.get(k)
@@ -310,7 +311,7 @@ internal object CollectionBuiltins {
         proto.method(realm, "delete", 1) { _, t, args, _ ->
             val w = thisW(t, "delete")
             val k = args.arg(0)
-            if (!canBeHeldWeakly(k)) false else removeKey(w, k)
+            canBeHeldWeakly(k) && removeKey(w, k)
         }
         proto.method(realm, "has", 1) { _, t, args, _ ->
             val w = thisW(t, "has")
@@ -349,7 +350,7 @@ internal object CollectionBuiltins {
                 val w = thisW(t, "getOrInsertComputed")
                 val k = args.arg(0)
                 if (!canBeHeldWeakly(k)) typeErr("Invalid value used as weak map key")
-                val cb = callable(args.arg(1), "getOrInsertComputed")
+                val cb = callable(args.arg(1))
                 if (w.map.containsKey(k)) w.map[k]
                 else {
                     val v = cb.call(Undefined, arrayOf(k))

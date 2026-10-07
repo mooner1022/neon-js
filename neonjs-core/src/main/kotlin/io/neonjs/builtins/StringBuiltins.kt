@@ -108,7 +108,7 @@ internal object StringBuiltins {
     fun install(realm: Realm) {
         val proto = JSStringObject(realm.objectPrototype, "")
         realm.stringPrototype = proto
-        val ctor = makeCtor(realm, "String", 1, proto) { f, _, args, nt ->
+        val ctor = makeCtor(realm, "String", 1, proto) { _, _, args, nt ->
             val s: String = if (args.isEmpty()) "" else {
                 val v = args[0]
                 if (nt == null && v is JSSymbol) return@makeCtor v.toString()
@@ -228,7 +228,7 @@ internal object StringBuiltins {
             val regexp = args.arg(0)
             if (regexp is JSObject) {
                 if (isRegExp(regexp)) {
-                    val flags = (regexp as JSObject).get("flags", regexp)
+                    val flags = regexp.get("flags", regexp)
                     Ops.requireObjectCoercible(flags)
                     if (Ops.toString(flags).indexOf('g') < 0) typeErr("String.prototype.matchAll called with a non-global RegExp argument")
                 }
@@ -310,7 +310,7 @@ internal object StringBuiltins {
             val replace = args.arg(1)
             if (search is JSObject) {
                 if (isRegExp(search)) {
-                    val flags = (search as JSObject).get("flags", search)
+                    val flags = search.get("flags", search)
                     Ops.requireObjectCoercible(flags)
                     if (Ops.toString(flags).indexOf('g') < 0) typeErr("replaceAll must be called with a global RegExp")
                 }
@@ -400,7 +400,7 @@ internal object StringBuiltins {
             val s = thisStr(t, "substr")
             val size = s.length
             var start = Ops.toIntegerOrInfinity(args.arg(0))
-            if (start == Double.NEGATIVE_INFINITY) start = 0.0 else if (start < 0) start = maxOf(size + start, 0.0) else start = minOf(start, size.toDouble())
+            start = if (start == Double.NEGATIVE_INFINITY) 0.0 else if (start < 0) maxOf(size + start, 0.0) else minOf(start, size.toDouble())
             val len = if (args.arg(1) === Undefined) size.toDouble() else Ops.toIntegerOrInfinity(args.arg(1))
             val end = minOf(start + len, size.toDouble())
             if (start >= end) "" else s.substring(start.toInt(), end.toInt())
@@ -477,7 +477,7 @@ internal object StringBuiltins {
             }
         }
         sip.value(JSSymbol.toStringTag, "String Iterator", Attr.CONFIGURABLE)
-        proto.method(realm, JSSymbol.iterator, 0) { f, t, _, _ -> StringIteratorObject(sip, thisStr(t, "[Symbol.iterator]")) }
+        proto.method(realm, JSSymbol.iterator, 0) { _, t, _, _ -> StringIteratorObject(sip, thisStr(t, "[Symbol.iterator]")) }
     }
 
     private val collator: java.text.Collator = java.text.Collator.getInstance(java.util.Locale.ROOT).also {
@@ -527,12 +527,12 @@ internal object StringBuiltins {
                 continue
             }
             val d = template[i + 1]
-            when {
-                d == '$' -> { sb.append('$'); i += 2 }
-                d == '&' -> { room(matched.length); sb.append(matched); i += 2 }
-                d == '`' -> { room(minOf(position, str.length)); sb.append(str, 0, minOf(position, str.length)); i += 2 }
-                d == '\'' -> { if (tailPos < str.length) { room(str.length - tailPos); sb.append(str, tailPos, str.length) }; i += 2 }
-                d in '0'..'9' -> {
+            when (d) {
+                '$' -> { sb.append('$'); i += 2 }
+                '&' -> { room(matched.length); sb.append(matched); i += 2 }
+                '`' -> { room(minOf(position, str.length)); sb.append(str, 0, minOf(position, str.length)); i += 2 }
+                '\'' -> { if (tailPos < str.length) { room(str.length - tailPos); sb.append(str, tailPos, str.length) }; i += 2 }
+                in '0'..'9' -> {
                     var digits = 1
                     var idx = d - '0'
                     if (i + 2 < n && template[i + 2] in '0'..'9') {
@@ -551,7 +551,7 @@ internal object StringBuiltins {
                         i++
                     }
                 }
-                d == '<' -> {
+                '<' -> {
                     if (namedCaptures === Undefined) {
                         sb.append("$<")
                         i += 2

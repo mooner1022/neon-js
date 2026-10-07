@@ -55,9 +55,9 @@ object ShadowRealms {
             if (target.hasOwnProperty("length")) {
                 val tl = target.get("length", target)
                 if (tl is Double) {
-                    len = when {
-                        tl == Double.POSITIVE_INFINITY -> tl
-                        tl == Double.NEGATIVE_INFINITY -> 0.0
+                    len = when (tl) {
+                        Double.POSITIVE_INFINITY -> tl
+                        Double.NEGATIVE_INFINITY -> 0.0
                         else -> maxOf(Ops.toIntegerOrInfinity(tl), 0.0)
                     }
                 }
