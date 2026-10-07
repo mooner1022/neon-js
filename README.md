@@ -43,6 +43,20 @@ callers; Temporal computes offsets with the JDK's tz data while `Intl.DateTimeFo
 disagree for a few zones' history when the two databases are different releases; `Date.parse` of strings outside
 the specified formats follows the engine's own heuristics, which differ from SpiderMonkey's in places.
 
+## Installation
+
+Releases are published to Maven Central as `dev.mooner.neonjs:<module>`
+([docs/RELEASING.md](docs/RELEASING.md) describes the release process):
+
+```kotlin
+dependencies {
+    implementation("dev.mooner.neonjs:neonjs-core:…")
+    implementation("dev.mooner.neonjs:neonjs-intl:…")   // optional: Intl and the non-ISO Temporal calendars (ICU4J)
+}
+```
+
+The jars are Java 21 class files. For Android, see [Android](#android).
+
 ## Building
 
 ```bash
@@ -236,6 +250,9 @@ dependencies {
 }
 ```
 
+`neonjs-android-d8` gets its r8 dependency from Google's Maven repository (`google()`), which Android builds already
+use. The jars are Java 21 class files, so the app's build tools (D8) must accept that class file version.
+
 The engine needs API 26+ (`java.time`, `java.lang.invoke`, `InMemoryDexClassLoader`). Adding `neonjs-android` is
 enough; to also keep converted code across launches, pass a cache directory:
 `NeonEngine.builder().codeDefiner(DexCodeDefiner(context.codeCacheDir))` (dex files are stored read-only, as Android
@@ -349,3 +366,8 @@ emulator -avd neonjs-api26 -no-window -no-audio -no-boot-anim -gpu swiftshader_i
 Known issue: Android 8.0's ART (API 26) occasionally aborts while linking a class during a concurrent garbage
 collection (`ClassHierarchyAnalysis` → `Check failed: self == thread_running_gc_`), with background compilation and
 without; seen once in seven Test262 runs on the API 26 emulator, never on API 34.
+
+## License
+
+NeonJS is licensed under the [Apache License 2.0](LICENSE). It includes data derived from the Unicode Character
+Database, under the Unicode License V3 (see [NOTICE](NOTICE)).
