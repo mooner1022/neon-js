@@ -10,6 +10,71 @@ import java.lang.invoke.MethodHandles
 import java.lang.invoke.MethodType
 import java.util.concurrent.atomic.AtomicLong
 
+/**
+ * Everything the class generated for a code block depends on, and nothing else: [JvmCompiler]'s code generator reads
+ * only these fields, so [identity], a hash of all of them, decides whether two code blocks can share a class. Constants
+ * are not part of it (generated code reads them from the running frame's code block at run time).
+ */
+class JitInput(cb: CodeBlock, debugInfo: Boolean = JvmCompiler.DEBUG_INFO) {
+    /** Function name part of the class name (for profilers). */
+    @JvmField val name: String = JvmCompiler.sanitize(cb.name)
+    @JvmField val code: IntArray = cb.code
+    @JvmField val handlers: IntArray = cb.handlers
+    @JvmField val numRegs: Int = cb.numRegs
+    @JvmField val paramRegs: IntArray? = cb.paramRegs
+    /** Start pc of each statement (the generated code records the pc there). */
+    @JvmField val statementPcs: IntArray
+    /** Debug info: source line of each statement (or -1), and the source name; null without debug info. */
+    @JvmField val lines: IntArray?
+    @JvmField val sourceName: String?
+
+    init {
+        val lt = cb.lineTable
+        statementPcs = IntArray(lt.size / 2) { lt[2 * it] }
+        val src = cb.source
+        if (debugInfo && src != null) {
+            lines = IntArray(lt.size / 2) { val pos = lt[2 * it + 1]; if (pos >= 0) src.lineCol(pos).first else -1 }
+            sourceName = src.name
+        } else {
+            lines = null
+            sourceName = null
+        }
+    }
+
+    /** 128 bits of the SHA-256 of all fields, in hex. */
+    val identity: String by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        val md = java.security.MessageDigest.getInstance("SHA-256")
+        val out = java.io.DataOutputStream(java.security.DigestOutputStream(NullOutput, md))
+        fun ints(a: IntArray?) {
+            if (a == null) return out.writeInt(-1)
+            out.writeInt(a.size)
+            for (v in a) out.writeInt(v)
+        }
+        out.writeInt(FORMAT)
+        out.writeUTF(name)
+        ints(code)
+        ints(handlers)
+        out.writeInt(numRegs)
+        ints(paramRegs)
+        ints(statementPcs)
+        ints(lines)
+        out.writeUTF(sourceName ?: "")
+        out.flush()
+        md.digest().copyOf(16).joinToString("") { "%02x".format(it) }
+    }
+
+    /** OutputStream.nullOutputStream needs JDK 11 / Android API 33. */
+    private object NullOutput : java.io.OutputStream() {
+        override fun write(b: Int) {}
+        override fun write(b: ByteArray, off: Int, len: Int) {}
+    }
+
+    private companion object {
+        /** Changes when the code generator changes what it emits for the same input. */
+        const val FORMAT = 1
+    }
+}
+
 /** Thrown when a code block cannot be compiled (unsupported instruction, method too large). */
 class JitBailout(msg: String) : RuntimeException(msg, null, false, false)
 
@@ -49,7 +114,7 @@ object JvmCompiler {
         if (!canCompile(cb)) return null
         if (!CodeDefiners.isUsable(definer)) return fail("no usable code definer on this platform")
         return try {
-            val (name, bytes) = generate(cb, definer.classFileVersion)
+            val (name, bytes) = generate(JitInput(cb), definer.classFileVersion)
             val cls = definer.define(name, bytes, JvmCompiler::class.java.classLoader)
             val r = cls.getDeclaredConstructor().newInstance() as CompiledCode
             compiledCount.incrementAndGet()
@@ -93,17 +158,23 @@ object JvmCompiler {
     }
 
     /**
-     * Generates the class for [cb] with class file [version]; returns its binary name and bytes. The name is derived
-     * from the code (not a counter), so the same code block yields the same class file in every run: a dex-converting
-     * definer can cache conversions across launches.
+     * Whether generated classes carry the source file name and line numbers (JVM debug info). JS stack traces do not use
+     * them (they come from the frame's pc), only JVM tools do; without them, code blocks that differ only in their
+     * position in the source get the same class. Enabled with `-Dneonjs.jit.debugInfo` and with visible classes.
      */
-    fun generate(cb: CodeBlock, version: Int = V17): Pair<String, ByteArray> {
-        val suffix = if (JvmCodeDefiner.VISIBLE_CLASSES) counter.incrementAndGet().toString()
-        else Integer.toHexString(cb.code.contentHashCode() * 31 + cb.numRegs)
-        val name = "io/neonjs/jit/JS\$" + sanitize(cb.name) + "\$" + suffix
+    @JvmField val DEBUG_INFO = JvmCodeDefiner.VISIBLE_CLASSES || System.getProperty("neonjs.jit.debugInfo") != null
+
+    /**
+     * Generates the class for [input] with class file [version]; returns its binary name and bytes. The name ends with
+     * the input's [JitInput.identity]: equal names mean equal class files, in every run, so classes can be shared
+     * between code blocks and a dex-converting definer can cache conversions across launches.
+     */
+    fun generate(input: JitInput, version: Int = V17): Pair<String, ByteArray> {
+        val suffix = if (JvmCodeDefiner.VISIBLE_CLASSES) counter.incrementAndGet().toString() else input.identity
+        val name = "io/neonjs/jit/JS\$" + input.name + "\$" + suffix
         val cw = CW()
         cw.visit(version, ACC_PUBLIC or ACC_FINAL or ACC_SUPER, name, null, "java/lang/Object", arrayOf("io/neonjs/jit/CompiledCode"))
-        cb.source?.let { cw.visitSource(it.name, null) }
+        input.sourceName?.let { cw.visitSource(it, null) }
         val init = cw.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null)
         init.visitCode()
         init.visitVarInsn(ALOAD, 0)
@@ -113,20 +184,20 @@ object JvmCompiler {
         init.visitEnd()
         val mv = cw.visitMethod(ACC_PUBLIC or ACC_FINAL, "run", "($FRAME_D)$OBJ", null, null)
         mv.visitCode()
-        Gen(cb, mv).emit()
+        Gen(input, mv).emit()
         mv.visitMaxs(0, 0)
         mv.visitEnd()
         cw.visitEnd()
         return name.replace('/', '.') to cw.toByteArray()
     }
 
-    private fun sanitize(s: String): String {
+    internal fun sanitize(s: String): String {
         val sb = StringBuilder()
         for (c in s) if (c.isLetterOrDigit() || c == '_') sb.append(c)
         return if (sb.isEmpty()) "anon" else sb.take(40).toString()
     }
 
-    private class Gen(val cb: CodeBlock, val mv: MethodVisitor) {
+    private class Gen(val cb: JitInput, val mv: MethodVisitor) {
         val code = cb.code
         val labels = HashMap<Int, Label>()
         val handlerLabels = HashMap<Int, Label>()
@@ -247,9 +318,10 @@ object JvmCompiler {
             }
             pc = 0
             var lastLine = -1
-            val lt = cb.lineTable
-            var lti = 0
-            var curPos = -1
+            val stmts = cb.statementPcs
+            val lines = cb.lines
+            var si = 0
+            var curLine = -1
             while (pc < code.size) {
                 labels[pc]?.let { mv.visitLabel(it) }
                 handlerLabels[pc]?.let { hl ->
@@ -259,9 +331,9 @@ object JvmCompiler {
                     rt("catchValue", "(Ljava/lang/Throwable;$FRAME_D)$OBJ")
                 }
                 var newStatement = false
-                while (lti < lt.size && lt[lti] <= pc) {
-                    curPos = lt[lti + 1]
-                    lti += 2
+                while (si < stmts.size && stmts[si] <= pc) {
+                    if (lines != null) curLine = lines[si]
+                    si++
                     newStatement = true
                 }
                 if (newStatement) {
@@ -270,16 +342,11 @@ object JvmCompiler {
                     iconst(pc)
                     mv.visitFieldInsn(PUTFIELD, FRAME, "pc", "I")
                 }
-                val pos = curPos
-                val src = cb.source
-                if (src != null && pos >= 0) {
-                    val line = src.lineCol(pos).first
-                    if (line != lastLine) {
-                        val ll = Label()
-                        mv.visitLabel(ll)
-                        mv.visitLineNumber(line, ll)
-                        lastLine = line
-                    }
+                if (curLine >= 0 && curLine != lastLine) {
+                    val ll = Label()
+                    mv.visitLabel(ll)
+                    mv.visitLineNumber(curLine, ll)
+                    lastLine = curLine
                 }
                 emitOp(pc)
                 pc += Op.length(code, pc)

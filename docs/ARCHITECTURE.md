@@ -87,7 +87,10 @@ Generated classes (JIT code and `Java.extend` adapters) become classes through a
 generated code therefore uses only public engine members, Java 8 class file features
 when the definer asks for them (`classFileVersion`), and no class refers to another, so each can have its own loader.
 A definer is probed once with a trivial class before any real code is generated; without a usable one the engine stays
-in the interpreter. Class names derive from the code (not a counter), so a definer can cache translations.
+in the interpreter. The generator reads a code block only through `JitInput` (instructions, handler ranges, registers,
+statement starts; constants are read from the frame at run time), and class names end with a hash of it: equal names
+mean equal class files, in every run, so code blocks can share a class and a definer can cache translations. JVM debug
+info (source name, line numbers) is left out unless `-Dneonjs.jit.debugInfo` is set; JS stack traces do not need it.
 
 `Jit.prepare` implements tiering: `INTERPRETER` never compiles, `COMPILED` compiles before the first call,
 `ADAPTIVE` compiles after `jitThreshold` calls. Compiled code and interpreted code share frames and are
