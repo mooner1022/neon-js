@@ -291,6 +291,14 @@ every generated class translated by dx first (the whole Test262 main suite passe
 class loading conditions only. Limit on Android: memory-allocation limits (`maxAllocatedBytes`) are unavailable (HotSpot
 only).
 
+Android 8.0 and 8.1 (API 26–27): class hierarchy analysis in their ART keeps a pointer to the only implementation of an
+interface method after the implementing class has been unloaded, and reads it when the next implementing class is
+linked; during a garbage collection that aborts the runtime (`Check failed: self == thread_running_gc_`) or corrupts
+the heap (fixed in Android 9). Generated classes are unloaded with their class loaders, so the engine never lets one be
+the only implementation there: the JIT's `CompiledCode` has two built-in implementations, and `Java.extend` adapters
+that implement interfaces stay loaded for the life of the process on those versions (elsewhere they are unloaded with
+their context).
+
 ## Project layout
 
 | Module / package | Contents |
@@ -365,9 +373,8 @@ avdmanager create avd -n neonjs-api26 -k "system-images;android-26;default;x86_6
 emulator -avd neonjs-api26 -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot
 ```
 
-Known issue: Android 8.0's ART (API 26) occasionally aborts while linking a class during a concurrent garbage
-collection (`ClassHierarchyAnalysis` → `Check failed: self == thread_running_gc_`), with background compilation and
-without; seen once in seven Test262 runs on the API 26 emulator, never on API 34.
+When the runtime aborts, `device.py` prints the abort message and the native backtrace of the crashing thread from the
+device's crash log.
 
 ## License
 
