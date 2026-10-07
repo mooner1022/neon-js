@@ -11,13 +11,13 @@ class InlineCacheTest {
     private fun check(src: String) {
         for (mode in listOf(ExecutionMode.INTERPRETER, ExecutionMode.COMPILED)) {
             NeonEngine.builder().executionMode(mode).console(null).build().newContext().use { c ->
-                val r = c.eval(HARNESS + src)
+                val r = c.eval(harness + src)
                 assertEquals("ok", r.asString(), "mode $mode")
             }
         }
     }
 
-    private val HARNESS = """
+    private val harness = """
         function eq(a, b, m) { if (a !== b && !(a !== a && b !== b)) throw new Error((m || '') + ': expected ' + String(b) + ' got ' + String(a)); }
         function throws(f, m) { try { f() } catch (e) { return e } throw new Error((m || '') + ': no exception'); }
     """

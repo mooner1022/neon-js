@@ -16,7 +16,7 @@ class Swallower {
     fun run(r: Runnable) {
         try {
             r.run()
-        } catch (e: RuntimeException) {
+        } catch (_: RuntimeException) {
             // ignored
         }
     }
@@ -52,7 +52,7 @@ class SecurityTest {
     @Test
     fun fuzzerRegressions() {
         ctx().use { c ->
-            assertThrows<NeonSyntaxException> { c.eval("\$v/[@@]/v;") }
+            assertThrows<NeonSyntaxException> { c.eval($$"$v/[@@]/v;") }
             assertThrows<NeonSyntaxException> { c.eval("@ 1 class C {}") }
             assertEquals(2, c.eval("1 + 1").asInt())
         }
@@ -232,10 +232,10 @@ class SecurityTest {
         val p = SandboxPolicy.builder().maxExecutionTime(500).build()
         for (mode in listOf(ExecutionMode.INTERPRETER, ExecutionMode.COMPILED)) {
             ctx(p, mode = mode).use { c ->
-                assertThrows<NeonTimeoutException> { c.eval("/^(a+)+\$/.test('a'.repeat(40) + 'b')") }
+                assertThrows<NeonTimeoutException> { c.eval("/^(a+)+$/.test('a'.repeat(40) + 'b')") }
                 assertThrows<NeonTimeoutException> { c.eval("'a'.repeat(40).replace(/(a|aa)+b/g, 'x')") }
                 // the context is still usable afterwards
-                assertEquals(true, c.eval("/^(a+)+\$/.test('aaa')").asBoolean())
+                assertEquals(true, c.eval("/^(a+)+$/.test('aaa')").asBoolean())
             }
         }
     }

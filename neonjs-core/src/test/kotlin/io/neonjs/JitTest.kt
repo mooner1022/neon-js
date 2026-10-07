@@ -67,7 +67,7 @@ class JitTest {
             return jvm.define(name, bytes, parent)
         }
 
-        fun threadOf(function: String): String? = threads.entries.firstOrNull { it.key.contains("JS\$$function\$") }?.value
+        fun threadOf(function: String): String? = threads.entries.firstOrNull { it.key.contains($$"JS$$$function$") }?.value
     }
 
     private fun codeOf(ctx: NeonContext, fn: String): CodeBlock = (ctx.eval(fn).raw as JSClosure).code

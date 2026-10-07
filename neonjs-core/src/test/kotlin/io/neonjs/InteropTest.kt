@@ -173,7 +173,7 @@ class InteropTest {
             assertEquals("square[sq:4.0], circle:3.5", c.eval("Shapes.describeAll([sq, circle])").asString())
             assertEquals("true,true", c.eval("[sq instanceof Shape2D, sq instanceof Square].join()").asString())
             assertEquals("final", c.eval("sq.locked()").asString())
-            assertEquals("undefined", c.eval("typeof sq.super\$describe\$0").asString(), "super bridges are not members")
+            assertEquals("undefined", c.eval($$"typeof sq.super$describe$0").asString(), "super bridges are not members")
 
             // interfaces with default methods
             assertEquals("hi x/hi x", c.eval("var G = Java.extend(Java.type('io.neonjs.Greeter'), { greet: w => 'hi ' + w }); new G().twice('x')").asString())
@@ -303,7 +303,7 @@ class InteropTest {
         val linked = try {
             java.nio.file.Files.createSymbolicLink(link, outside.resolve("secret.js"))
             true
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             false // symbolic links need extra privileges on Windows
         }
         if (linked) {

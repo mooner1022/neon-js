@@ -95,7 +95,7 @@ class WebGlobalsTest {
                 [k !== o, k.self === k, k.d.getTime(), k.r.source + k.r.flags, k.m.get(1).k, k.m.get(1) !== o.m.get(1), [...k.s][0], k.big,
                  String(k.str), 1 in k.arr, k.arr.length, k.arr.extra, Array.from(k.u8).join('|'), k.view.buffer === k.u8.buffer,
                  k.err instanceof RangeError, k.err.message].join()
-            """).asString(), "mode " + mode)
+            """).asString(), "mode $mode")
             assertEquals("DataCloneError:25,DataCloneError:25,DataCloneError:25,DataCloneError:25,DataCloneError:25", c.eval("""
                 [() => {}, Symbol('s'), new WeakMap(), Promise.resolve(), new Proxy({}, {})].map(v => {
                     try { structuredClone(v); return 'cloned' } catch (e) { return e instanceof DOMException && e.name + ':' + e.code }

@@ -1,12 +1,13 @@
 package io.neonjs
 
+import kotlin.math.sqrt
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.util.function.Function as JFunction
 
 class Point(@JvmField var x: Int, @JvmField var y: Int) {
-    fun length(): Double = Math.sqrt((x * x + y * y).toDouble())
+    fun length(): Double = sqrt((x * x + y * y).toDouble())
     fun add(other: Point) = Point(x + other.x, y + other.y)
     fun scale(f: Int) = Point(x * f, y * f)
     fun scale(f: Double) = "double:$f"
