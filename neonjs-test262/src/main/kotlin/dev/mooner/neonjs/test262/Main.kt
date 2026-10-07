@@ -77,7 +77,7 @@ fun main(args: Array<String>) {
     // exit status 1 when a test failed that the --known list does not expect
     val unexpected = failed.filter { it !in known }
     if (known.isNotEmpty()) println("known failures: ${failed.size - unexpected.size} of ${known.size} listed; unexpected: ${unexpected.size}")
-    for (p in unexpected.take(20)) println("UNEXPECTED $p")
+    for (p in unexpected.take(20)) println("UNEXPECTED $p :: ${results[p]?.message?.replace('\n', ' ')?.take(300)}")
     System.out.flush()
     exitProcess(if (unexpected.isEmpty()) 0 else 1)
 }
