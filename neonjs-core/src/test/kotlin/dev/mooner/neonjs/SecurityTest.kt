@@ -187,6 +187,50 @@ class SecurityTest {
     }
 
     @Test
+    fun builtInDenialsCanBeLifted() {
+        val p = SandboxPolicy.builder().exposeJavaGlobal(true).build()
+        val lifted = HostAccess.builder(HostAccess.Level.ALL).allowLookup { true }
+            .allowClass("java.lang.System").allowClass("java.lang.reflect.Array").allowPackage("java.lang.management").build()
+        ctx(p, lifted).use { c ->
+            assertEquals(true, c.eval("Java.type('java.lang.System').currentTimeMillis() > 0").asBoolean())
+            // a class of a denied package
+            assertEquals(3, c.eval("Java.type('java.lang.reflect.Array').getLength(Java.to([1, 2, 3]))").asInt())
+            assertEquals("java.lang:type=Runtime", c.eval("Java.type('java.lang.management.ManagementFactory').RUNTIME_MXBEAN_NAME").asString())
+            // objects are judged by their class: the MXBean is a sun.management class, still denied
+            assertEquals("undefined", c.eval("typeof Java.type('java.lang.management.ManagementFactory').getRuntimeMXBean().getUptime").asString())
+            // the rest of the list still applies
+            for (cls in listOf("java.lang.Runtime", "java.lang.Class", "java.lang.reflect.Method", "sun.misc.Unsafe")) {
+                assertThrows<NeonException>(cls) { c.eval("Java.type('$cls')") }
+            }
+            c["s"] = Secret()
+            assertEquals("undefined", c.eval("typeof s.getClass").asString())
+        }
+
+        // the embedder's own denials win over lifted entries
+        val both = HostAccess.builder(HostAccess.Level.ALL).allowLookup { true }
+            .allowClass("java.lang.System").denyClass("java.lang.System").build()
+        ctx(p, both).use { c -> assertThrows<NeonException> { c.eval("Java.type('java.lang.System')") } }
+
+        // lifting java.lang.Class exposes getClass()
+        val classes = HostAccess.builder(HostAccess.Level.ALL).allowClass("java.lang.Class").build()
+        ctx(access = classes).use { c ->
+            c["s"] = Secret()
+            assertEquals("hunter2", c.eval("s.getClass() === undefined ? '' : s.reveal()").asString())
+            assertEquals("function", c.eval("typeof s.getClass").asString())
+        }
+
+        // without the built-in list only the embedder's denials apply
+        val trusted = HostAccess.builder(HostAccess.Level.ALL).allowLookup { true }.defaultDenyList(false)
+            .denyClass("java.lang.ProcessBuilder").build()
+        ctx(p, trusted).use { c ->
+            assertEquals(true, c.eval("Java.type('java.lang.Runtime').getRuntime().availableProcessors() > 0").asBoolean())
+            assertThrows<NeonException> { c.eval("Java.type('java.lang.ProcessBuilder')") }
+            c["s"] = Secret()
+            assertEquals("undefined", c.eval("typeof s.wait").asString())
+        }
+    }
+
+    @Test
     @Timeout(30, unit = TimeUnit.SECONDS)
     fun terminationIsNotInterceptableByFinallyOrPromises() {
         val p = SandboxPolicy.builder().maxExecutionTime(300).build()

@@ -18,8 +18,10 @@ annotation class HostName(val value: String)
 /**
  * Policy deciding which host (Java/Kotlin) classes and members JS code may access.
  *
- * Even in [ALL] mode a built-in deny list blocks reflection, class loading, process/thread control and similar
- * capabilities; add more with [Builder.denyClass] or a custom [Builder.classFilter].
+ * Even in [ALL] mode a built-in deny list ([defaultDenied], [defaultDeniedPrefixes]) blocks reflection, class
+ * loading, process/thread control and similar capabilities; add more with [Builder.denyClass] or a custom
+ * [Builder.classFilter]. Embedders that trust their scripts with some of these can lift entries of the built-in list
+ * with [Builder.allowClass] and [Builder.allowPackage], or drop it with [Builder.defaultDenyList].
  */
 class HostAccess private constructor(b: Builder) {
     enum class Level {
@@ -35,8 +37,11 @@ class HostAccess private constructor(b: Builder) {
     private val classFilter: ((Class<*>) -> Boolean)? = b.classFilter
     private val memberFilter: ((Member) -> Boolean)? = b.memberFilter
     private val lookupFilter: ((String) -> Boolean)? = b.lookupFilter
-    private val denied: Set<String> = defaultDenied + b.deniedClasses
-    private val deniedPrefixes: List<String> = defaultDeniedPrefixes + b.deniedPrefixes
+    private val deniedClasses: Set<String> = HashSet(b.deniedClasses)
+    private val deniedPrefixes: List<String> = ArrayList(b.deniedPrefixes)
+    private val defaultDenyList: Boolean = b.defaultDenyList
+    private val allowedClasses: Set<String> = HashSet(b.allowedClasses)
+    private val allowedPrefixes: List<String> = ArrayList(b.allowedPrefixes)
     val allowArrayAccess: Boolean = b.allowArrayAccess
     val allowListAccess: Boolean = b.allowListAccess
     val allowMapAccess: Boolean = b.allowMapAccess
@@ -44,14 +49,24 @@ class HostAccess private constructor(b: Builder) {
     /** Allow JS objects/functions to be converted to host interfaces (callbacks, listeners). */
     val allowImplementations: Boolean = b.allowImplementations
 
+    /**
+     * Whether the class named [n] is on the deny list: denied by the embedder ([Builder.denyClass],
+     * [Builder.denyPackage]), or on the built-in list and not lifted. [packages] also applies the package entries.
+     */
+    private fun isNameDenied(n: String, packages: Boolean = true): Boolean {
+        if (n in deniedClasses || packages && deniedPrefixes.any { n.startsWith(it) }) return true
+        if (!defaultDenyList || n in allowedClasses || allowedPrefixes.any { n.startsWith(it) }) return false
+        return n in defaultDenied || packages && defaultDeniedPrefixes.any { n.startsWith(it) }
+    }
+
+    /** Whether [c], one of its superclasses or one of its interfaces is on the deny list. */
     fun isClassDenied(c: Class<*>): Boolean {
         var k: Class<*>? = c
         while (k != null) {
-            val n = k.name
-            if (n in denied || deniedPrefixes.any { n.startsWith(it) }) return true
+            if (isNameDenied(k.name)) return true
             k = k.superclass
         }
-        for (i in c.interfaces) if (i.name in denied) return true
+        for (i in c.interfaces) if (isNameDenied(i.name, packages = false)) return true
         return false
     }
 
@@ -73,8 +88,10 @@ class HostAccess private constructor(b: Builder) {
     fun isMemberAccessible(c: Class<*>, m: Member): Boolean {
         if (!Modifier.isPublic(m.modifiers)) return false
         if (m is Method) {
-            if (m.name in deniedMethods && m.declaringClass == Any::class.java) return false
-            if (m.name == "getClass" && m.parameterCount == 0) return false
+            if (m.name == "getClass" && m.parameterCount == 0) {
+                // it hands out java.lang.Class: visible only where that class is
+                if (isNameDenied("java.lang.Class")) return false
+            } else if (m.name in deniedMethods && m.declaringClass == Any::class.java) return false
             if (m.isSynthetic || m.isBridge) return false
             if (isClassDenied(m.declaringClass)) return false
         }
@@ -125,6 +142,9 @@ class HostAccess private constructor(b: Builder) {
         var lookupFilter: ((String) -> Boolean)? = null
         val deniedClasses = HashSet<String>()
         val deniedPrefixes = ArrayList<String>()
+        val allowedClasses = HashSet<String>()
+        val allowedPrefixes = ArrayList<String>()
+        var defaultDenyList = true
         var allowArrayAccess = true
         var allowListAccess = true
         var allowMapAccess = true
@@ -139,8 +159,33 @@ class HostAccess private constructor(b: Builder) {
         fun filterClasses(f: (Class<*>) -> Boolean) = apply { classFilter = f }
         /** Additional predicate for members (methods, fields, constructors). */
         fun filterMembers(f: (Member) -> Boolean) = apply { memberFilter = f }
+        /** Denies the class [name] (binary name), its subclasses and the classes implementing it. */
         fun denyClass(name: String) = apply { deniedClasses.add(name) }
-        fun denyPackage(prefix: String) = apply { deniedPrefixes.add(if (prefix.endsWith(".")) prefix else "$prefix.") }
+        /** Denies the classes of the package [prefix] and its subpackages. */
+        fun denyPackage(prefix: String) = apply { deniedPrefixes.add(packagePrefix(prefix)) }
+
+        /**
+         * Lifts the built-in deny list for the class [name] (binary name, e.g. `java.lang.System` or
+         * `java.lang.reflect.Array`), also where its package is denied. Its members become visible like those of any
+         * other class (for `System`: `exit`, `setProperty`, `getenv`, `load`…), so narrow them with [filterMembers]
+         * where needed. Classes denied with [denyClass] or [denyPackage] stay denied. Lifting `java.lang.Class`
+         * also exposes `getClass()`. Host objects are judged by their own class: an instance of a denied class stays
+         * opaque even when an interface it implements is allowed (e.g. the `sun.management` implementations of
+         * `java.lang.management` interfaces).
+         */
+        fun allowClass(name: String) = apply { allowedClasses.add(name) }
+
+        /** Lifts the built-in deny list for the classes of the package [prefix] and its subpackages (see [allowClass]). */
+        fun allowPackage(prefix: String) = apply { allowedPrefixes.add(packagePrefix(prefix)) }
+
+        /**
+         * Applies the built-in deny list ([defaultDenied], [defaultDeniedPrefixes]); `true` by default. Turning it off
+         * leaves only the classes denied with [denyClass] / [denyPackage] and the filters: for fully trusted scripts.
+         * `wait`, `notify`, `notifyAll` and `finalize` stay hidden either way.
+         */
+        fun defaultDenyList(enabled: Boolean) = apply { defaultDenyList = enabled }
+
+        private fun packagePrefix(p: String) = if (p.endsWith(".")) p else "$p."
         fun allowArrayAccess(b: Boolean) = apply { allowArrayAccess = b }
         fun allowListAccess(b: Boolean) = apply { allowListAccess = b }
         fun allowMapAccess(b: Boolean) = apply { allowMapAccess = b }
@@ -162,7 +207,7 @@ class HostAccess private constructor(b: Builder) {
             "javax.script.", "java.lang.instrument.", "java.lang.management.", "dev.mooner.neonjs.vm.", "dev.mooner.neonjs.compiler.",
             "dev.mooner.neonjs.runtime.", "kotlin.reflect.", "kotlin.jvm.internal.", "com.ibm.icu.",
         )
-        /** java.lang.Object methods never exposed. */
+        /** java.lang.Object methods never exposed (`getClass` only while `java.lang.Class` is denied). */
         val deniedMethods = setOf("getClass", "wait", "notify", "notifyAll", "finalize")
 
         /** No host access. */
