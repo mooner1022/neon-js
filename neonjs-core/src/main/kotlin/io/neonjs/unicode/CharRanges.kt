@@ -44,7 +44,6 @@ object CharRanges {
     const val OP_UNION = 0
     const val OP_INTER = 1
     const val OP_SUB = 2
-    const val OP_XOR = 3
 
     /** Generic merge of two inversion lists. */
     fun op(a: IntArray, b: IntArray, op: Int): IntArray {
@@ -79,7 +78,6 @@ object CharRanges {
     }
 
     fun union(a: IntArray, b: IntArray): IntArray = if (a.isEmpty()) b else if (b.isEmpty()) a else op(a, b, OP_UNION)
-    fun intersect(a: IntArray, b: IntArray): IntArray = if (a.isEmpty() || b.isEmpty()) EMPTY else op(a, b, OP_INTER)
     fun subtract(a: IntArray, b: IntArray): IntArray = if (a.isEmpty() || b.isEmpty()) a else op(a, b, OP_SUB)
 
     fun invert(a: IntArray): IntArray = op(ALL, a, OP_SUB)

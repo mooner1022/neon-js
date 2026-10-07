@@ -10,7 +10,6 @@ import java.util.concurrent.atomic.AtomicReferenceArray
  * use and cached. All results are immutable and safe to share between threads.
  */
 object UnicodeTables {
-    const val VERSION = UnicodeData.VERSION
 
     // ------------------------------------------------------------------ decoding
 
@@ -105,8 +104,6 @@ object UnicodeTables {
     private val stringProps = AtomicReferenceArray<StringProperty>(UnicodeData.SEQ_NAMES.size + 1)
 
     private const val RGI_EMOJI = "RGI_Emoji"
-
-    fun isStringPropertyName(name: String): Boolean = name == RGI_EMOJI || name in UnicodeData.SEQ_NAMES
 
     /** Properties of strings (`\p{RGI_Emoji}` etc., `v` flag only), or null if [name] is not one. */
     fun stringProperty(name: String): StringProperty? {
