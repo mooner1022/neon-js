@@ -40,7 +40,7 @@ class CodeCache private constructor() {
 
     private fun expunge() {
         while (true) {
-            val r = queue.poll() as Ref? ?: return
+            val r = queue.poll() as? Ref ?: return
             map.remove(r.key, r)
         }
     }

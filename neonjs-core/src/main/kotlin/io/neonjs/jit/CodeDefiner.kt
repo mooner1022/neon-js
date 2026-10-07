@@ -93,7 +93,7 @@ object CodeDefiners {
         for (l in loaders) {
             try {
                 for (d in ServiceLoader.load(CodeDefiner::class.java, l)) if (d.isSupported()) return@lazy d
-            } catch (e: Throwable) {
+            } catch (_: Throwable) {
                 // a broken provider must not prevent the engine from running (it falls back to the JVM definer)
             }
         }

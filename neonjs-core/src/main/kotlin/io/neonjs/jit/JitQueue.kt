@@ -104,7 +104,7 @@ object JitQueue {
         for ((backend, ts) in tasks.groupBy { it.backend }) {
             val code = try {
                 backend.compile(ts.map { it.cb })
-            } catch (e: Throwable) {
+            } catch (_: Throwable) {
                 emptyList()
             }
             for ((i, t) in ts.withIndex()) install(t, code.getOrNull(i))
@@ -160,7 +160,7 @@ object JitQueue {
             mine.clear()
             try {
                 batch.add(queue.take())
-            } catch (e: InterruptedException) {
+            } catch (_: InterruptedException) {
                 continue
             }
             queue.drainTo(batch, BATCH - 1)

@@ -89,7 +89,7 @@ object Jit {
                 // a worker is compiling it; stay responsive to interrupts (the call then runs interpreted)
                 try {
                     while (!t.await(20)) if (agent.interruptRequested) return null
-                } catch (e: InterruptedException) {
+                } catch (_: InterruptedException) {
                     Thread.currentThread().interrupt()
                     return null
                 }

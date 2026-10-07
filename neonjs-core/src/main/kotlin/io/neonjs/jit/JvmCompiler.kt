@@ -6,8 +6,6 @@ import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.Label
 import org.objectweb.asm.MethodVisitor
 import org.objectweb.asm.Opcodes.*
-import java.lang.invoke.MethodHandles
-import java.lang.invoke.MethodType
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -254,7 +252,7 @@ object JvmCompiler {
      */
     fun generate(input: JitInput, version: Int = V17): Pair<String, ByteArray> {
         val suffix = if (JvmCodeDefiner.VISIBLE_CLASSES) counter.incrementAndGet().toString() else input.identity
-        val name = "io/neonjs/jit/JS\$" + input.name + "\$" + suffix
+        val name = $$"io/neonjs/jit/JS$$${input.name}$$$suffix"
         val cw = CW()
         cw.visit(version, ACC_PUBLIC or ACC_FINAL or ACC_SUPER, name, null, "java/lang/Object", arrayOf("io/neonjs/jit/CompiledCode"))
         input.sourceName?.let { cw.visitSource(it, null) }
@@ -351,8 +349,6 @@ object JvmCompiler {
             mv.visitVarInsn(ISTORE, L_BUDGET)
             mv.visitLabel(ok)
         }
-
-        fun boolToObj() = mv.visitMethodInsn(INVOKESTATIC, "java/lang/Boolean", "valueOf", "(Z)Ljava/lang/Boolean;", false)
 
         fun emit() {
             // collect labels
