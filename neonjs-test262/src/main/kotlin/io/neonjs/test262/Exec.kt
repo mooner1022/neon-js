@@ -113,9 +113,9 @@ class Exec(val root: File, val timeoutMillis: Long, val mode: Int = 0) {
                         runEventLoop(agent, null)
                     }
                 }
-            } catch (e: TerminationException) {
+            } catch (_: TerminationException) {
                 // stopped at the end of the test, or timed out
-            } catch (e: InterruptedException) {
+            } catch (_: InterruptedException) {
                 // stopped at the end of the test
             } catch (e: Throwable) {
                 reports.add("Test262:AgentError: ${describe(e)}")
@@ -185,7 +185,7 @@ class Exec(val root: File, val timeoutMillis: Long, val mode: Int = 0) {
     private fun sleepMillis(ms: Long) {
         try {
             Thread.sleep(ms)
-        } catch (e: InterruptedException) {
+        } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
             throw InterruptedExecutionException("Execution interrupted")
         }
@@ -361,7 +361,7 @@ class Exec(val root: File, val timeoutMillis: Long, val mode: Int = 0) {
             io.neonjs.vm.Modules.loadGraph(realm, rec)
             io.neonjs.vm.Modules.link(rec)
         } catch (e: Throwable) {
-            if (meta.negativePhase == "resolution" || meta.negativePhase == "parse") return checkErrorType(e, meta.negativeType)
+            if (meta.negativePhase == "resolution") return checkErrorType(e, meta.negativeType)
             return Outcome(false, "link error: ${describe(e)}")
         }
         if (meta.negativePhase == "resolution") return Outcome(false, "expected resolution ${meta.negativeType}")
@@ -391,8 +391,8 @@ class Exec(val root: File, val timeoutMillis: Long, val mode: Int = 0) {
         if (e !is JSException) return Outcome(false, "expected $type, got ${describe(e)}")
         val v = e.value
         if (v is JSObject) {
-            val c = try { v.get("constructor", v) } catch (t: Throwable) { null }
-            val name = if (c is JSObject) try { Ops.toDisplayString(c.get("name", c)) } catch (t: Throwable) { "?" } else "?"
+            val c = try { v.get("constructor", v) } catch (_: Throwable) { null }
+            val name = if (c is JSObject) try { Ops.toDisplayString(c.get("name", c)) } catch (_: Throwable) { "?" } else "?"
             if (name == type) return Outcome(true, null)
             return Outcome(false, "expected $type, got $name: ${describe(e)}")
         }

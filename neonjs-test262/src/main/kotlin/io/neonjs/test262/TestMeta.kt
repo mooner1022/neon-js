@@ -62,7 +62,7 @@ class TestMeta(
             }
             return TestMeta(
                 includes = map["includes"] ?: emptyList(),
-                flags = (map["flags"] ?: emptyList<String>()).toSet(),
+                flags = (map["flags"] ?: emptyList()).toSet(),
                 features = map["features"] ?: emptyList(),
                 negativePhase = negPhase,
                 negativeType = negType,

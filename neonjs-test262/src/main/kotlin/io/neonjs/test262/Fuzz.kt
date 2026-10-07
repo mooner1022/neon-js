@@ -79,7 +79,7 @@ private class Fuzzer(val root: File, val out: File, val seed: Long) {
     // ------------------------------------------------------------------ mutation
 
     private val tokens = listOf(
-        "(", ")", "{", "}", "[", "]", ";", ",", "=>", "...", "?.", "??", "=", "+=", "**=", "&&=", "`", "\${", "'", "\"",
+        "(", ")", "{", "}", "[", "]", ";", ",", "=>", "...", "?.", "??", "=", "+=", "**=", "&&=", "`", $$"${", "'", "\"",
         "async ", "await ", "yield ", "yield* ", "class ", "#x", "super", "super()", "super.x", "new.target", "import(", "import.meta",
         "let ", "const ", "var ", "using ", "function ", "function* ", "static ", "get ", "set ", "accessor ", "@dec ",
         "/", "/a/g", "/(?<n>a)|\\k<n>/v", "\\u{61}", "\\u0061", "0n", "1e400", "-0", "NaN", "null", "undefined", "this",
@@ -96,7 +96,7 @@ private class Fuzzer(val root: File, val out: File, val seed: Long) {
     }
 
     private fun span(s: String, rnd: Random): IntRange {
-        if (s.isEmpty()) return 0 until 0
+        if (s.isEmpty()) return IntRange.EMPTY
         val a = rnd.nextInt(s.length)
         val len = rnd.nextInt(1, minOf(80, s.length - a) + 1)
         return a until a + len
@@ -247,7 +247,7 @@ private class Fuzzer(val root: File, val out: File, val seed: Long) {
         Result("throw", errorName(e.value), null)
     } catch (e: TerminationException) {
         Result("limit", e.javaClass.simpleName, null)
-    } catch (e: StackOverflowError) {
+    } catch (_: StackOverflowError) {
         Result("limit", "StackOverflowError", null)
     } catch (e: Throwable) {
         Result("crash", e.toString(), e)

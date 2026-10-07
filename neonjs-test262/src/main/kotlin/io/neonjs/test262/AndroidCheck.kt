@@ -3,7 +3,6 @@ package io.neonjs.test262
 import io.neonjs.ExecutionMode
 import io.neonjs.HostAccess
 import io.neonjs.NeonEngine
-import io.neonjs.NeonException
 import io.neonjs.SandboxPolicy
 import io.neonjs.android.DexCodeDefiner
 import io.neonjs.android.DexConverter
@@ -38,8 +37,8 @@ private class CountingConverter(private val inner: DexConverter) : DexConverter 
 }
 
 private val apiLevel: Int = try {
-    Class.forName("android.os.Build\$VERSION").getField("SDK_INT").getInt(null)
-} catch (e: Throwable) {
+    Class.forName($$"android.os.Build$VERSION").getField("SDK_INT").getInt(null)
+} catch (_: Throwable) {
     0
 }
 
@@ -96,7 +95,7 @@ private fun backgroundBatches(): String {
             acc
         """).asInt()
         var expect = 0
-        for (round in 0 until 10) for (i in 0 until 40) expect = expect + (round * (i + 3) + (i * 7 + 1))
+        for (round in 0 until 10) for (i in 0 until 40) expect += round * (i + 3) + (i * 7 + 1)
         check(r == expect) { "got $r, expected $expect" }
         waitFor("40 functions compiled in the background") { JvmCompiler.compiledCount.get() - compiled >= 40 }
         check(ctx.eval("fs[39](2)").asInt() == 2 * 42 + 274) { "compiled code gives a wrong result" }

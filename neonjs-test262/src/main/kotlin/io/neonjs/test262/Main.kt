@@ -109,7 +109,7 @@ fun runParseOnly(f: File, rel: String): Result {
             null
         } catch (e: JSSyntaxError) {
             e
-        } catch (e: StackOverflowError) {
+        } catch (_: StackOverflowError) {
             RuntimeException("stack overflow")
         } catch (e: Exception) {
             e
