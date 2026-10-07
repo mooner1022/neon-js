@@ -5,6 +5,7 @@ import io.neonjs.builtins.makeCtor
 import io.neonjs.builtins.method
 import io.neonjs.runtime.*
 import java.math.BigInteger
+import kotlin.math.abs
 
 internal object DurationBuiltins {
     private fun thisDuration(t: Any?, name: String): JSTemporalDuration =
@@ -57,8 +58,8 @@ internal object DurationBuiltins {
         proto.method(realm, "abs", 0) { _, t, _, _ ->
             val d = thisDuration(t, "abs")
             TCreate.duration(
-                Math.abs(d.years), Math.abs(d.months), Math.abs(d.weeks), Math.abs(d.days), Math.abs(d.hours), Math.abs(d.minutes),
-                Math.abs(d.seconds), Math.abs(d.milliseconds), Math.abs(d.microseconds), Math.abs(d.nanoseconds),
+                abs(d.years), abs(d.months), abs(d.weeks), abs(d.days), abs(d.hours), abs(d.minutes),
+                abs(d.seconds), abs(d.milliseconds), abs(d.microseconds), abs(d.nanoseconds),
             )
         }
         proto.method(realm, "add", 1) { _, t, args, _ -> TDur.addDurations(false, thisDuration(t, "add"), args.arg(0)) }
@@ -137,14 +138,13 @@ internal object DurationBuiltins {
         val smallest = TUnit.ALL[smallestOpt]
         val existingLargest = TDur.defaultLargestUnit(d)
         val defaultLargest = TUnit.larger(existingLargest, smallest)
-        var largest: TUnit
-        if (largestOpt == TOpt.UNIT_UNSET) {
-            largestPresent = false
-            largest = defaultLargest
-        } else if (largestOpt == TOpt.UNIT_AUTO) {
-            largest = defaultLargest
-        } else {
-            largest = TUnit.ALL[largestOpt]
+        var largest = when (largestOpt) {
+            TOpt.UNIT_UNSET -> {
+                largestPresent = false
+                defaultLargest
+            }
+            TOpt.UNIT_AUTO -> defaultLargest
+            else -> TUnit.ALL[largestOpt]
         }
         if (!smallestPresent && !largestPresent) tRangeErr("at least one of smallestUnit or largestUnit is required")
         if (TUnit.larger(largest, smallest) != largest) tRangeErr("largestUnit must be larger than smallestUnit")

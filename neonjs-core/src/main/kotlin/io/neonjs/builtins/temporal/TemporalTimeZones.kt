@@ -8,6 +8,7 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.zone.ZoneRules
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.abs
 
 /**
  * An available time zone: an offset time zone, or a named IANA time zone backed by the JDK's tz database
@@ -140,7 +141,7 @@ internal object TZ {
     private fun localDateTime(dt: IsoDateTime): LocalDateTime {
         val d = dt.date
         // dates this far out are outside the representable range of epoch nanoseconds in any case
-        if (Math.abs(d.year) > 400_000) tRangeErr("date-time outside of supported range")
+        if (abs(d.year) > 400_000) tRangeErr("date-time outside of supported range")
         val t = dt.time
         return LocalDateTime.of(d.year, d.month, d.day, t.hour, t.minute, t.second, t.subSecondNanos())
     }
@@ -232,7 +233,7 @@ internal object TZ {
         var p = if (tz.isOffset || tz === TimeZone.UTC) tz.id else {
             val fromProvider = try {
                 TemporalProviders.provider?.primaryTimeZoneId(tz.id)
-            } catch (e: RuntimeException) {
+            } catch (_: RuntimeException) {
                 null
             }
             fromProvider ?: EXTRA_LINKS[tz.id] ?: tz.id
@@ -264,7 +265,7 @@ internal object TZ {
                 val seconds = n.totalSeconds
                 return if (seconds == 0 || seconds % 60 != 0) TimeZone.UTC else TimeZone.ofOffsetMinutes(seconds / 60)
             }
-        } catch (e: RuntimeException) {
+        } catch (_: RuntimeException) {
             // fall through
         }
         return TimeZone.UTC

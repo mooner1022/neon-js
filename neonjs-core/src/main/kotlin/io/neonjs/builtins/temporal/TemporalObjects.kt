@@ -2,6 +2,7 @@ package io.neonjs.builtins.temporal
 
 import io.neonjs.runtime.*
 import java.math.BigInteger
+import kotlin.math.abs
 
 // ====================================================================== instances
 
@@ -71,10 +72,10 @@ internal object TCreate {
             }
         }
         val lim = 4294967296.0
-        if (Math.abs(y) >= lim || Math.abs(mo) >= lim || Math.abs(w) >= lim) return false
+        if (abs(y) >= lim || abs(mo) >= lim || abs(w) >= lim) return false
         // fast path: everything comfortably small
-        if (Math.abs(d) < 1e6 && Math.abs(h) < 1e7 && Math.abs(mi) < 1e9 && Math.abs(s) < 1e11 && Math.abs(ms) < 1e14 &&
-            Math.abs(us) < 1e17 && Math.abs(ns) < 1e18
+        if (abs(d) < 1e6 && abs(h) < 1e7 && abs(mi) < 1e9 && abs(s) < 1e11 && abs(ms) < 1e14 &&
+            abs(us) < 1e17 && abs(ns) < 1e18
         ) return true
         val total = TNum.big(d).multiply(TM.BI_NS_PER_DAY)
             .add(TNum.big(h).multiply(BigInteger.valueOf(3_600_000_000_000L)))

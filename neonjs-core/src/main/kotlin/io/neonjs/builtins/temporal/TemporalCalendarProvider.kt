@@ -71,7 +71,7 @@ internal object TemporalProviders {
         loaders.firstNotNullOfOrNull { l ->
             try {
                 ServiceLoader.load(TemporalCalendarProvider::class.java, l).firstOrNull()
-            } catch (e: java.util.ServiceConfigurationError) {
+            } catch (_: java.util.ServiceConfigurationError) {
                 null
             }
         }

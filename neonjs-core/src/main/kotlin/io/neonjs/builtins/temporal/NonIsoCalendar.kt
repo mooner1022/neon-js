@@ -1,6 +1,10 @@
 package io.neonjs.builtins.temporal
 
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.abs
+import kotlin.math.floor
+import kotlin.math.max
+import kotlin.math.min
 
 /** Calendar Date Record; [eraYear] is meaningful only when [era] is not null. */
 internal class CalDate(
@@ -20,8 +24,6 @@ internal class CalDate(
 /** Month codes encoded as `number * 2 + (1 if leap)`, the encoding of [TemporalParser.parseMonthCodeString]. */
 internal object MonthCodes {
     fun of(number: Int, leap: Boolean): Int = (number shl 1) or (if (leap) 1 else 0)
-
-    fun isLeap(code: Int): Boolean = code and 1 != 0
 
     fun number(code: Int): Int = code shr 1
 
@@ -74,7 +76,7 @@ internal class NonIsoCalendar private constructor(@JvmField val id: String, priv
         if (y > MAX_YEAR || y < -MAX_YEAR) tRangeErr("date outside of supported range")
         years[y]?.let { return it }
         val inf = guarded { source.yearInfo(y) }
-        if (inf.monthCount < 12 || inf.monthCount > 13) tRangeErr("invalid calendar data")
+        if (inf.monthCount !in 12..13) tRangeErr("invalid calendar data")
         if (years.size >= CACHE_LIMIT) years.clear()
         years[y] = inf
         return inf
@@ -94,7 +96,7 @@ internal class NonIsoCalendar private constructor(@JvmField val id: String, priv
         f()
     } catch (e: io.neonjs.runtime.JSException) {
         throw e
-    } catch (e: RuntimeException) {
+    } catch (_: RuntimeException) {
         tRangeErr("calendar data unavailable for the $id calendar")
     }
 
@@ -103,12 +105,12 @@ internal class NonIsoCalendar private constructor(@JvmField val id: String, priv
     /** The arithmetic year containing [epochDay]; the estimate is corrected in jumps that never overshoot. */
     fun yearOf(epochDay: Long): Int {
         var y = guarded { source.estimateYear(epochDay) }.coerceIn(-MAX_YEAR, MAX_YEAR)
-        for (i in 0 until 64) {
+        repeat(64) {
             val inf = info(y)
             y = when {
                 // no calendar year is longer than 390 days, so these jumps stay on the near side of the target
-                epochDay < inf.start -> y - Math.max(1L, (inf.start - epochDay) / 390).toInt()
-                epochDay >= inf.end -> y + Math.max(1L, (epochDay - inf.end) / 390).toInt()
+                epochDay < inf.start -> y - max(1L, (inf.start - epochDay) / 390).toInt()
+                epochDay >= inf.end -> y + max(1L, (epochDay - inf.end) / 390).toInt()
                 else -> return y
             }
         }
@@ -125,18 +127,18 @@ internal class NonIsoCalendar private constructor(@JvmField val id: String, priv
             monthsBeforeOrigin = origin
             meanMonthsPerYear = (mby(1000) - origin) / 1000.0
         }
-        val est = Math.floor((idx - monthsBeforeOrigin) / meanMonthsPerYear)
+        val est = floor((idx - monthsBeforeOrigin) / meanMonthsPerYear)
         var y = est.coerceIn(-MAX_YEAR.toDouble(), MAX_YEAR.toDouble()).toInt()
-        for (i in 0 until 64) {
+        repeat(64) {
             val a = mby(y)
             if (idx < a) {
-                y -= Math.max(1L, (a - idx) / 14).toInt()
-                continue
+                y -= max(1L, (a - idx) / 14).toInt()
+                return@repeat
             }
             val b = mby(y + 1)
             if (idx >= b) {
-                y += Math.max(1L, (idx - b) / 14).toInt()
-                continue
+                y += max(1L, (idx - b) / 14).toInt()
+                return@repeat
             }
             return y
         }
@@ -179,8 +181,6 @@ internal class NonIsoCalendar private constructor(@JvmField val id: String, priv
         if (day < -TM.MAX_EPOCH_DAYS - 1 || day > TM.MAX_EPOCH_DAYS) tRangeErr("date outside of supported range")
         return TM.dateFromEpochDays(day)
     }
-
-    fun monthsInYear(y: Int): Int = info(y).monthCount
 
     // ------------------------------------------------------------------ month codes
 
@@ -448,7 +448,7 @@ internal class NonIsoCalendar private constructor(@JvmField val id: String, priv
                 val inf = info(y)
                 for (i in inf.monthCodes.indices) {
                     val c = inf.monthCodes[i]
-                    if (c < table.size) table[c] = Math.max(table[c], daysInMonth(inf, i + 1))
+                    if (c < table.size) table[c] = max(table[c], daysInMonth(inf, i + 1))
                 }
             }
             maxDaysByCode = table
@@ -484,7 +484,7 @@ internal class NonIsoCalendar private constructor(@JvmField val id: String, priv
             regulated = dim
         }
         val days = dur.days + 7 * dur.weeks
-        if (Math.abs(days) > 4 * TM.MAX_EPOCH_DAYS) tRangeErr("date outside of supported range")
+        if (abs(days) > 4 * TM.MAX_EPOCH_DAYS) tRangeErr("date outside of supported range")
         return isoFromEpochDay(inf.monthStarts[m - 1] + (regulated - 1) + days)
     }
 
@@ -546,7 +546,7 @@ internal class NonIsoCalendar private constructor(@JvmField val id: String, priv
         val ym = yearMonthOfIndex(idx0 + months)
         val inf = info((ym shr 8).toInt())
         val m = (ym and 0xff).toInt()
-        val regulated = Math.min(p1.day, daysInMonth(inf, m))
+        val regulated = min(p1.day, daysInMonth(inf, m))
         var days = TM.epochDays(two) - (inf.monthStarts[m - 1] + regulated - 1)
         var weeks = 0L
         if (largest == TUnit.WEEK) {

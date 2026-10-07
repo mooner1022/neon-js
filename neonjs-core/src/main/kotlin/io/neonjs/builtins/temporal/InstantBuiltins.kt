@@ -6,6 +6,7 @@ import io.neonjs.builtins.method
 import io.neonjs.runtime.*
 import java.math.BigDecimal
 import java.math.BigInteger
+import kotlin.math.floor
 
 internal object InstantBuiltins {
     private fun thisInstant(t: Any?, name: String): JSTemporalInstant =
@@ -18,7 +19,7 @@ internal object InstantBuiltins {
 
     /** NumberToBigInt(ms) × 10^6 */
     fun msToNs(ms: Double): BigInteger {
-        if (ms.isNaN() || ms.isInfinite() || ms != Math.floor(ms)) tRangeErr("${Ops.toString(ms)} is not an integer")
+        if (ms.isNaN() || ms.isInfinite() || ms != floor(ms)) tRangeErr("${Ops.toString(ms)} is not an integer")
         return TNum.big(ms).multiply(TNum.BI_1E6)
     }
 

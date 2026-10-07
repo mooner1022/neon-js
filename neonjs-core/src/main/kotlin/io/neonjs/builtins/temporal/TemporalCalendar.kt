@@ -1,6 +1,7 @@
 package io.neonjs.builtins.temporal
 
 import io.neonjs.runtime.*
+import kotlin.math.min
 
 // ====================================================================== calendars
 
@@ -188,7 +189,7 @@ internal object TCal {
             if (v !== Undefined) {
                 any = true
                 when (flag) {
-                    F_ERA -> r.era = Ops.toString(v).toString()
+                    F_ERA -> r.era = Ops.toString(v)
                     F_ERAYEAR -> r.eraYear = toIntegerWithTruncation(v)
                     F_YEAR -> r.year = toIntegerWithTruncation(v)
                     F_MONTH -> r.month = toPositiveIntegerWithTruncation(v)
@@ -409,7 +410,7 @@ internal object TCal {
         }
         val iy = TM.balanceYear(one.year + years, one.month + months)
         val im = TM.balanceMonth(one.month + months)
-        val iday = Math.min(one.day, TM.daysInMonth(iy, im))
+        val iday = min(one.day, TM.daysInMonth(iy, im))
         var days = TM.epochDays(two) - TM.epochDays(iy, im, iday)
         var weeks = 0L
         if (largest == TUnit.WEEK) {

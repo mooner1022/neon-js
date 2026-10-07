@@ -2,6 +2,7 @@ package io.neonjs.builtins.temporal
 
 import io.neonjs.runtime.*
 import java.math.BigInteger
+import kotlin.math.abs
 
 internal class NudgeResult(@JvmField val duration: InternalDuration, @JvmField val nudgedNs: BigInteger, @JvmField val didExpand: Boolean)
 
@@ -29,7 +30,7 @@ internal object TDur {
     /** TimeDurationFromComponents */
     fun timeFromComponents(h: Double, mi: Double, s: Double, ms: Double, us: Double, ns: Double): BigInteger {
         // each term stays below 6e17 in magnitude, so the Long sum cannot overflow
-        if (Math.abs(h) < 1e5 && Math.abs(mi) < 1e7 && Math.abs(s) < 1e8 && Math.abs(ms) < 1e11 && Math.abs(us) < 1e14 && Math.abs(ns) < 1e17) {
+        if (abs(h) < 1e5 && abs(mi) < 1e7 && abs(s) < 1e8 && abs(ms) < 1e11 && abs(us) < 1e14 && abs(ns) < 1e17) {
             val total = h.toLong() * 3_600_000_000_000L + mi.toLong() * 60_000_000_000L + s.toLong() * 1_000_000_000L +
                 ms.toLong() * 1_000_000L + us.toLong() * 1000L + ns.toLong()
             return BigInteger.valueOf(total)
@@ -336,7 +337,6 @@ internal object TDur {
 
     private class Window(
         @JvmField val r1: Long,
-        @JvmField val r2: Long,
         @JvmField val startNs: BigInteger,
         @JvmField val endNs: BigInteger,
         @JvmField val startDur: DateDuration,
@@ -390,7 +390,7 @@ internal object TDur {
         }
         val end = TCal.dateAdd(cal, dt.date, endDD, Overflow.CONSTRAIN)
         val endNs = epochNsOf(end, dt.time, tz)
-        return Window(r1, r2, startNs, endNs, startDD, endDD)
+        return Window(r1, startNs, endNs, startDD, endDD)
     }
 
     private fun between(lo: BigInteger, x: BigInteger, hi: BigInteger): Boolean = lo <= x && x <= hi
@@ -430,7 +430,7 @@ internal object TDur {
                     cmp > 0 -> true
                     urm == URM.HALF_ZERO -> false
                     urm == URM.HALF_INFINITY -> true
-                    else -> (Math.abs(w.r1) / inc) % 2 != 0L
+                    else -> (abs(w.r1) / inc) % 2 != 0L
                 }
             }
         }

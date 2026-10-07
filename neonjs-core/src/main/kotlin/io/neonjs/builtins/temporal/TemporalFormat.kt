@@ -2,6 +2,7 @@ package io.neonjs.builtins.temporal
 
 import java.math.BigDecimal
 import java.math.BigInteger
+import kotlin.math.abs
 
 /** String serialization of Temporal values. */
 internal object TFormat {
@@ -14,13 +15,13 @@ internal object TFormat {
     fun padIsoYear(sb: StringBuilder, y: Int) {
         if (y in 0..9999) {
             val s = y.toString()
-            for (k in s.length until 4) sb.append('0')
+            repeat(4 - s.length) { sb.append('0') }
             sb.append(s)
             return
         }
         sb.append(if (y > 0) '+' else '-')
-        val s = Math.abs(y.toLong()).toString()
-        for (k in s.length until 6) sb.append('0')
+        val s = abs(y.toLong()).toString()
+        repeat(6 - s.length) { sb.append('0') }
         sb.append(s)
     }
 
@@ -62,8 +63,8 @@ internal object TFormat {
     fun formatOffsetMinutes(offsetMinutes: Int, separated: Boolean): String {
         val sb = StringBuilder(6)
         sb.append(if (offsetMinutes >= 0) '+' else '-')
-        val abs = Math.abs(offsetMinutes)
-        timeString(sb, abs / 60, abs % 60, 0, 0, Precision.MINUTE, separated)
+        val minutes = abs(offsetMinutes)
+        timeString(sb, minutes / 60, minutes % 60, 0, 0, Precision.MINUTE, separated)
         return sb.toString()
     }
 
@@ -71,11 +72,11 @@ internal object TFormat {
     fun formatUtcOffsetNs(offsetNs: Long): String {
         val sb = StringBuilder(20)
         sb.append(if (offsetNs >= 0) '+' else '-')
-        val abs = Math.abs(offsetNs)
-        val hour = (abs / 3_600_000_000_000L).toInt()
-        val minute = ((abs / 60_000_000_000L) % 60).toInt()
-        val second = ((abs / 1_000_000_000L) % 60).toInt()
-        val sub = (abs % 1_000_000_000L).toInt()
+        val ns = abs(offsetNs)
+        val hour = (ns / 3_600_000_000_000L).toInt()
+        val minute = ((ns / 60_000_000_000L) % 60).toInt()
+        val second = ((ns / 1_000_000_000L) % 60).toInt()
+        val sub = (ns % 1_000_000_000L).toInt()
         val precision = if (second == 0 && sub == 0) Precision.MINUTE else Precision.AUTO
         timeString(sb, hour, minute, second, sub, precision)
         return sb.toString()
@@ -156,7 +157,7 @@ internal object TFormat {
     }
 
     /** TemporalInstantToString */
-    fun instantToString(ns: java.math.BigInteger, tz: TimeZone?, precision: Int): String {
+    fun instantToString(ns: BigInteger, tz: TimeZone?, precision: Int): String {
         val out = tz ?: TimeZone.UTC
         val dt = TZ.isoDateTimeFor(out, ns)
         val sb = StringBuilder(40)
@@ -190,7 +191,7 @@ internal object TFormat {
     }
 
     private fun decimal(d: Double): String {
-        val a = Math.abs(d)
+        val a = abs(d)
         if (a < 9.0e15) return a.toLong().toString()
         return BigDecimal(a).toBigInteger().toString()
     }

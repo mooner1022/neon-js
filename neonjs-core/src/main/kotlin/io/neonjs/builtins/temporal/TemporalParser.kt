@@ -75,10 +75,11 @@ internal object TemporalParser {
     private fun parseImpl(s: String, goals: IntArray, throwing: Boolean): IsoParse? {
         for (goal in goals) {
             val r = tryGoal(s, goal) ?: continue
-            val err = processAnnotations(r)
-                ?: if (goal == G_YEARMONTH && !r.hasDay && !isoOrAbsent(r.calendar)) "calendar annotation not allowed"
-                else if (goal == G_MONTHDAY && r.yearAbsent && !isoOrAbsent(r.calendar)) "calendar annotation not allowed"
-                else null
+            val err = processAnnotations(r) ?: when (goal) {
+                G_YEARMONTH if !r.hasDay && !isoOrAbsent(r.calendar) -> "calendar annotation not allowed"
+                G_MONTHDAY if r.yearAbsent && !isoOrAbsent(r.calendar) -> "calendar annotation not allowed"
+                else -> null
+            }
             if (err != null) {
                 if (throwing) tRangeErr(err)
                 return null
@@ -91,13 +92,6 @@ internal object TemporalParser {
     private fun isoOrAbsent(c: String?): Boolean = c == null || asciiEqualsIgnoreCase(c, "iso8601")
 
     fun parseIsoDateTime(s: String, goal: Int): IsoParse = parseIsoDateTime(s, intArrayOf(goal))
-
-    /** Returns true if [s] fully matches TimeZoneIdentifier. */
-    fun isTimeZoneIdentifier(s: String): Boolean {
-        val c = Cur(s)
-        if (parseTzIdentifier(c) == null) return false
-        return c.eof
-    }
 
     /**
      * ParseTimeZoneIdentifier: returns null when the identifier is syntactically invalid. The result is either a name
@@ -118,25 +112,19 @@ internal object TemporalParser {
         return r
     }
 
-    /** Whether the offset string has more than one MinuteSecond (i.e. seconds). */
-    fun offsetHasSeconds(s: String): Boolean {
-        val c = Cur(s)
-        val h = BooleanArray(1)
-        parseOffset(c, true, h)
-        return h[0]
-    }
-
     /** True if [s] matches AnnotationValue (used for bare calendar ids). */
     fun isAnnotationValue(s: String): Boolean {
         if (s.isEmpty()) return false
         var compLen = 0
         for (ch in s) {
-            if (ch == '-') {
-                if (compLen == 0) return false
-                compLen = 0
-            } else if (ch in 'a'..'z' || ch in 'A'..'Z' || ch in '0'..'9') {
-                compLen++
-            } else return false
+            when (ch) {
+                '-' -> {
+                    if (compLen == 0) return false
+                    compLen = 0
+                }
+                in 'a'..'z', in 'A'..'Z', in '0'..'9' -> compLen++
+                else -> return false
+            }
         }
         return compLen > 0
     }
@@ -271,7 +259,7 @@ internal object TemporalParser {
     private fun parseMonth(c: Cur): Int {
         if (!c.isDigit(0) || !c.isDigit(1)) return -1
         val m = c.dig(0) * 10 + c.dig(1)
-        if (m < 1 || m > 12) return -1
+        if (m !in 1..12) return -1
         c.i += 2
         return m
     }
@@ -279,7 +267,7 @@ internal object TemporalParser {
     private fun parseDay(c: Cur): Int {
         if (!c.isDigit(0) || !c.isDigit(1)) return -1
         val d = c.dig(0) * 10 + c.dig(1)
-        if (d < 1 || d > 31) return -1
+        if (d !in 1..31) return -1
         c.i += 2
         return d
     }
@@ -365,7 +353,7 @@ internal object TemporalParser {
         }
         val n = k - 1
         if (n == 0) return -2
-        for (x in n until 9) v *= 10
+        repeat(9 - n) { v *= 10 }
         c.i += k
         return v
     }
@@ -619,7 +607,7 @@ internal object TemporalParser {
                     i = fs
                     while (i < n && s[i] in '0'..'9') i++
                     val fl = i - fs
-                    if (fl < 1 || fl > 9 || i >= n) fail()
+                    if (fl !in 1..9 || i >= n) fail()
                     fDigits = s.substring(fs, i)
                 }
                 val unit = when (s[i]) {
