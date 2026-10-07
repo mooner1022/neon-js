@@ -83,7 +83,6 @@ class RegExpProgram internal constructor(
     @JvmField val flags: Int,
     @JvmField internal val stringGroups: Array<StringGroup>,
 ) {
-    val hasNamedGroups: Boolean get() = groupNames != null
     val isUnicode: Boolean get() = flags and (FLAG_UNICODE or FLAG_UNICODE_SETS) != 0
 
     /** How a non-sticky search can skip start positions: one of the START_ constants. */

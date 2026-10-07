@@ -681,7 +681,7 @@ internal class RegExpCompiler private constructor(private val src: String, priva
                     p++
                 } else {
                     c = 0
-                    for (i in 0 until 4) {
+                    repeat(4) {
                         val h = hexVal(ch(p))
                         if (h < 0) return -1
                         c = c * 16 + h

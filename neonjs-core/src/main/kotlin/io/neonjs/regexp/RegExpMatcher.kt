@@ -157,7 +157,7 @@ class RegExpMatcher internal constructor(
         sb.setLength(0)
         var p = pos
         if (!g.backward) {
-            for (k in 0 until g.length) {
+            repeat(g.length) {
                 if (p >= s.length) return -1
                 var c = s[p++].code
                 if (c in 0xD800..0xDBFF && p < s.length && s[p].isLowSurrogate()) c = Character.toCodePoint(c.toChar(), s[p++])
@@ -165,7 +165,7 @@ class RegExpMatcher internal constructor(
                 sb.appendCodePoint(c)
             }
         } else {
-            for (k in 0 until g.length) {
+            repeat(g.length) {
                 if (p <= 0) return -1
                 var c = s[--p].code
                 if (c in 0xDC00..0xDFFF && p > 0 && s[p - 1].isHighSurrogate()) c = Character.toCodePoint(s[--p], c.toChar())
@@ -191,8 +191,7 @@ class RegExpMatcher internal constructor(
 
         while (true) {
             exec@ while (true) {
-                val op = code[pc++]
-                when (op) {
+                when (val op = code[pc++]) {
                     Op.MATCH -> return true
                     Op.CHAR, Op.CHAR_I -> {
                         val v = code[pc++]
@@ -509,8 +508,7 @@ class RegExpMatcher internal constructor(
                                 cap[st[sp - 2]] = st[sp - 1]
                                 sp -= 2
                             }
-                            pc = st[sp - 3]
-                            cpos = st[sp - 2]
+                            // pc and cpos are restored by the backtracking below
                             val word = st[sp - 1]
                             bp = word ushr 2
                             sp -= 3
