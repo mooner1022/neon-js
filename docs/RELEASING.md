@@ -31,7 +31,7 @@ passes its own with `-Pversion=`.
    |---|---|
    | `MAVEN_CENTRAL_USERNAME` | token username |
    | `MAVEN_CENTRAL_PASSWORD` | token password |
-   | `SIGNING_KEY` | `gpg --armor --export-secret-keys <KEY ID>`, the whole block |
+   | `SIGNING_KEY` | `gpg --armor --export-secret-keys <KEY ID>`, the whole block, with its line breaks or on one line with `\n` escapes |
    | `SIGNING_KEY_PASSWORD` | the key's passphrase |
 
 ## Releasing a version

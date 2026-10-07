@@ -36,10 +36,14 @@ jobs:
       - name: Build and unit tests
         run: ./gradlew build -Pversion="$VERSION"
       - name: Upload to the Central Portal
-        # publishing releases does not support the configuration cache yet (Gradle issue 22779)
-        run: ./gradlew publishToMavenCentral -Pversion="$VERSION" --no-configuration-cache
+        # The armored key may be stored with line breaks or on one line with \n escapes (the gradle.properties form);
+        # the signing plugin reads environment values as they are, so the escapes become line breaks here.
+        # Publishing releases does not support the configuration cache yet (Gradle issue 22779).
+        run: |
+          export ORG_GRADLE_PROJECT_signingInMemoryKey="${SIGNING_KEY//\\n/$'\n'}"
+          ./gradlew publishToMavenCentral -Pversion="$VERSION" --no-configuration-cache
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
