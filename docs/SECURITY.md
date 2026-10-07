@@ -42,11 +42,19 @@ if host code swallowed the exception. Every entry into a context from the host (
 At every level a deny list blocks `java.lang.Class`, class loaders, `System`, `Runtime`, processes, threads,
 `SecurityManager`, modules, `StackWalker`, `Unsafe`, `MethodHandles`, object serialization streams, reflection
 and `java.lang.invoke` packages, `sun.*`/`com.sun.*`/`jdk.internal.*`, `java.security.*`, management and
-instrumentation APIs, and the engine's own internal packages. `getClass`, `wait`, `notify*` and `finalize` are
-never exposed. Arrays are judged by their element type. `Java.type` additionally requires an explicit
-`allowLookup` predicate. `Java.extend` requires `allowImplementations` and only extends accessible, non-final,
-non-denied classes; adapters are defined in their own class loader, and under `EXPLICIT` their methods are visible
-only where they override an exported method. Host-defined modules (`defineModule`) expose exactly the values given.
+instrumentation APIs, and the engine's own internal packages. `getClass` (while `java.lang.Class` is denied),
+`wait`, `notify*` and `finalize` are never exposed. Arrays are judged by their element type, host objects by their
+own class (an instance of a denied class stays opaque even when it is typed as an allowed interface). `Java.type`
+additionally requires an explicit `allowLookup` predicate. `Java.extend` requires `allowImplementations` and only
+extends accessible, non-final, non-denied classes; adapters are defined in their own class loader, and under
+`EXPLICIT` their methods are visible only where they override an exported method. Host-defined modules
+(`defineModule`) expose exactly the values given.
+
+The embedder can lift entries of the built-in deny list (`HostAccess.Builder.allowClass`, `allowPackage`) or drop it
+(`defaultDenyList(false)`); classes it denies itself (`denyClass`, `denyPackage`) stay denied. A lifted class is then
+as exposed as any other: lifting `java.lang.System` hands scripts `exit`, `setProperty`, `getenv` and `load` unless a
+member filter removes them, and lifting `java.lang.Class` also exposes `getClass()`. Lifting the engine's internal
+packages breaks the sandbox's assumptions.
 
 **Realms created by scripts.** A `ShadowRealm` gets fresh intrinsics only: none of the host's globals, no `Java`
 object, no console, and it cannot import host-defined modules (`defineModule`; modules from the context's

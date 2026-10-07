@@ -203,7 +203,19 @@ host-defined modules — and run under the same limits as their creator.
 `HostAccess.NONE` makes host objects opaque, `EXPLICIT` exposes only `@HostExport` members, and `ALL` exposes all
 public members. Every level applies a deny list (reflection, `Class`, class loaders, `System`, `Runtime`,
 processes, threads, `Unsafe`, serialization streams, engine internals…) and hides `getClass`, `wait`, `notify`
-and `finalize`. See [docs/SECURITY.md](docs/SECURITY.md) for the threat model.
+and `finalize`. Embedders that trust their scripts with some of these lift entries of the built-in list explicitly:
+
+```kotlin
+HostAccess.builder(HostAccess.Level.ALL)
+    .allowClass("java.lang.System")                  // one class, also inside a denied package
+    .filterMembers { it.name != "exit" }             // and narrow its members if needed
+    .allowPackage("java.lang.management")            // a package and its subpackages
+    // .defaultDenyList(false)                       // or no built-in list at all (fully trusted scripts)
+    .build()
+```
+
+Classes denied with `denyClass` / `denyPackage` stay denied. See [docs/SECURITY.md](docs/SECURITY.md) for the
+threat model.
 
 ### Console
 
