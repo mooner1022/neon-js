@@ -18,7 +18,7 @@ application {
 
 // Self-contained executable jar with every runtime dependency: build/libs/neonjs-cli-<version>-all.jar,
 // run with `java -jar` (the CLI starts the REPL when given no files).
-val fatJar by tasks.registering(Jar::class) {
+tasks.register<Jar>("fatJar") {
     group = "build"
     description = "Assembles an executable jar of the CLI with all runtime dependencies."
     archiveClassifier.set("all")

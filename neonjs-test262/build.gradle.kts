@@ -7,7 +7,7 @@ repositories {
 }
 
 // the D8 converter and its dependencies, for running the suite on Android with D8 (tools/android: --d8)
-val d8Runtime: Configuration by configurations.creating
+val d8Runtime: Configuration = configurations.create("d8Runtime")
 
 dependencies {
     implementation(project(":neonjs-core"))
