@@ -261,7 +261,8 @@ back to back: ≈44 s against ≈2.2 s with dx), which the batches of background
 and the library adds ≈7.7 MB of dex. Test262 passes with it (on a JVM, every generated class
 translated; on the device, the statements and Array parts in compiled mode, 191,685 functions translated by D8). It
 has run on API 37 only; it refers to some APIs newer than level 26, and where a conversion fails the code stays in the
-interpreter (`Java.extend` throws a TypeError).
+interpreter (`Java.extend` throws a TypeError). Emitting dex directly, without class files, is reviewed in
+[docs/DEX_BACKEND.md](docs/DEX_BACKEND.md).
 
 Without a device, `-Dneonjs.codeDefiner=io.neonjs.android.DexCheckingDefiner` runs any test suite on a JVM with every
 generated class translated by dx first (the whole Test262 main suite passes this way, also with D8:
