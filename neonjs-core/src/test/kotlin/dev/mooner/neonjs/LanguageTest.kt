@@ -17,6 +17,20 @@ class LanguageTest {
     }
 
     @Test
+    fun notCallableMessagesNameTheCallee() {
+        val setup = "var o = { f() { return {} }, a: [1] }; function m(f) { try { f() } catch (e) { return e.message } } "
+        both(setup + "m(() => o.f().g())", "o.f(...).g is not a function")
+        both(setup + "m(() => o.f(1, 'a)b', [2]).g())", "o.f(...).g is not a function")
+        both(setup + "m(() => o\n  .f()\n  .g())", "o.f(...).g is not a function")
+        both(setup + "m(() => o.a[0]())", "o.a[0] is not a function")
+        both(setup + "m(() => o?.f().zz())", "o?.f(...).zz is not a function")
+        both(setup + "m(() => (0, o.zz)())", "(0, o.zz) is not a function")
+        both(setup + "m(() => o.f`q`.k())", "o.f`q`.k is not a function")
+        both(setup + "m(() => new o.a())", "o.a is not a constructor")
+        both(setup + "m(() => o.nope())", "o.nope is not a function")
+    }
+
+    @Test
     fun properTailCalls() {
         both("'use strict'; function f(n, acc) { return n === 0 ? acc : f(n - 1, acc + 1) } String(f(200000, 0))", "200000")
         both("'use strict'; function e(n) { return n === 0 || o(n - 1) } function o(n) { return n !== 0 && e(n - 1) } String(e(100001))", "false")

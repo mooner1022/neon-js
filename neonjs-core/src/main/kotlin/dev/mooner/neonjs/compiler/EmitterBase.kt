@@ -45,6 +45,7 @@ internal abstract class EmitterBase(
     private val constIndex = HashMap<Any, Int>()
     protected val handlers = ArrayList<IntArray>()
     protected val lineTable = ArrayList<Int>()
+    protected val callSites = ArrayList<Int>()
     private var lastPos = -1
     protected var nextReg = 0
     private var maxReg = 0
@@ -231,6 +232,27 @@ internal abstract class EmitterBase(
             lineTable.add(pc)
             lineTable.add(pos)
         }
+    }
+
+    /** Records the source range of [callee] for the call instruction emitted next ("… is not a function"). */
+    fun markCallee(callee: Node) {
+        var start = callee.start
+        var end = callee.end
+        if (callee.parenthesized) {
+            // the node's range leaves out its parentheses: `(0, o.f)()` reads better with them
+            val t = source.text
+            var s = start - 1
+            while (s >= 0 && t[s].isWhitespace()) s--
+            var e = end
+            while (e < t.length && t[e].isWhitespace()) e++
+            if (s >= 0 && t[s] == '(' && e < t.length && t[e] == ')') {
+                start = s
+                end = e + 1
+            }
+        }
+        callSites.add(pc)
+        callSites.add(start)
+        callSites.add(end)
     }
 
     fun addHandler(start: Int, end: Int, handler: Int, stackDepth: Int) {

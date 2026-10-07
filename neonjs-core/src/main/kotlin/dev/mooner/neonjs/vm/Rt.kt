@@ -556,9 +556,33 @@ object Rt {
 
     // ------------------------------------------------------------------ errors
 
+    /**
+     * How an error message names the callee of the call or `new` instruction at [pc]: its source text with the
+     * arguments of inner calls shown as `(...)`, as V8 does (`o.f(...).g is not a function`), else a description of
+     * the value [v].
+     */
     @JvmStatic
     fun calleeText(cb: CodeBlock, pc: Int, v: Any?): String {
         val src = cb.source
+        val sites = cb.callSites
+        var lo = 0
+        var hi = sites.size / 3 - 1
+        while (src != null && lo <= hi) {
+            val mid = (lo + hi) ushr 1
+            val at = sites[3 * mid]
+            if (at < pc) lo = mid + 1
+            else if (at > pc) hi = mid - 1
+            else {
+                val start = sites[3 * mid + 1]
+                val end = sites[3 * mid + 2]
+                if (start in 0..<end && end <= src.text.length) {
+                    val t = compactCallee(src.text, start, end)
+                    if (t.isNotEmpty() && t.length <= 120) return t
+                }
+                return Ops.describe(v)
+            }
+        }
+        // a call without a recorded callee: the text from its position up to the first '(' (best effort)
         val pos = cb.positionAt(pc)
         if (src != null && pos >= 0 && pos < src.text.length) {
             // take the callee expression text up to the '(' (best effort)
@@ -578,6 +602,63 @@ object Rt {
             if (t.startsWith("new ")) return t.substring(4).trim()
         }
         return Ops.describe(v)
+    }
+
+    /**
+     * The callee source [text] from [start] to [end] on one line, with the argument lists of calls in it shortened to
+     * `(...)`: `a.b(x, y).c` becomes `a.b(...).c`. String and template literals are kept as they are.
+     */
+    private fun compactCallee(text: String, start: Int, end: Int): String {
+        val sb = StringBuilder()
+        var i = start
+        fun copyLiteral() {
+            // a quoted literal from text[i], copied up to its closing quote
+            val q = text[i]
+            sb.append(q)
+            i++
+            while (i < end) {
+                val c = text[i]
+                sb.append(c)
+                i++
+                if (c == '\\' && i < end) {
+                    sb.append(text[i])
+                    i++
+                } else if (c == q) return
+            }
+        }
+        while (i < end) {
+            val c = text[i]
+            when {
+                c == '"' || c == '\'' || c == '`' -> copyLiteral()
+                c.isWhitespace() -> {
+                    // runs of white space become one space, none around '.'
+                    while (i < end && text[i].isWhitespace()) i++
+                    val prev = sb.lastOrNull()
+                    if (prev != null && prev != '.' && i < end && text[i] != '.' && text[i] != '?') sb.append(' ')
+                }
+                c == '(' && sb.isNotEmpty() && (sb.last().isLetterOrDigit() || sb.last() in "_$)]`") -> {
+                    // the arguments of a call: skip to the matching ')'
+                    var depth = 0
+                    while (i < end) {
+                        val d = text[i]
+                        if (d == '"' || d == '\'' || d == '`') {
+                            val mark = sb.length
+                            copyLiteral()
+                            sb.setLength(mark)
+                            continue
+                        }
+                        i++
+                        if (d == '(') depth++ else if (d == ')' && --depth == 0) break
+                    }
+                    sb.append("(...)")
+                }
+                else -> {
+                    sb.append(c)
+                    i++
+                }
+            }
+        }
+        return sb.toString().trim()
     }
 
     @JvmStatic

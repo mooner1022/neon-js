@@ -957,6 +957,7 @@ internal abstract class ExprEmitter(fi: FnInfo, source: Source, analyzer: ScopeA
             callee(c)
             val argc = arguments(n.arguments)
             mark(n)
+            markCallee(c)
             val flags = (if (strict) 1 else 0) or (if (tail) 2 else 0)
             if (argc >= 0) emit(Op.CALL_EVAL, argc, flags) else emit(Op.CALL_EVAL_SPREAD, flags)
             return
@@ -970,6 +971,7 @@ internal abstract class ExprEmitter(fi: FnInfo, source: Source, analyzer: ScopeA
         }
         val argc = arguments(n.arguments)
         mark(n)
+        markCallee(c)
         if (argc >= 0) emit(if (tail) Op.TAIL_CALL else Op.CALL, argc) else emit(Op.CALL_SPREAD)
     }
 
@@ -997,6 +999,7 @@ internal abstract class ExprEmitter(fi: FnInfo, source: Source, analyzer: ScopeA
         expr(n.callee)
         val argc = arguments(n.arguments)
         mark(n)
+        markCallee(n.callee)
         if (argc >= 0) emit(Op.NEW, argc) else emit(Op.NEW_SPREAD)
     }
 
@@ -1023,6 +1026,7 @@ internal abstract class ExprEmitter(fi: FnInfo, source: Source, analyzer: ScopeA
         emit(Op.TEMPLATE_OBJECT, const(site))
         for (e in q.expressions) expr(e)
         mark(n)
+        markCallee(n.tag)
         emit(if (isTail(n)) Op.TAIL_CALL else Op.CALL, q.expressions.size + 1)
     }
 

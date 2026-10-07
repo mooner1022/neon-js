@@ -37,6 +37,7 @@ internal class Emitter(fi: FnInfo, source: Source, analyzer: ScopeAnalyzer) :
         cb.numRegs = totalRegs
         cb.maxStack = maxDepth + 2
         cb.lineTable = lineTable.toIntArray()
+        cb.callSites = callSites.toIntArray()
         cb.source = cb.source ?: source
         cb.completionReg = completionReg
         // only regions with an instruction that behaves differently in strict code matter (and keep the block from

@@ -115,6 +115,8 @@ class CodeBlock(@JvmField val name: String, @JvmField val kind: FunctionKind) {
     @JvmField var paramRegs: IntArray? = null
     /** Pairs (pc, sourcePos) sorted by pc. */
     @JvmField var lineTable: IntArray = IntArray(0)
+    /** Triples (pc of a call or `new` instruction, source start, source end of its callee) sorted by pc. */
+    @JvmField var callSites: IntArray = IntArray(0)
     @JvmField var source: Source? = null
     @JvmField var srcStart = 0
     @JvmField var srcEnd = 0
