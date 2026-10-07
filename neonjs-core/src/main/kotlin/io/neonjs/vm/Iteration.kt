@@ -158,9 +158,9 @@ object Iteration {
             val ret = Ops.getMethod(it, "return")
             if (ret === Undefined) return
             Ops.call(ret, it, EMPTY_ARGS)
-        } catch (e: JSException) {
+        } catch (_: JSException) {
             // ignored
-        } catch (e: StackOverflowError) {
+        } catch (_: StackOverflowError) {
             // ignored
         }
     }
@@ -183,7 +183,7 @@ object Iteration {
             return try {
                 val ret = Ops.getMethod(it, "return")
                 if (ret === Undefined) NotFound else Ops.call(ret, it, EMPTY_ARGS)
-            } catch (e: JSException) {
+            } catch (_: JSException) {
                 NotFound
             }
         }
@@ -260,8 +260,7 @@ object Iteration {
         if (i < 0 || app.values[i] !== realm.arrayProtoValues || app.flags[i] and Attr.ACCESSOR != 0) return false
         val aip = realm.arrayIteratorPrototype.props ?: return false
         val j = aip.find("next")
-        if (j < 0 || aip.values[j] !== realm.arrayIteratorNext) return false
-        return arr.protoChainClean()
+        return j >= 0 && aip.values[j] === realm.arrayIteratorNext && arr.protoChainClean()
     }
 
     /** Iterates an iterable into a list (host helper). */

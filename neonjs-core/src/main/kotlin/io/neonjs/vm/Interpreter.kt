@@ -97,7 +97,7 @@ object Interpreter {
         val frame = Frame(fn, code, realm, obj, args, newTarget, fn.env)
         var r = execute(frame)
         if (r === TAIL) r = callClosure(frame.tailFn!!, frame.tailThis, frame.tailArgs!!)
-        return if (r is JSObject) r else obj
+        return r as? JSObject ?: obj
     }
 
     /** Runs a frame with realm / depth bookkeeping. */
@@ -804,7 +804,7 @@ object Interpreter {
                 Op.COPY_DATA_PROPS_EXCL -> {
                     val n = code[pc++]
                     val excl = HashSet<Any>()
-                    for (i in 0 until n) { excl.add(s[--sp]!!); s[sp] = null }
+                    repeat(n) { excl.add(s[--sp]!!); s[sp] = null }
                     val src = s[--sp]
                     s[sp] = null
                     Rt.copyDataProperties(s[sp - 1] as JSObject, src, excl)

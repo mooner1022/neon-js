@@ -37,8 +37,6 @@ class Frame(
     @JvmField var homeObject: JSObject? = null
     /** Active function for eval code inside functions. */
     @JvmField var parent: Frame? = null
-    /** Pending disposables (explicit resource management). */
-    @JvmField var disposables: ArrayList<Any?>? = null
 
     init {
         if (compiled == null) initSlots()

@@ -97,13 +97,11 @@ object Evaluator {
 
     private fun canDeclareGlobalFunction(g: JSObject, name: String): Boolean {
         val existing = g.getOwnProperty(name) ?: return g.isExtensible()
-        if (existing.configurable) return true
-        return existing.isData && existing.writable && existing.enumerable
+        return existing.configurable || existing.isData && existing.writable && existing.enumerable
     }
 
     private fun canDeclareGlobalVar(g: JSObject, name: String): Boolean {
-        if (g.hasOwnProperty(name)) return true
-        return g.isExtensible()
+        return g.hasOwnProperty(name) || g.isExtensible()
     }
 
     private fun createGlobalFunctionBinding(ge: GlobalEnv, name: String, fo: Any?, deletable: Boolean) {
@@ -230,7 +228,7 @@ object Evaluator {
         val de = varEnv as DeclEnv
         for (i in info.functionNames.indices) {
             val name = info.functionNames[i]
-            setOrCreateVar(de, name, fns[i], true)
+            setOrCreateVar(de, name, fns[i])
         }
         for (name in info.varNames) {
             if (info.functionNames.contains(name)) continue
@@ -244,10 +242,10 @@ object Evaluator {
         }
     }
 
-    private fun setOrCreateVar(de: DeclEnv, name: String, value: Any?, overwrite: Boolean) {
+    private fun setOrCreateVar(de: DeclEnv, name: String, value: Any?) {
         val i = de.info.lookup(name)
         if (i >= 0) {
-            if (overwrite) de.slots[i] = value
+            de.slots[i] = value
             return
         }
         var ext = de.extension

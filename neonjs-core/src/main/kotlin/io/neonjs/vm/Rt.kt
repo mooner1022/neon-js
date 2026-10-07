@@ -193,7 +193,7 @@ object Rt {
 
     @JvmStatic
     fun deleteProp(realm: Realm, o: Any?, key: Any, strict: Boolean): Boolean {
-        val obj = if (o is JSObject) o else Ops.toObject(realm, o)
+        val obj = o as? JSObject ?: Ops.toObject(realm, o)
         val ok = obj.delete(key)
         if (!ok && strict) throw JSException.typeError("Cannot delete property '${Ops.describeKey(key)}' of ${Ops.describe(o)}")
         return ok

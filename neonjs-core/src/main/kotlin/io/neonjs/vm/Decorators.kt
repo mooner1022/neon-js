@@ -93,7 +93,7 @@ object Decorators {
     /** `accessor x = v`: private storage plus a getter and a setter for it. */
     private fun makeAutoAccessor(d: ClassDef, e: ClassDef.Element) {
         val realm = d.ctor.realm
-        val name = if (e.key is PrivateName) (e.key as PrivateName).description else PK.toStringKey(e.key)
+        val name = if (e.key is PrivateName) e.key.description else PK.toStringKey(e.key)
         val storage = PrivateName("$name accessor storage")
         e.storage = storage
         val g = NativeFunction(realm, "", 0, { _, t, _, _ -> Rt.privateGet(t, storage) })

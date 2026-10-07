@@ -31,9 +31,6 @@ class PromiseReaction(
 
 object Promises {
 
-    @JvmStatic
-    fun isPromise(v: Any?): Boolean = v is JSPromise
-
     /** Creates a new pending promise with the intrinsic prototype. */
     @JvmStatic
     fun newPromise(realm: Realm): JSPromise = JSPromise(realm.promisePrototype)
@@ -102,7 +99,7 @@ object Promises {
                 (then as JSObject).call(resolution, arrayOf(res, rej))
             } catch (e: JSException) {
                 rej.call(Undefined, arrayOf(e.value))
-            } catch (e: StackOverflowError) {
+            } catch (_: StackOverflowError) {
                 rej.call(Undefined, arrayOf(realm.newError(ErrorKind.RANGE, "Maximum call stack size exceeded")))
             }
         }
@@ -150,7 +147,7 @@ object Promises {
         } catch (e: JSException) {
             ok = false
             value = e.value
-        } catch (e: StackOverflowError) {
+        } catch (_: StackOverflowError) {
             ok = false
             value = realm.newError(ErrorKind.RANGE, "Maximum call stack size exceeded")
         }

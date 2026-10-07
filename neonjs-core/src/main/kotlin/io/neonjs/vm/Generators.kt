@@ -256,7 +256,7 @@ object Generators {
     }
 
     private fun asyncGenStep(realm: Realm, gen: JSAsyncGenerator, f: Frame) {
-        var frame = f
+        val frame = f
         while (true) {
             val r: Any?
             try {
@@ -419,7 +419,7 @@ object AsyncFromSyncIterator {
             return
         }
         val onFul = NativeFunction(realm, "", 1, { _, _, a, _ -> Iteration.createIterResult(realm, a.arg(0), done) })
-        val onRej: Any? = if (done || !closeOnRejection) Undefined else NativeFunction(realm, "", 1, { _, _, a, _ ->
+        val onRej: Any = if (done || !closeOnRejection) Undefined else NativeFunction(realm, "", 1, { _, _, a, _ ->
             rec.done = false
             Iteration.closeOnThrow(rec)
             throw JSException(a.arg(0))
