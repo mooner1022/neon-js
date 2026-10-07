@@ -15,7 +15,7 @@ import java.math.BigInteger
 object Inspector {
     fun inspect(v: Any?, depth: Int = 2): String {
         val sb = StringBuilder()
-        format(v, sb, depth, HashSet(), top = true)
+        format(v, sb, depth, HashSet())
         return sb.toString()
     }
 
@@ -60,7 +60,7 @@ object Inspector {
         return if (g && s) "[Getter/Setter]" else if (g) "[Getter]" else "[Setter]"
     }
 
-    private fun format(v: Any?, sb: StringBuilder, depth: Int, seen: MutableSet<Any>, top: Boolean) {
+    private fun format(v: Any?, sb: StringBuilder, depth: Int, seen: MutableSet<Any>) {
         when (v) {
             Undefined, null -> sb.append("undefined")
             Null -> sb.append("null")
@@ -78,7 +78,7 @@ object Inspector {
         }
     }
 
-    private fun safeToString(o: Any): String = try { o.toString().take(200) } catch (e: Exception) { "?" }
+    private fun safeToString(o: Any): String = try { o.toString().take(200) } catch (_: Exception) { "?" }
 
     private fun formatObject(o: JSObject, sb: StringBuilder, depth: Int, seen: MutableSet<Any>) {
         if (!seen.add(o)) {
@@ -103,15 +103,15 @@ object Inspector {
                 sb.append("Promise { ")
                 when (o.state) {
                     JSPromise.PENDING -> sb.append("<pending>")
-                    JSPromise.FULFILLED -> format(o.result, sb, depth - 1, seen, false)
-                    else -> { sb.append("<rejected> "); format(o.result, sb, depth - 1, seen, false) }
+                    JSPromise.FULFILLED -> format(o.result, sb, depth - 1, seen)
+                    else -> { sb.append("<rejected> "); format(o.result, sb, depth - 1, seen) }
                 }
                 sb.append(" }")
                 return
             }
             if (o is JSPrimitiveWrapper) {
                 sb.append('[').append(if (o.primitive is Double) "Number" else if (o.primitive is Boolean) "Boolean" else "Object").append(": ")
-                format(o.primitive, sb, depth, seen, false)
+                format(o.primitive, sb, depth, seen)
                 sb.append(']')
                 return
             }
@@ -128,10 +128,10 @@ object Inspector {
                     if (n++ >= 100) return@forEachLive
                     sb.append(if (first) " " else ", ")
                     first = false
-                    format(k, sb, depth - 1, seen, false)
+                    format(k, sb, depth - 1, seen)
                     if (!o.isSet) {
                         sb.append(" => ")
-                        format(v, sb, depth - 1, seen, false)
+                        format(v, sb, depth - 1, seen)
                     }
                 }
                 sb.append(if (first) "}" else " }")
@@ -151,7 +151,7 @@ object Inspector {
                         sb.append("<").append(holes).append(" empty item").append(if (holes > 1) "s" else "").append(">, ")
                         holes = 0
                     }
-                    format(v, sb, depth - 1, seen, false)
+                    format(v, sb, depth - 1, seen)
                 }
                 if (holes > 0) sb.append(if (shown > 0) ", " else " ").append("<").append(holes).append(" empty item").append(if (holes > 1) "s" else "").append(">")
                 if (n > 100) sb.append(", ... ").append(n - 100).append(" more items")
@@ -165,17 +165,17 @@ object Inspector {
             sb.append('{')
             var first = true
             var count = 0
-            val keys = try { o.ownPropertyKeys() } catch (e: JSException) { emptyList() }
+            val keys = try { o.ownPropertyKeys() } catch (_: JSException) { emptyList() }
             for (k in keys) {
                 // module namespaces throw for bindings still in TDZ
-                val d = try { o.getOwnProperty(k) } catch (e: JSException) { null } ?: continue
+                val d = try { o.getOwnProperty(k) } catch (_: JSException) { null } ?: continue
                 if (!d.enumerable) continue
                 if (count++ >= 100) { sb.append(", ..."); break }
                 sb.append(if (first) " " else ", ")
                 first = false
                 sb.append(keyText(k)).append(": ")
                 if (d.isAccessor) sb.append(if (d.getter !== Undefined && d.setter !== Undefined) "[Getter/Setter]" else if (d.getter !== Undefined) "[Getter]" else "[Setter]")
-                else format(d.value, sb, depth - 1, seen, false)
+                else format(d.value, sb, depth - 1, seen)
             }
             sb.append(if (first) "}" else " }")
         } finally {

@@ -1,7 +1,6 @@
 package io.neonjs.ext
 
 import io.neonjs.builtins.ArrayBufferBuiltins
-import io.neonjs.builtins.BufferOps
 import io.neonjs.builtins.JSArrayBuffer
 import io.neonjs.builtins.JSDataView
 import io.neonjs.builtins.JSDate

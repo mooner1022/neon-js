@@ -367,8 +367,7 @@ object WebGlobals {
             if (nt == null) typeErr("Constructor TextDecoder requires 'new'")
             val label = if (a.arg(0) === Undefined) "utf-8" else Ops.toString(a.arg(0)).trim { it == ' ' || it == '\t' || it == '\n' || it == '\u000C' || it == '\r' }.lowercase()
             if (label !in UTF8_LABELS) rangeErr("TextDecoder: unsupported encoding '$label' (only UTF-8 is available)")
-            val opts = a.arg(1)
-            val o = when (opts) {
+            val o = when (val opts = a.arg(1)) {
                 Undefined, Null -> null
                 is JSObject -> opts
                 else -> typeErr("TextDecoder options must be an object")
@@ -385,8 +384,7 @@ object WebGlobals {
         proto.method(realm, "decode", 0) { f, t, a, _ ->
             val d = check(t, "decode")
             val bytes = bytesOf(a.arg(0))
-            val opts = a.arg(1)
-            val stream = when (opts) {
+            val stream = when (val opts = a.arg(1)) {
                 Undefined, Null -> false
                 is JSObject -> Ops.toBoolean(opts.get("stream", opts))
                 else -> typeErr("TextDecoder.prototype.decode options must be an object")

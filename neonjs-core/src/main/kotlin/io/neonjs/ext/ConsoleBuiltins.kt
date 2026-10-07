@@ -4,6 +4,8 @@ import io.neonjs.NeonConsole
 import io.neonjs.NeonConsole.Level
 import io.neonjs.runtime.*
 import java.math.BigInteger
+import kotlin.math.ceil
+import kotlin.math.floor
 
 /**
  * The `console` namespace object. All formatting is done by [Inspector], which never calls back into guest code,
@@ -86,7 +88,7 @@ object ConsoleBuiltins {
     fun format(args: Array<Any?>): String {
         if (args.isEmpty()) return ""
         val sb = StringBuilder()
-        var next = 0
+        var next: Int
         val first = args[0]
         if (first is CharSequence && args.size > 1) {
             val f = first.toString()
@@ -140,13 +142,13 @@ object ConsoleBuiltins {
         if (a is BigInteger) return "${a}n"
         if (a is JSObject || a is JSSymbol) return "NaN"
         val d = safeNumber(a)
-        return NumberConv.toString(if (integer && d.isFinite()) (if (d < 0) Math.ceil(d) else Math.floor(d)) else d)
+        return NumberConv.toString(if (integer && d.isFinite()) (if (d < 0) ceil(d) else floor(d)) else d)
     }
 
     /** Renders arrays / objects of rows as a box table using own enumerable data properties only. */
     private fun table(data: Any?): String? {
         if (data !is JSObject || data is ProxyObject || data.isCallable) return null
-        val rowKeys = try { data.ownPropertyKeys().filter { it !is JSSymbol && data.getOwnProperty(it)?.enumerable == true } } catch (e: JSException) { return null }
+        val rowKeys = try { data.ownPropertyKeys().filter { it !is JSSymbol && data.getOwnProperty(it)?.enumerable == true } } catch (_: JSException) { return null }
         if (rowKeys.size > 1000) return null
         val cols = LinkedHashSet<String>()
         var hasValues = false
