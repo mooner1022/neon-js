@@ -2,6 +2,8 @@ plugins {
     `java-library`
 }
 
+description = "ECMA-402 Intl and the non-ISO Temporal calendars for NeonJS, on ICU4J"
+
 dependencies {
     api(project(":neonjs-core"))
     // ICU 78: Unicode 17 / CLDR 48, matching the engine's own Unicode tables

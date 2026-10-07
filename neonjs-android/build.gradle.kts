@@ -2,6 +2,8 @@ plugins {
     `java-library`
 }
 
+description = "Runs NeonJS JIT code and Java.extend adapters on Android by translating them to dex with dx"
+
 // A plain JVM library: the Android classes it uses (dalvik.system.*) are reached through reflection, so it builds
 // and its conversion step is testable without the Android SDK. Apps add it next to neonjs-core.
 dependencies {

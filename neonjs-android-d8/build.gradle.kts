@@ -2,6 +2,8 @@ plugins {
     `java-library`
 }
 
+description = "D8-based dex translation for neonjs-android (from the r8 library on Google's Maven repository)"
+
 repositories {
     google()
 }
