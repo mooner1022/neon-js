@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/mooner1022/neon-js/actions/workflows/ci.yml/badge.svg)](https://github.com/mooner1022/neon-js/actions/workflows/ci.yml)
 [![Android](https://github.com/mooner1022/neon-js/actions/workflows/android.yml/badge.svg)](https://github.com/mooner1022/neon-js/actions/workflows/android.yml)
+[![Release](https://github.com/mooner1022/neon-js/actions/workflows/release.yml/badge.svg)](https://github.com/mooner1022/neon-js/actions/workflows/release.yml)
+[![Maven Central](https://img.shields.io/maven-central/v/dev.mooner.neonjs/neonjs-core?label=Maven%20Central)](https://central.sonatype.com/artifact/dev.mooner.neonjs/neonjs-core)
 
 NeonJS is a JavaScript engine for the JVM, written in Kotlin. It is built for embedding untrusted or semi-trusted
 scripts in Java/Kotlin applications:
