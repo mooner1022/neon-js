@@ -3,18 +3,27 @@ package io.neonjs
 import io.neonjs.compiler.CodeBlock
 import io.neonjs.compiler.Compiler
 import io.neonjs.compiler.Source
+import io.neonjs.jit.ClassBackend
 import io.neonjs.jit.CodeCache
 import io.neonjs.jit.CodeDefiner
 import io.neonjs.jit.CompiledCode
 import io.neonjs.jit.GeneratedClass
 import io.neonjs.jit.JitInput
+import io.neonjs.jit.JitQueue
 import io.neonjs.jit.JvmCodeDefiner
 import io.neonjs.jit.JvmCompiler
 import io.neonjs.parser.ParseOptions
 import io.neonjs.parser.Parser
+import io.neonjs.runtime.Agent
+import io.neonjs.vm.JSClosure
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.lang.ref.WeakReference
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Semaphore
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /** How code blocks become compiled code: class identity, sharing, batching, background compilation. */
@@ -42,6 +51,32 @@ class JitTest {
             synchronized(batches) { batches.add(classes.size) }
             if (reject != null && classes.any { it.name.contains(reject) }) throw IllegalStateException("batch rejected")
             return classes.map { jvm.define(it.name, it.bytes, parent) }
+        }
+    }
+
+    /** Records the thread defining each class; with a [gate], definitions (but the probe's) wait for it to open. */
+    private class ThreadRecorder(private val gate: CountDownLatch? = null, private val entered: Semaphore? = null) : CodeDefiner {
+        val threads = ConcurrentHashMap<String, String>()
+        private val jvm = JvmCodeDefiner()
+        override fun define(name: String, bytes: ByteArray, parent: ClassLoader): Class<*> {
+            threads[name] = Thread.currentThread().name
+            if (gate != null && name != JvmCompiler.PROBE_CLASS) {
+                entered?.release()
+                gate.await()
+            }
+            return jvm.define(name, bytes, parent)
+        }
+
+        fun threadOf(function: String): String? = threads.entries.firstOrNull { it.key.contains("JS\$$function\$") }?.value
+    }
+
+    private fun codeOf(ctx: NeonContext, fn: String): CodeBlock = (ctx.eval(fn).raw as JSClosure).code
+
+    private fun waitFor(what: String, cond: () -> Boolean) {
+        val end = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+        while (!cond()) {
+            if (System.nanoTime() > end) fail<Unit>("timed out waiting for $what")
+            Thread.sleep(5)
         }
     }
 
@@ -154,5 +189,76 @@ class JitTest {
         assertNotNull(r[0])
         assertNull(r[1])
         assertEquals(listOf(2), d.batches, "the batch failed, then the classes were defined one by one")
+    }
+
+    @Test
+    fun adaptiveModeCompilesHotFunctionsInTheBackground() {
+        assumeTrue(JitQueue.THREADS > 0)
+        val d = ThreadRecorder()
+        val engine = NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(10).codeDefiner(d).console(null).build()
+        engine.newContext().use { ctx ->
+            assertEquals(380, ctx.eval("function hot(x) { return x * 2 } let s = 0; for (let i = 0; i < 20; i++) s += hot(i); s").asInt())
+            val cb = codeOf(ctx, "hot")
+            waitFor("hot to be compiled") { cb.compiled != null }
+            assertTrue(d.threadOf("hot")!!.startsWith("neonjs-jit-"), d.threadOf("hot"))
+            assertEquals(84, ctx.eval("hot(42)").asInt())
+        }
+    }
+
+    @Test
+    fun withoutBackgroundCompilationTheCallerCompiles() {
+        val d = ThreadRecorder()
+        val engine = NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(10).backgroundCompilation(false)
+            .codeDefiner(d).console(null).build()
+        engine.newContext().use { ctx ->
+            ctx.eval("function hot(x) { return x * 2 } for (let i = 0; i < 20; i++) hot(i)")
+            assertNotNull(codeOf(ctx, "hot").compiled, "compiled at the 10th call")
+            assertEquals(Thread.currentThread().name, d.threadOf("hot"))
+        }
+    }
+
+    @Test
+    fun compiledModeCompilesTheFunctionsAScriptDefinesAhead() {
+        assumeTrue(JitQueue.THREADS > 0)
+        val d = ThreadRecorder()
+        val engine = NeonEngine.builder().executionMode(ExecutionMode.COMPILED).codeDefiner(d).console(null).build()
+        engine.newContext().use { ctx ->
+            assertEquals(1, ctx.eval("function used() { return 1 } function later() { return 2 } used()").asInt())
+            val later = codeOf(ctx, "later")
+            waitFor("later to be compiled") { later.compiled != null }
+            assertTrue(d.threadOf("later")!!.startsWith("neonjs-jit-"), d.threadOf("later"))
+            assertEquals(2, ctx.eval("later()").asInt())
+            // code made by the Function constructor is queued when it is created
+            val g = codeOf(ctx, "new Function('a', 'return a * 3')")
+            waitFor("the new function to be compiled") { g.compiled != null }
+        }
+    }
+
+    @Test
+    fun closingAContextWithdrawsItsQueuedBlocks() {
+        assumeTrue(JitQueue.THREADS > 0)
+        val gate = CountDownLatch(1)
+        val entered = Semaphore(0)
+        val backend = ClassBackend(ThreadRecorder(gate, entered))
+        val owner = Agent()
+        try {
+            // keep every worker busy with a block whose definition waits at the gate
+            val busy = (0 until JitQueue.THREADS).map { function("function f(x) { return x" + " + x".repeat(it + 1) + " }") }
+            for (cb in busy) {
+                assertTrue(JitQueue.submit(cb, backend, owner))
+                assertTrue(entered.tryAcquire(10, TimeUnit.SECONDS), "a worker took the block")
+            }
+            val queued = function("function f(x) { return x - x }")
+            assertTrue(JitQueue.submit(queued, backend, owner))
+            assertNotNull(queued.jitTask)
+            JitQueue.cancel(owner)
+            assertNull(queued.jitTask, "withdrawn")
+            gate.countDown()
+            for (cb in busy) waitFor("the busy blocks") { cb.compiled != null }
+            Thread.sleep(50)
+            assertNull(queued.compiled, "never compiled")
+        } finally {
+            gate.countDown()
+        }
     }
 }

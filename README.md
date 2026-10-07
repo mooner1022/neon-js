@@ -85,6 +85,22 @@ realm, globals and job queue). A context is single-threaded but may be entered f
 serialized by an internal lock, so host callbacks invoked on other threads are safe. Compiled scripts
 (`engine.compile(source)`) can be evaluated in any context of the same engine.
 
+### Execution modes
+
+- `INTERPRETER`: bytecode interpreter only.
+- `ADAPTIVE` (default): functions start interpreted; after `jitThreshold` calls (or long-running loops) they are
+  compiled to JVM bytecode by background threads, and keep running interpreted until their code is ready. Functions
+  that become hot together are compiled together.
+- `COMPILED`: every function is compiled before its first call; the calling thread waits for its own function only,
+  while the functions a script defines are compiled in parallel by the background threads.
+
+Compiled code is shared: functions whose bytecode is the same (they may differ in constants or position) and the same
+code run in many contexts get one class. `backgroundCompilation(false)` compiles on the calling thread instead. The
+background threads are shared by all engines and their work is not charged to a context's sandbox limits; system
+properties: `neonjs.jit.threads` (default 1–2 by core count, 0 = none), `neonjs.jit.batch` (32),
+`neonjs.jit.maxPending` (4096, beyond which callers compile themselves), `neonjs.jit.debugInfo` (JVM line numbers in
+generated classes, for profilers).
+
 ### Values
 
 `NeonValue` wraps a JS value: `asInt/asDouble/asString/asBoolean/asBigInteger`, `as(Class)` / `to<T>()` for
@@ -231,7 +247,8 @@ installed app is) and run through `app_process` with the screen on:
   to machine code like any other.
 - A simple numeric loop runs about 5× faster with the dex JIT than in the interpreter (≈38 vs ≈180 ns per iteration).
 - Compiling a small function costs about 0.3 ms with dx (about 0.06 ms with hidden classes on a desktop JVM) and about
-  16 KB of memory, as each compiled function gets its own dex file and class loader. Keep the default
+  16 KB of memory when it gets a dex file and class loader of its own. Background compilation puts the functions
+  compiled together in one dex file and class loader, and identical code is compiled once. Keep the default
   `ExecutionMode.ADAPTIVE`, which compiles hot functions only; `COMPILED` pays this for every function that runs.
 
 The translation step is pluggable as well (`io.neonjs.android.DexConverter`). The default is dx, the dexer of the
@@ -239,8 +256,9 @@ Android SDK before D8: no longer maintained, but it only ever reads the engine's
 Test262 generates translates. `neonjs-android-d8` replaces it with D8 from Google's r8 library
 (`com.android.tools:r8`), which is maintained and has no Java 8 class file ceiling. Adding the module selects it;
 `DexCodeDefiner(converter = …)` or `-Dneonjs.dexConverter=dx|d8` choose explicitly. D8 is made for whole-program
-builds, though: each conversion costs far more on a phone (5,000 small functions, measured back to back: ≈44 s
-against ≈2.2 s with dx), and the library adds ≈7.7 MB of dex. Test262 passes with it (on a JVM, every generated class
+builds, though: each conversion costs far more on a phone (5,000 small functions converted one at a time, measured
+back to back: ≈44 s against ≈2.2 s with dx), which the batches of background compilation spread over many functions,
+and the library adds ≈7.7 MB of dex. Test262 passes with it (on a JVM, every generated class
 translated; on the device, the statements and Array parts in compiled mode, 191,685 functions translated by D8). It
 has run on API 37 only; it refers to some APIs newer than level 26, and where a conversion fails the code stays in the
 interpreter (`Java.extend` throws a TypeError).

@@ -98,8 +98,16 @@ loader per batch (a rejected batch is retried class by class). A backend that em
 `JitBackend`, below the tiering policy and the background compiler. JVM debug
 info (source name, line numbers) is left out unless `-Dneonjs.jit.debugInfo` is set; JS stack traces do not need it.
 
-`Jit.prepare` implements tiering: `INTERPRETER` never compiles, `COMPILED` compiles before the first call,
-`ADAPTIVE` compiles after `jitThreshold` calls. Compiled code and interpreted code share frames and are
+Background compilation (`jit/JitQueue.kt`): a block due for compilation gets a `JitTask` (`CodeBlock.jitTask`,
+set by CAS, so one thread compiles it) and is queued; daemon workers drain whatever is queued (up to a batch) and
+hand it to the backend, one batch per backend. A thread that needs the code now (compiled mode) takes a queued task
+over or waits for the worker compiling it. The generator reads only immutable code block fields, so it runs on any
+thread; the code is published through the volatile `compiled` field before the task is detached. Closing a context
+withdraws its queued tasks.
+
+`Jit.prepare` implements tiering: `INTERPRETER` never compiles, `COMPILED` compiles before the first call (the
+caller waits for its block only, then queues the blocks it defines), `ADAPTIVE` queues a block after `jitThreshold`
+calls and keeps interpreting it until its code is installed. Compiled code and interpreted code share frames and are
 interchangeable at call boundaries.
 
 ## Object model (`runtime/`)

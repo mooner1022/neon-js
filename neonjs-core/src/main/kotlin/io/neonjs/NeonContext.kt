@@ -44,6 +44,7 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
         cfg.codeDefiner = engine.codeDefiner
         cfg.executionMode = engine.executionMode.ordinal
         cfg.jitThreshold = engine.jitThreshold
+        cfg.backgroundJit = engine.backgroundCompilation
         agent = Agent(cfg)
         p.randomSeed?.let { agent.randomSource = java.util.Random(it) }
         p.fixedTimeMillis?.let { t -> agent.clock = { t.toDouble() } }
@@ -308,6 +309,8 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
         closed = true
         // withdraw pending Atomics.waitAsync waiters (unlink them, cancel their timers) so nothing outlives the context
         agent.closeExternal()
+        // and code still waiting for the background compiler
+        io.neonjs.jit.JitQueue.cancel(agent)
     }
 
     // ------------------------------------------------------------------ ContextGate

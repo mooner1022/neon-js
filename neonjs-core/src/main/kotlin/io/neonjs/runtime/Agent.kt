@@ -30,6 +30,8 @@ class RuntimeConfig {
     /** io.neonjs.ExecutionMode ordinal: 0 interpreter, 1 compiled, 2 adaptive. */
     @JvmField var executionMode = 0
     @JvmField var jitThreshold = 1000
+    /** Whether code is compiled by background threads (io.neonjs.jit.JitQueue) rather than the calling thread. */
+    @JvmField var backgroundJit = true
     /** Defines generated classes (JIT code, Java.extend adapters); null = io.neonjs.jit.CodeDefiners.default. */
     @JvmField var codeDefiner: io.neonjs.jit.CodeDefiner? = null
 }

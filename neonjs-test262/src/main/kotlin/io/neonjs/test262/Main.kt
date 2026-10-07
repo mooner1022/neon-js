@@ -67,7 +67,8 @@ fun main(args: Array<String>) {
     val elapsed = System.currentTimeMillis() - start
     report(results.values.toList(), outFile, verbose, elapsed)
     if (mode != 0) {
-        System.err.println("JIT compiled=${io.neonjs.jit.JvmCompiler.compiledCount} shared=${io.neonjs.jit.JvmCompiler.sharedCount} failed=${io.neonjs.jit.JvmCompiler.failedCount}")
+        System.err.println("JIT compiled=${io.neonjs.jit.JvmCompiler.compiledCount} shared=${io.neonjs.jit.JvmCompiler.sharedCount} failed=${io.neonjs.jit.JvmCompiler.failedCount}" +
+            " background batches=${io.neonjs.jit.JitQueue.batches} blocks=${io.neonjs.jit.JitQueue.batchedBlocks} takenOver=${io.neonjs.jit.JitQueue.takenOver}")
         io.neonjs.jit.JvmCompiler.failureReasons.entries.sortedByDescending { it.value.get() }.take(15).forEach { System.err.println("  ${it.value} ${it.key}") }
     }
 }

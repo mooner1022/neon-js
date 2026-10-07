@@ -13,7 +13,10 @@ enum class ExecutionMode {
     INTERPRETER,
     /** Functions are compiled to JVM bytecode before their first call. */
     COMPILED,
-    /** Interpret first; compile hot functions to JVM bytecode after [NeonEngine.Builder.jitThreshold] calls. */
+    /**
+     * Interpret first; compile hot functions to JVM bytecode after [NeonEngine.Builder.jitThreshold] calls (in the
+     * background unless [NeonEngine.Builder.backgroundCompilation] is off: the function stays interpreted meanwhile).
+     */
     ADAPTIVE,
 }
 
@@ -51,6 +54,7 @@ class NeonScript internal constructor(val engine: NeonEngine, internal val code:
 class NeonEngine private constructor(b: Builder) : AutoCloseable {
     val executionMode: ExecutionMode = b.executionMode
     val jitThreshold: Int = b.jitThreshold
+    val backgroundCompilation: Boolean = b.backgroundCompilation
     val sandbox: SandboxPolicy = b.sandbox
     val hostAccess: HostAccess = b.hostAccess
     /** Automatically run pending Promise jobs when a top-level evaluation returns. */
@@ -86,6 +90,7 @@ class NeonEngine private constructor(b: Builder) : AutoCloseable {
     class Builder {
         var executionMode = ExecutionMode.ADAPTIVE
         var jitThreshold = 1000
+        var backgroundCompilation = true
         var sandbox = SandboxPolicy.UNRESTRICTED
         var hostAccess = HostAccess.NONE
         var autoRunJobs = true
@@ -135,6 +140,15 @@ class NeonEngine private constructor(b: Builder) : AutoCloseable {
         }
 
         fun jitThreshold(n: Int) = apply { jitThreshold = n }
+
+        /**
+         * Whether functions are compiled by background threads (default): in adaptive mode a hot function keeps running
+         * in the interpreter until its code is ready, and functions that become hot together are compiled together
+         * (one dex file on Android); in compiled mode the functions a script defines are compiled in parallel while it
+         * runs. With `false`, every function is compiled on the thread calling it. The workers are shared by all
+         * engines (`-Dneonjs.jit.threads=n`, 0 disables them) and their work is not charged to a context's limits.
+         */
+        fun backgroundCompilation(enabled: Boolean) = apply { backgroundCompilation = enabled }
         fun sandbox(p: SandboxPolicy) = apply { sandbox = p }
         fun hostAccess(a: HostAccess) = apply { hostAccess = a }
         fun autoRunJobs(b: Boolean) = apply { autoRunJobs = b }

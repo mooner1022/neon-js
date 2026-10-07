@@ -122,10 +122,14 @@ class CodeBlock(@JvmField val name: String, @JvmField val kind: FunctionKind) {
     @JvmField var completionReg = -1
     /** Mapped arguments: env slot of each parameter in the function scope env. */
     @JvmField var mappedSlots: IntArray? = null
-    /** JIT state. */
+    /** JIT state (see io.neonjs.jit.Jit): the compiled code, once installed. */
     @JvmField @Volatile var compiled: Any? = null
     @JvmField var invocationCount = 0
-    @JvmField var jitFailed = false
+    @JvmField @Volatile var jitFailed = false
+    /** The pending io.neonjs.jit.JitTask while the block is queued or being compiled. */
+    @JvmField @Volatile var jitTask: Any? = null
+    /** Whether the functions this block defines were queued for compilation (compiled mode). */
+    @JvmField var childrenQueued = false
     /** Context flags for direct eval inside this function (CTX_*). */
     @JvmField var evalCtx = 0
     /** Private names visible to direct eval inside this function. */

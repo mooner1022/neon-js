@@ -284,6 +284,7 @@ object Evaluator {
         val cb = Compiler.compileFunction(fnNode, src)
         cb.srcStart = 0
         cb.srcEnd = full.length
+        io.neonjs.jit.Jit.prefetch(cb, realm.agent)
         val fallback = when (kind) {
             "generator" -> realm.generatorFunctionPrototype
             "async" -> realm.asyncFunctionPrototype
