@@ -313,3 +313,37 @@ The runner executes each test in strict and sloppy mode as required, supports `$
 `createRealm`, `evalScript`, `detachArrayBuffer` and multi-agent `$262.agent`), modules and async tests, and
 writes failures to `--out`. Note: Test262 must be checked out with LF line endings (`core.autocrlf=false`); a few
 tests check source text exactly.
+
+The runner exits with status 1 when a test fails that `--known FILE` does not list (`neonjs-test262/known-failures.txt`
+holds the two ICU-data failures of `intl402/`).
+
+### On Android devices and emulators
+
+`tools/android` runs the Test262 runner and Android-specific checks on a device or emulator through adb and
+`app_process` (no APK):
+
+```bash
+./gradlew :neonjs-test262:installDist :neonjs-test262:d8Libs
+python3 tools/android/bundle.py --out build/android/neonjs-test262.jar neonjs-test262/build/install/neonjs-test262/lib
+python3 tools/android/device.py install build/android/neonjs-test262.jar          # push, compile ahead of time
+python3 tools/android/device.py run neonjs-test262 io.neonjs.test262.AndroidCheck
+python3 tools/android/device.py push-test262 third_party/test262 language/statements built-ins/Array
+python3 tools/android/device.py test262 neonjs-test262 --mode compiled --timeout 60000 language/statements built-ins/Array
+```
+
+`bundle.py` dexes jars with the SDK's D8 and keeps their resources; adding `neonjs-test262/build/d8-libs` makes a
+bundle that uses D8 at run time. `AndroidCheck` covers what Test262 does not: the dex definer, background batches,
+`Java.extend`, default methods of JS-implemented interfaces and the cache directory. `tools/android/ci-emulator.sh`
+runs these with dx and with D8 (pick the device with `ANDROID_SERIAL`); the Android workflow runs it on API 26
+and API 34 emulators. An emulator without Android Studio (on Windows it uses the Windows Hypervisor Platform; in
+`cmd`, quote the package names, which contain `;`):
+
+```bash
+sdkmanager "system-images;android-26;default;x86_64"
+avdmanager create avd -n neonjs-api26 -k "system-images;android-26;default;x86_64" -d pixel
+emulator -avd neonjs-api26 -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot
+```
+
+Known issue: Android 8.0's ART (API 26) occasionally aborts while linking a class during a concurrent garbage
+collection (`ClassHierarchyAnalysis` → `Check failed: self == thread_running_gc_`), with background compilation and
+without; seen once in seven Test262 runs on the API 26 emulator, never on API 34.

@@ -1,4 +1,5 @@
 # Line endings for the Gradle wrapper scripts (as gradle init writes them); binaries stay untouched.
 /gradlew text eol=lf
+*.sh text eol=lf
 *.bat text eol=crlf
 *.jar binary
