@@ -97,7 +97,7 @@ class HostClassInfo private constructor(val cls: Class<*>, val access: HostAcces
                     try {
                         val cand = c.getMethod(m.name, *m.parameterTypes)
                         if (isCallable(cand)) return cand
-                    } catch (e: NoSuchMethodException) {
+                    } catch (_: NoSuchMethodException) {
                         // continue
                     }
                 }
@@ -118,7 +118,7 @@ class HostClassInfo private constructor(val cls: Class<*>, val access: HostAcces
         private val HAS_MODULES = try {
             Class::class.java.getMethod("getModule")
             true
-        } catch (e: Throwable) {
+        } catch (_: Throwable) {
             false
         }
 
@@ -163,7 +163,7 @@ class HostClassInfo private constructor(val cls: Class<*>, val access: HostAcces
         private fun isObjectMethod(m: Method): Boolean = try {
             Any::class.java.getMethod(m.name, *m.parameterTypes)
             true
-        } catch (e: NoSuchMethodException) {
+        } catch (_: NoSuchMethodException) {
             false
         }
     }

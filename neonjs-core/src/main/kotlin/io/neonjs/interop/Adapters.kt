@@ -128,7 +128,7 @@ object Adapters {
         return AdapterClass(cls, methods, pairs, supers)
     }
 
-    private fun superName(m: Method, index: Int) = "super\$${m.name}\$$index"
+    private fun superName(m: Method, index: Int) = $$"super$$${m.name}$$$index"
 
     /** Public/protected overridable instance methods (Object methods limited to toString/hashCode/equals). */
     private fun collectMethods(base: Class<*>, ifaces: Collection<Class<*>>): List<Method> {
@@ -322,7 +322,7 @@ class AdapterClassObject(
 
     override fun set(key: Any, value: Any?, receiver: Any?): Boolean = false
 
-    override fun call(thisArg: Any?, args: Array<Any?>): Any? =
+    override fun call(thisArg: Any?, args: Array<Any?>): Any =
         throw JSException.typeError("Adapter class $displayName must be invoked with 'new'")
 
     override fun construct(args: Array<Any?>, newTarget: JSObject): Any? {

@@ -115,7 +115,7 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
 
     private fun read(f: Field): Any? = try {
         f.get(target)
-    } catch (e: IllegalAccessException) {
+    } catch (_: IllegalAccessException) {
         throw JSException.typeError("Cannot access field ${f.name}")
     }
 
@@ -183,11 +183,14 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
             if (key >= length()) return false
             return try {
                 when (target) {
-                    is MutableList<*> -> (target as MutableList<Any?>)[key] = bridge.toObject(value)
+                    is MutableList<*> -> {
+                        @Suppress("UNCHECKED_CAST") val list = target as MutableList<Any?>
+                        list[key] = bridge.toObject(value)
+                    }
                     else -> java.lang.reflect.Array.set(target, key, bridge.toHost(value, target.javaClass.componentType))
                 }
                 true
-            } catch (e: UnsupportedOperationException) {
+            } catch (_: UnsupportedOperationException) {
                 false
             }
         }
@@ -199,7 +202,7 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
             if (Modifier.isFinal(f.modifiers)) return false
             try {
                 f.set(target, bridge.toHost(value, f.type, f.genericType))
-            } catch (e: IllegalAccessException) {
+            } catch (_: IllegalAccessException) {
                 return false
             }
             return true
@@ -224,7 +227,7 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
         return try {
             m[name] = bridge.toObject(value)
             true
-        } catch (e: UnsupportedOperationException) {
+        } catch (_: UnsupportedOperationException) {
             false
         } catch (e: RuntimeException) {
             throw bridge.hostError(e)
@@ -239,7 +242,7 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
             return try {
                 m.remove(name)
                 true
-            } catch (e: UnsupportedOperationException) {
+            } catch (_: UnsupportedOperationException) {
                 false
             }
         }
@@ -292,7 +295,7 @@ class HostClassObject(@JvmField val bridge: HostBridge, @JvmField val cls: Class
     /** Kotlin companion object (its members are also visible on the class, like @JvmStatic ones). */
     private val companion: HostObject? by lazy {
         val f = info.staticFields["Companion"] ?: return@lazy null
-        val c = try { f.get(null) } catch (e: IllegalAccessException) { null } ?: return@lazy null
+        val c = try { f.get(null) } catch (_: IllegalAccessException) { null } ?: return@lazy null
         bridge.toJS(c) as? HostObject
     }
 
@@ -315,7 +318,7 @@ class HostClassObject(@JvmField val bridge: HostBridge, @JvmField val cls: Class
         if (key == "name") return cls.simpleName
         if (key == "length") return (info.constructors.minOfOrNull { it.parameterCount } ?: 0).toDouble()
         info.staticFields[key]?.let { f ->
-            return try { bridge.toJS(f.get(null)) } catch (e: IllegalAccessException) { throw JSException.typeError("Cannot access field $key") }
+            return try { bridge.toJS(f.get(null)) } catch (_: IllegalAccessException) { throw JSException.typeError("Cannot access field $key") }
         }
         info.staticMethods[key]?.let { list -> return methodCache.getOrPut(key) { HostMethodFunction(bridge, key, list, null) } }
         info.staticGetters[key]?.let { g -> return bridge.invoke(g, null, EMPTY_ARGS) }
@@ -354,7 +357,7 @@ class HostClassObject(@JvmField val bridge: HostBridge, @JvmField val cls: Class
         if (f != null && !Modifier.isFinal(f.modifiers)) {
             try {
                 f.set(null, bridge.toHost(value, f.type, f.genericType))
-            } catch (e: IllegalAccessException) {
+            } catch (_: IllegalAccessException) {
                 return false
             }
             return true

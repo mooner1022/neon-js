@@ -12,6 +12,8 @@ import java.util.concurrent.Future
 import java.lang.reflect.*
 import java.math.BigDecimal
 import java.math.BigInteger
+import kotlin.math.abs
+import kotlin.math.round
 
 /** Re-entry point used by host-side callbacks (interface proxies) to run JS code. */
 interface ContextGate {
@@ -105,9 +107,9 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
                 f.completeExceptionally(gate.rejectionToHost(e.value))
             }
         }
-        val p: JSPromise = when {
-            v is JSPromise -> v
-            v is JSObject && Ops.isCallable(v.get("then", v)) -> Promises.promiseResolve(realm, realm.promiseConstructor, v) as JSPromise
+        val p: JSPromise = when (v) {
+            is JSPromise -> v
+            is JSObject if Ops.isCallable(v.get("then", v)) -> Promises.promiseResolve(realm, realm.promiseConstructor, v) as JSPromise
             else -> {
                 complete(v)
                 return f
@@ -140,18 +142,18 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         val HAS_INVOKE_DEFAULT = try {
             InvocationHandler::class.java.getMethod("invokeDefault", Any::class.java, Method::class.java, Array<Any>::class.java)
             true
-        } catch (e: Throwable) {
+        } catch (_: Throwable) {
             false
         }
         private val PRIVATE_LOOKUP_IN: Method? = try {
             java.lang.invoke.MethodHandles::class.java.getMethod("privateLookupIn", Class::class.java, java.lang.invoke.MethodHandles.Lookup::class.java)
-        } catch (e: Throwable) {
+        } catch (_: Throwable) {
             null
         }
         private val LOOKUP_CONSTRUCTOR: Constructor<java.lang.invoke.MethodHandles.Lookup>? by lazy {
             try {
                 java.lang.invoke.MethodHandles.Lookup::class.java.getDeclaredConstructor(Class::class.java, Int::class.javaPrimitiveType).also { it.isAccessible = true }
-            } catch (e: Throwable) {
+            } catch (_: Throwable) {
                 null
             }
         }
@@ -225,11 +227,11 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
                 else -> IMPOSSIBLE
             }
             is Double -> {
-                val integral = v == Math.rint(v) && !v.isInfinite()
+                val integral = v == round(v) && !v.isInfinite()
                 return when (t) {
                     java.lang.Double.TYPE, java.lang.Double::class.java -> if (integral) 2 else 1
                     java.lang.Float.TYPE, java.lang.Float::class.java -> 3
-                    java.lang.Long.TYPE, java.lang.Long::class.java -> if (integral && Math.abs(v) <= 9.007199254740991E15) 1 else IMPOSSIBLE
+                    java.lang.Long.TYPE, java.lang.Long::class.java -> if (integral && abs(v) <= 9.007199254740991E15) 1 else IMPOSSIBLE
                     java.lang.Integer.TYPE, java.lang.Integer::class.java -> if (integral && v >= Int.MIN_VALUE && v <= Int.MAX_VALUE) 1 else IMPOSSIBLE
                     java.lang.Short.TYPE, java.lang.Short::class.java -> if (integral && v >= Short.MIN_VALUE && v <= Short.MAX_VALUE) 2 else IMPOSSIBLE
                     java.lang.Byte.TYPE, java.lang.Byte::class.java -> if (integral && v >= Byte.MIN_VALUE && v <= Byte.MAX_VALUE) 2 else IMPOSSIBLE
@@ -330,7 +332,7 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
                 return Ops.toNumber(v).toInt().toChar()
             }
             java.lang.Number::class.java -> return toObject(v) as? Number ?: Ops.toNumber(v)
-            BigInteger::class.java -> return if (v is BigInteger) v else Ops.bigIntFromDouble(Ops.toNumber(v))
+            BigInteger::class.java -> return v as? BigInteger ?: Ops.bigIntFromDouble(Ops.toNumber(v))
             BigDecimal::class.java -> return if (v is BigInteger) BigDecimal(v) else BigDecimal(Ops.toNumber(v))
         }
         if (isFutureType(t)) return futureOf(v, elementType(gt, 0))
@@ -407,8 +409,8 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
     fun toObject(v: Any?): Any? = when (v) {
         Undefined, Null, null -> null
         is Boolean -> v
-        is Double -> if (v == Math.rint(v) && !v.isInfinite() && !(v == 0.0 && 1.0 / v < 0)) {
-            if (v >= Int.MIN_VALUE && v <= Int.MAX_VALUE) v.toInt() else if (Math.abs(v) < 9.2e18) v.toLong() else v
+        is Double -> if (v == round(v) && !v.isInfinite() && !(v == 0.0 && 1.0 / v < 0)) {
+            if (v >= Int.MIN_VALUE && v <= Int.MAX_VALUE) v.toInt() else if (abs(v) < 9.2e18) v.toLong() else v
         } else v
         is CharSequence -> v.toString()
         is BigInteger -> v
@@ -552,7 +554,7 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         realm.agent.reserveAllocation(d.toLong() * (if (component.isPrimitive) 8 else 4))
         val arr = try {
             java.lang.reflect.Array.newInstance(component, d.toInt())
-        } catch (e: OutOfMemoryError) {
+        } catch (_: OutOfMemoryError) {
             throw JSException.rangeError("Java array allocation failed: length ${d.toInt()}")
         }
         return toJS(arr)
