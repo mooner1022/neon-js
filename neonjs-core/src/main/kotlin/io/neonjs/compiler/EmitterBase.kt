@@ -23,7 +23,6 @@ internal class FinallyCtl(parent: Ctl?, val kindReg: Int, val valueReg: Int, val
     /** Pending jumps through this finally: index -> (target kind, payload). */
     val pending = ArrayList<PendingJump>()
 }
-internal class EnvSaveCtl(parent: Ctl?, val envReg: Int) : Ctl(parent)
 
 internal class PendingJump(val kind: Int, val target: Ctl?, val label: String?, val isContinue: Boolean)
 
@@ -35,7 +34,6 @@ internal object DynamicName : FnName()
 internal abstract class EmitterBase(
     val fi: FnInfo,
     val source: Source,
-    val parentEmitter: EmitterBase?,
     val analyzer: ScopeAnalyzer,
 ) {
     // ------------------------------------------------------------------ code buffer
@@ -304,15 +302,6 @@ internal abstract class EmitterBase(
         scope = s.parent ?: s
     }
 
-    /** Exit for scopes whose runtime env pop is emitted elsewhere (e.g. after jumps). */
-    fun leaveScopeStatic(s: Scope) {
-        if (s.needsEnv) {
-            val c = ctl
-            if (c is ScopeCtl && c.scope === s) ctl = c.parent
-        }
-        scope = s.parent ?: s
-    }
-
     // ------------------------------------------------------------------ variable access
 
     /** Emits a load of a resolved reference. */
@@ -390,13 +379,10 @@ internal abstract class EmitterBase(
 
     /** Initializes a declared binding found by name in the current compile-time scope chain. */
     fun emitInitDeclared(id: Identifier) {
-        val ref = id.ref
-        if (ref is LocalRef) {
-            emitInitBinding(ref.binding)
-        } else if (ref is DynamicRef) {
-            emit(Op.INIT_NAME, const(id.name))
-        } else {
-            emit(Op.INIT_GLOBAL_LEX, const(id.name))
+        when (val ref = id.ref) {
+            is LocalRef -> emitInitBinding(ref.binding)
+            is DynamicRef -> emit(Op.INIT_NAME, const(id.name))
+            else -> emit(Op.INIT_GLOBAL_LEX, const(id.name))
         }
     }
 
@@ -417,7 +403,6 @@ class RegExpSite(val pattern: String, val flags: String) {
 class DeclInfo(
     val varNames: Array<String>,
     val functionNames: Array<String>,
-    val functionTemplates: Array<CodeBlock>,
     val lexNames: Array<String>,
     val lexConst: BooleanArray,
     val annexBNames: Array<String>,

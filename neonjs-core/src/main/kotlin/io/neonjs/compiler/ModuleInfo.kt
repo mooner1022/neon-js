@@ -95,8 +95,7 @@ object ModuleInfo {
                     }
                 }
                 is ExportDefaultDeclaration -> {
-                    val d = st.declaration
-                    val local = when (d) {
+                    val local = when (val d = st.declaration) {
                         is FunctionDeclaration -> d.function.id?.name ?: "*default*"
                         is ClassDeclaration -> d.cls.id?.name ?: "*default*"
                         else -> "*default*"

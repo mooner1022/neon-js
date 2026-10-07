@@ -2,13 +2,13 @@ package io.neonjs.compiler
 
 import io.neonjs.parser.*
 
-internal class Emitter(fi: FnInfo, source: Source, parent: EmitterBase?, analyzer: ScopeAnalyzer) :
-    ExprEmitter(fi, source, parent, analyzer) {
+internal class Emitter(fi: FnInfo, source: Source, analyzer: ScopeAnalyzer) :
+    ExprEmitter(fi, source, analyzer) {
 
     private var finallyKinds = 2
 
     override fun compileNested(fn: FunctionNode, name: String, fieldKeyDynamic: Boolean): CodeBlock {
-        val sub = Emitter((fn.scope as Scope).fn, source, this, analyzer)
+        val sub = Emitter((fn.scope as Scope).fn, source, analyzer)
         return sub.compileFunction(fn, name, fieldKeyDynamic)
     }
 
@@ -142,7 +142,7 @@ internal class Emitter(fi: FnInfo, source: Source, parent: EmitterBase?, analyze
         val lexConst = BooleanArray(lexNames.size) { an.globalLexNames[lexNames[it]] == true }
         val info = DeclInfo(
             an.globalVarNames.filter { it !in fnByName.keys }.toTypedArray(),
-            names.toTypedArray(), templates.toTypedArray(),
+            names.toTypedArray(),
             if (isEval) emptyArray() else lexNames, if (isEval) BooleanArray(0) else lexConst,
             an.annexBGlobalNames.toTypedArray(), prog.strict,
         )
@@ -191,7 +191,7 @@ internal class Emitter(fi: FnInfo, source: Source, parent: EmitterBase?, analyze
         if (f.usesThis) flags = flags or CodeBlock.USES_THIS
         if (f.hasDirectEval) flags = flags or CodeBlock.HAS_EVAL
         cb.flags = flags
-        if (f.hasDirectEval) computeEvalContext(cb, fn)
+        if (f.hasDirectEval) computeEvalContext(cb)
         cb.source = source
         cb.srcStart = fn.srcStart
         cb.srcEnd = fn.srcEnd
@@ -316,7 +316,7 @@ internal class Emitter(fi: FnInfo, source: Source, parent: EmitterBase?, analyze
         return cb
     }
 
-    private fun computeEvalContext(cb: CodeBlock, fn: FunctionNode) {
+    private fun computeEvalContext(cb: CodeBlock) {
         var g: FnInfo? = fi
         while (g != null && g.isArrow) g = g.parent
         var ctx = 0
@@ -338,7 +338,6 @@ internal class Emitter(fi: FnInfo, source: Source, parent: EmitterBase?, analyze
             s = s.parent
         }
         if (names.isNotEmpty()) cb.privateNames = names
-        @Suppress("UNUSED_VARIABLE") val u = fn
     }
 
     private fun implicitReturn(fn: FunctionNode) {
@@ -554,7 +553,7 @@ internal class Emitter(fi: FnInfo, source: Source, parent: EmitterBase?, analyze
             is ContinueStatement -> emitJumpTo(findContinueTarget(n.label), true)
             is LabeledStatement -> {
                 pendingLabels = pendingLabels + n.label
-                var body = n.body
+                val body = n.body
                 if (body is FunctionDeclaration) {
                     pendingLabels = emptyList()
                     stmt(body)
@@ -587,8 +586,7 @@ internal class Emitter(fi: FnInfo, source: Source, parent: EmitterBase?, analyze
             is ImportDeclaration, is ExportAllDeclaration -> {}
             is ExportNamedDeclaration -> if (n.declaration != null) stmt(n.declaration)
             is ExportDefaultDeclaration -> {
-                val d = n.declaration
-                when (d) {
+                when (val d = n.declaration) {
                     is FunctionDeclaration -> {}
                     is ClassDeclaration -> {
                         classExpr(d.cls, StaticName("default"))
@@ -608,10 +606,11 @@ internal class Emitter(fi: FnInfo, source: Source, parent: EmitterBase?, analyze
     }
 
     private fun emitInitBindingFor(id: Identifier) {
-        val ref = id.ref
-        if (ref is LocalRef) emitInitBinding(ref.binding)
-        else if (ref is DynamicRef) emit(Op.INIT_NAME, const(id.name))
-        else emit(Op.INIT_GLOBAL_LEX, const(id.name))
+        when (val ref = id.ref) {
+            is LocalRef -> emitInitBinding(ref.binding)
+            is DynamicRef -> emit(Op.INIT_NAME, const(id.name))
+            else -> emit(Op.INIT_GLOBAL_LEX, const(id.name))
+        }
     }
 
     /** Statement in single-statement position (may have an Annex B function scope). */
@@ -739,7 +738,7 @@ internal class Emitter(fi: FnInfo, source: Source, parent: EmitterBase?, analyze
         val rethrow = newLabel()
         val maxKind = fctl.pending.maxOfOrNull { it.kind } ?: 1
         val table = ArrayList<Label>()
-        for (k in 0..maxKind) table.add(after)
+        repeat(maxKind + 1) { table.add(after) }
         if (maxKind >= 1) table[1] = rethrow
         val stubs = ArrayList<Pair<PendingJump, Label>>()
         for (p in fctl.pending) {
@@ -913,7 +912,6 @@ internal class Emitter(fi: FnInfo, source: Source, parent: EmitterBase?, analyze
         expr(n.right)
         if (tdz != null) exitScope(tdz)
         val brk = newLabel()
-        val skip = newLabel()
         // null/undefined -> no iteration
         emit(Op.DUP)
         val nullish = newLabel()
@@ -934,7 +932,6 @@ internal class Emitter(fi: FnInfo, source: Source, parent: EmitterBase?, analyze
         emitJump(Op.JUMP, top)
         placeAfterJump(nullish)
         emit(Op.POP)
-        @Suppress("UNUSED_VARIABLE") val u = skip
         place(brk)
         freeReg(it)
     }
@@ -1170,11 +1167,10 @@ internal class Emitter(fi: FnInfo, source: Source, parent: EmitterBase?, analyze
         targets.add(after)
         targets.add(rethrow)
         val stubs = ArrayList<Pair<PendingJump, Label>>()
-        val minKind = fctl.pending.minOfOrNull { it.kind } ?: 2
         // map kinds compactly: build table from 0..maxKind
         val maxKind = fctl.pending.maxOfOrNull { it.kind } ?: 1
         val table = ArrayList<Label>()
-        for (k in 0..maxKind) table.add(after)
+        repeat(maxKind + 1) { table.add(after) }
         table[0] = after
         if (maxKind >= 1) table[1] = rethrow
         for (p in fctl.pending) {
@@ -1182,7 +1178,6 @@ internal class Emitter(fi: FnInfo, source: Source, parent: EmitterBase?, analyze
             table[p.kind] = l
             stubs.add(p to l)
         }
-        @Suppress("UNUSED_VARIABLE") val mk = minKind
         emitJumpTable(kindReg, table, after)
         placeAfterJump(rethrow)
         emit(Op.LOAD_REG, valueReg)
@@ -1208,14 +1203,14 @@ object Compiler {
     fun compileScript(prog: Program, source: Source): CodeBlock {
         val an = ScopeAnalyzer(CodeMode.SCRIPT)
         val fi = an.analyze(prog)
-        return Emitter(fi, source, null, an).compileProgram(prog, CodeMode.SCRIPT)
+        return Emitter(fi, source, an).compileProgram(prog, CodeMode.SCRIPT)
     }
 
     fun compileEval(prog: Program, source: Source, direct: Boolean): CodeBlock {
         val mode = if (direct) CodeMode.EVAL_DIRECT else CodeMode.EVAL_INDIRECT
         val an = ScopeAnalyzer(mode, evalStrict = prog.strict)
         val fi = an.analyze(prog)
-        return Emitter(fi, source, null, an).compileProgram(prog, mode)
+        return Emitter(fi, source, an).compileProgram(prog, mode)
     }
 
     fun compileModule(prog: Program, source: Source): CompiledModule {
@@ -1223,8 +1218,8 @@ object Compiler {
         val fi = an.analyze(prog)
         val root = prog.scope as Scope
         val tla = ModuleInfo.hasTopLevelAwait(prog)
-        val init = Emitter(fi, source, null, an).compileModuleInit(prog)
-        val body = Emitter(fi, source, null, an).compileModuleBody(prog, tla)
+        val init = Emitter(fi, source, an).compileModuleInit(prog)
+        val body = Emitter(fi, source, an).compileModuleBody(prog, tla)
         val (requests, imports, exports) = ModuleInfo.requestsAndEntries(prog)
         val importedLocal = imports.associateBy { it.localName }
         val local = ArrayList<ExportEntry>()
@@ -1245,6 +1240,6 @@ object Compiler {
         val an = ScopeAnalyzer(CodeMode.FUNCTION_CTOR)
         an.analyzeFunction(fn)
         val fi = (fn.scope as Scope).fn
-        return Emitter(fi, source, null, an).compileFunction(fn, "anonymous", false)
+        return Emitter(fi, source, an).compileFunction(fn, "anonymous", false)
     }
 }

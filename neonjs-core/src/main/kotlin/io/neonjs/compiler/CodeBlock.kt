@@ -146,8 +146,6 @@ class CodeBlock(@JvmField val name: String, @JvmField val kind: FunctionKind) {
         return s.get(pc)
     }
 
-    val isStrict get() = flags and STRICT != 0
-    val isArrow get() = flags and ARROW != 0
     val isGenerator get() = flags and GENERATOR != 0
     val isAsync get() = flags and ASYNC != 0
     val isClassConstructor get() = flags and CLASS_CTOR != 0

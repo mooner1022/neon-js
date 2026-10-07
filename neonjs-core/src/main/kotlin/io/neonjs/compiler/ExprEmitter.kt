@@ -4,8 +4,8 @@ import io.neonjs.parser.*
 
 internal enum class BindMode { ASSIGN, INIT }
 
-internal abstract class ExprEmitter(fi: FnInfo, source: Source, parent: EmitterBase?, analyzer: ScopeAnalyzer) :
-    EmitterBase(fi, source, parent, analyzer) {
+internal abstract class ExprEmitter(fi: FnInfo, source: Source, analyzer: ScopeAnalyzer) :
+    EmitterBase(fi, source, analyzer) {
 
     /** Compiles a nested function into a template. */
     abstract fun compileNested(fn: FunctionNode, name: String, fieldKeyDynamic: Boolean = false): CodeBlock
