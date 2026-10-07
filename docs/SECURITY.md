@@ -59,11 +59,11 @@ limit above applies to code running inside it, and `allowEval(false)` also disab
 and pins the time zone to UTC and the default locale to `en-US`. `timeZone(...)` and `defaultLocale(...)` set them
 explicitly; without either, scripts can observe the host's time zone and locale.
 
-**Robustness.** Deeply nested source code, runaway recursion and pathological regular expressions end in
-catchable `SyntaxError`/`RangeError`s or termination, never in a crashed host thread. A mutation fuzzer over the
-Test262 corpus (`io.neonjs.test262.FuzzKt`) checks for engine-internal exceptions, runs that escape the time limit,
-and differences between the interpreter and compiled code. Classes used on error paths
-are initialized eagerly so that a `StackOverflowError` cannot poison class initialization for the whole JVM.
+**Robustness.** Deeply nested source code, runaway recursion and pathological regular expressions end in catchable
+`SyntaxError`/`RangeError`s or termination, never in a crashed host thread. A mutation fuzzer over the Test262 corpus
+(`dev.mooner.neonjs.test262.FuzzKt`) checks for engine-internal exceptions, runs that escape the time limit, and
+differences between the interpreter and compiled code. Classes used on error paths are initialized eagerly so that a
+`StackOverflowError` cannot poison class initialization for the whole JVM.
 
 ## Host responsibilities
 

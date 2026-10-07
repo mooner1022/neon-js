@@ -138,7 +138,7 @@ def main():
             i = rest.index('--known')
             dev.push(rest[i + 1], DIR + '/known-failures.txt')
             rest[i + 1] = DIR + '/known-failures.txt'
-        sys.exit(run(dev, args.name, vm + ['io.neonjs.test262.MainKt', '--root', DIR + '/test262'] + rest))
+        sys.exit(run(dev, args.name, vm + ['dev.mooner.neonjs.test262.MainKt', '--root', DIR + '/test262'] + rest))
 
 
 if __name__ == '__main__':

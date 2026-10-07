@@ -1,5 +1,5 @@
-# Found through java.util.ServiceLoader (META-INF/services/io.neonjs.android.DexConverter).
--keep class io.neonjs.android.d8.D8Converter { public <init>(); }
+# Found through java.util.ServiceLoader (META-INF/services/dev.mooner.neonjs.android.DexConverter).
+-keep class dev.mooner.neonjs.android.d8.D8Converter { public <init>(); }
 # The r8 library ships shrunk and obfuscated, finds parts of itself through ServiceLoader and reads its resources/
 # files; keep it as it is. It refers to JDK classes Android lacks, on paths the in-memory conversion does not take.
 -keep class com.android.tools.r8.** { *; }

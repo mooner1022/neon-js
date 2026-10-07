@@ -41,7 +41,7 @@ jobs:
         run: neonjs-test262/build/install/neonjs-test262/bin/neonjs-test262 --root third_party/test262 --mode adaptive
       - name: Test262, compiled, every generated class translated by dx (Android code generation)
         env:
-          JAVA_OPTS: -Dneonjs.codeDefiner=io.neonjs.android.DexCheckingDefiner
+          JAVA_OPTS: -Dneonjs.codeDefiner=dev.mooner.neonjs.android.DexCheckingDefiner
         run: neonjs-test262/build/install/neonjs-test262/bin/neonjs-test262 --root third_party/test262 --mode compiled
       - name: Test262 intl402
         run: >-

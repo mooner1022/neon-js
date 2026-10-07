@@ -12,7 +12,7 @@ source ──► Lexer/Parser ──► AST ──► ScopeAnalyzer ──► Em
                                        └──────────► Runtime (objects, builtins) ◄────┘
 ```
 
-## Parsing (`io.neonjs.parser`)
+## Parsing (`dev.mooner.neonjs.parser`)
 
 A hand-written recursive-descent parser in the style of acorn: cover grammars for arrow parameters, destructuring
 assignment targets and `async` arrows; all early errors are reported at parse time (duplicate bindings, invalid

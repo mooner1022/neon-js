@@ -10,7 +10,7 @@ dependencies {
 }
 
 application {
-    mainClass.set("io.neonjs.cli.MainKt")
+    mainClass.set("dev.mooner.neonjs.cli.MainKt")
     applicationName = "neonjs"
     // deep JS recursion needs more than the default 1 MB thread stack to reach the engine's call-depth limit
     applicationDefaultJvmArgs = listOf("-Xss16m")
@@ -22,7 +22,7 @@ val fatJar by tasks.registering(Jar::class) {
     group = "build"
     description = "Assembles an executable jar of the CLI with all runtime dependencies."
     archiveClassifier.set("all")
-    manifest { attributes["Main-Class"] = "io.neonjs.cli.MainKt" }
+    manifest { attributes["Main-Class"] = "dev.mooner.neonjs.cli.MainKt" }
     from(sourceSets.main.get().output)
     dependsOn(configurations.runtimeClasspath)
     from({ configurations.runtimeClasspath.get().filter { it.name.endsWith(".jar") }.map { zipTree(it) } })

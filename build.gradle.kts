@@ -3,7 +3,7 @@ plugins {
 }
 
 allprojects {
-    group = "io.neonjs"
+    group = "dev.mooner.neonjs"
     version = "0.1.0-SNAPSHOT"
 }
 

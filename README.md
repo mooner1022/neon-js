@@ -67,7 +67,7 @@ files (or `--module`) are run as ES modules with relative imports resolved from 
 ## Embedding
 
 ```kotlin
-import io.neonjs.*
+import dev.mooner.neonjs.*
 
 val engine = NeonEngine.builder()
     .executionMode(ExecutionMode.ADAPTIVE)      // or INTERPRETER / COMPILED, or .optimizationLevel(-1..9)
@@ -218,7 +218,7 @@ each script.
 
 NeonJS is a JVM engine that also runs on Android: the jars (core, intl, Kotlin stdlib, ASM) are converted to dex by
 the app build like any library, and the engine keeps to APIs available from **API level 26**. Only code generated at
-run time needs platform support, so it goes through one interface, `io.neonjs.jit.CodeDefiner`:
+run time needs platform support, so it goes through one interface, `dev.mooner.neonjs.jit.CodeDefiner`:
 
 | Platform | Definer | Compiled / adaptive mode | `Java.extend` |
 |---|---|---|---|
@@ -229,10 +229,10 @@ run time needs platform support, so it goes through one interface, `io.neonjs.ji
 ```kotlin
 // app/build.gradle.kts
 dependencies {
-    implementation("io.neonjs:neonjs-core:…")
-    implementation("io.neonjs:neonjs-android:…")   // JIT on Android
-    // implementation("io.neonjs:neonjs-android-d8:…")  // optional: D8 instead of dx (see below)
-    implementation("io.neonjs:neonjs-intl:…")      // optional: Intl, Temporal calendars (bundles ICU4J)
+    implementation("dev.mooner.neonjs:neonjs-core:…")
+    implementation("dev.mooner.neonjs:neonjs-android:…")   // JIT on Android
+    // implementation("dev.mooner.neonjs:neonjs-android-d8:…")  // optional: D8 instead of dx (see below)
+    implementation("dev.mooner.neonjs:neonjs-intl:…")      // optional: Intl, Temporal calendars (bundles ICU4J)
 }
 ```
 
@@ -254,30 +254,29 @@ installed app is) and run through `app_process` with the screen on:
   compiled together in one dex file and class loader, and identical code is compiled once. Keep the default
   `ExecutionMode.ADAPTIVE`, which compiles hot functions only; `COMPILED` pays this for every function that runs.
 
-The translation step is pluggable as well (`io.neonjs.android.DexConverter`). The default is dx, the dexer of the
-Android SDK before D8: no longer maintained, but it only ever reads the engine's own generated code, and every class
-Test262 generates translates. `neonjs-android-d8` replaces it with D8 from Google's r8 library
-(`com.android.tools:r8`), which is maintained and has no Java 8 class file ceiling. Adding the module selects it;
-`DexCodeDefiner(converter = …)` or `-Dneonjs.dexConverter=dx|d8` choose explicitly. D8 is made for whole-program
-builds, though: each conversion costs far more on a phone (5,000 small functions converted one at a time, measured
-back to back: ≈44 s against ≈2.2 s with dx), which the batches of background compilation spread over many functions,
-and the library adds ≈7.7 MB of dex. Test262 passes with it (on a JVM, every generated class
-translated; on the device, the statements and Array parts in compiled mode, 191,685 functions translated by D8). It
-has run on API 37 only; it refers to some APIs newer than level 26, and where a conversion fails the code stays in the
-interpreter (`Java.extend` throws a TypeError). Emitting dex directly, without class files, is reviewed in
-[docs/DEX_BACKEND.md](docs/DEX_BACKEND.md).
+The translation step is pluggable as well (`dev.mooner.neonjs.android.DexConverter`). The default is dx, the dexer of
+the Android SDK before D8: no longer maintained, but it only ever reads the engine's own generated code, and every class
+Test262 generates translates. `neonjs-android-d8` replaces it with D8 from Google's r8 library (`com.android.tools:r8`),
+which is maintained and has no Java 8 class file ceiling. Adding the module selects it; `DexCodeDefiner(converter = …)`
+or `-Dneonjs.dexConverter=dx|d8` choose explicitly. D8 is made for whole-program builds, though: each conversion costs
+far more on a phone (5,000 small functions converted one at a time, measured back to back: ≈44 s against ≈2.2 s with
+dx), which the batches of background compilation spread over many functions, and the library adds ≈7.7 MB of dex.
+Test262 passes with it (on a JVM, every generated class translated; on the device, the statements and Array parts in
+compiled mode, 191,685 functions translated by D8). It has run on API 37 only; it refers to some APIs newer than level
+26, and where a conversion fails the code stays in the interpreter (`Java.extend` throws a TypeError). Emitting dex
+directly, without class files, is reviewed in [docs/DEX_BACKEND.md](docs/DEX_BACKEND.md).
 
-Without a device, `-Dneonjs.codeDefiner=io.neonjs.android.DexCheckingDefiner` runs any test suite on a JVM with every
-generated class translated by dx first (the whole Test262 main suite passes this way, also with D8:
-`neonjs-android-d8` on the class path and `-Dneonjs.dexConverter=d8`); `-Dneonjs.codeDefiner=isolated`
-reproduces the class loading conditions only. Limit on Android: memory-allocation limits (`maxAllocatedBytes`) are
-unavailable (HotSpot only).
+Without a device, `-Dneonjs.codeDefiner=dev.mooner.neonjs.android.DexCheckingDefiner` runs any test suite on a JVM with
+every generated class translated by dx first (the whole Test262 main suite passes this way, also with D8:
+`neonjs-android-d8` on the class path and `-Dneonjs.dexConverter=d8`); `-Dneonjs.codeDefiner=isolated` reproduces the
+class loading conditions only. Limit on Android: memory-allocation limits (`maxAllocatedBytes`) are unavailable (HotSpot
+only).
 
 ## Project layout
 
 | Module / package | Contents |
 |---|---|
-| `neonjs-core` `io.neonjs` | public API: `NeonEngine`, `NeonContext`, `NeonValue`, `SandboxPolicy`, `HostAccess`, module loaders |
+| `neonjs-core` `dev.mooner.neonjs` | public API: `NeonEngine`, `NeonContext`, `NeonValue`, `SandboxPolicy`, `HostAccess`, module loaders |
 | `…parser` | lexer and parser (ESTree-like AST, early errors, Unicode 17 identifiers) |
 | `…compiler` | scope analysis and bytecode emitter |
 | `…vm` | interpreter, environments, generators/async, promises jobs, modules, eval |
@@ -309,7 +308,7 @@ limits, and reports engine-internal exceptions, runs that ignore the time limit,
 the two tiers:
 
 ```bash
-java -Xss64m -cp "neonjs-test262/build/install/neonjs-test262/lib/*" io.neonjs.test262.FuzzKt --root third_party/test262 --iterations 100000 --threads 6 --seed 1 --out fuzz-out
+java -Xss64m -cp "neonjs-test262/build/install/neonjs-test262/lib/*" dev.mooner.neonjs.test262.FuzzKt --root third_party/test262 --iterations 100000 --threads 6 --seed 1 --out fuzz-out
 ```
 
 The runner executes each test in strict and sloppy mode as required, supports `$262` (including
@@ -329,7 +328,7 @@ holds the two ICU-data failures of `intl402/`).
 ./gradlew :neonjs-test262:installDist :neonjs-test262:d8Libs
 python3 tools/android/bundle.py --out build/android/neonjs-test262.jar neonjs-test262/build/install/neonjs-test262/lib
 python3 tools/android/device.py install build/android/neonjs-test262.jar          # push, compile ahead of time
-python3 tools/android/device.py run neonjs-test262 io.neonjs.test262.AndroidCheck
+python3 tools/android/device.py run neonjs-test262 dev.mooner.neonjs.test262.AndroidCheck
 python3 tools/android/device.py push-test262 third_party/test262 language/statements built-ins/Array
 python3 tools/android/device.py test262 neonjs-test262 --mode compiled --timeout 60000 language/statements built-ins/Array
 ```

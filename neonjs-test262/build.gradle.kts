@@ -12,13 +12,13 @@ val d8Runtime: Configuration by configurations.creating
 dependencies {
     implementation(project(":neonjs-core"))
     implementation(project(":neonjs-intl"))
-    // DexCheckingDefiner (-Dneonjs.codeDefiner=io.neonjs.android.DexCheckingDefiner) and the device checks (AndroidCheck)
+    // DexCheckingDefiner (-Dneonjs.codeDefiner=dev.mooner.neonjs.android.DexCheckingDefiner) and the device checks (AndroidCheck)
     implementation(project(":neonjs-android"))
     d8Runtime(project(":neonjs-android-d8"))
 }
 
 application {
-    mainClass.set("io.neonjs.test262.MainKt")
+    mainClass.set("dev.mooner.neonjs.test262.MainKt")
     applicationDefaultJvmArgs = listOf("-Xss64m", "-Xmx6g")
 }
 
