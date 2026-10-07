@@ -85,7 +85,10 @@ class JitBailout(msg: String) : RuntimeException(msg, null, false, false)
  */
 object JvmCompiler {
     private val counter = AtomicLong()
+    /** Classes generated and defined. */
     @JvmField val compiledCount = AtomicLong()
+    /** Code blocks given code compiled earlier for another block with the same identity ([CodeCache]). */
+    @JvmField val sharedCount = AtomicLong()
     @JvmField val failedCount = AtomicLong()
     @JvmField val failureReasons = java.util.concurrent.ConcurrentHashMap<String, AtomicLong>()
 
@@ -109,16 +112,26 @@ object JvmCompiler {
 
     fun canCompile(cb: CodeBlock): Boolean = !cb.isGenerator && !cb.isAsync && cb.flags and CodeBlock.NO_JIT == 0
 
-    /** Compiles [cb] into a class defined by [definer]; returns null (and marks the block) on bailout. */
+    /**
+     * Compiles [cb] into a class defined by [definer], or reuses the code of a block with the same identity; returns
+     * null (and marks the block) on bailout.
+     */
     fun compile(cb: CodeBlock, definer: CodeDefiner = CodeDefiners.default): CompiledCode? {
         if (!canCompile(cb)) return null
         if (!CodeDefiners.isUsable(definer)) return fail("no usable code definer on this platform")
         return try {
-            val (name, bytes) = generate(JitInput(cb), definer.classFileVersion)
+            val input = JitInput(cb)
+            // visible classes live in the engine's class loader under counter names: never shared
+            val cache = if (JvmCodeDefiner.VISIBLE_CLASSES) null else CodeCache.of(definer)
+            cache?.get(input.identity)?.let {
+                sharedCount.incrementAndGet()
+                return it
+            }
+            val (name, bytes) = generate(input, definer.classFileVersion)
             val cls = definer.define(name, bytes, JvmCompiler::class.java.classLoader)
             val r = cls.getDeclaredConstructor().newInstance() as CompiledCode
             compiledCount.incrementAndGet()
-            r
+            cache?.putIfAbsent(input.identity, r) ?: r
         } catch (e: JitBailout) {
             fail(e.message ?: "bailout")
         } catch (e: org.objectweb.asm.MethodTooLargeException) {

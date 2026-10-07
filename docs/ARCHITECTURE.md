@@ -89,7 +89,9 @@ when the definer asks for them (`classFileVersion`), and no class refers to anot
 A definer is probed once with a trivial class before any real code is generated; without a usable one the engine stays
 in the interpreter. The generator reads a code block only through `JitInput` (instructions, handler ranges, registers,
 statement starts; constants are read from the frame at run time), and class names end with a hash of it: equal names
-mean equal class files, in every run, so code blocks can share a class and a definer can cache translations. JVM debug
+mean equal class files, in every run, so code blocks can share a class and a definer can cache translations. A
+`CodeCache` per definer hands out one compiled instance per identity (weakly held, so classes still unload): library
+code run in many contexts, or functions differing only in constants, compile once. JVM debug
 info (source name, line numbers) is left out unless `-Dneonjs.jit.debugInfo` is set; JS stack traces do not need it.
 
 `Jit.prepare` implements tiering: `INTERPRETER` never compiles, `COMPILED` compiles before the first call,
