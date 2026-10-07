@@ -55,7 +55,7 @@ class DexCodeDefiner internal constructor(
             val file = cachedDex(dir, keys[i])
             result[i] = if (file == null) null else try {
                 loaderFor(file, parent, null).loadClass(classes[i].name)
-            } catch (e: ClassNotFoundException) {
+            } catch (_: ClassNotFoundException) {
                 null // stale index entry: convert again
             }
             if (result[i] == null) missing.add(i)
@@ -76,7 +76,7 @@ class DexCodeDefiner internal constructor(
         if (!index.isFile) return null
         val name = try {
             index.readText().trim()
-        } catch (e: java.io.IOException) {
+        } catch (_: java.io.IOException) {
             return null
         }
         return File(dir, name).takeIf { name.endsWith(".dex") && it.isFile }
@@ -116,7 +116,7 @@ class DexCodeDefiner internal constructor(
             }
             target
         }
-    } catch (e: java.io.IOException) {
+    } catch (_: java.io.IOException) {
         null
     }
 
@@ -149,13 +149,13 @@ internal interface DexLoaders {
         val PLATFORM: DexLoaders = object : DexLoaders {
             private val IN_MEMORY: Constructor<*>? = try {
                 Class.forName("dalvik.system.InMemoryDexClassLoader").getConstructor(ByteBuffer::class.java, ClassLoader::class.java)
-            } catch (e: Throwable) {
+            } catch (_: Throwable) {
                 null
             }
             private val DEX_FILE: Constructor<*>? = try {
                 Class.forName("dalvik.system.DexClassLoader")
                     .getConstructor(String::class.java, String::class.java, String::class.java, ClassLoader::class.java)
-            } catch (e: Throwable) {
+            } catch (_: Throwable) {
                 null
             }
 

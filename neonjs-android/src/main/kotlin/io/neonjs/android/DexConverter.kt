@@ -79,7 +79,7 @@ object DexConverters {
         for (l in loaders) {
             try {
                 for (c in ServiceLoader.load(DexConverter::class.java, l)) return@lazy c
-            } catch (e: Throwable) {
+            } catch (_: Throwable) {
                 // a broken provider must not prevent code generation (dx is always there)
             }
         }
