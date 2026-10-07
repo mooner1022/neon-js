@@ -28,6 +28,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Build and unit tests
         run: ./gradlew build :neonjs-test262:installDist
+      - name: Maven publications (POMs, sources and javadoc jars; unsigned snapshots)
+        run: ./gradlew publishToMavenLocal
       - name: Check out Test262
         run: |
           git init -q third_party/test262
