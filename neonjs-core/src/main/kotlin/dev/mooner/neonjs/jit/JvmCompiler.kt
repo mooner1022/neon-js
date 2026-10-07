@@ -82,6 +82,11 @@ class JitBailout(msg: String) : RuntimeException(msg, null, false, false)
  * instructions call [JitRt]. Generator and async functions are not compiled (they stay interpreted).
  */
 object JvmCompiler {
+    init {
+        // before the first generated class (including the definer probe) is linked: see ArtCha
+        ArtCha.linkCompiledCodeImplementations()
+    }
+
     private val counter = AtomicLong()
     /** Classes generated and defined. */
     @JvmField val compiledCount = AtomicLong()
