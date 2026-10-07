@@ -220,7 +220,7 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
             if (remaining <= 0) return false
             val j = try {
                 externalJobs.poll(minOf(remaining, EXTERNAL_WAIT_SLICE_NANOS), java.util.concurrent.TimeUnit.NANOSECONDS)
-            } catch (e: InterruptedException) {
+            } catch (_: InterruptedException) {
                 Thread.currentThread().interrupt()
                 throw InterruptedExecutionException("Execution interrupted")
             }
@@ -242,7 +242,7 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
             externalSources.remove(s)
             try {
                 s.cancel()
-            } catch (e: RuntimeException) {
+            } catch (_: RuntimeException) {
                 // a failing withdrawal must not prevent closing the others
             }
         }
@@ -305,7 +305,7 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
             (java.lang.management.ManagementFactory.getThreadMXBean() as? com.sun.management.ThreadMXBean)?.also {
                 if (it.isThreadAllocatedMemorySupported && !it.isThreadAllocatedMemoryEnabled) it.isThreadAllocatedMemoryEnabled = true
             }
-        } catch (e: Throwable) {
+        } catch (_: Throwable) {
             null
         }
 
@@ -315,7 +315,7 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
          * and stays unusable for the whole JVM ("NoClassDefFoundError: Could not initialize class"), which would let
          * one script break every context.
          */
-        private val preloaded: Boolean = run {
+        init {
             val loader = Agent::class.java.classLoader
             for (name in listOf(
                 "io.neonjs.runtime.JSException", "io.neonjs.runtime.JSErrorObject", "io.neonjs.runtime.ErrorKind",
@@ -329,11 +329,10 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
             )) {
                 try {
                     Class.forName(name, true, loader)
-                } catch (e: ClassNotFoundException) {
+                } catch (_: ClassNotFoundException) {
                     // optional / renamed class
                 }
             }
-            true
         }
 
         @JvmStatic fun current(): Agent = current.get() ?: throw IllegalStateException("No active NeonJS context on this thread")

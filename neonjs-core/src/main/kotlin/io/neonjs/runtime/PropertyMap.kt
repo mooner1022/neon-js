@@ -227,8 +227,6 @@ class PropertyMap private constructor(
         for (i in 0 until used) if (isLive(i)) f(i)
     }
 
-    fun keyAt(i: Int): Any = keys[i]!!
-
     /** Immutable key layout of a shared shape, built once per object-literal site (see [withLayout]). */
     class Layout(
         /** The empty shape the keys were added to (identifies the prototype, class and context). */
@@ -351,12 +349,12 @@ object PK {
         val n = s.length
         if (n == 0 || n > 10) return s
         val c0 = s[0]
-        if (c0 < '0' || c0 > '9') return s
+        if (c0 !in '0'..'9') return s
         if (c0 == '0') return if (n == 1) 0 else s
         var v = 0L
         for (i in 0 until n) {
             val c = s[i]
-            if (c < '0' || c > '9') return s
+            if (c !in '0'..'9') return s
             v = v * 10 + (c - '0')
         }
         return if (v <= Int.MAX_VALUE) v.toInt() else s
@@ -391,20 +389,17 @@ object PK {
         if (key is Int) return key.toLong()
         if (key is String) {
             val n = key.length
-            if (n < 10 || n > 10) return -1
+            if (n != 10) return -1
             if (key[0] == '0') return -1
             var v = 0L
             for (c in key) {
-                if (c < '0' || c > '9') return -1
+                if (c !in '0'..'9') return -1
                 v = v * 10 + (c - '0')
             }
             return if (v < 4294967295L) v else -1
         }
         return -1
     }
-
-    @JvmStatic
-    fun isSymbol(key: Any) = key is JSSymbol
 
     /** Function name derived from a property key (SetFunctionName). */
     @JvmStatic

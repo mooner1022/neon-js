@@ -3,6 +3,10 @@ package io.neonjs.runtime
 import java.math.BigDecimal
 import java.math.BigInteger
 import java.math.RoundingMode
+import kotlin.math.abs
+import kotlin.math.floor
+import kotlin.math.nextUp
+import kotlin.math.round
 
 /** Number <-> String conversions following ECMA-262 (Number::toString, StringToNumber, toFixed, ...). */
 object NumberConv {
@@ -14,10 +18,10 @@ object NumberConv {
     @JvmStatic
     fun shortest(v: Double): Decimal {
         // JDK 19+ Double.toString produces the shortest uniquely-identifying decimal (Ryu-like).
-        val s = java.lang.Double.toString(v)
+        val s = v.toString()
         val ePos = s.indexOf('E')
         val mant = if (ePos >= 0) s.substring(0, ePos) else s
-        var exp = if (ePos >= 0) s.substring(ePos + 1).toInt() else 0
+        val exp = if (ePos >= 0) s.substring(ePos + 1).toInt() else 0
         val dot = mant.indexOf('.')
         val intPart = if (dot >= 0) mant.substring(0, dot) else mant
         val fracPart = if (dot >= 0) mant.substring(dot + 1) else ""
@@ -32,8 +36,6 @@ object NumberConv {
         var end = digits.length
         while (end > 1 && digits[end - 1] == '0') end--
         digits = digits.substring(0, end)
-        @Suppress("UNUSED_VALUE")
-        exp = 0
         if (digits.length == 2) {
             // Double.toString prints at least two significant digits, choosing the closest such decimal even when a
             // single digit already round-trips (4.9E-324 for Number.MIN_VALUE); JS wants the shortest ("5e-324").
@@ -50,7 +52,7 @@ object NumberConv {
         for (c in intArrayOf(d0, d0 + 1)) {
             val (dg, pp) = if (c == 10) "1" to pointPos + 1 else c.toString() to pointPos
             if (dg == "0") continue
-            val cand = BigDecimal(java.math.BigInteger(dg), -(pp - 1))
+            val cand = BigDecimal(BigInteger(dg), -(pp - 1))
             if (cand.toDouble() != v) continue
             val dist = cand.subtract(exact).abs()
             if (bestDist == null || dist < bestDist) {
@@ -92,7 +94,7 @@ object NumberConv {
             val e = n - 1
             sb.append(d.digits[0])
             if (k > 1) sb.append('.').append(d.digits, 1, k)
-            sb.append('e').append(if (e >= 0) '+' else '-').append(Math.abs(e))
+            sb.append('e').append(if (e >= 0) '+' else '-').append(abs(e))
         }
         return sb.toString()
     }
@@ -108,17 +110,17 @@ object NumberConv {
         if (value0 == Double.NEGATIVE_INFINITY) return "-Infinity"
         if (value0 == 0.0) return "0"
         // integers below 2^53 are exact in any radix: no need for the digit-generation buffer
-        if (value0 == Math.rint(value0) && Math.abs(value0) < 9.007199254740992E15) return java.lang.Long.toString(value0.toLong(), radix)
+        if (value0 == round(value0) && abs(value0) < 9.007199254740992E15) return value0.toLong().toString(radix)
         val size = 2200
         val buffer = CharArray(size)
         var integerCursor = size / 2
         var fractionCursor = integerCursor
         val negative = value0 < 0
         val value = if (negative) -value0 else value0
-        var integer = Math.floor(value)
+        var integer = floor(value)
         var fraction = value - integer
-        var delta = 0.5 * (Math.nextUp(value) - value)
-        delta = maxOf(Math.nextUp(0.0), delta)
+        var delta = 0.5 * (value.nextUp() - value)
+        delta = maxOf(0.0.nextUp(), delta)
         if (fraction >= delta) {
             buffer[fractionCursor++] = '.'
             do {
@@ -197,7 +199,7 @@ object NumberConv {
         val c0 = s[0]
         if (n > 2 && c0 == '0') {
             val radix = when (s[1]) { 'x', 'X' -> 16; 'o', 'O' -> 8; 'b', 'B' -> 2; else -> 0 }
-            if (radix != 0) return parseRadixDigits(s, 2, radix)
+            if (radix != 0) return parseRadixDigits(s, radix)
         }
         var i = 0
         if (c0 == '+' || c0 == '-') i++
@@ -222,12 +224,14 @@ object NumberConv {
         if (i != n) return Double.NaN
         return try {
             java.lang.Double.parseDouble(s)
-        } catch (e: NumberFormatException) {
+        } catch (_: NumberFormatException) {
             Double.NaN
         }
     }
 
-    private fun parseRadixDigits(s: String, from: Int, radix: Int): Double {
+    /** The digits of [s] after its two-character prefix (0x, 0o, 0b) in [radix]. */
+    private fun parseRadixDigits(s: String, radix: Int): Double {
+        val from = 2
         if (from >= s.length) return Double.NaN
         for (i in from until s.length) {
             if (digitVal(s[i], radix) < 0) return Double.NaN
@@ -244,10 +248,10 @@ object NumberConv {
     @JvmStatic
     fun toFixed(x: Double, f: Int): String {
         if (x != x) return "NaN"
-        if (Math.abs(x) >= 1e21) return toString(x)
-        var bd = BigDecimal(x).setScale(f, RoundingMode.HALF_UP)
-        var s = bd.abs().toPlainString()
-        val neg = x < 0 || (x == 0.0 && 1.0 / x < 0 && false)
+        if (abs(x) >= 1e21) return toString(x)
+        val bd = BigDecimal(x).setScale(f, RoundingMode.HALF_UP)
+        val s = bd.abs().toPlainString()
+        val neg = x < 0
         if (bd.signum() == 0 && x < 0) {
             // (-0.0000001).toFixed(2) === "-0.00"
             return "-$s"
@@ -259,7 +263,7 @@ object NumberConv {
     fun toExponential(x: Double, fractionDigits: Int?): String {
         if (x != x) return "NaN"
         val neg = x < 0
-        val v = Math.abs(x)
+        val v = abs(x)
         if (v == Double.POSITIVE_INFINITY) return if (neg) "-Infinity" else "Infinity"
         val digits: String
         val e: Int
@@ -285,7 +289,7 @@ object NumberConv {
         if (neg) sb.append('-')
         sb.append(digits[0])
         if (digits.length > 1) sb.append('.').append(digits, 1, digits.length)
-        sb.append('e').append(if (e >= 0) '+' else '-').append(Math.abs(e))
+        sb.append('e').append(if (e >= 0) '+' else '-').append(abs(e))
         return sb.toString()
     }
 
@@ -293,7 +297,7 @@ object NumberConv {
     fun toPrecision(x: Double, p: Int): String {
         if (x != x) return "NaN"
         val neg = x < 0
-        val v = Math.abs(x)
+        val v = abs(x)
         if (v == Double.POSITIVE_INFINITY) return if (neg) "-Infinity" else "Infinity"
         val digits: String
         val e: Int
@@ -312,7 +316,7 @@ object NumberConv {
         if (e < -6 || e >= p) {
             sb.append(digits[0])
             if (p > 1) sb.append('.').append(digits, 1, p)
-            sb.append('e').append(if (e >= 0) '+' else '-').append(Math.abs(e))
+            sb.append('e').append(if (e >= 0) '+' else '-').append(abs(e))
             return sb.toString()
         }
         if (e == p - 1) return sb.append(digits).toString()

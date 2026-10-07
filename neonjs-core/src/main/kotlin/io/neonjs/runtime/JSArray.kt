@@ -70,11 +70,9 @@ class JSArray(proto: JSObject?, capacity: Int = 0) : JSObject(proto) {
             return true
         }
         if (i == denseLen && extensible && lengthWritable && protoChainClean()) {
-            if (i.toLong() >= length || true) {
-                appendDense(v)
-                if (denseLen.toLong() > length) length = denseLen.toLong()
-                return true
-            }
+            appendDense(v)
+            if (denseLen.toLong() > length) length = denseLen.toLong()
+            return true
         }
         return false
     }
@@ -169,8 +167,7 @@ class JSArray(proto: JSObject?, capacity: Int = 0) : JSObject(proto) {
     }
 
     override fun set(key: Any, value: Any?, receiver: Any?): Boolean {
-        if (key is Int && receiver === this && trySetIndexFast(key, value)) return true
-        return ordinarySet(key, value, receiver)
+        return (key is Int && receiver === this && trySetIndexFast(key, value)) || ordinarySet(key, value, receiver)
     }
 
     override fun defineOwnProperty(key: Any, desc: PropertyDescriptor): Boolean {
@@ -178,32 +175,31 @@ class JSArray(proto: JSObject?, capacity: Int = 0) : JSObject(proto) {
         val idx = PK.arrayIndex(key)
         if (idx >= 0) {
             if (idx >= length && !lengthWritable) return false
-            if (!defineIndex(key, idx, desc)) return false
+            if (!defineIndex(key, desc)) return false
             if (idx >= length) length = idx + 1
             return true
         }
         return ordinaryDefineOwnProperty(key, desc)
     }
 
-    private fun defineIndex(key: Any, idx: Long, desc: PropertyDescriptor): Boolean {
+    private fun defineIndex(key: Any, desc: PropertyDescriptor): Boolean {
         if (!sparse && key is Int) {
-            val i = key
-            val exists = i < denseLen && dense[i] !== Hole
+            val exists = key < denseLen && dense[key] !== Hole
             val defaultAttrs = !desc.isAccessor &&
                     (if (exists) (!desc.hasWritable || desc.writable) && (!desc.hasEnumerable || desc.enumerable) && (!desc.hasConfigurable || desc.configurable)
                     else desc.hasWritable && desc.writable && desc.hasEnumerable && desc.enumerable && desc.hasConfigurable && desc.configurable)
             if (defaultAttrs) {
                 if (exists) {
-                    if (desc.hasValue) dense[i] = desc.value
+                    if (desc.hasValue) dense[key] = desc.value
                     return true
                 }
                 if (!extensible) return false
-                if (i < denseLen) {
-                    dense[i] = if (desc.hasValue) desc.value else Undefined
+                if (key < denseLen) {
+                    dense[key] = if (desc.hasValue) desc.value else Undefined
                     return true
                 }
-                if (i.toLong() - denseLen < 1024 || i < denseLen * 2) {
-                    while (denseLen < i) appendDense(Hole)
+                if (key.toLong() - denseLen < 1024 || key < denseLen * 2) {
+                    while (denseLen < key) appendDense(Hole)
                     appendDense(if (desc.hasValue) desc.value else Undefined)
                     return true
                 }
@@ -326,7 +322,7 @@ class JSArray(proto: JSObject?, capacity: Int = 0) : JSObject(proto) {
         } else if (pm != null) {
             val idx = ArrayList<Any>()
             pm.forEachLive { i -> val k = pm.keys[i]!!; if (PK.arrayIndex(k) >= 0) idx.add(k) }
-            idx.sortWith { a, b -> java.lang.Long.compare(PK.arrayIndex(a), PK.arrayIndex(b)) }
+            idx.sortWith { a, b -> PK.arrayIndex(a).compareTo(PK.arrayIndex(b)) }
             out.addAll(idx)
         }
         out.add("length")
@@ -384,8 +380,7 @@ class JSStringObject(proto: JSObject?, @JvmField val value: String) : JSObject(p
     }
 
     override fun delete(key: Any): Boolean {
-        if ((key is Int && key < value.length) || key == "length") return false
-        return super.delete(key)
+        return !((key is Int && key < value.length) || key == "length") && super.delete(key)
     }
 
     override fun ownPropertyKeys(): MutableList<Any> {

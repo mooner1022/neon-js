@@ -98,7 +98,7 @@ class JSTypedArray internal constructor(
         if (!isValidIndex(i)) return false
         if (buffer.immutable) {
             // redefining an immutable element only succeeds for a compatible descriptor with the SameValue value
-            return validateAndApply(key, false, desc, PropertyDescriptor.data(getIndex(i), Attr.ENUMERABLE))
+            return validateAndApply(false, desc, PropertyDescriptor.data(getIndex(i), Attr.ENUMERABLE))
         }
         if (desc.hasConfigurable && !desc.configurable) return false
         if (desc.hasEnumerable && !desc.enumerable) return false

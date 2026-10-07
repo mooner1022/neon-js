@@ -193,7 +193,7 @@ open class JSObject(@JvmField var proto: JSObject?) {
     }
 
     /** ValidateAndApplyPropertyDescriptor with an externally supplied current descriptor (for exotic objects). */
-    fun validateAndApply(key: Any, extensible: Boolean, desc: PropertyDescriptor, current: PropertyDescriptor?): Boolean =
+    fun validateAndApply(extensible: Boolean, desc: PropertyDescriptor, current: PropertyDescriptor?): Boolean =
         Ops.isCompatiblePropertyDescriptor(extensible, desc, current)
 
     // ------------------------------------------------------------------ [[HasProperty]]
@@ -284,8 +284,7 @@ open class JSObject(@JvmField var proto: JSObject?) {
         }
         val existing = receiver.getOwnProperty(key)
         if (existing != null) {
-            if (existing.isAccessor || !existing.writable) return false
-            return receiver.defineOwnProperty(key, PropertyDescriptor().value(value))
+            return !existing.isAccessor && existing.writable && receiver.defineOwnProperty(key, PropertyDescriptor().value(value))
         }
         return receiver.defineOwnProperty(key, PropertyDescriptor.data(value, Attr.ALL))
     }
@@ -320,17 +319,17 @@ open class JSObject(@JvmField var proto: JSObject?) {
             val k = p.keys[i]!!
             if (k is String && k.length == 10 && PK.arrayIndex(k) >= 0) {
                 if (indexKeys == null) indexKeys = ArrayList()
-                indexKeys!!.add(k)
+                indexKeys.add(k)
             }
         }
         if (indexKeys != null) {
-            indexKeys!!.sortWith { a, b -> java.lang.Long.compare(PK.arrayIndex(a), PK.arrayIndex(b)) }
-            if (extraIndices != null && extraIndices.isNotEmpty()) {
-                indexKeys!!.addAll(0, extraIndices)
-                indexKeys!!.sortWith { a, b -> java.lang.Long.compare(PK.arrayIndex(a), PK.arrayIndex(b)) }
+            indexKeys.sortWith { a, b -> PK.arrayIndex(a).compareTo(PK.arrayIndex(b)) }
+            if (!extraIndices.isNullOrEmpty()) {
+                indexKeys.addAll(0, extraIndices)
+                indexKeys.sortWith { a, b -> PK.arrayIndex(a).compareTo(PK.arrayIndex(b)) }
                 out.clear()
             }
-            out.addAll(indexKeys!!)
+            out.addAll(indexKeys)
         }
         p.forEachLive { i ->
             val k = p.keys[i]!!

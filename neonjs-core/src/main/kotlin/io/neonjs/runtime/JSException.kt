@@ -19,11 +19,11 @@ class JSException(@JvmField val value: Any?) : RuntimeException(null, null, fals
                 val n = if (name === Undefined) "Error" else Ops.toDisplayString(name)
                 val m = if (msg === Undefined) "" else Ops.toDisplayString(msg)
                 return if (m.isEmpty()) n else if (n.isEmpty()) m else "$n: $m"
-            } catch (e: Throwable) {
+            } catch (_: Throwable) {
                 return "[object]"
             }
         }
-        return try { Ops.toDisplayString(v) } catch (e: Throwable) { "<value>" }
+        return try { Ops.toDisplayString(v) } catch (_: Throwable) { "<value>" }
     }
 
     /** JS stack trace string if the thrown value is an error object with a captured stack. */

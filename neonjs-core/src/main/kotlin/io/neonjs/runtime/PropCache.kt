@@ -51,7 +51,7 @@ object PropCache {
     @JvmStatic
     fun shapeOf(o: JSObject): Shape? {
         val pm = o.props
-        return if (pm != null) pm.shape else Shape.emptyShapeOf(o)
+        return pm?.shape ?: Shape.emptyShapeOf(o)
     }
 
     /** Walks [chain] from [o]'s prototype; returns the last object if every shape matches, else null. */
@@ -61,7 +61,7 @@ object PropCache {
         for (s in chain) {
             h = h.proto ?: return null
             val hp = h.props
-            val hs = if (hp != null) hp.shape else Shape.emptyShapeOf(h)
+            val hs = hp?.shape ?: Shape.emptyShapeOf(h)
             if (hs !== s) return null
         }
         return h
@@ -72,7 +72,7 @@ object PropCache {
     @JvmStatic
     fun get(o: JSObject, site: PropSite): Any? {
         val pm = o.props
-        val sh = if (pm != null) pm.shape else Shape.emptyShapeOf(o)
+        val sh = pm?.shape ?: Shape.emptyShapeOf(o)
         var e = site.entry
         while (e != null) {
             if (e.shape === sh) {
@@ -159,7 +159,7 @@ object PropCache {
     @JvmStatic
     fun put(o: JSObject, site: PropSite, v: Any?): Boolean {
         val pm = o.props
-        val sh = if (pm != null) pm.shape else Shape.emptyShapeOf(o)
+        val sh = pm?.shape ?: Shape.emptyShapeOf(o)
         var e = site.entry
         while (e != null) {
             if (e.shape === sh) {

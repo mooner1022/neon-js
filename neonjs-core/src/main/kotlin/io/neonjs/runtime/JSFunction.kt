@@ -24,10 +24,6 @@ abstract class JSFunction(@JvmField val realm: Realm, proto: JSObject?) : JSObje
         defineOwn("name", name, Attr.CONFIGURABLE)
     }
 
-    fun setFunctionLength(len: Int) {
-        defineOwn("length", len.toDouble(), Attr.CONFIGURABLE)
-    }
-
     /** Source text for Function.prototype.toString. */
     open fun sourceText(): String = "function ${debugName()}() { [native code] }"
 }
@@ -48,8 +44,6 @@ open class NativeFunction(
 ) : JSFunction(realm, proto) {
     /** Optional internal slots for builtins that need state (e.g. promise resolving functions). */
     @JvmField var slot0: Any? = null
-    @JvmField var slot1: Any? = null
-    @JvmField var slot2: Any? = null
 
     init {
         if (isConstructor) special = special or CONSTRUCTOR

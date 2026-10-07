@@ -62,7 +62,6 @@ class Realm(@JvmField val agent: Agent) {
 
     fun typeError(message: String) = JSException(newError(ErrorKind.TYPE, message))
     fun rangeError(message: String) = JSException(newError(ErrorKind.RANGE, message))
-    fun referenceError(message: String) = JSException(newError(ErrorKind.REFERENCE, message))
     fun syntaxError(message: String) = JSException(newError(ErrorKind.SYNTAX, message))
 
     /** Runs [block] with this realm as the current realm and the agent bound to the thread. */

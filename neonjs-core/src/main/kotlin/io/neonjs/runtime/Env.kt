@@ -63,7 +63,7 @@ object Names {
                     if (ext != null && ext.containsKey(name)) return NameRef(e, name, -1, false)
                 }
                 is ObjectEnv -> {
-                    if (!(name in PSEUDO) && hasObjectBinding(e, name)) return NameRef(e, name, -1, false)
+                    if (name !in PSEUDO && hasObjectBinding(e, name)) return NameRef(e, name, -1, false)
                 }
                 is GlobalEnv -> {
                     if (name in PSEUDO) return NameRef(e, name, -2, false)
@@ -249,18 +249,7 @@ object Names {
     fun loadForCall(env: Env?, name: String, strict: Boolean): Pair<Any?, Any?> {
         val ref = resolve(env, name)
         val v = getValue(ref, name, strict, false)
-        val thisV = if (ref != null && ref.env is ObjectEnv && (ref.env as ObjectEnv).isWith) (ref.env as ObjectEnv).obj else Undefined
+        val thisV = if (ref != null && ref.env is ObjectEnv && ref.env.isWith) ref.env.obj else Undefined
         return v to thisV
-    }
-
-    /** Finds the global environment at the end of a chain. */
-    @JvmStatic
-    fun globalEnvOf(env: Env?): GlobalEnv? {
-        var e = env
-        while (e != null) {
-            if (e is GlobalEnv) return e
-            e = e.parent
-        }
-        return null
     }
 }

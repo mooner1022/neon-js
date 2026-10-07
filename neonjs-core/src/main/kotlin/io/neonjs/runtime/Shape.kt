@@ -67,7 +67,10 @@ class Shape private constructor(
                 m[TransitionKey(key, attrs)] = child
                 transitions = m
             }
-            else -> @Suppress("UNCHECKED_CAST") (t as HashMap<TransitionKey, Shape>).put(TransitionKey(key, attrs), child)
+            else -> {
+                @Suppress("UNCHECKED_CAST") val m = t as HashMap<TransitionKey, Shape>
+                m[TransitionKey(key, attrs)] = child
+            }
         }
         return child
     }

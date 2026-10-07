@@ -1,19 +1,19 @@
 package io.neonjs.runtime
 
 import java.math.BigInteger
+import kotlin.math.ceil
+import kotlin.math.floor
+import kotlin.math.pow
 
 /** ECMAScript abstract operations. */
 object Ops {
-    @JvmField val ZERO: Double = 0.0
-    @JvmField val ONE: Double = 1.0
-    @JvmField val NAN: Double = Double.NaN
     private val doubleCache = Array(1024) { it.toDouble() }
 
     /** Boxes a double, reusing cached boxes for small integers. */
     @JvmStatic
     fun num(d: Double): Any {
         val i = d.toInt()
-        if (i >= 0 && i < 1024 && i.toDouble() == d && !(d == 0.0 && 1.0 / d < 0)) return doubleCache[i]
+        if (i in 0..<1024 && i.toDouble() == d && !(d == 0.0 && 1.0 / d < 0)) return doubleCache[i]
         return d
     }
 
@@ -21,17 +21,15 @@ object Ops {
     // and allocates a new one, which defeats the cache.
     @JvmStatic
     fun num(i: Int): Any {
-        if (i >= 0 && i < 1024) return doubleCache[i]
+        if (i in 0..<1024) return doubleCache[i]
         return i.toDouble()
     }
 
     @JvmStatic
     fun num(l: Long): Any {
-        if (l >= 0 && l < 1024) return doubleCache[l.toInt()]
+        if (l in 0L..<1024L) return doubleCache[l.toInt()]
         return l.toDouble()
     }
-
-    @JvmStatic fun bool(b: Boolean): Boolean = b
 
     // ------------------------------------------------------------------ type tests
 
@@ -51,7 +49,6 @@ object Ops {
 
     @JvmStatic fun isCallable(v: Any?): Boolean = v is JSObject && v.special and JSObject.CALLABLE != 0
     @JvmStatic fun isConstructor(v: Any?): Boolean = v is JSObject && v.special and JSObject.CONSTRUCTOR != 0
-    @JvmStatic fun isNullish(v: Any?): Boolean = v === Undefined || v === Null || v == null
 
     // ------------------------------------------------------------------ conversions
 
@@ -135,7 +132,7 @@ object Ops {
     fun integerPart(d: Double): Double {
         if (d != d) return 0.0
         if (d == Double.POSITIVE_INFINITY || d == Double.NEGATIVE_INFINITY) return d
-        val t = if (d < 0) Math.ceil(d) else Math.floor(d)
+        val t = if (d < 0) ceil(d) else floor(d)
         return if (t == 0.0) 0.0 else t
     }
 
@@ -143,7 +140,7 @@ object Ops {
     fun toInt32(d: Double): Int {
         if (d != d || d == Double.POSITIVE_INFINITY || d == Double.NEGATIVE_INFINITY) return 0
         if (d >= -2147483648.0 && d <= 2147483647.0) return d.toInt()
-        val t = if (d < 0) Math.ceil(d) else Math.floor(d)
+        val t = if (d < 0) ceil(d) else floor(d)
         val m = t % 4294967296.0
         return m.toLong().toInt()
     }
@@ -151,22 +148,7 @@ object Ops {
     @JvmStatic fun toInt32(v: Any?): Int = if (v is Double) toInt32(v) else toInt32(toNumber(v))
     @JvmStatic fun toUint32(v: Any?): Long = toInt32(v).toLong() and 0xFFFFFFFFL
     @JvmStatic fun toUint32(d: Double): Long = toInt32(d).toLong() and 0xFFFFFFFFL
-    @JvmStatic fun toInt16(v: Any?): Int = toInt32(v).toShort().toInt()
     @JvmStatic fun toUint16(v: Any?): Int = toInt32(v) and 0xFFFF
-    @JvmStatic fun toInt8(v: Any?): Int = toInt32(v).toByte().toInt()
-    @JvmStatic fun toUint8(v: Any?): Int = toInt32(v) and 0xFF
-
-    @JvmStatic
-    fun toUint8Clamp(v: Any?): Int {
-        val d = toNumber(v)
-        if (d != d || d <= 0) return 0
-        if (d >= 255) return 255
-        val f = Math.floor(d)
-        if (f + 0.5 < d) return (f + 1).toInt()
-        if (d < f + 0.5) return f.toInt()
-        val fi = f.toInt()
-        return if (fi % 2 == 1) fi + 1 else fi
-    }
 
     @JvmStatic
     fun toLength(v: Any?): Long {
@@ -200,7 +182,7 @@ object Ops {
 
     /** ToString keeping ropes (for concatenation). */
     @JvmStatic
-    fun toJSString(v: Any?): CharSequence = if (v is CharSequence) v else toString(v)
+    fun toJSString(v: Any?): CharSequence = v as? CharSequence ?: toString(v)
 
     @JvmStatic
     fun toPropertyKey(v: Any?): Any {
@@ -229,7 +211,7 @@ object Ops {
         else -> throw JSException.typeError("Cannot convert to object")
     }
 
-    @JvmStatic fun toObject(v: Any?): JSObject = if (v is JSObject) v else toObject(Agent.currentRealm(), v)
+    @JvmStatic fun toObject(v: Any?): JSObject = v as? JSObject ?: toObject(Agent.currentRealm(), v)
 
     @JvmStatic
     fun requireObjectCoercible(v: Any?): Any? {
@@ -274,18 +256,17 @@ object Ops {
             if (i == s.length) return null
             for (j in i until s.length) if (s[j] !in '0'..'9') return null
             return BigInteger(if (s[0] == '+') s.substring(1) else s)
-        } catch (e: NumberFormatException) {
+        } catch (_: NumberFormatException) {
             return null
         }
     }
 
     @JvmStatic
     fun toBigInt(v: Any?): BigInteger {
-        val p = toPrimitive(v, HINT_NUMBER)
-        return when (p) {
+        return when (val p = toPrimitive(v, HINT_NUMBER)) {
             is BigInteger -> p
             is Boolean -> if (p) BigInteger.ONE else BigInteger.ZERO
-            is CharSequence -> stringToBigInt(p) ?: throw JSException.syntaxError("Cannot convert ${p} to a BigInt")
+            is CharSequence -> stringToBigInt(p) ?: throw JSException.syntaxError("Cannot convert $p to a BigInt")
             Undefined, Null -> throw JSException.typeError("Cannot convert ${toString(p)} to a BigInt")
             is Double -> throw JSException.typeError("Cannot convert ${NumberConv.toString(p)} to a BigInt")
             is JSSymbol -> throw JSException.typeError("Cannot convert a Symbol value to a BigInt")
@@ -297,7 +278,7 @@ object Ops {
     fun bigIntFromDouble(d: Double): BigInteger = java.math.BigDecimal(d).toBigIntegerExact()
 
     @JvmStatic
-    fun isIntegral(d: Double): Boolean = d == Math.floor(d) && !d.isInfinite()
+    fun isIntegral(d: Double): Boolean = d == floor(d) && !d.isInfinite()
 
     // ------------------------------------------------------------------ equality
 
@@ -311,15 +292,12 @@ object Ops {
     }
 
     @JvmStatic
-    fun contentEquals(a: CharSequence, b: CharSequence): Boolean {
-        if (a.length != b.length) return false
-        return a.toString() == b.toString()
-    }
+    fun contentEquals(a: CharSequence, b: CharSequence): Boolean = a.length == b.length && a.toString() == b.toString()
 
     @JvmStatic
     fun sameValue(a: Any?, b: Any?): Boolean {
         if (a is Double && b is Double) {
-            if (a != a) return b != b
+            if (a.isNaN()) return b.isNaN()
             if (a == 0.0 && b == 0.0) return (1.0 / a) == (1.0 / b)
             return a == b
         }
@@ -329,7 +307,7 @@ object Ops {
     @JvmStatic
     fun sameValueZero(a: Any?, b: Any?): Boolean {
         if (a is Double && b is Double) {
-            if (a != a) return b != b
+            if (a.isNaN()) return b.isNaN()
             return a == b
         }
         return strictEquals(a, b)
@@ -370,7 +348,7 @@ object Ops {
 
     private fun bigIntEqualsNumber(b: BigInteger, d: Double): Boolean {
         if (d != d || d.isInfinite()) return false
-        if (d != Math.floor(d)) return false
+        if (d != floor(d)) return false
         return b == bigIntFromDouble(d)
     }
 
@@ -400,10 +378,10 @@ object Ops {
             val nx = stringToBigInt(px) ?: return null
             return nx < py
         }
-        val nx = if (px is BigInteger) px else toNumber(px)
-        val ny = if (py is BigInteger) py else toNumber(py)
+        val nx = px as? BigInteger ?: toNumber(px)
+        val ny = py as? BigInteger ?: toNumber(py)
         if (nx is Double && ny is Double) {
-            if (nx != nx || ny != ny) return null
+            if (nx.isNaN() || ny.isNaN()) return null
             return nx < ny
         }
         if (nx is BigInteger && ny is BigInteger) return nx < ny
@@ -471,7 +449,7 @@ object Ops {
         throw mixError()
     }
 
-    private fun toNumericPrim(p: Any?): Any = if (p is BigInteger) p else toNumber(p)
+    private fun toNumericPrim(p: Any?): Any = p as? BigInteger ?: toNumber(p)
 
     private fun mixError() = JSException.typeError("Cannot mix BigInt and other types, use explicit conversions")
 
@@ -538,7 +516,7 @@ object Ops {
         if (y != y) return Double.NaN
         if (y == 0.0) return 1.0
         if ((x == 1.0 || x == -1.0) && y.isInfinite()) return Double.NaN
-        return Math.pow(x, y)
+        return x.pow(y)
     }
 
     @JvmStatic
@@ -891,7 +869,7 @@ object Ops {
                 depth++
             }
             o.className
-        } catch (e: Throwable) {
+        } catch (_: Throwable) {
             o.className
         }
     }
