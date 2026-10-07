@@ -135,9 +135,6 @@ class ScopeAnalyzer(val mode: CodeMode, val evalStrict: Boolean = false, val eva
         prog.scope = s
         cur = s
         if (mode == CodeMode.MODULE) s.allCaptured = true
-        if (kind == ScopeKind.EVAL && !evalStrict && !(mode == CodeMode.EVAL_INDIRECT && false)) {
-            // sloppy eval: var declarations go to the caller's variable environment
-        }
         hoistDeclarations(prog.body, s, topLevel = true)
         for (st in prog.body) visitStatement(st)
         finish()
@@ -640,9 +637,6 @@ class ScopeAnalyzer(val mode: CodeMode, val evalStrict: Boolean = false, val eva
         fi.isGenerator = fn.isGenerator
         fi.kind = fn.kind
         curFn = fi
-        if (fn.kind == FunctionKind.DERIVED_CONSTRUCTOR) {
-            // binding created lazily below once the function scope exists
-        }
         // callee scope for named function expressions
         val id = fn.id
         if (id != null && !fn.isDeclaration) {
@@ -798,15 +792,14 @@ class ScopeAnalyzer(val mode: CodeMode, val evalStrict: Boolean = false, val eva
                 s.allCaptured = true
                 s = s.parent
             }
-            // eval code may use this / arguments / new.target / super of the enclosing function
+            // eval code may use this / arguments / new.target / super of the enclosing function (eval code nested in
+            // eval code resolves them dynamically)
             var f: FnInfo? = es.fn
             while (f != null && f.isArrow) f = f.parent
             if (f != null && !f.isTopLevel) {
                 ensureThisBinding(f).captured = true
                 ensureFnBindings(f)
                 if (f.kind != FunctionKind.CLASS_FIELD_INIT && f.kind != FunctionKind.STATIC_BLOCK) ensureArguments(f, true)
-            } else if (f != null && f.isTopLevel && mode == CodeMode.EVAL_DIRECT) {
-                // nested eval in eval code: resolved dynamically
             }
         }
         for (r in refs) resolve(r)

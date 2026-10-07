@@ -154,12 +154,8 @@ object Promises {
             ok = false
             value = realm.newError(ErrorKind.RANGE, "Maximum call stack size exceeded")
         }
-        if (cap == null) {
-            if (!ok && hh != null) {
-                // host handler failure without capability: nothing to do
-            }
-            return
-        }
+        // without a capability there is nothing to settle (a failing host handler's error is dropped)
+        if (cap == null) return
         if (ok) Ops.call(cap.resolve, Undefined, arrayOf(value))
         else Ops.call(cap.reject, Undefined, arrayOf(value))
     }

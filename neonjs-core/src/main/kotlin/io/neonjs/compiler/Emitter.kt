@@ -55,7 +55,7 @@ internal class Emitter(fi: FnInfo, source: Source, parent: EmitterBase?, analyze
 
     fun compileProgram(prog: Program, mode: CodeMode): CodeBlock {
         val kind = FunctionKind.NORMAL
-        val cb = CodeBlock(if (mode == CodeMode.MODULE) "<module>" else if (mode == CodeMode.SCRIPT) "<script>" else "<eval>", kind)
+        val cb = CodeBlock(if (mode == CodeMode.SCRIPT) "<script>" else "<eval>", kind)
         cb.flags = CodeBlock.TOP_LEVEL or (if (prog.strict) CodeBlock.STRICT else 0)
         cb.source = source
         cb.srcStart = 0
@@ -80,14 +80,7 @@ internal class Emitter(fi: FnInfo, source: Source, parent: EmitterBase?, analyze
                     hoistFunctions(prog.body, root)
                 }
             }
-            CodeMode.MODULE -> {
-                enterTopScope(root)
-                hoistFunctions(prog.body, root)
-            }
             else -> {}
-        }
-        if (mode == CodeMode.MODULE) {
-            // modules: top-level await makes the module body async
         }
         for (st in prog.body) stmt(st)
         emit(Op.LOAD_REG, completionReg)
@@ -299,9 +292,6 @@ internal class Emitter(fi: FnInfo, source: Source, parent: EmitterBase?, analyze
         val body = fn.body
         if (body is BlockStatement) {
             hoistFunctions(body.body, vs)
-            if (fn.kind == FunctionKind.STATIC_BLOCK) {
-                // static block is a function body
-            }
             if (fn.isGenerator) emit(Op.GENERATOR_INIT)
             statements(body.body)
             implicitReturn(fn)
