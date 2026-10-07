@@ -1,0 +1,8 @@
+/third_party/
+.gradle/
+build/
+out/
+.idea/
+*.iml
+.kotlin/
+/test262-results/
