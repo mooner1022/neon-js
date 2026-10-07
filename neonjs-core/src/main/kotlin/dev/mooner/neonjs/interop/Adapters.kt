@@ -37,7 +37,8 @@ class AdapterClass(
 
 /**
  * Generates JVM subclasses of host classes / implementations of several interfaces whose methods are implemented by
- * JS objects (`Java.extend`). Each class lives in its own class loader so it can be unloaded with its context.
+ * JS objects (`Java.extend`). Each class lives in its own class loader so it can be unloaded with its context (except
+ * classes implementing interfaces on Android 8.0 and 8.1, which stay loaded: see [dev.mooner.neonjs.jit.ArtCha]).
  */
 object Adapters {
     private val counter = AtomicInteger()
@@ -117,6 +118,8 @@ object Adapters {
             if (e is JSException) throw e
             throw JSException.typeError("Java.extend: cannot create adapter for ${base.name} on this platform: ${e.message}")
         }
+        // it may be the only implementation of an interface method
+        if (ifaces.isNotEmpty()) dev.mooner.neonjs.jit.ArtCha.pinIfNeeded(cls)
         val genCtors = cls.declaredConstructors.associateBy { it.parameterTypes.drop(1) }
         val pairs = ctors.map { it to genCtors.getValue(it.parameterTypes.toList()) }
         val supers = HashMap<String, MutableList<Method>>()
