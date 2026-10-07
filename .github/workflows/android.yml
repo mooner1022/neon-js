@@ -24,12 +24,12 @@ jobs:
         # 26: the engine's minimum (Android 8.0); 34: a recent ART
         api-level: [26, 34]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 25
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - name: Build
         run: ./gradlew :neonjs-test262:installDist :neonjs-test262:d8Libs
       - name: Check out Test262
