@@ -228,11 +228,14 @@ object JitRt {
     // ------------------------------------------------------------------ unboxed numbers (JitTypes)
     // Operands typed `double` are JS numbers; the other operand of a mixed helper is any value. Mixed helpers fall back
     // to the Ops implementations with the number boxed, so conversions run in the same order, as often, and fail with
-    // the same errors as in the interpreter (a BigInt operand throws: the result of the arithmetic ones is a number).
+    // the same errors as in the interpreter (a BigInt operand throws: the result of the arithmetic ones is a number, and
+    // that of the bitwise ones but >>> an int32, returned as an int).
 
     @JvmStatic fun truthyD(d: Double): Boolean = d != 0.0 && d == d
     @JvmStatic fun toNumberD(a: Any?): Double = if (a is Double) a else Ops.toNumber(a)
     @JvmStatic fun powDD(a: Double, b: Double): Double = Ops.pow(a, b)
+    @JvmStatic fun toInt32D(a: Double): Int = Ops.toInt32(a)
+    // the bitwise operators on two doubles, as compiled without INT (-Dneonjs.jit.int32=false)
     @JvmStatic fun bnotD(a: Double): Double = Ops.toInt32(a).inv().toDouble()
     @JvmStatic fun bandDD(a: Double, b: Double): Double = (Ops.toInt32(a) and Ops.toInt32(b)).toDouble()
     @JvmStatic fun borDD(a: Double, b: Double): Double = (Ops.toInt32(a) or Ops.toInt32(b)).toDouble()
@@ -240,6 +243,19 @@ object JitRt {
     @JvmStatic fun shlDD(a: Double, b: Double): Double = (Ops.toInt32(a) shl (Ops.toInt32(b) and 31)).toDouble()
     @JvmStatic fun sarDD(a: Double, b: Double): Double = (Ops.toInt32(a) shr (Ops.toInt32(b) and 31)).toDouble()
     @JvmStatic fun shrDD(a: Double, b: Double): Double = ((Ops.toInt32(a).toLong() and 0xFFFFFFFFL) ushr (Ops.toInt32(b) and 31)).toDouble()
+
+    /**
+     * A number the type analysis proved to be an int32 (an int32 constant, or a register only ints are stored in), as an
+     * int. Anything else would be a compiler bug: it fails here, as a failed `checkcast` would, instead of reading as a
+     * different number.
+     */
+    @JvmStatic fun exactInt(d: Double): Int {
+        val i = d.toInt()
+        if (i.toDouble() != d || i == 0 && 1.0 / d < 0) throw notInt32(d)
+        return i
+    }
+
+    private fun notInt32(d: Double) = ClassCastException("not an int32: $d")
 
     @JvmStatic fun addDA(a: Double, b: Any?): Any? = if (b is Double) a + b else Ops.add(Ops.num(a), b)
     @JvmStatic fun addAD(a: Any?, b: Double): Any? = if (a is Double) a + b else Ops.add(a, Ops.num(b))
@@ -253,16 +269,26 @@ object JitRt {
     @JvmStatic fun modAD(a: Any?, b: Double): Double = if (a is Double) a % b else Ops.mod(a, Ops.num(b)).cast<Double>()
     @JvmStatic fun expDA(a: Double, b: Any?): Double = if (b is Double) Ops.pow(a, b) else Ops.exp(Ops.num(a), b).cast<Double>()
     @JvmStatic fun expAD(a: Any?, b: Double): Double = if (a is Double) Ops.pow(a, b) else Ops.exp(a, Ops.num(b)).cast<Double>()
-    @JvmStatic fun bandDA(a: Double, b: Any?): Double = Ops.bitAnd(Ops.num(a), b).cast<Double>()
-    @JvmStatic fun bandAD(a: Any?, b: Double): Double = Ops.bitAnd(a, Ops.num(b)).cast<Double>()
-    @JvmStatic fun borDA(a: Double, b: Any?): Double = Ops.bitOr(Ops.num(a), b).cast<Double>()
-    @JvmStatic fun borAD(a: Any?, b: Double): Double = Ops.bitOr(a, Ops.num(b)).cast<Double>()
-    @JvmStatic fun bxorDA(a: Double, b: Any?): Double = Ops.bitXor(Ops.num(a), b).cast<Double>()
-    @JvmStatic fun bxorAD(a: Any?, b: Double): Double = Ops.bitXor(a, Ops.num(b)).cast<Double>()
-    @JvmStatic fun shlDA(a: Double, b: Any?): Double = Ops.shl(Ops.num(a), b).cast<Double>()
-    @JvmStatic fun shlAD(a: Any?, b: Double): Double = Ops.shl(a, Ops.num(b)).cast<Double>()
-    @JvmStatic fun sarDA(a: Double, b: Any?): Double = Ops.sar(Ops.num(a), b).cast<Double>()
-    @JvmStatic fun sarAD(a: Any?, b: Double): Double = Ops.sar(a, Ops.num(b)).cast<Double>()
+    @JvmStatic fun bandDA(a: Double, b: Any?): Int =
+        if (b is Double) Ops.toInt32(a) and Ops.toInt32(b) else Ops.bitAnd(Ops.num(a), b).cast<Double>().toInt()
+    @JvmStatic fun bandAD(a: Any?, b: Double): Int =
+        if (a is Double) Ops.toInt32(a) and Ops.toInt32(b) else Ops.bitAnd(a, Ops.num(b)).cast<Double>().toInt()
+    @JvmStatic fun borDA(a: Double, b: Any?): Int =
+        if (b is Double) Ops.toInt32(a) or Ops.toInt32(b) else Ops.bitOr(Ops.num(a), b).cast<Double>().toInt()
+    @JvmStatic fun borAD(a: Any?, b: Double): Int =
+        if (a is Double) Ops.toInt32(a) or Ops.toInt32(b) else Ops.bitOr(a, Ops.num(b)).cast<Double>().toInt()
+    @JvmStatic fun bxorDA(a: Double, b: Any?): Int =
+        if (b is Double) Ops.toInt32(a) xor Ops.toInt32(b) else Ops.bitXor(Ops.num(a), b).cast<Double>().toInt()
+    @JvmStatic fun bxorAD(a: Any?, b: Double): Int =
+        if (a is Double) Ops.toInt32(a) xor Ops.toInt32(b) else Ops.bitXor(a, Ops.num(b)).cast<Double>().toInt()
+    @JvmStatic fun shlDA(a: Double, b: Any?): Int =
+        if (b is Double) Ops.toInt32(a) shl (Ops.toInt32(b) and 31) else Ops.shl(Ops.num(a), b).cast<Double>().toInt()
+    @JvmStatic fun shlAD(a: Any?, b: Double): Int =
+        if (a is Double) Ops.toInt32(a) shl (Ops.toInt32(b) and 31) else Ops.shl(a, Ops.num(b)).cast<Double>().toInt()
+    @JvmStatic fun sarDA(a: Double, b: Any?): Int =
+        if (b is Double) Ops.toInt32(a) shr (Ops.toInt32(b) and 31) else Ops.sar(Ops.num(a), b).cast<Double>().toInt()
+    @JvmStatic fun sarAD(a: Any?, b: Double): Int =
+        if (a is Double) Ops.toInt32(a) shr (Ops.toInt32(b) and 31) else Ops.sar(a, Ops.num(b)).cast<Double>().toInt()
     @JvmStatic fun shrDA(a: Double, b: Any?): Double = Ops.shr(Ops.num(a), b).cast<Double>()
     @JvmStatic fun shrAD(a: Any?, b: Double): Double = Ops.shr(a, Ops.num(b)).cast<Double>()
 
@@ -293,6 +319,15 @@ object JitRt {
         return Rt.getElem(f.realm, o, Ops.num(key))
     }
 
+    /** [getElemD] with an int32 key. */
+    @JvmStatic fun getElemI(o: Any?, key: Int, f: Frame): Any? {
+        if (key >= 0) {
+            if (o is JSArray) return o.getIndexFast(key)
+            if (o is JSTypedArray) return o.getIndex(key)
+        }
+        return Rt.getElem(f.realm, o, Ops.num(key))
+    }
+
     /** `o[key] = v` with a number key; the integer-index fast paths are Rt.putElem's. Returns [v]. */
     @JvmStatic fun putElemDA(o: Any?, key: Double, v: Any?, f: Frame): Any? {
         val i = key.toInt()
@@ -308,6 +343,19 @@ object JitRt {
     }
 
     @JvmStatic fun putElemDD(o: Any?, key: Double, v: Double, f: Frame): Any? = putElemDA(o, key, Ops.num(v), f)
+
+    /** [putElemDA] with an int32 key. */
+    @JvmStatic fun putElemIA(o: Any?, key: Int, v: Any?, f: Frame): Any? {
+        if (key >= 0) {
+            if (o is JSArray && o.trySetIndexFast(key, v)) return v
+            if (o is JSTypedArray && !o.buffer.immutable) {
+                o.setIndex(key, v)
+                return v
+            }
+        }
+        Rt.putElem(f.realm, o, Ops.num(key), v, strict(f))
+        return v
+    }
     @JvmStatic fun concat(a: Any?, b: Any?): Any? = Rope.concat(a.cast<CharSequence>(), b.cast<CharSequence>())
     @JvmStatic fun toObject(a: Any?, f: Frame): Any? = Ops.toObject(f.realm, a)
     @JvmStatic fun requireCoercible(v: Any?): Any? {

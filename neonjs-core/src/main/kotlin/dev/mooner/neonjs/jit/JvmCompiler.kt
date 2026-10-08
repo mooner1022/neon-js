@@ -21,10 +21,11 @@ class JitInput(cb: CodeBlock, debugInfo: Boolean = JvmCompiler.DEBUG_INFO) {
     @JvmField val numRegs: Int = cb.numRegs
     @JvmField val paramRegs: IntArray? = cb.paramRegs
     /**
-     * Kind of each constant ([CONST_NUMBER] or [CONST_OTHER]). The generated code treats number constants as `double`s,
-     * so code blocks may share a class only if their constants have the same kinds (the values may differ).
+     * Kind of each constant ([CONST_INT], [CONST_NUMBER] or [CONST_OTHER]). The generated code treats number constants
+     * as `double`s and int32 ones as `int`s, so code blocks may share a class only if their constants have the same
+     * kinds (the values may differ).
      */
-    @JvmField val constKinds: ByteArray = ByteArray(cb.constants.size) { if (cb.constants[it] is Double) CONST_NUMBER else CONST_OTHER }
+    @JvmField val constKinds: ByteArray = ByteArray(cb.constants.size) { constKind(cb.constants[it]) }
     /** Start pc of each statement (the generated code records the pc there). */
     @JvmField val statementPcs: IntArray
     /** Debug info: source line of each statement (or -1), and the source name; null without debug info. */
@@ -55,6 +56,7 @@ class JitInput(cb: CodeBlock, debugInfo: Boolean = JvmCompiler.DEBUG_INFO) {
         }
         out.writeInt(FORMAT)
         out.writeBoolean(JvmCompiler.TYPED)
+        out.writeBoolean(JvmCompiler.INT32)
         out.writeUTF(name)
         ints(code)
         ints(handlers)
@@ -77,9 +79,17 @@ class JitInput(cb: CodeBlock, debugInfo: Boolean = JvmCompiler.DEBUG_INFO) {
 
     companion object {
         /** Changes when the code generator changes what it emits for the same input. */
-        private const val FORMAT = 3
+        private const val FORMAT = 4
         const val CONST_OTHER: Byte = 0
         const val CONST_NUMBER: Byte = 1
+        /** A number that is an int32 (and not -0). */
+        const val CONST_INT: Byte = 2
+
+        fun constKind(v: Any?): Byte = when {
+            v !is Double -> CONST_OTHER
+            v.toInt().toDouble() == v && !(v == 0.0 && 1.0 / v < 0) -> CONST_INT
+            else -> CONST_NUMBER
+        }
     }
 }
 
@@ -288,6 +298,12 @@ object JvmCompiler {
      */
     internal val TYPED = System.getProperty("neonjs.jit.typed") != "false"
 
+    /**
+     * Whether unboxed code also keeps int32 values (bitwise results, integer literals) in `int` locals;
+     * `-Dneonjs.jit.int32=false` turns that off, leaving them `double`s.
+     */
+    internal val INT32 = System.getProperty("neonjs.jit.int32") != "false"
+
     /** Debugging: `-Dneonjs.jit.dump=DIR` writes every generated class there. */
     private val DUMP_DIR: String? = System.getProperty("neonjs.jit.dump")
 
@@ -325,9 +341,11 @@ object JvmCompiler {
         val labels = HashMap<Int, Label>()
         val handlerLabels = HashMap<Int, Label>()
         /** Kinds of the operand stack and of the registers (JitTypes): which values are unboxed. */
-        val ta: TypeAnalysis? = if (typed) TypeAnalysis(cb).run() else null
-        /** JVM local of each register kept as a `double` (-1: an Object local, [reg]). */
-        val dregs = IntArray(cb.numRegs) { -1 }
+        val ta: TypeAnalysis? = if (typed) TypeAnalysis(cb, INT32).run() else null
+        /** How each register is held ([TypeAnalysis.regStorage]; Objects in untyped code). */
+        val storage: ByteArray = ta?.regStorage ?: ByteArray(cb.numRegs)
+        /** JVM local of each register kept as a `double` or an `int` (-1: an Object local, [reg]). */
+        val slots = IntArray(cb.numRegs) { -1 }
         var nextTemp: Int
         /** Kinds of the values on the JVM operand stack at the current point of the generated code. */
         val st = KindStack()
@@ -336,7 +354,10 @@ object JvmCompiler {
 
         init {
             var n = L_REGS + cb.numRegs
-            if (ta != null) for (r in 0 until cb.numRegs) if (ta.numReg[r]) { dregs[r] = n; n += 2 }
+            for (r in 0 until cb.numRegs) when (storage[r]) {
+                JT.NUM -> { slots[r] = n; n += 2 }
+                JT.INT -> { slots[r] = n; n += 1 }
+            }
             nextTemp = n
         }
 
@@ -445,15 +466,15 @@ object JvmCompiler {
             for (r in 0 until cb.numRegs) {
                 pushUndefined()
                 mv.visitVarInsn(ASTORE, reg(r))
-                if (dregs[r] >= 0) {
-                    // never read before a number is stored (TypeAnalysis); initialized for the verifier
-                    mv.visitInsn(DCONST_0)
-                    mv.visitVarInsn(DSTORE, dregs[r])
+                // never read before a number is stored (TypeAnalysis); initialized for the verifier
+                when (storage[r]) {
+                    JT.NUM -> { mv.visitInsn(DCONST_0); mv.visitVarInsn(DSTORE, slots[r]) }
+                    JT.INT -> { mv.visitInsn(ICONST_0); mv.visitVarInsn(ISTORE, slots[r]) }
                 }
             }
             cb.paramRegs?.forEachIndexed { idx, r ->
-                // a parameter register kept as a double is never read before a number is stored in it
-                if (r >= 0 && dregs[r] < 0) {
+                // a parameter register kept unboxed is never read before a number is stored in it
+                if (r >= 0 && storage[r] == JT.ANY) {
                     frame()
                     iconst(idx)
                     rt("arg", "($FRAME_D I)$OBJ".replace(" ", ""))
@@ -525,8 +546,29 @@ object JvmCompiler {
         private fun box(kind: Byte) {
             when (kind) {
                 JT.NUM -> mv.visitMethodInsn(INVOKESTATIC, "dev/mooner/neonjs/runtime/Ops", "num", "(D)$OBJ", false)
+                JT.INT -> mv.visitMethodInsn(INVOKESTATIC, "dev/mooner/neonjs/runtime/Ops", "num", "(I)$OBJ", false)
                 JT.BOOL -> mv.visitMethodInsn(INVOKESTATIC, "java/lang/Boolean", "valueOf", "(Z)Ljava/lang/Boolean;", false)
             }
+        }
+
+        /** Converts the value of kind [from] on top of the JVM stack to kind [to]: unchanged, an int widened, or boxed. */
+        private fun convert(from: Byte, to: Byte) {
+            when {
+                from == to -> {}
+                to == JT.ANY -> box(from)
+                from == JT.INT && to == JT.NUM -> mv.visitInsn(I2D)
+                else -> throw JitBailout("cannot narrow a stack value")
+            }
+        }
+
+        private fun popValue(kind: Byte) = mv.visitInsn(if (kind == JT.NUM) POP2 else POP)
+
+        /** The int on top of the JVM stack as a double (unchanged if [kind] is NUM). */
+        private fun toDouble(kind: Byte) = convert(kind, JT.NUM)
+
+        /** ToInt32 of the number of [kind] on top of the JVM stack. */
+        private fun toInt32(kind: Byte) {
+            if (kind == JT.NUM) rt("toInt32D", "(D)I")
         }
 
         /** The Object on top of the JVM stack is a Double (TypeAnalysis says so): its double value. */
@@ -537,27 +579,27 @@ object JvmCompiler {
 
         private fun storeTemp(kind: Byte): Int = when (kind) {
             JT.NUM -> tempD().also { mv.visitVarInsn(DSTORE, it) }
-            JT.BOOL -> temp().also { mv.visitVarInsn(ISTORE, it) }
+            JT.BOOL, JT.INT -> temp().also { mv.visitVarInsn(ISTORE, it) }
             else -> temp().also { mv.visitVarInsn(ASTORE, it) }
         }
 
-        private fun loadTemp(kind: Byte, t: Int) = mv.visitVarInsn(when (kind) { JT.NUM -> DLOAD; JT.BOOL -> ILOAD; else -> ALOAD }, t)
+        private fun loadTemp(kind: Byte, t: Int) = mv.visitVarInsn(when (kind) { JT.NUM -> DLOAD; JT.BOOL, JT.INT -> ILOAD; else -> ALOAD }, t)
 
         /**
-         * Makes the stack kinds [want] (same depth): every slot is either unchanged or boxed. Slots above the lowest one
-         * to box go through temporaries.
+         * Makes the stack kinds [want] (same depth): every slot is unchanged, an int widened to a double, or boxed. Slots
+         * above the lowest one to convert go through temporaries.
          */
         private fun convertTo(want: ByteArray) {
             if (want.size != st.size) throw JitBailout("operand stack depth differs")
             var low = -1
             for (k in 0 until st.size) if (st[k] != want[k]) {
-                if (want[k] != JT.ANY) throw JitBailout("cannot narrow a stack value")
+                if (want[k] != JT.ANY && !(want[k] == JT.NUM && st[k] == JT.INT)) throw JitBailout("cannot narrow a stack value")
                 if (low < 0) low = k
             }
             if (low < 0) return
             if (low == st.size - 1) {
-                box(st[low])
-                st.setKind(low, JT.ANY)
+                convert(st[low], want[low])
+                st.setKind(low, want[low])
                 return
             }
             val kinds = ByteArray(st.size - low) { st[low + it] }
@@ -565,9 +607,14 @@ object JvmCompiler {
             for (k in kinds.size - 1 downTo 0) temps[k] = storeTemp(kinds[k])
             for (k in kinds.indices) {
                 loadTemp(kinds[k], temps[k])
-                if (want[low + k] != kinds[k]) box(kinds[k])
+                convert(kinds[k], want[low + k])
                 st.setKind(low + k, want[low + k])
             }
+        }
+
+        /** Widens the ints among the top [n] stack values to doubles. */
+        private fun widenInts(n: Int) {
+            convertTo(st.toArray().also { k -> for (i in k.size - n until k.size) if (k[i] == JT.INT) k[i] = JT.NUM })
         }
 
         private fun boxAll() = convertTo(ByteArray(st.size))
@@ -619,19 +666,26 @@ object JvmCompiler {
             val a = if (Op.operands[op] >= 1) code[pc + 1] else 0
             when (op) {
                 Op.PUSH_INT -> {
-                    when (a) {
+                    if (ta.intKind == JT.INT) {
+                        iconst(a)
+                    } else when (a) {
                         0 -> mv.visitInsn(DCONST_0)
                         1 -> mv.visitInsn(DCONST_1)
                         else -> mv.visitLdcInsn(a.toDouble())
                     }
-                    st.push(JT.NUM)
+                    st.push(ta.intKind)
                     return
                 }
-                Op.PUSH_CONST -> if (cb.constKinds[a] == JitInput.CONST_NUMBER) {
-                    constant(a)
-                    unboxNum()
-                    st.push(JT.NUM)
-                    return
+                Op.PUSH_CONST -> {
+                    val k = ta.constKind(a)
+                    if (JT.isNum(k)) {
+                        constant(a)
+                        unboxNum()
+                        // an int32 (its kind is part of the class identity)
+                        if (k == JT.INT) rt("exactInt", "(D)I")
+                        st.push(k)
+                        return
+                    }
                 }
                 Op.PUSH_TRUE, Op.PUSH_FALSE -> {
                     mv.visitInsn(if (op == Op.PUSH_TRUE) ICONST_1 else ICONST_0)
@@ -639,31 +693,48 @@ object JvmCompiler {
                     return
                 }
                 Op.LOAD_REG -> {
-                    if (dregs[a] >= 0) {
-                        mv.visitVarInsn(DLOAD, dregs[a])
-                        st.push(JT.NUM)
-                    } else {
-                        mv.visitVarInsn(ALOAD, reg(a))
-                        if (ta.regKind(pc, a) == JT.NUM) {
-                            unboxNum()
-                            st.push(JT.NUM)
-                        } else st.push(JT.ANY)
+                    val k = ta.regKind(pc, a)
+                    // TypeAnalysis chose the storage from the kinds of all loads: an int register is loaded only as INT, a
+                    // double one only as a number (an int where every store reaching the load was one: exactInt)
+                    when (storage[a]) {
+                        JT.INT -> {
+                            if (k != JT.INT) throw JitBailout("int register loaded as kind $k")
+                            mv.visitVarInsn(ILOAD, slots[a])
+                        }
+                        JT.NUM -> {
+                            if (!JT.isNum(k)) throw JitBailout("double register loaded as kind $k")
+                            mv.visitVarInsn(DLOAD, slots[a])
+                            if (k == JT.INT) rt("exactInt", "(D)I")
+                        }
+                        else -> {
+                            mv.visitVarInsn(ALOAD, reg(a))
+                            if (JT.isNum(k)) {
+                                unboxNum()
+                                if (k == JT.INT) rt("exactInt", "(D)I")
+                            }
+                        }
                     }
+                    st.push(if (JT.isNum(k)) k else JT.ANY)
                     return
                 }
                 Op.STORE_REG -> {
                     val k = st.pop()
-                    if (dregs[a] >= 0) {
-                        // a value other than a number is never read from this register (TypeAnalysis): a dead store
-                        if (k == JT.NUM) mv.visitVarInsn(DSTORE, dregs[a]) else mv.visitInsn(POP)
-                    } else {
-                        box(k)
-                        mv.visitVarInsn(ASTORE, reg(a))
+                    // a value of a kind the register is not held as is never loaded from it (TypeAnalysis): a dead store
+                    when (storage[a]) {
+                        JT.INT -> if (k == JT.INT) mv.visitVarInsn(ISTORE, slots[a]) else popValue(k)
+                        JT.NUM -> if (JT.isNum(k)) {
+                            toDouble(k)
+                            mv.visitVarInsn(DSTORE, slots[a])
+                        } else popValue(k)
+                        else -> {
+                            box(k)
+                            mv.visitVarInsn(ASTORE, reg(a))
+                        }
                     }
                     return
                 }
                 Op.POP -> {
-                    mv.visitInsn(if (st.pop() == JT.NUM) POP2 else POP)
+                    popValue(st.pop())
                     return
                 }
                 Op.DUP -> {
@@ -688,32 +759,45 @@ object JvmCompiler {
                 Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.SEQ, Op.SNE -> {
                     val cls = JT.binaryClass(op, st.peek(1), st.peek(0))
                     if (cls != JT.GENERIC) {
-                        emitBinary(op, cls)
+                        val result = JT.binaryResult(op, cls, ta.intKind)
+                        emitBinary(op, cls, result)
                         st.pop(); st.pop()
-                        st.push(JT.binaryResult(op, cls))
+                        st.push(result)
                         return
                     }
                 }
-                Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC -> if (st.peek(0) == JT.NUM) {
-                    when (op) {
-                        Op.NEG -> mv.visitInsn(DNEG)
-                        Op.BNOT -> rt("bnotD", "(D)D")
-                        Op.INC -> { mv.visitInsn(DCONST_1); mv.visitInsn(DADD) }
-                        Op.DEC -> { mv.visitInsn(DCONST_1); mv.visitInsn(DSUB) }
+                Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC -> {
+                    val t = st.peek(0)
+                    if (JT.isNum(t)) {
+                        val result = ta.unaryResult(op, t)
+                        when (op) {
+                            Op.NEG -> { toDouble(t); mv.visitInsn(DNEG) } // -0 for 0
+                            Op.BNOT -> if (result == JT.INT) {
+                                toInt32(t)
+                                mv.visitInsn(ICONST_M1)
+                                mv.visitInsn(IXOR)
+                            } else rt("bnotD", "(D)D") // without INT: as before it
+                            Op.INC -> { toDouble(t); mv.visitInsn(DCONST_1); mv.visitInsn(DADD) }
+                            Op.DEC -> { toDouble(t); mv.visitInsn(DCONST_1); mv.visitInsn(DSUB) }
+                        }
+                        st.pop()
+                        st.push(result)
+                        return
                     }
-                    return
                 }
                 Op.TO_NUMBER -> {
-                    when (st.pop()) {
-                        JT.NUM -> {}
-                        JT.BOOL -> mv.visitInsn(I2D)
+                    val t = st.pop()
+                    val result = ta.toNumberResult(t)
+                    when (t) {
+                        JT.NUM, JT.INT -> {}
+                        JT.BOOL -> if (result == JT.NUM) mv.visitInsn(I2D)
                         else -> rt("toNumberD", "($OBJ)D")
                     }
-                    st.push(JT.NUM)
+                    st.push(result)
                     return
                 }
                 Op.NOT -> {
-                    truth(st.pop())
+                    truth(st.pop(), normalized = true)
                     mv.visitInsn(ICONST_1)
                     mv.visitInsn(IXOR)
                     st.push(JT.BOOL)
@@ -731,24 +815,34 @@ object JvmCompiler {
                     branch(if (op == Op.JUMP_IF_TRUE) IFNE else IFEQ, a, ta)
                     return
                 }
-                Op.GET_ELEM -> if (st.peek(0) == JT.NUM) {
-                    // (obj key -- value)
-                    convertTo(st.toArray().also { it[it.size - 2] = JT.ANY })
-                    frame()
-                    rt("getElemD", "(${OBJ}D$FRAME_D)$OBJ")
-                    st.pop(); st.pop()
-                    st.push(JT.ANY)
-                    return
+                Op.GET_ELEM -> {
+                    val key = st.peek(0)
+                    if (JT.isNum(key)) {
+                        // (obj key -- value)
+                        convertTo(st.toArray().also { it[it.size - 2] = JT.ANY })
+                        frame()
+                        if (key == JT.INT) rt("getElemI", "(${OBJ}I$FRAME_D)$OBJ") else rt("getElemD", "(${OBJ}D$FRAME_D)$OBJ")
+                        st.pop(); st.pop()
+                        st.push(JT.ANY)
+                        return
+                    }
                 }
-                Op.PUT_ELEM -> if (st.peek(1) == JT.NUM) {
-                    // (obj key value -- value)
-                    val vNum = st.peek(0) == JT.NUM
-                    convertTo(st.toArray().also { it[it.size - 3] = JT.ANY; if (!vNum) it[it.size - 1] = JT.ANY })
-                    frame()
-                    if (vNum) rt("putElemDD", "(${OBJ}DD$FRAME_D)$OBJ") else rt("putElemDA", "(${OBJ}D$OBJ$FRAME_D)$OBJ")
-                    st.pop(); st.pop(); st.pop()
-                    st.push(JT.ANY)
-                    return
+                Op.PUT_ELEM -> {
+                    val key = st.peek(1)
+                    if (JT.isNum(key)) {
+                        // (obj key value -- value)
+                        val vNum = key == JT.NUM && st.peek(0) == JT.NUM
+                        convertTo(st.toArray().also { it[it.size - 3] = JT.ANY; if (!vNum) it[it.size - 1] = JT.ANY })
+                        frame()
+                        when {
+                            key == JT.INT -> rt("putElemIA", "(${OBJ}I$OBJ$FRAME_D)$OBJ")
+                            vNum -> rt("putElemDD", "(${OBJ}DD$FRAME_D)$OBJ")
+                            else -> rt("putElemDA", "(${OBJ}D$OBJ$FRAME_D)$OBJ")
+                        }
+                        st.pop(); st.pop(); st.pop()
+                        st.push(JT.ANY)
+                        return
+                    }
                 }
             }
             // everything else: the Object code; its results are Objects
@@ -769,34 +863,83 @@ object JvmCompiler {
             st.setAllAny(depth)
         }
 
-        /** The int truth value (0/1) of the value of [kind] on the stack. */
-        private fun truth(kind: Byte) {
+        /**
+         * The truth value of the value of [kind] on the stack, as an int that is 0 for false: 0 or 1, or (for INT, unless
+         * [normalized]) the int itself.
+         */
+        private fun truth(kind: Byte, normalized: Boolean = false) {
             when (kind) {
                 JT.BOOL -> {}
+                JT.INT -> if (normalized) {
+                    // (x | -x) >>> 31: 1 for every int but 0
+                    mv.visitInsn(DUP)
+                    mv.visitInsn(INEG)
+                    mv.visitInsn(IOR)
+                    iconst(31)
+                    mv.visitInsn(IUSHR)
+                }
                 JT.NUM -> rt("truthyD", "(D)Z")
                 else -> rt("truthy", "($OBJ)Z")
             }
         }
 
-        /** A binary operator with at least one number operand ([cls] NN, NA or AN); booleans are boxed first. */
-        private fun emitBinary(op: Int, cls: Int) {
-            val left = st.peek(1)
-            val right = st.peek(0)
-            if (left == JT.BOOL || right == JT.BOOL) {
+        /**
+         * A binary operator with at least one number operand ([cls] NN, NA or AN) giving [result]; booleans are boxed
+         * first. With INT, bitwise operators on two numbers are JVM int operations on their ToInt32s and comparisons of two
+         * ints are int comparisons; everything else is done on doubles (ints are widened).
+         */
+        private fun emitBinary(op: Int, cls: Int, result: Byte) {
+            if (st.peek(1) == JT.BOOL || st.peek(0) == JT.BOOL) {
                 convertTo(st.toArray().also { k ->
-                    if (left == JT.BOOL) k[k.size - 2] = JT.ANY
-                    if (right == JT.BOOL) k[k.size - 1] = JT.ANY
+                    if (k[k.size - 2] == JT.BOOL) k[k.size - 2] = JT.ANY
+                    if (k[k.size - 1] == JT.BOOL) k[k.size - 1] = JT.ANY
                 })
             }
+            val left = st.peek(1)
+            val right = st.peek(0)
+            if (JT.isBitwise(op) && cls == JT.NN && ta!!.ints) {
+                toInt32(right)
+                if (left == JT.NUM) {
+                    val t = temp()
+                    mv.visitVarInsn(ISTORE, t)
+                    toInt32(left)
+                    mv.visitVarInsn(ILOAD, t)
+                }
+                // the JVM masks shift counts to 5 bits, as JS does
+                when (op) {
+                    Op.BAND -> mv.visitInsn(IAND)
+                    Op.BOR -> mv.visitInsn(IOR)
+                    Op.BXOR -> mv.visitInsn(IXOR)
+                    Op.SHL -> mv.visitInsn(ISHL)
+                    Op.SAR -> mv.visitInsn(ISHR)
+                    else -> {
+                        // >>>: the uint32 as a double
+                        mv.visitInsn(IUSHR)
+                        mv.visitInsn(I2L)
+                        mv.visitLdcInsn(0xFFFFFFFFL)
+                        mv.visitInsn(LAND)
+                        mv.visitInsn(L2D)
+                    }
+                }
+                return
+            }
+            if (JT.isCompare(op) && left == JT.INT && right == JT.INT) {
+                compareInts(op)
+                return
+            }
+            widenInts(2)
             val base = when (op) {
                 Op.ADD -> "add"; Op.SUB -> "sub"; Op.MUL -> "mul"; Op.DIV -> "div"; Op.MOD -> "mod"; Op.EXP -> "exp"
                 Op.BAND -> "band"; Op.BOR -> "bor"; Op.BXOR -> "bxor"; Op.SHL -> "shl"; Op.SAR -> "sar"; Op.SHR -> "shr"
                 Op.LT -> "lt"; Op.GT -> "gt"; Op.LE -> "le"; Op.GE -> "ge"; Op.EQ -> "eq"; Op.NE -> "ne"
                 Op.SEQ -> "seq"; else -> "sne"
             }
+            // the helpers of the bitwise operators (but >>>) return the int32
+            val intResult = JT.isBitwise(op) && op != Op.SHR
             val ret = when {
                 JT.isCompare(op) -> "Z"
                 op == Op.ADD && cls != JT.NN -> OBJ
+                intResult -> "I"
                 else -> "D"
             }
             when (cls) {
@@ -807,11 +950,33 @@ object JvmCompiler {
                     Op.DIV -> mv.visitInsn(DDIV)
                     Op.MOD -> mv.visitInsn(DREM) // fmod: the sign of the dividend, as JS %
                     Op.EXP -> rt("powDD", "(DD)D") // not Math.pow: 1 ** Infinity is NaN in JS
+                    // bitwise ones without INT: as before it
                     else -> if (JT.isCompare(op)) compareDoubles(op) else rt(base + "DD", "(DD)D")
                 }
                 JT.NA -> if (JT.isCompare(op)) compareMixed(op, base, numLeft = true) else rt(base + "DA", "(D$OBJ)$ret")
                 else -> if (JT.isCompare(op)) compareMixed(op, base, numLeft = false) else rt(base + "AD", "(${OBJ}D)$ret")
             }
+            if (intResult && cls != JT.NN && result == JT.NUM) mv.visitInsn(I2D)
+        }
+
+        /** Pushes 0 or 1 for the comparison of the two ints on the stack. */
+        private fun compareInts(op: Int) {
+            val jump = when (op) {
+                Op.LT -> IF_ICMPLT
+                Op.LE -> IF_ICMPLE
+                Op.GT -> IF_ICMPGT
+                Op.GE -> IF_ICMPGE
+                Op.EQ, Op.SEQ -> IF_ICMPEQ
+                else -> IF_ICMPNE // NE, SNE
+            }
+            val yes = Label()
+            val done = Label()
+            mv.visitJumpInsn(jump, yes)
+            mv.visitInsn(ICONST_0)
+            mv.visitJumpInsn(GOTO, done)
+            mv.visitLabel(yes)
+            mv.visitInsn(ICONST_1)
+            mv.visitLabel(done)
         }
 
         /**

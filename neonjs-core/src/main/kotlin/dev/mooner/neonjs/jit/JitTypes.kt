@@ -6,15 +6,21 @@ import dev.mooner.neonjs.compiler.Op
  * Value kinds of the type analysis that lets [JvmCompiler] keep numbers and booleans unboxed.
  *
  * Soundness rules (docs/ARCHITECTURE.md, section JIT, "Unboxed numbers"):
- *  - NUM is a JS number held as a JVM `double`; BOOL a boolean held as a JVM `int`; ANY anything held as an Object.
+ *  - NUM is a JS number held as a JVM `double`; INT a JS number that is an int32 (never -0) held as a JVM `int`; BOOL a
+ *    boolean held as a JVM `int`; ANY anything held as an Object. INT is a NUM: where they meet, the int is widened.
  *  - A value is NUM only when every way of producing it yields a number: number literals, constants that are numbers
  *    (their kinds are part of the class identity, as classes are shared by code blocks with equal code), and operators
  *    that return numbers by definition (`-`, `*`, `/`, `%`, `**`, bitwise operators and shifts as soon as one operand is
  *    a number, since a BigInt operand then throws; `+` only when both operands are numbers; unary `+`; `++`/`--`/
  *    unary `-`/`~` of a number).
+ *  - A value is INT only when it is an int32 by definition: integer literals and constants that are int32s (not -0),
+ *    and the results of `&`, `|`, `^`, `<<`, `>>` and `~` (ToInt32 of something). Arithmetic is never done on ints:
+ *    `+`, `-`, `*`, `/`, `%`, `**`, `++`, `--` and unary `-` widen their int operands and give NUM (int arithmetic would
+ *    wrap, lose -0 or throw), and `>>>` gives NUM (a uint32).
  *  - Registers are invisible outside their function (captured, eval-visible and mapped-argument bindings live in
  *    environment slots), so only stores and loads in the function itself define them. A register is kept as a `double`
- *    only when every load of it sees a number on every path, exception edges included.
+ *    only when every load of it sees a number on every path, exception edges included, and as an `int` when every load
+ *    sees an INT.
  *  - Nothing else is inferred, and no check (bounds, TDZ, interrupt, stack depth) is ever removed because of a type.
  */
 internal object JT {
@@ -23,8 +29,11 @@ internal object JT {
     const val BOOL: Byte = 2
     /** Registers only: still the initial `undefined`. */
     const val UNDEF: Byte = 3
+    const val INT: Byte = 4
 
-    fun join(a: Byte, b: Byte): Byte = if (a == b) a else ANY
+    fun isNum(k: Byte) = k == NUM || k == INT
+
+    fun join(a: Byte, b: Byte): Byte = if (a == b) a else if (isNum(a) && isNum(b)) NUM else ANY
 
     // binary operator classes, shared by the analysis and the code generator so that they cannot disagree
     const val GENERIC = 0
@@ -40,11 +49,14 @@ internal object JT {
     fun isCompare(op: Int) = op == Op.LT || op == Op.GT || op == Op.LE || op == Op.GE ||
         op == Op.EQ || op == Op.NE || op == Op.SEQ || op == Op.SNE
 
-    /** How the binary operator [op] is compiled for operand kinds [a] (left) and [b] (right); BOOL counts as ANY. */
+    /**
+     * How the binary operator [op] is compiled for operand kinds [a] (left) and [b] (right): N stands for both number
+     * kinds; BOOL counts as ANY.
+     */
     fun binaryClass(op: Int, a: Byte, b: Byte): Int {
         if (op != Op.ADD && !isArith(op) && !isBitwise(op) && !isCompare(op)) return GENERIC
-        val an = a == NUM
-        val bn = b == NUM
+        val an = isNum(a)
+        val bn = isNum(b)
         return when {
             an && bn -> NN
             an -> NA
@@ -76,34 +88,62 @@ internal object JT {
         else -> -1
     }
 
-    /** Kind of the result of binary operator [op] compiled as [cls]. */
-    fun binaryResult(op: Int, cls: Int): Byte = when {
+    /** Kind of the result of binary operator [op] compiled as [cls]; [int] is INT, or NUM where ints are not used. */
+    fun binaryResult(op: Int, cls: Int, int: Byte): Byte = when {
         cls == GENERIC -> ANY
         isCompare(op) -> BOOL
         op == Op.ADD -> if (cls == NN) NUM else ANY // number + string is a concatenation
+        isBitwise(op) && op != Op.SHR -> int
         else -> NUM
     }
 }
 
 /**
  * Forward data-flow analysis of a code block for [JvmCompiler]: the kind of every operand stack slot at every
- * instruction, the kind of every register, and which registers are kept as JVM `double` locals. Instructions that are
- * not reachable get no state (the generator emits nothing for them).
+ * instruction, the kind of every register, and which registers are kept as JVM `double` or `int` locals. Instructions
+ * that are not reachable get no state (the generator emits nothing for them). Without [ints], nothing is INT (integers
+ * are NUM, as before INT existed).
  */
-internal class TypeAnalysis(private val input: JitInput) {
+internal class TypeAnalysis(private val input: JitInput, val ints: Boolean) {
     private val code = input.code
+    /** Kind of the values that are int32s by definition: INT, or NUM without [ints]. */
+    val intKind = if (ints) JT.INT else JT.NUM
     /** Kinds of the operand stack before the instruction at each pc (null: unreachable). */
     val stackIn = arrayOfNulls<ByteArray>(code.size)
     private val regsIn = arrayOfNulls<ByteArray>(code.size)
     private val readKind = ByteArray(input.numRegs) { -1 }
     private val forceAny = BooleanArray(input.numRegs)
-    /** Registers held in a JVM `double` local. */
-    val numReg = BooleanArray(input.numRegs)
+    /** How each register is held: NUM a JVM `double` local, INT an `int` local, ANY an Object local. */
+    val regStorage = ByteArray(input.numRegs)
 
     fun reachable(pc: Int) = pc < code.size && stackIn[pc] != null
 
     /** Kind of register [r] before the instruction at [pc] (reachable). */
     fun regKind(pc: Int, r: Int): Byte = regsIn[pc]!![r]
+
+    // the result kinds below are also what the code generator emits
+
+    /** Kind of constant [k] when pushed. */
+    fun constKind(k: Int): Byte = when (input.constKinds[k]) {
+        JitInput.CONST_INT -> intKind
+        JitInput.CONST_NUMBER -> JT.NUM
+        else -> JT.ANY
+    }
+
+    /** Kind of the result of NEG, BNOT, INC, DEC or TO_NUMERIC on a value of kind [t]. */
+    fun unaryResult(op: Int, t: Byte): Byte = when {
+        !JT.isNum(t) -> JT.ANY
+        op == Op.BNOT -> intKind
+        op == Op.TO_NUMERIC -> t
+        else -> JT.NUM // -0 is -0, and ++ / -- can leave the int32 range
+    }
+
+    /** Kind of the result of TO_NUMBER (unary plus) on a value of kind [t]. */
+    fun toNumberResult(t: Byte): Byte = when (t) {
+        JT.INT -> JT.INT
+        JT.BOOL -> intKind
+        else -> JT.NUM
+    }
 
     fun run(): TypeAnalysis {
         // A handler starts with just the exception on the stack, as in the JVM, which empties the operand stack when it
@@ -117,7 +157,7 @@ internal class TypeAnalysis(private val input: JitInput) {
             val pc = work.removeFirst()
             step(pc, regsIn[pc]!!.copyOf(), stackIn[pc]!!, work)
         }
-        for (r in 0 until input.numRegs) numReg[r] = !forceAny[r] && readKind[r] == JT.NUM
+        for (r in 0 until input.numRegs) regStorage[r] = if (forceAny[r] || !JT.isNum(readKind[r])) JT.ANY else readKind[r]
         return this
     }
 
@@ -145,7 +185,7 @@ internal class TypeAnalysis(private val input: JitInput) {
     }
 
     private fun read(r: Int, kind: Byte) {
-        val k = if (kind == JT.NUM) JT.NUM else JT.ANY
+        val k = if (JT.isNum(kind)) kind else JT.ANY
         readKind[r] = if (readKind[r] < 0) k else JT.join(readKind[r], k)
     }
 
@@ -164,16 +204,17 @@ internal class TypeAnalysis(private val input: JitInput) {
         val s = KindStack().also { it.set(stackInPc) }
         fun next() = merge(pc + len, regs, s.toArray(), work)
         when (op) {
-            Op.PUSH_INT -> { s.push(JT.NUM); next() }
-            Op.PUSH_CONST -> { s.push(if (input.constKinds[a] == JitInput.CONST_NUMBER) JT.NUM else JT.ANY); next() }
+            Op.PUSH_INT -> { s.push(intKind); next() }
+            Op.PUSH_CONST -> { s.push(constKind(a)); next() }
             Op.PUSH_TRUE, Op.PUSH_FALSE -> { s.push(JT.BOOL); next() }
             Op.LOAD_REG -> {
                 read(a, regs[a])
-                s.push(if (regs[a] == JT.NUM) JT.NUM else JT.ANY)
+                s.push(if (JT.isNum(regs[a])) regs[a] else JT.ANY)
                 next()
             }
             Op.STORE_REG -> {
-                regs[a] = if (s.pop() == JT.NUM) JT.NUM else JT.ANY
+                val k = s.pop()
+                regs[a] = if (JT.isNum(k)) k else JT.ANY
                 next()
             }
             Op.POP -> { s.pop(); next() }
@@ -187,15 +228,15 @@ internal class TypeAnalysis(private val input: JitInput) {
             Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.SEQ, Op.SNE -> {
                 val rb = s.pop()
                 val ra = s.pop()
-                s.push(JT.binaryResult(op, JT.binaryClass(op, ra, rb)))
+                s.push(JT.binaryResult(op, JT.binaryClass(op, ra, rb), intKind))
                 next()
             }
             Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC -> {
                 val t = s.pop()
-                s.push(if (t == JT.NUM) JT.NUM else JT.ANY)
+                s.push(unaryResult(op, t))
                 next()
             }
-            Op.TO_NUMBER -> { s.pop(); s.push(JT.NUM); next() } // unary plus: a number, or a TypeError for BigInt
+            Op.TO_NUMBER -> { s.push(toNumberResult(s.pop())); next() } // unary plus: a number, or a TypeError for BigInt
             Op.NOT -> { s.pop(); s.push(JT.BOOL); next() }
             Op.JUMP_IF_TRUE, Op.JUMP_IF_FALSE -> {
                 s.pop()

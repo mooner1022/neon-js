@@ -29,10 +29,13 @@ class JitTypesTest {
 
     private fun same(code: String, expected: String? = null) {
         val untyped = JvmCompiler.untypedReasons.values.sumOf { it.get() }
+        val failed = JvmCompiler.failedCount.get()
         val interpreted = run(code, ExecutionMode.INTERPRETER)
         if (expected != null) assertEquals(expected, interpreted, "interpreter: $code")
         assertEquals(interpreted, run(code, ExecutionMode.COMPILED), "compiled: $code")
         assertEquals(untyped, JvmCompiler.untypedReasons.values.sumOf { it.get() }, "compiled without unboxed values: $code")
+        // a class the JVM rejects (VerifyError) leaves its block interpreted, which would hide it from the comparison
+        assertEquals(failed, JvmCompiler.failedCount.get(), "not compiled (${JvmCompiler.failureReasons.keys}): $code")
     }
 
     @Test
@@ -62,6 +65,105 @@ class JitTypesTest {
                 "return all.apply(null, r) })()",
         )
         same("(function () { var s = 0; for (var i = 0; i < 100; i++) s = (s + i * 123456789) | 0; return all(s, s >>> 0, -s >>> 0) })()")
+    }
+
+    @Test
+    fun int32ValuesAreNumbersInArithmetic() {
+        // -0 and overflow: arithmetic on int32 values (bitwise results, integer literals and constants) is on doubles
+        same(
+            "(function () { var z = 5 & 0, m = 2147483647 | 0, n = -2147483648 | 0, f = -4 | 0, c = 2147483647, d = -2147483648; " +
+                "return all(-z, z * -1, z / -1, f % 2, -f % 4, z - 0, m + 1, m * 2, m - -1, -n, n - 1, n * n, n / -1, c + 1, d - 1, -d, (m + 1) | 0, 1 / z, 0 - z) })()",
+            "-0 -0 -0 -0 0 0 2147483648 4294967294 2147483648 2147483648 -2147483649 4611686018427388000 2147483648 2147483648 -2147483649 2147483648 -2147483648 Infinity 0",
+        )
+        same(
+            "(function () { var j = 2147483646 | 0; j++; var k = j; j++; var l = -2147483647 | 0; l--; l--; var p = 7 & 7; p += 0.5; var q = 3 | 0; q = q / 2; " +
+                "return all(j, k, l, p, q, 2147483647 + 1, -(0 | 0), 0 * -1) })()",
+            "2147483648 2147483647 -2147483649 7.5 1.5 2147483648 -0 -0",
+        )
+        // -0 constants are not int32s
+        same("(function () { var z = -0; var w = z | 0; return all(z, 1 / z, w, 1 / w, -0 & 1, z === 0, Object.is(z, -0)) })()", "-0 -Infinity 0 Infinity 0 true true")
+    }
+
+    @Test
+    fun int32BitwiseOperators() {
+        same(
+            "(function () { var one = 1 | 0, m1 = -1 | 0, s = 32 | 0; " +
+                "return all(one << 31, one << 32, one << 33, one << m1, m1 >>> 0, m1 >>> 31, m1 >>> s, -8 >> 1, m1 >> 33, (one << 31) >>> 0, ~0, ~m1, ~~3.7, ~~-3.7, ~2147483647, " +
+                "0x5bd1e995 ^ m1, 0x80000000 | 0, 4294967295 & m1, 1e9 | 0, -1e9 >> 0, (0x80000000 | 0) >> 31, 255 & -1, m1 & 0xFFFF, s >>> 1) })()",
+            "-2147483648 1 2 -2147483648 4294967295 1 4294967295 -4 -1 2147483648 -1 0 3 -3 -2147483648 -1540483478 -2147483648 -1 1000000000 -1000000000 -1 255 65535 16",
+        )
+        // hash and random number functions: chains of int operations, with products beyond 2^53 rounded as doubles
+        same(
+            "(function () { var h = 2166136261 | 0, str = 'hello, int32'; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = (h * 16777619) | 0 } " +
+                "var x = 2463534242 | 0, r = []; for (var k = 0; k < 6; k++) { x ^= x << 13; x ^= x >> 17; x ^= x << 5; r.push(x, x >>> 0) } " +
+                "var c = 0; for (var n = 0; n < 1000; n++) { c = (c + (n & 7) * 0x7fffffff) | 0 } return all(h, h >>> 0, c) + ' ' + r.join() })()",
+            "554921442 554921442 -3500 723471715,723471715,-1797960838,2497006458,-1963417273,2331550023,1155419087,1155419087,961924764,961924764,-1874307777,2420659519",
+        )
+        same(
+            "(function () { var x = 0, n = 0 / 0, inf = 1 / 0, big = 2 ** 53 + 2, r = []; var v = [n, inf, -inf, big, -big, 2 ** 63, -(2 ** 63), 2 ** 64 + 4096, 1e300, 2 ** 32 + 5, -(2 ** 31) - 1, 2 ** 31, 0.5, -0.5, -1.5]; " +
+                "for (var i = 0; i < v.length; i++) { x = v[i] * 1; r.push(x | 0, x >> 0, x << 1, ~x, x & x, x ^ 0, x >>> 0) } return all.apply(null, r) })()",
+            "0 0 0 -1 0 0 0 0 0 0 -1 0 0 0 0 0 0 -1 0 0 0 2 2 4 -3 2 2 2 -2 -2 -4 1 -2 -2 4294967294 0 0 0 -1 0 0 0 0 0 0 -1 0 0 0 4096 4096 8192 -4097 4096 4096 4096 0 0 0 -1 0 0 0 5 5 10 -6 5 5 5 2147483647 2147483647 -2 -2147483648 2147483647 2147483647 2147483647 -2147483648 -2147483648 0 2147483647 -2147483648 -2147483648 2147483648 0 0 0 -1 0 0 0 0 0 0 -1 0 0 0 -1 -1 -2 0 -1 -1 4294967295",
+        )
+        same("(function () { var a = 6 | 0, b = 3 | 0; a |= 0; a <<= 2; a >>= 1; a ^= b; a &= 0xFF; var c = a; c >>>= 1; return all(a, c, a | b, a & ~b) })()", "15 7 15 12")
+    }
+
+    @Test
+    fun int32ComparisonsAndTruth() {
+        same(
+            "(function () { var a = -5 | 0, b = 3 | 0, n = 0 / 0, h = 0.5; " +
+                "return all(a < b, a > b, a <= -5, a >= b, a == -5, a === -5, a != b, a !== b, a < n, a >= n, a == n, (a & 0) < h, (b | 0) > 2.5, b == '3', b === '3', a < '1', b < null, b == true) })()",
+            "true false true false true true true true false false false true true true false true false false",
+        )
+        same(
+            "(function () { var r = [], z = 0 | 0, m = -2147483648 | 0, k = 1024 | 0, c = 0; while ((k >>= 1)) c++; " +
+                "r.push(!z, !m, !(5 & 2), !(5 & 4), z ? 1 : 2, m ? 1 : 2, (m & m) && 'x', (z | z) || 'y', c, !!(7 & 3)); for (var i = 0; i < 20; i++) if ((i & 7) === 0) r.push(i); return all.apply(null, r) })()",
+            "true false true false 2 1 \"x\" \"y\" 10 true 0 8 16",
+        )
+        same(
+            "(function () { var r = []; for (var i = -2; i < 6; i++) { switch (i & 3) { case 0: r.push('z'); break; case 1.0: r.push('o'); break; case '2': r.push('s'); break; default: r.push(i & 3) } } " +
+                "var t = true, f = false; r.push(+t + (5 | 0), +f, +t + 0.5, -(+f)); return all.apply(null, r) })()",
+            "2 3 \"z\" \"o\" 2 3 \"z\" \"o\" 6 0 1.5 -0",
+        )
+    }
+
+    @Test
+    fun int32ValuesMergedAndStored() {
+        // registers holding ints and doubles on different paths, values of both kinds meeting on the stack
+        same(
+            "(function () { var v = 1 | 0, r = []; for (var i = 0; i < 8; i++) { v = i % 3 ? v * 1.5 : v | 0; r.push(v) } var w = i & 1 ? 0.25 : (i | 0); " +
+                "var x = i > 3 ? (i << 1) : 'str'; var y = (i & 1) || (i | 0) * 0.5; return all(w, x, y) + ' ' + r.join() })()",
+            "8 16 4 1,1.5,2.25,2,3,4.5,4,6",
+        )
+        same(
+            "(function () { var k = 1 | 0, r = []; try { k = k << 2; throw 0 } catch (e) { k = k ^ 3 } r.push(k); var m = 5 | 0; try { m = m * 0.5; null.x } catch (e) { m = m | 0 } r.push(m); " +
+                "var q = 7 | 0; try { q = 'q' + q; undefinedName } catch (e) { r.push(q) } finally { q = q | 1 } r.push(q); return all.apply(null, r) })()",
+            "7 2 \"q7\" 1",
+        )
+        same(
+            "(function () { var s = 0 | 0; for (var i = 0; i < 100; i++) { s = (s + i * 123456789) | 0; if (i === 50) s = s / 3 } var u = s; u = u & 0xFF; return all(s, u, s >>> 0) })()",
+            "-2064961794 254 2230005502",
+        )
+        same(
+            "(function () { var log = []; var o = { valueOf: function () { log.push('o'); return 5 } }; var a = 6 | 0; var r = [o | a, a & o, a ^ '3', '12' | a, null | a, a << undefined, [5] | a, a >> [1], a >>> o]; " +
+                "try { a | 1n } catch (e) { r.push(e.name) } try { 1n & a } catch (e) { r.push(e.name) } try { a >>> 1n } catch (e) { r.push(e.name) } try { a << Symbol() } catch (e) { r.push(e.name) } " +
+                "return log.join() + ' ' + all.apply(null, r) })()",
+            "o,o,o 7 4 5 14 6 6 7 3 0 \"TypeError\" \"TypeError\" \"TypeError\" \"TypeError\"",
+        )
+    }
+
+    @Test
+    fun int32Keys() {
+        same(
+            "(function () { var a = [10, 20, , 40]; var m = -1 | 0, two = 2 & 3, r = [a[m], a[two], a[1 | 0], 2 in a]; a[m] = 'neg'; a[two] = 30; a[7 & 7] = 'far'; " +
+                "r.push(a[-1], a['-1'], a.length, a[2], a[6]); var t = new Int8Array(4); for (var i = 0; i < 6; i++) t[i & 7] = i * 100; t[m] = 1; r.push(t.join(), t[m], t[4 | 0]); " +
+                "var f = Object.freeze([1, 2]); f[0 | 0] = 9; r.push(f[0]); return all.apply(null, r) })()",
+            "undefined undefined 20 false \"neg\" \"neg\" 8 30 undefined \"0,100,-56,44\" undefined undefined 1",
+        )
+        same(
+            "(function () { var log = []; var p = new Proxy([], { set: function (t, k, v) { log.push(typeof k + k); t[k] = v; return true }, get: function (t, k) { log.push('g' + String(k)); return t[k] } }); " +
+                "for (var i = 0; i < 2; i++) p[i & 1] = i | 0; var v = p[1 | 0]; var s = 'abc'; return log.join() + ' ' + all(v, s[1 | 0], s[-1 | 0]) })()",
+            "string0,string1,g1 1 \"b\" undefined",
+        )
     }
 
     @Test

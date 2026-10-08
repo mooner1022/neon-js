@@ -138,8 +138,12 @@ object Ops {
 
     @JvmStatic
     fun toInt32(d: Double): Int {
+        // below 2^63 in magnitude, truncating to a long is exact (NaN gives 0) and its low 32 bits are the result; the
+        // saturated longs (2^63 and beyond, infinities) take the slow path. (Testing the int range first is slower on
+        // ART and HotSpot alike, for large values.)
+        val l = d.toLong()
+        if (l != Long.MAX_VALUE && l != Long.MIN_VALUE) return l.toInt()
         if (d != d || d == Double.POSITIVE_INFINITY || d == Double.NEGATIVE_INFINITY) return 0
-        if (d >= -2147483648.0 && d <= 2147483647.0) return d.toInt()
         val t = if (d < 0) ceil(d) else floor(d)
         val m = t % 4294967296.0
         return m.toLong().toInt()

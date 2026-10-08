@@ -119,7 +119,8 @@ background threads are shared by all engines and their work is not charged to a 
 properties: `neonjs.jit.threads` (default 1–2 by core count, 0 = none), `neonjs.jit.batch` (32),
 `neonjs.jit.maxPending` (4096, beyond which callers compile themselves), `neonjs.jit.debugInfo` (JVM line numbers in
 generated classes, for profilers), `neonjs.jit.typed` (`false` keeps numbers boxed in generated code),
-`neonjs.jit.dump` (a directory to write the generated classes to).
+`neonjs.jit.int32` (`false` keeps int32 values as doubles in generated code), `neonjs.jit.dump` (a directory to write
+the generated classes to).
 
 ### Values
 

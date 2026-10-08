@@ -17,6 +17,17 @@ class LanguageTest {
     }
 
     @Test
+    fun int32ConversionOfLargeNumbers() {
+        // ToInt32 truncates through a long below 2^63, and takes the modulo path from there
+        both(
+            "[2 ** 31, 2 ** 32 + 5, -(2 ** 31) - 1, 2 ** 53 + 2, -(2 ** 53) - 2, 2 ** 63 - 1024, -(2 ** 63) + 1024, -(2 ** 63), 2 ** 63, 2 ** 64 + 4096, " +
+                "1e300, -1e300, NaN, Infinity, -Infinity, -0, 0.9, -0.9, -1.5, 4294967295.5].map(function (x) { return [x | 0, x >>> 0, ~x].join(' ') }).join(',')",
+            "-2147483648 2147483648 2147483647,5 5 -6,2147483647 2147483647 -2147483648,2 2 -3,-2 4294967294 1,-1024 4294966272 1023,1024 1024 -1025," +
+                "0 0 -1,0 0 -1,4096 4096 -4097,0 0 -1,0 0 -1,0 0 -1,0 0 -1,0 0 -1,0 0 -1,0 0 -1,0 0 -1,-1 4294967295 0,-1 4294967295 0",
+        )
+    }
+
+    @Test
     fun directEvalInModulesSeesImportedValues() {
         for (mode in listOf(ExecutionMode.INTERPRETER, ExecutionMode.COMPILED, ExecutionMode.ADAPTIVE)) {
             NeonEngine.builder().executionMode(mode).console(null).build().newContext().use { c ->
