@@ -96,7 +96,9 @@ enum class ElementType(val jsName: String, @JvmField val size: Int, @JvmField va
     val ctorName: String get() = jsName + "Array"
 
     /** ToNumber / ToBigInt as required before storing into this element type. */
-    fun coerce(v: Any?): Any = if (isBigInt) Ops.toBigInt(v) else v as? Double ?: Ops.toNumber(v)
+    // not `v as? Double ?: Ops.toNumber(v)`: that expression is typed `double`, so the box would be unwrapped and a new
+    // one allocated for every store
+    fun coerce(v: Any?): Any = if (isBigInt) Ops.toBigInt(v) else if (v is Double) v else Ops.toNumber(v)
 }
 
 /**
