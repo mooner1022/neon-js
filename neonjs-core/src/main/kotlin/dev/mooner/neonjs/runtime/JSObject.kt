@@ -366,6 +366,10 @@ open class JSObject(@JvmField var proto: JSObject?) {
 
     /** CreateDataProperty */
     fun createDataProperty(key: Any, value: Any?): Boolean {
+        if (this is JSArray && key is Int) {
+            val r = createIndexFast(key, value)
+            if (r >= 0) return r == 1
+        }
         if (special and SPECIAL_ALL == 0) {
             val p = props
             val i = p?.find(key) ?: -1

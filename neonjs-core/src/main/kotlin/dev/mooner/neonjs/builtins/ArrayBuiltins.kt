@@ -21,6 +21,28 @@ internal object ArrayBuiltins {
         return PK.fromIndex(i)
     }
 
+    /**
+     * HasProperty(o, k) then Get(o, k), as the callback loops do them, with [key]'s interrupt check: the value, or
+     * [NotFound] if absent. An element of a dense array is read directly (for it neither step is observable); anything
+     * else takes the generic steps. Called for each element anew, since a callback may change the array.
+     */
+    fun element(o: JSObject, k: Long): Any? {
+        if (k and 1023L == 1023L) Agent.current.get()?.checkInterrupt()
+        if (o is JSArray && !o.sparse && k < o.denseLen) {
+            val v = o.dense[k.toInt()]
+            if (v !== Hole) return v
+        }
+        val pk = PK.fromIndex(k)
+        return if (o.hasProperty(pk)) o.get(pk, o) else NotFound
+    }
+
+    /** CreateDataPropertyOrThrow(a, k, v), an array element directly when [JSArray.createIndexFast] decides it. */
+    fun createElement(a: JSObject, k: Long, v: Any?) {
+        // a refusal (0) changed nothing: the generic steps refuse it again, with their error
+        if (a is JSArray && k <= Int.MAX_VALUE && a.createIndexFast(k.toInt(), v) == 1) return
+        a.createDataPropertyOrThrow(PK.fromIndex(k), v)
+    }
+
     fun arrayCreate(realm: Realm, length: Long, proto: JSObject? = null): JSArray {
         if (length > JSArray.MAX_LENGTH) rangeErr("Invalid array length")
         val a = JSArray(proto ?: realm.arrayPrototype)
@@ -164,11 +186,8 @@ internal object ArrayBuiltins {
             var r = true
             var k = 0L
             while (k < n) {
-                val pk = key(k)
-                if (o.hasProperty(pk)) {
-                    val v = o.get(pk, o)
-                    if (!Ops.toBoolean(cb.call(args.arg(1), arrayOf(v, k.toDouble(), o)))) { r = false; break }
-                }
+                val v = element(o, k)
+                if (v !== NotFound && !Ops.toBoolean(cb.call(args.arg(1), arrayOf(v, Ops.num(k), o)))) { r = false; break }
                 k++
             }
             r
@@ -193,13 +212,10 @@ internal object ArrayBuiltins {
             var to = 0L
             var k = 0L
             while (k < n) {
-                val pk = key(k)
-                if (o.hasProperty(pk)) {
-                    val v = o.get(pk, o)
-                    if (Ops.toBoolean(cb.call(args.arg(1), arrayOf(v, k.toDouble(), o)))) {
-                        a.createDataPropertyOrThrow(key(to), v)
-                        to++
-                    }
+                val v = element(o, k)
+                if (v !== NotFound && Ops.toBoolean(cb.call(args.arg(1), arrayOf(v, Ops.num(k), o)))) {
+                    createElement(a, to, v)
+                    to++
                 }
                 k++
             }
@@ -252,8 +268,8 @@ internal object ArrayBuiltins {
             val cb = callable(args.arg(0))
             var k = 0L
             while (k < n) {
-                val pk = key(k)
-                if (o.hasProperty(pk)) cb.call(args.arg(1), arrayOf(o.get(pk, o), k.toDouble(), o))
+                val v = element(o, k)
+                if (v !== NotFound) cb.call(args.arg(1), arrayOf(v, Ops.num(k), o))
                 k++
             }
             Undefined
@@ -328,8 +344,8 @@ internal object ArrayBuiltins {
             val a = speciesCreate(f.realm, o, n)
             var k = 0L
             while (k < n) {
-                val pk = key(k)
-                if (o.hasProperty(pk)) a.createDataPropertyOrThrow(pk, cb.call(args.arg(1), arrayOf(o.get(pk, o), k.toDouble(), o)))
+                val v = element(o, k)
+                if (v !== NotFound) createElement(a, k, cb.call(args.arg(1), arrayOf(v, Ops.num(k), o)))
                 k++
             }
             a
@@ -388,8 +404,8 @@ internal object ArrayBuiltins {
                     if (!found) typeErr("Reduce of empty array with no initial value")
                 }
                 while (if (right) k >= 0 else k < n) {
-                    val pk = key(k)
-                    if (o.hasProperty(pk)) acc = cb.call(Undefined, arrayOf(acc, o.get(pk, o), k.toDouble(), o))
+                    val v = element(o, k)
+                    if (v !== NotFound) acc = cb.call(Undefined, arrayOf(acc, v, Ops.num(k), o))
                     if (right) k-- else k++
                 }
                 acc
@@ -466,8 +482,8 @@ internal object ArrayBuiltins {
             var r = false
             var k = 0L
             while (k < n) {
-                val pk = key(k)
-                if (o.hasProperty(pk) && Ops.toBoolean(cb.call(args.arg(1), arrayOf(o.get(pk, o), k.toDouble(), o)))) { r = true; break }
+                val v = element(o, k)
+                if (v !== NotFound && Ops.toBoolean(cb.call(args.arg(1), arrayOf(v, Ops.num(k), o)))) { r = true; break }
                 k++
             }
             r

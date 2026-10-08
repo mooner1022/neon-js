@@ -77,6 +77,28 @@ class JSArray(proto: JSObject?, capacity: Int = 0) : JSObject(proto) {
         return false
     }
 
+    /**
+     * CreateDataProperty(this, [i], [v]) without a property descriptor: 1 (defined), 0 (refused) or -1 (not decided
+     * here: sparse arrays, keys past the dense end). The same steps as [defineOwnProperty] with a writable,
+     * enumerable, configurable data descriptor, taken on the current state, so a callback that changed the array
+     * since the last call (froze it, made it sparse, set its length read-only) is seen.
+     */
+    internal fun createIndexFast(i: Int, v: Any?): Int {
+        if (sparse || i < 0) return -1
+        if (i >= length && !lengthWritable) return 0
+        if (i < denseLen && dense[i] !== Hole) {
+            // dense elements are all writable, enumerable and configurable (others make the array sparse)
+            dense[i] = v
+        } else {
+            if (!extensible) return 0
+            if (i < denseLen) dense[i] = v
+            else if (i == denseLen) appendDense(v)
+            else return -1
+        }
+        if (i >= length) length = i + 1L
+        return 1
+    }
+
     private fun appendDense(v: Any?) {
         if (denseLen == dense.size) {
             val n = if (dense.isEmpty()) 8 else dense.size + (dense.size shr 1) + 1
