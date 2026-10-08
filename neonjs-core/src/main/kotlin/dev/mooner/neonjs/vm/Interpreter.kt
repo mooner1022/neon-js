@@ -48,7 +48,12 @@ object Interpreter {
                 throw fn.realm.typeError("Class constructor ${fn.debugName()} cannot be invoked without 'new'")
             }
             val realm = fn.realm
-            val compiled = if (flags and (CodeBlock.GENERATOR or CodeBlock.ASYNC) == 0) dev.mooner.neonjs.jit.Jit.prepare(code, realm.agent) else null
+            val compiled = if (flags and (CodeBlock.GENERATOR or CodeBlock.ASYNC) != 0) null else {
+                // installed code, Jit.prepare's first case, without calling it (ahead-of-time code on ART does not
+                // inline it: ~7% of a call there)
+                val c = code.compiled
+                if (c != null && code.childrenQueued) c as dev.mooner.neonjs.jit.CompiledCode else dev.mooner.neonjs.jit.Jit.prepare(code, realm.agent)
+            }
             val thisValue = if (flags and CodeBlock.ARROW != 0) fn.lexicalThis
             else if (flags and CodeBlock.STRICT != 0) thisArg
             else if (thisArg === Undefined || thisArg === Null || thisArg == null) realm.globalEnv.thisValue
