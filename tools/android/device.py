@@ -31,7 +31,8 @@ class Device:
         self.adb = [exe if os.path.isfile(exe) else 'adb'] + (['-s', serial] if serial else [])
 
     def shell(self, cmd, capture=False):
-        r = subprocess.run(self.adb + ['shell', cmd], capture_output=capture, text=True)
+        # device output is UTF-8 whatever the host's locale (e.g. cp949 on Korean Windows)
+        r = subprocess.run(self.adb + ['shell', cmd], capture_output=capture, text=True, encoding='utf-8', errors='replace')
         return r if capture else r.returncode
 
     def out(self, cmd):
