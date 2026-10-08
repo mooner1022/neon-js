@@ -131,11 +131,16 @@ internal object BufferOps {
     @JvmField val TWO_64: BigInteger = BigInteger.ONE.shiftLeft(64)
 
     /**
-     * Whether multi-byte loads and stores go through byte-array view VarHandles ([ByteViews]): standard JVMs and
-     * Android API 33+. Older Android has no VarHandle, so values are assembled from bytes instead
-     * (`-Dneonjs.noVarHandle=true` forces that path, to test it on a JVM).
+     * Whether multi-byte loads and stores go through byte-array view VarHandles ([ByteViews]): standard JVMs only.
+     * Elsewhere values are assembled from bytes (`-Dneonjs.noVarHandle=true` forces that path, to test it on a JVM):
+     *  - Android before API 33 has no VarHandle.
+     *  - On ART (API 33+) a view access is fast only at an address aligned to its size, and a byte array's data starts
+     *    4 bytes past an 8-byte boundary: every Float64Array / BigInt64Array element and every unaligned DataView
+     *    access is slow (~10x the byte path, on the API 34 emulator); aligned 16- and 32-bit accesses are no faster
+     *    than the byte path there.
      */
-    @JvmField val USE_VAR_HANDLES: Boolean = !java.lang.Boolean.getBoolean("neonjs.noVarHandle") && try {
+    @JvmField val USE_VAR_HANDLES: Boolean = !java.lang.Boolean.getBoolean("neonjs.noVarHandle") &&
+        System.getProperty("java.vm.name") != "Dalvik" && try {
         ByteViews.I16_LE
         true
     } catch (_: Throwable) {
