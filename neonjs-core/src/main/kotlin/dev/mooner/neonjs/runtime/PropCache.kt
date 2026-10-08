@@ -94,7 +94,7 @@ object PropCache {
     }
 
     private fun callGetter(acc: Any?, receiver: Any?): Any? {
-        val g = (acc as Accessor).getter
+        val g = acc.cast<Accessor>().getter
         return if (g is JSObject) g.call(receiver, EMPTY_ARGS) else Undefined
     }
 
@@ -179,7 +179,7 @@ object PropCache {
                         val h = walk(o, e.chain!!)
                         if (h != null) {
                             // the setter itself can be replaced without a shape change
-                            val setter = (h.props!!.values[e.slot] as Accessor).setter
+                            val setter = h.props!!.values[e.slot].cast<Accessor>().setter
                             if (setter is JSObject) {
                                 setter.call(o, arrayOf(v))
                                 return true
@@ -225,7 +225,7 @@ object PropCache {
             if (j >= 0) {
                 val f = pp!!.flags[j]
                 if (f and Attr.ACCESSOR != 0) {
-                    val setter = (pp.values[j] as Accessor).setter
+                    val setter = pp.values[j].cast<Accessor>().setter
                     if (setter !is JSObject) return null
                     return PropIC(sh, chain.toTypedArray(), j, SETTER, null, null)
                 }

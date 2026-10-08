@@ -359,7 +359,7 @@ object Rt {
     @JvmStatic
     fun superCall(func: Any?, args: Array<Any?>, newTarget: Any?): Any? {
         if (!Ops.isConstructor(func)) throw JSException.typeError("Super constructor ${Ops.describe(func)} is not a constructor")
-        return (func as JSObject).construct(args, newTarget as JSObject)
+        return func.cast<JSObject>().construct(args, newTarget.cast<JSObject>())
     }
 
     // ------------------------------------------------------------------ functions & classes
@@ -454,7 +454,7 @@ object Rt {
             ctorParent = realm.functionPrototype
         } else {
             if (!Ops.isConstructor(heritage)) throw JSException.typeError("Class extends value ${Ops.describe(heritage)} is not a constructor or null")
-            val h = heritage as JSObject
+            val h = heritage.cast<JSObject>()
             if (h is JSClosure && h.code.isGenerator) throw JSException.typeError("Class extends value is a generator")
             val pp = h.get("prototype", h)
             protoParent = when (pp) {

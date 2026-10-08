@@ -22,42 +22,42 @@ object JitRt {
     )
 
     @JvmStatic fun tdz(v: Any?, k: Int, consts: Array<Any?>): Any? {
-        if (v === Uninitialized) throw tdzError(consts[k] as String)
+        if (v === Uninitialized) throw tdzError(consts[k].cast<String>())
         return v
     }
 
     @JvmStatic fun truthy(v: Any?): Boolean = if (v is Boolean) v else Ops.toBoolean(v)
     @JvmStatic fun isNullish(v: Any?): Boolean = v === Undefined || v === Null
     @JvmStatic fun isUndefined(v: Any?): Boolean = v === Undefined
-    @JvmStatic fun toIntIndex(v: Any?): Int = (v as Double).toInt()
+    @JvmStatic fun toIntIndex(v: Any?): Int = (v.cast<Double>()).toInt()
 
     // ------------------------------------------------------------------ environments
 
     @JvmStatic fun pushScope(f: Frame, consts: Array<Any?>, k: Int) {
-        f.env = DeclEnv(f.env, consts[k] as ScopeInfo)
+        f.env = DeclEnv(f.env, consts[k].cast<ScopeInfo>())
     }
     @JvmStatic fun popScope(f: Frame) { f.env = f.env!!.parent }
-    @JvmStatic fun copyScope(f: Frame) { f.env = (f.env as DeclEnv).copy() }
-    @JvmStatic fun pushWith(o: Any?, f: Frame) { f.env = ObjectEnv(f.env, o as JSObject, true) }
+    @JvmStatic fun copyScope(f: Frame) { f.env = (f.env.cast<DeclEnv>()).copy() }
+    @JvmStatic fun pushWith(o: Any?, f: Frame) { f.env = ObjectEnv(f.env, o.cast<JSObject>(), true) }
     @JvmStatic fun setEnv(v: Any?, f: Frame) { f.env = v as Env? }
 
     @JvmStatic fun loadEnv(f: Frame, h: Int, s: Int): Any? {
         var e = f.env
         var n = h
         while (n-- > 0) e = e!!.parent
-        return (e as DeclEnv).slots[s]
+        return (e.cast<DeclEnv>()).slots[s]
     }
 
     @JvmStatic fun storeEnv(v: Any?, f: Frame, h: Int, s: Int) {
         var e = f.env
         var n = h
         while (n-- > 0) e = e!!.parent
-        (e as DeclEnv).slots[s] = v
+        (e.cast<DeclEnv>()).slots[s] = v
     }
 
     @JvmStatic fun loadEnvTdz(f: Frame, h: Int, s: Int, k: Int, consts: Array<Any?>): Any? {
         val v = loadEnv(f, h, s)
-        if (v === Uninitialized) throw tdzError(consts[k] as String)
+        if (v === Uninitialized) throw tdzError(consts[k].cast<String>())
         return v
     }
 
@@ -71,7 +71,7 @@ object JitRt {
         var e = f.env
         var n = h
         while (n-- > 0) e = e!!.parent
-        val de = e as DeclEnv
+        val de = e.cast<DeclEnv>()
         if (de.slots[s] !== Uninitialized) throw JSException.referenceError("Super constructor may only be called once")
         de.slots[s] = v
     }
@@ -82,27 +82,30 @@ object JitRt {
 
     private fun strict(f: Frame) = f.code.flags and CodeBlock.STRICT != 0
 
-    @JvmStatic fun loadName(f: Frame, name: Any?): Any? = Names.load(f.env, name as String, strict(f), false)
-    @JvmStatic fun loadNameTypeof(f: Frame, name: Any?): Any? = Names.load(f.env, name as String, strict(f), true)
+    @JvmStatic fun loadName(f: Frame, name: Any?): Any? = Names.load(f.env, name.cast<String>(), strict(f), false)
+    @JvmStatic fun loadNameTypeof(f: Frame, name: Any?): Any? = Names.load(f.env, name.cast<String>(), strict(f), true)
     @JvmStatic fun loadNameCall(f: Frame, name: Any?): Array<Any?> {
-        val (v, t) = Names.loadForCall(f.env, name as String, strict(f))
+        val (v, t) = Names.loadForCall(f.env, name.cast<String>(), strict(f))
         return arrayOf(v, t)
     }
-    @JvmStatic fun storeName(v: Any?, f: Frame, name: Any?) = Names.store(f.env, name as String, v, strict(f), f.realm.globalEnv)
-    @JvmStatic fun storeNameVar(v: Any?, f: Frame, name: Any?) = Rt.storeAnnexBVar(f.env, name as String, v, f.realm)
-    @JvmStatic fun deleteName(f: Frame, name: Any?): Any? = Names.delete(f.env, name as String)
-    @JvmStatic fun initName(v: Any?, f: Frame, name: Any?) = Names.initialize(f.env, name as String, v)
-    @JvmStatic fun loadGlobal(f: Frame, site: Any?): Any? = GlobalCache.load(f.realm, site as GlobalSite, false)
-    @JvmStatic fun loadGlobalTypeof(f: Frame, site: Any?): Any? = GlobalCache.load(f.realm, site as GlobalSite, true)
-    @JvmStatic fun storeGlobal(v: Any?, f: Frame, site: Any?) = GlobalCache.store(f.realm, site as GlobalSite, v, strict(f))
-    @JvmStatic fun initGlobalLex(v: Any?, f: Frame, name: Any?) = Rt.initGlobalLexical(f.realm, name as String, v)
-    @JvmStatic fun resolveName(f: Frame, name: Any?): Any? = Names.resolve(f.env, name as String) ?: NameRef(null, name, -1, strict(f))
+    @JvmStatic fun storeName(v: Any?, f: Frame, name: Any?) = Names.store(f.env, name.cast<String>(), v, strict(f), f.realm.globalEnv)
+    @JvmStatic fun storeNameVar(v: Any?, f: Frame, name: Any?) = Rt.storeAnnexBVar(f.env, name.cast<String>(), v, f.realm)
+    @JvmStatic fun deleteName(f: Frame, name: Any?): Any? = Names.delete(f.env, name.cast<String>())
+    @JvmStatic fun initName(v: Any?, f: Frame, name: Any?) = Names.initialize(f.env, name.cast<String>(), v)
+    @JvmStatic fun loadGlobal(f: Frame, site: Any?): Any? = GlobalCache.load(f.realm, site.cast<GlobalSite>(), false)
+    @JvmStatic fun loadGlobalTypeof(f: Frame, site: Any?): Any? = GlobalCache.load(f.realm, site.cast<GlobalSite>(), true)
+    @JvmStatic fun storeGlobal(v: Any?, f: Frame, site: Any?) = GlobalCache.store(f.realm, site.cast<GlobalSite>(), v, strict(f))
+    @JvmStatic fun initGlobalLex(v: Any?, f: Frame, name: Any?) = Rt.initGlobalLexical(f.realm, name.cast<String>(), v)
+    @JvmStatic fun resolveName(f: Frame, name: Any?): Any? {
+        val n = name.cast<String>()
+        return Names.resolve(f.env, n) ?: NameRef(null, n, -1, strict(f))
+    }
     @JvmStatic fun getRef(ref: Any?, f: Frame): Any? {
-        val r = ref as NameRef
+        val r = ref.cast<NameRef>()
         return Names.getValue(if (r.env == null) null else r, r.name, strict(f), false)
     }
     @JvmStatic fun putRef(ref: Any?, v: Any?, f: Frame): Any? {
-        val r = ref as NameRef
+        val r = ref.cast<NameRef>()
         Names.putValue(if (r.env == null) null else r, r.name, v, strict(f), f.realm.globalEnv)
         return v
     }
@@ -130,7 +133,7 @@ object JitRt {
     @JvmStatic fun throwValue(v: Any?): Throwable = JSException(v)
 
     @JvmStatic fun throwError(kind: Int, k: Int, consts: Array<Any?>): Throwable {
-        val msg = consts[k] as String
+        val msg = consts[k].cast<String>()
         return when (kind) {
             1 -> JSException.referenceError(msg)
             2 -> JSException.syntaxError(msg)
@@ -144,12 +147,12 @@ object JitRt {
     // ------------------------------------------------------------------ properties
 
     @JvmStatic fun getProp(o: Any?, site: Any?, f: Frame): Any? {
-        val s = site as PropSite
+        val s = site.cast<PropSite>()
         return if (o is JSObject) PropCache.get(o, s) else Rt.getPrimitiveProp(f.realm, o, s.key)
     }
 
     @JvmStatic fun putProp(o: Any?, v: Any?, site: Any?, f: Frame): Any? {
-        val s = site as PropSite
+        val s = site.cast<PropSite>()
         if (o is JSObject) {
             if (!PropCache.put(o, s, v) && strict(f)) throw Rt.readOnlyError(s.key, o)
         } else Rt.putPrimitive(f.realm, o, s.key, v, strict(f))
@@ -163,7 +166,7 @@ object JitRt {
     @JvmStatic fun disposeSync(cap: Any?, kind: Any?, value: Any?, f: Frame) = Disposal.disposeSync(f.realm, cap, kind, value)
 
     @JvmStatic fun newObjectLiteral(values: Array<Any?>, site: Any?, f: Frame): Any? =
-        (site as ObjectLiteralSite).create(f.realm.objectPrototype, values)
+        (site.cast<ObjectLiteralSite>()).create(f.realm.objectPrototype, values)
 
     @JvmStatic fun putElem(o: Any?, key: Any?, v: Any?, f: Frame): Any? {
         Rt.putElem(f.realm, o, key, v, strict(f))
@@ -180,12 +183,12 @@ object JitRt {
         return v
     }
     @JvmStatic fun superBase(home: Any?): Any? = Rt.superBase(home)
-    @JvmStatic fun getPrivate(o: Any?, pn: Any?): Any? = Rt.privateGet(o, pn as PrivateName)
+    @JvmStatic fun getPrivate(o: Any?, pn: Any?): Any? = Rt.privateGet(o, pn.cast<PrivateName>())
     @JvmStatic fun putPrivate(o: Any?, pn: Any?, v: Any?): Any? {
-        Rt.privateSet(o, pn as PrivateName, v)
+        Rt.privateSet(o, pn.cast<PrivateName>(), v)
         return v
     }
-    @JvmStatic fun hasPrivate(pn: Any?, o: Any?): Any? = Rt.privateIn(pn as PrivateName, o)
+    @JvmStatic fun hasPrivate(pn: Any?, o: Any?): Any? = Rt.privateIn(pn.cast<PrivateName>(), o)
 
     // ------------------------------------------------------------------ operators
 
@@ -220,14 +223,14 @@ object JitRt {
     @JvmStatic fun inc(a: Any?): Any? = if (a is Double) a + 1.0 else Ops.inc(a)
     @JvmStatic fun dec(a: Any?): Any? = if (a is Double) a - 1.0 else Ops.dec(a)
     @JvmStatic fun toStr(a: Any?): Any? = if (a is CharSequence) a else Ops.toString(a)
-    @JvmStatic fun concat(a: Any?, b: Any?): Any? = Rope.concat(a as CharSequence, b as CharSequence)
+    @JvmStatic fun concat(a: Any?, b: Any?): Any? = Rope.concat(a.cast<CharSequence>(), b.cast<CharSequence>())
     @JvmStatic fun toObject(a: Any?, f: Frame): Any? = Ops.toObject(f.realm, a)
     @JvmStatic fun requireCoercible(v: Any?): Any? {
         if (v === Undefined || v === Null) throw JSException.typeError("Cannot destructure '${Ops.toDisplayString(v)}' as it is ${Ops.toDisplayString(v)}.")
         return v
     }
     @JvmStatic fun checkObject(v: Any?, k: Int, consts: Array<Any?>): Any? {
-        if (v !is JSObject) throw JSException.typeError(consts[k] as String)
+        if (v !is JSObject) throw JSException.typeError(consts[k].cast<String>())
         return v
     }
     @JvmStatic fun derivedReturn(v: Any?, thisV: Any?): Any? = DerivedResult(v, thisV)
@@ -246,14 +249,14 @@ object JitRt {
     @JvmStatic fun call2(fnv: Any?, t: Any?, a: Any?, b: Any?, f: Frame, pc: Int): Any? = call(fnv, t, arrayOf(a, b), f, pc)
     @JvmStatic fun call3(fnv: Any?, t: Any?, a: Any?, b: Any?, c: Any?, f: Frame, pc: Int): Any? = call(fnv, t, arrayOf(a, b, c), f, pc)
     @JvmStatic fun call4(fnv: Any?, t: Any?, a: Any?, b: Any?, c: Any?, d: Any?, f: Frame, pc: Int): Any? = call(fnv, t, arrayOf(a, b, c, d), f, pc)
-    @JvmStatic fun callSpread(fnv: Any?, thisV: Any?, arr: Any?, f: Frame, pc: Int): Any? = call(fnv, thisV, Rt.arrayToArgs(arr as JSArray), f, pc)
+    @JvmStatic fun callSpread(fnv: Any?, thisV: Any?, arr: Any?, f: Frame, pc: Int): Any? = call(fnv, thisV, Rt.arrayToArgs(arr.cast<JSArray>()), f, pc)
 
     @JvmStatic fun construct(fnv: Any?, args: Array<Any?>, f: Frame, pc: Int): Any? {
         f.pc = pc
         if (fnv !is JSObject || fnv.special and JSObject.CONSTRUCTOR == 0) throw JSException.typeError("${Rt.calleeText(f.code, pc, fnv)} is not a constructor")
         return fnv.construct(args, fnv)
     }
-    @JvmStatic fun newSpread(fnv: Any?, arr: Any?, f: Frame, pc: Int): Any? = construct(fnv, Rt.arrayToArgs(arr as JSArray), f, pc)
+    @JvmStatic fun newSpread(fnv: Any?, arr: Any?, f: Frame, pc: Int): Any? = construct(fnv, Rt.arrayToArgs(arr.cast<JSArray>()), f, pc)
 
     @JvmStatic fun callEval(fnv: Any?, thisV: Any?, args: Array<Any?>, f: Frame, flags: Int, pc: Int): Any? {
         f.pc = pc
@@ -269,16 +272,16 @@ object JitRt {
         return Interpreter.tailCall(f, fnv, thisV, args)
     }
     @JvmStatic fun callEvalSpread(fnv: Any?, thisV: Any?, arr: Any?, f: Frame, flags: Int, pc: Int): Any? =
-        callEval(fnv, thisV, Rt.arrayToArgs(arr as JSArray), f, flags, pc)
+        callEval(fnv, thisV, Rt.arrayToArgs(arr.cast<JSArray>()), f, flags, pc)
 
     @JvmStatic fun superCall(func: Any?, nt: Any?, args: Array<Any?>, f: Frame, pc: Int): Any? {
         f.pc = pc
         return Rt.superCall(func, args, nt)
     }
-    @JvmStatic fun superCallSpread(func: Any?, nt: Any?, arr: Any?, f: Frame, pc: Int): Any? = superCall(func, nt, Rt.arrayToArgs(arr as JSArray), f, pc)
-    @JvmStatic fun getProtoOf(v: Any?): Any? = (v as JSObject).getPrototypeOf() ?: Null
+    @JvmStatic fun superCallSpread(func: Any?, nt: Any?, arr: Any?, f: Frame, pc: Int): Any? = superCall(func, nt, Rt.arrayToArgs(arr.cast<JSArray>()), f, pc)
+    @JvmStatic fun getProtoOf(v: Any?): Any? = (v.cast<JSObject>()).getPrototypeOf() ?: Null
     @JvmStatic fun initInstance(o: Any?, fn: Any?): Any? {
-        Rt.initializeInstanceElements(o as JSObject, fn as JSClosure)
+        Rt.initializeInstanceElements(o.cast<JSObject>(), fn.cast<JSClosure>())
         return o
     }
 
@@ -286,35 +289,35 @@ object JitRt {
 
     @JvmStatic fun newObject(f: Frame): Any? = JSObject(f.realm.objectPrototype)
     @JvmStatic fun newArray(f: Frame): Any? = JSArray(f.realm.arrayPrototype)
-    @JvmStatic fun arrayPush(a: Any?, v: Any?): Any? { (a as JSArray).pushInit(v); return a }
-    @JvmStatic fun arrayHole(a: Any?): Any? { (a as JSArray).pushHoleInit(); return a }
-    @JvmStatic fun arraySpread(a: Any?, v: Any?, f: Frame): Any? { Rt.arraySpread(f.realm, a as JSArray, v); return a }
-    @JvmStatic fun defineField(o: Any?, v: Any?, key: Any?): Any? { (o as JSObject).createDataPropertyOrThrow(key!!, v); return o }
-    @JvmStatic fun defineFieldElem(o: Any?, key: Any?, v: Any?): Any? { (o as JSObject).createDataPropertyOrThrow(key!!, v); return o }
+    @JvmStatic fun arrayPush(a: Any?, v: Any?): Any? { (a.cast<JSArray>()).pushInit(v); return a }
+    @JvmStatic fun arrayHole(a: Any?): Any? { (a.cast<JSArray>()).pushHoleInit(); return a }
+    @JvmStatic fun arraySpread(a: Any?, v: Any?, f: Frame): Any? { Rt.arraySpread(f.realm, a.cast<JSArray>(), v); return a }
+    @JvmStatic fun defineField(o: Any?, v: Any?, key: Any?): Any? { (o.cast<JSObject>()).createDataPropertyOrThrow(key!!, v); return o }
+    @JvmStatic fun defineFieldElem(o: Any?, key: Any?, v: Any?): Any? { (o.cast<JSObject>()).createDataPropertyOrThrow(key!!, v); return o }
     @JvmStatic fun defineMethod(o: Any?, key: Any?, fn: Any?, op: Int, enumerable: Int): Any? {
-        Rt.defineMethod(o as JSObject, key!!, fn as JSFunction, op, enumerable == 1)
+        Rt.defineMethod(o.cast<JSObject>(), key!!, fn.cast<JSFunction>(), op, enumerable == 1)
         return o
     }
-    @JvmStatic fun copyDataProps(t: Any?, s: Any?): Any? { Rt.copyDataProperties(t as JSObject, s, null); return t }
+    @JvmStatic fun copyDataProps(t: Any?, s: Any?): Any? { Rt.copyDataProperties(t.cast<JSObject>(), s, null); return t }
     @JvmStatic fun copyDataPropsExcl(t: Any?, s: Any?, keys: Array<Any?>): Any? {
         val excl = HashSet<Any>()
         for (k in keys) excl.add(k!!)
-        Rt.copyDataProperties(t as JSObject, s, excl)
+        Rt.copyDataProperties(t.cast<JSObject>(), s, excl)
         return t
     }
     @JvmStatic fun setProto(o: Any?, v: Any?): Any? {
-        if (v is JSObject || v === Null) (o as JSObject).setPrototypeOf(v as? JSObject)
+        if (v is JSObject || v === Null) (o.cast<JSObject>()).setPrototypeOf(v as? JSObject)
         return o
     }
     @JvmStatic fun setFunctionName(key: Any?, fn: Any?, pk: Int, consts: Array<Any?>) =
-        Rt.setFunctionName(fn as JSObject, key!!, if (pk >= 0) consts[pk] as String else null)
-    @JvmStatic fun makeClosure(f: Frame, consts: Array<Any?>, k: Int): Any? = Rt.makeClosureIn(f, consts[k] as CodeBlock)
-    @JvmStatic fun makeMethod(home: Any?, f: Frame, consts: Array<Any?>, k: Int): Any? = Rt.makeClosure(f.realm, consts[k] as CodeBlock, f.env, home as JSObject)
+        Rt.setFunctionName(fn.cast<JSObject>(), key!!, if (pk >= 0) consts[pk].cast<String>() else null)
+    @JvmStatic fun makeClosure(f: Frame, consts: Array<Any?>, k: Int): Any? = Rt.makeClosureIn(f, consts[k].cast<CodeBlock>())
+    @JvmStatic fun makeMethod(home: Any?, f: Frame, consts: Array<Any?>, k: Int): Any? = Rt.makeClosure(f.realm, consts[k].cast<CodeBlock>(), f.env, home.cast<JSObject>())
     @JvmStatic fun makeClass(heritage: Any?, name: Any?, f: Frame, consts: Array<Any?>, k: Int): Array<Any?> =
-        Rt.makeClass(f.realm, consts[k] as CodeBlock, f.env, heritage, name)
-    @JvmStatic fun newPrivateName(name: Any?): Any? = PrivateName(name as String)
+        Rt.makeClass(f.realm, consts[k].cast<CodeBlock>(), f.env, heritage, name)
+    @JvmStatic fun newPrivateName(name: Any?): Any? = PrivateName(name.cast<String>())
     @JvmStatic fun addField(ctor: Any?, key: Any?, init: Any?) {
-        val c = ctor as JSClosure
+        val c = ctor.cast<JSClosure>()
         var fl = c.fields
         if (fl == null) {
             fl = ArrayList()
@@ -322,37 +325,37 @@ object JitRt {
         }
         fl.add(FieldRecord(key!!, init))
     }
-    @JvmStatic fun addPrivateMethod(ctor: Any?, pn: Any?, fn: Any?, kind: Int) = Rt.addPrivateMethod(ctor as JSClosure, pn as PrivateName, fn, kind)
-    @JvmStatic fun staticPrivateMethod(ctor: Any?, pn: Any?, fn: Any?, kind: Int) = Rt.staticPrivateMethod(ctor as JSObject, pn as PrivateName, fn, kind)
+    @JvmStatic fun addPrivateMethod(ctor: Any?, pn: Any?, fn: Any?, kind: Int) = Rt.addPrivateMethod(ctor.cast<JSClosure>(), pn.cast<PrivateName>(), fn, kind)
+    @JvmStatic fun staticPrivateMethod(ctor: Any?, pn: Any?, fn: Any?, kind: Int) = Rt.staticPrivateMethod(ctor.cast<JSObject>(), pn.cast<PrivateName>(), fn, kind)
     @JvmStatic fun runField(obj: Any?, key: Any?, fn: Any?, f: Frame, pc: Int) {
         f.pc = pc
-        Rt.defineField(obj as JSObject, FieldRecord(key!!, fn))
+        Rt.defineField(obj.cast<JSObject>(), FieldRecord(key!!, fn))
     }
 
     // ------------------------------------------------------------------ iteration
 
     @JvmStatic fun getIterator(v: Any?, f: Frame): Any? = Iteration.getIterator(f.realm, v, false)
     /** Returns the next value, or NotFound when done. */
-    @JvmStatic fun iterStep(rec: Any?): Any? = Iteration.stepValue(rec as IteratorRecord)
+    @JvmStatic fun iterStep(rec: Any?): Any? = Iteration.stepValue(rec.cast<IteratorRecord>())
     @JvmStatic fun isNotFound(v: Any?): Boolean = v === NotFound
     @JvmStatic fun iterStepU(rec: Any?): Any? {
-        val r = rec as IteratorRecord
+        val r = rec.cast<IteratorRecord>()
         if (r.done) return Undefined
         val v = Iteration.stepValue(r)
         return if (v === NotFound) Undefined else v
     }
-    @JvmStatic fun iterRest(rec: Any?, f: Frame): Any? = Iteration.rest(f.realm, rec as IteratorRecord)
-    @JvmStatic fun iterClose(rec: Any?) = Iteration.closeNormal(rec as IteratorRecord)
-    @JvmStatic fun iterCloseThrow(rec: Any?) = Iteration.closeOnThrow(rec as IteratorRecord)
+    @JvmStatic fun iterRest(rec: Any?, f: Frame): Any? = Iteration.rest(f.realm, rec.cast<IteratorRecord>())
+    @JvmStatic fun iterClose(rec: Any?) = Iteration.closeNormal(rec.cast<IteratorRecord>())
+    @JvmStatic fun iterCloseThrow(rec: Any?) = Iteration.closeOnThrow(rec.cast<IteratorRecord>())
     @JvmStatic fun forInStart(v: Any?, f: Frame): Any? = ForInIterator(Ops.toObject(f.realm, v))
     /** Next for-in key or null when done. */
-    @JvmStatic fun forInNext(it: Any?): Any? = (it as ForInIterator).next()
+    @JvmStatic fun forInNext(it: Any?): Any? = (it.cast<ForInIterator>()).next()
 
     // ------------------------------------------------------------------ misc
 
     @JvmStatic fun debugger(f: Frame) = f.realm.agent.onDebugger(f)
-    @JvmStatic fun templateObject(f: Frame, consts: Array<Any?>, k: Int): Any? = Rt.templateObject(f.realm, consts[k] as TemplateSite)
-    @JvmStatic fun newRegExp(f: Frame, consts: Array<Any?>, k: Int): Any? = Rt.newRegExp(f.realm, consts[k] as RegExpSite)
+    @JvmStatic fun templateObject(f: Frame, consts: Array<Any?>, k: Int): Any? = Rt.templateObject(f.realm, consts[k].cast<TemplateSite>())
+    @JvmStatic fun newRegExp(f: Frame, consts: Array<Any?>, k: Int): Any? = Rt.newRegExp(f.realm, consts[k].cast<RegExpSite>())
     @JvmStatic fun importMeta(f: Frame): Any? = Rt.importMeta(f)
     @JvmStatic fun dynamicImport(spec: Any?, opts: Any?, f: Frame): Any? = Rt.dynamicImport(f, spec, opts)
     @JvmStatic fun classDefNew(c: Any?, p: Any?): Any? = Decorators.newClassDef(c, p)
@@ -360,13 +363,13 @@ object JitRt {
     @JvmStatic fun classFinish(def: Any?) = Decorators.finish(def)
     @JvmStatic fun classDecorate(def: Any?, decs: Any?): Any? = Decorators.decorateClass(def, decs)
     @JvmStatic fun classStaticInit(def: Any?) = Decorators.staticInit(def)
-    @JvmStatic fun dynamicImportPhase(spec: Any?, opts: Any?, f: Frame, phase: Any?): Any? = Modules.dynamicImport(f, spec, opts, phase as String)
+    @JvmStatic fun dynamicImportPhase(spec: Any?, opts: Any?, f: Frame, phase: Any?): Any? = Modules.dynamicImport(f, spec, opts, phase.cast<String>())
     @JvmStatic fun declareGlobals(fns: Array<Any?>, f: Frame, consts: Array<Any?>, k: Int, pc: Int) {
         f.pc = pc
-        Rt.declareGlobals(f.realm, consts[k] as DeclInfo, fns)
+        Rt.declareGlobals(f.realm, consts[k].cast<DeclInfo>(), fns)
     }
     @JvmStatic fun declareEval(fns: Array<Any?>, f: Frame, consts: Array<Any?>, k: Int, pc: Int) {
         f.pc = pc
-        Rt.declareEval(f, consts[k] as DeclInfo, fns)
+        Rt.declareEval(f, consts[k].cast<DeclInfo>(), fns)
     }
 }

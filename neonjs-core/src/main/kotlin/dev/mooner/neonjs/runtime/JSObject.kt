@@ -97,7 +97,7 @@ open class JSObject(@JvmField var proto: JSObject?) {
         if (i < 0) return null
         val f = p.flags[i]
         return if (f and Attr.ACCESSOR != 0) {
-            val a = p.values[i] as Accessor
+            val a = p.values[i].cast<Accessor>()
             PropertyDescriptor.accessor(a.getter, a.setter, f)
         } else PropertyDescriptor.data(p.values[i], f)
     }
@@ -108,7 +108,7 @@ open class JSObject(@JvmField var proto: JSObject?) {
         val i = p.find(key)
         if (i < 0) return NotFound
         if (p.flags[i] and Attr.ACCESSOR != 0) {
-            val g = (p.values[i] as Accessor).getter
+            val g = p.values[i].cast<Accessor>().getter
             if (g is JSObject) return g.call(receiver, EMPTY_ARGS)
             return Undefined
         }
@@ -162,7 +162,7 @@ open class JSObject(@JvmField var proto: JSObject?) {
             if (desc.hasEnumerable && desc.enumerable != curEnumerable) return false
             if (!desc.isGeneric && desc.isAccessor != curAccessor) return false
             if (curAccessor) {
-                val a = p.values[i] as Accessor
+                val a = p.values[i].cast<Accessor>()
                 if (desc.hasGet && !Ops.sameValue(desc.getter, a.getter)) return false
                 if (desc.hasSet && !Ops.sameValue(desc.setter, a.setter)) return false
             } else if (f and Attr.WRITABLE == 0) {
@@ -180,7 +180,7 @@ open class JSObject(@JvmField var proto: JSObject?) {
             p.values[i] = if (desc.hasValue) desc.value else Undefined
             p.setFlags(i, ce or (if (desc.hasWritable && desc.writable) Attr.WRITABLE else 0))
         } else if (curAccessor) {
-            val a = p.values[i] as Accessor
+            val a = p.values[i].cast<Accessor>()
             if (desc.hasGet) a.getter = desc.getter
             if (desc.hasSet) a.setter = desc.setter
             p.setFlags(i, Attr.ACCESSOR or ce)
@@ -234,7 +234,7 @@ open class JSObject(@JvmField var proto: JSObject?) {
                 if (i >= 0) {
                     val f = p!!.flags[i]
                     if (f and Attr.ACCESSOR != 0) {
-                        val s = (p.values[i] as Accessor).setter
+                        val s = p.values[i].cast<Accessor>().setter
                         if (s !is JSObject) return false
                         s.call(receiver, arrayOf(value))
                         return true

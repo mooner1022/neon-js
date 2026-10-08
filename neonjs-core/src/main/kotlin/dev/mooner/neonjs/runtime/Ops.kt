@@ -73,7 +73,7 @@ object Ops {
         val exotic = getMethod(v, JSSymbol.toPrimitive)
         if (exotic !== Undefined) {
             val hs = when (hint) { HINT_NUMBER -> "number"; HINT_STRING -> "string"; else -> "default" }
-            val r = (exotic as JSObject).call(v, arrayOf(hs))
+            val r = exotic.cast<JSObject>().call(v, arrayOf(hs))
             if (r is JSObject) throw JSException.typeError("Cannot convert object to primitive value")
             return r
         }
@@ -86,12 +86,12 @@ object Ops {
         val second = if (hint == HINT_STRING) "valueOf" else "toString"
         var m = o.get(first, o)
         if (isCallable(m)) {
-            val r = (m as JSObject).call(o, EMPTY_ARGS)
+            val r = m.cast<JSObject>().call(o, EMPTY_ARGS)
             if (r !is JSObject) return r
         }
         m = o.get(second, o)
         if (isCallable(m)) {
-            val r = (m as JSObject).call(o, EMPTY_ARGS)
+            val r = m.cast<JSObject>().call(o, EMPTY_ARGS)
             if (r !is JSObject) return r
         }
         throw JSException.typeError("Cannot convert object to primitive value")
@@ -536,14 +536,14 @@ object Ops {
         if (a is Double) return -a
         val n = toNumeric(a)
         if (n is Double) return -n
-        return (n as BigInteger).negate()
+        return n.cast<BigInteger>().negate()
     }
 
     @JvmStatic
     fun bitNot(a: Any?): Any? {
         val n = toNumeric(a)
         if (n is Double) return toInt32(n).inv().toDouble()
-        return (n as BigInteger).not()
+        return n.cast<BigInteger>().not()
     }
 
     @JvmStatic
@@ -664,7 +664,7 @@ object Ops {
 
     @JvmStatic
     fun construct(f: Any?, args: Array<Any?>, newTarget: Any? = f): Any? {
-        if (f is JSObject && f.special and JSObject.CONSTRUCTOR != 0) return f.construct(args, newTarget as JSObject)
+        if (f is JSObject && f.special and JSObject.CONSTRUCTOR != 0) return f.construct(args, newTarget.cast<JSObject>())
         throw JSException.typeError("${describe(f)} is not a constructor")
     }
 
@@ -711,7 +711,7 @@ object Ops {
     fun instanceOf(v: Any?, target: Any?): Boolean {
         if (target !is JSObject) throw JSException.typeError("Right-hand side of 'instanceof' is not an object")
         val handler = getMethod(target, JSSymbol.hasInstance)
-        if (handler !== Undefined) return toBoolean((handler as JSObject).call(target, arrayOf(v)))
+        if (handler !== Undefined) return toBoolean(handler.cast<JSObject>().call(target, arrayOf(v)))
         if (!target.isCallable) throw JSException.typeError("Right-hand side of 'instanceof' is not callable")
         return ordinaryHasInstance(target, v)
     }
@@ -721,7 +721,7 @@ object Ops {
         if (!isCallable(c)) return false
         if (c is BoundFunction) return instanceOf(o, c.target)
         if (o !is JSObject) return false
-        val p = (c as JSObject).get("prototype", c)
+        val p = c.cast<JSObject>().get("prototype", c)
         if (p !is JSObject) throw JSException.typeError("Function has non-object prototype in instanceof check")
         var x: JSObject? = o
         while (true) {
