@@ -98,6 +98,38 @@ loader per batch (a rejected batch is retried class by class). A backend that em
 `JitBackend`, below the tiering policy and the background compiler. JVM debug
 info (source name, line numbers) is left out unless `-Dneonjs.jit.debugInfo` is set; JS stack traces do not need it.
 
+Unboxed numbers (`jit/JitTypes.kt`): before generating a class, `TypeAnalysis` runs a forward dataflow over the code
+block and gives each stack slot and register a kind at each instruction: a JVM `double` (NUM), a JVM `int` 0/1 (BOOL)
+or an Object (ANY). Registers that only ever hold numbers become `double` locals; arithmetic and comparisons on two
+numbers are JVM instructions (`DADD`, `DREM` for `%`, `DCMPG` for `<`/`<=` and `DCMPL` for the others, so NaN
+compares false), and an operation with one number and one value of unknown type calls a `JitRt` helper (`subDA`,
+`ltAD`, ...) that falls back to the generic operator with the number boxed, so `valueOf` runs at the same point and
+BigInt mixing throws the same error. Comparisons test `instanceof Double` inline instead of calling a helper: HotSpot
+compiles a boolean helper inlined into a loop condition poorly (split-if), five times slower. Values are boxed where
+paths with different kinds meet and before every instruction that is not specialised. The rules that keep this sound:
+
+- No speculation. Kinds come from what instructions produce (number constants, arithmetic results), never from
+  profiles; no check is removed because of a kind and nothing deoptimizes. A wrong kind could only surface as a JVM
+  `ClassCastException` (every unbox is a `checkcast`) or a verifier error, never as one value read as another.
+- A closed list of instructions is specialised; every other instruction gets Object operands and the same code as
+  before. A register is a `double` only when no instruction but `LOAD_REG` / `STORE_REG` touches it (registers read by
+  TDZ checks, iterators, the finally dispatch `JUMP_TABLE`, `INIT_THIS_REG` and `MAKE_METHOD` stay Objects) and every
+  read sees a number. Registers are invisible outside their function (closures, `eval`, `with` and mapped `arguments`
+  use environment slots) and compiled code is only entered at its start, so nothing else reads or writes a `double`
+  local.
+- Exception handlers see, for each register, the join of its kinds over the protected range, and an Object stack.
+- Constant kinds are part of `JitInput` (blocks share classes, and constants are read at run time), and so is the
+  `neonjs.jit.typed` setting; `FORMAT` changes whenever the generated code does, since a dex-caching definer keys
+  translations by class name.
+- A block the analysis gives up on, or whose unboxed code exceeds the JVM method size limit, gets the Object-only code
+  (`JvmCompiler.untypedReasons` counts them). `-Dneonjs.jit.typed=false` turns unboxing off; `-Dneonjs.jit.dump=DIR`
+  writes every generated class to DIR. Both are JVM properties of the host, not reachable from scripts.
+
+The approach is Rhino's (its optimizer gives variables proven numeric `double` locals). V8, JavaScriptCore and
+SpiderMonkey speculate on profiled types and deoptimize when a guard fails; their JIT bugs typically come from a typer
+that proves too much and lets a later phase drop a bounds or type check. Here nothing is dropped: interrupt checks,
+`pc` stores, element access paths and every runtime check are the same as in the Object code.
+
 Background compilation (`jit/JitQueue.kt`): a block due for compilation gets a `JitTask` (`CodeBlock.jitTask`,
 set by CAS, so one thread compiles it) and is queued; daemon workers drain whatever is queued (up to a batch) and
 hand it to the backend, one batch per backend. A thread that needs the code now (compiled mode) takes a queued task

@@ -1,5 +1,6 @@
 package dev.mooner.neonjs.jit
 
+import dev.mooner.neonjs.builtins.JSTypedArray
 import dev.mooner.neonjs.compiler.*
 import dev.mooner.neonjs.runtime.*
 import dev.mooner.neonjs.vm.*
@@ -223,6 +224,90 @@ object JitRt {
     @JvmStatic fun inc(a: Any?): Any? = if (a is Double) a + 1.0 else Ops.inc(a)
     @JvmStatic fun dec(a: Any?): Any? = if (a is Double) a - 1.0 else Ops.dec(a)
     @JvmStatic fun toStr(a: Any?): Any? = if (a is CharSequence) a else Ops.toString(a)
+
+    // ------------------------------------------------------------------ unboxed numbers (JitTypes)
+    // Operands typed `double` are JS numbers; the other operand of a mixed helper is any value. Mixed helpers fall back
+    // to the Ops implementations with the number boxed, so conversions run in the same order, as often, and fail with
+    // the same errors as in the interpreter (a BigInt operand throws: the result of the arithmetic ones is a number).
+
+    @JvmStatic fun truthyD(d: Double): Boolean = d != 0.0 && d == d
+    @JvmStatic fun toNumberD(a: Any?): Double = if (a is Double) a else Ops.toNumber(a)
+    @JvmStatic fun powDD(a: Double, b: Double): Double = Ops.pow(a, b)
+    @JvmStatic fun bnotD(a: Double): Double = Ops.toInt32(a).inv().toDouble()
+    @JvmStatic fun bandDD(a: Double, b: Double): Double = (Ops.toInt32(a) and Ops.toInt32(b)).toDouble()
+    @JvmStatic fun borDD(a: Double, b: Double): Double = (Ops.toInt32(a) or Ops.toInt32(b)).toDouble()
+    @JvmStatic fun bxorDD(a: Double, b: Double): Double = (Ops.toInt32(a) xor Ops.toInt32(b)).toDouble()
+    @JvmStatic fun shlDD(a: Double, b: Double): Double = (Ops.toInt32(a) shl (Ops.toInt32(b) and 31)).toDouble()
+    @JvmStatic fun sarDD(a: Double, b: Double): Double = (Ops.toInt32(a) shr (Ops.toInt32(b) and 31)).toDouble()
+    @JvmStatic fun shrDD(a: Double, b: Double): Double = ((Ops.toInt32(a).toLong() and 0xFFFFFFFFL) ushr (Ops.toInt32(b) and 31)).toDouble()
+
+    @JvmStatic fun addDA(a: Double, b: Any?): Any? = if (b is Double) a + b else Ops.add(Ops.num(a), b)
+    @JvmStatic fun addAD(a: Any?, b: Double): Any? = if (a is Double) a + b else Ops.add(a, Ops.num(b))
+    @JvmStatic fun subDA(a: Double, b: Any?): Double = if (b is Double) a - b else Ops.sub(Ops.num(a), b).cast<Double>()
+    @JvmStatic fun subAD(a: Any?, b: Double): Double = if (a is Double) a - b else Ops.sub(a, Ops.num(b)).cast<Double>()
+    @JvmStatic fun mulDA(a: Double, b: Any?): Double = if (b is Double) a * b else Ops.mul(Ops.num(a), b).cast<Double>()
+    @JvmStatic fun mulAD(a: Any?, b: Double): Double = if (a is Double) a * b else Ops.mul(a, Ops.num(b)).cast<Double>()
+    @JvmStatic fun divDA(a: Double, b: Any?): Double = if (b is Double) a / b else Ops.div(Ops.num(a), b).cast<Double>()
+    @JvmStatic fun divAD(a: Any?, b: Double): Double = if (a is Double) a / b else Ops.div(a, Ops.num(b)).cast<Double>()
+    @JvmStatic fun modDA(a: Double, b: Any?): Double = if (b is Double) a % b else Ops.mod(Ops.num(a), b).cast<Double>()
+    @JvmStatic fun modAD(a: Any?, b: Double): Double = if (a is Double) a % b else Ops.mod(a, Ops.num(b)).cast<Double>()
+    @JvmStatic fun expDA(a: Double, b: Any?): Double = if (b is Double) Ops.pow(a, b) else Ops.exp(Ops.num(a), b).cast<Double>()
+    @JvmStatic fun expAD(a: Any?, b: Double): Double = if (a is Double) Ops.pow(a, b) else Ops.exp(a, Ops.num(b)).cast<Double>()
+    @JvmStatic fun bandDA(a: Double, b: Any?): Double = Ops.bitAnd(Ops.num(a), b).cast<Double>()
+    @JvmStatic fun bandAD(a: Any?, b: Double): Double = Ops.bitAnd(a, Ops.num(b)).cast<Double>()
+    @JvmStatic fun borDA(a: Double, b: Any?): Double = Ops.bitOr(Ops.num(a), b).cast<Double>()
+    @JvmStatic fun borAD(a: Any?, b: Double): Double = Ops.bitOr(a, Ops.num(b)).cast<Double>()
+    @JvmStatic fun bxorDA(a: Double, b: Any?): Double = Ops.bitXor(Ops.num(a), b).cast<Double>()
+    @JvmStatic fun bxorAD(a: Any?, b: Double): Double = Ops.bitXor(a, Ops.num(b)).cast<Double>()
+    @JvmStatic fun shlDA(a: Double, b: Any?): Double = Ops.shl(Ops.num(a), b).cast<Double>()
+    @JvmStatic fun shlAD(a: Any?, b: Double): Double = Ops.shl(a, Ops.num(b)).cast<Double>()
+    @JvmStatic fun sarDA(a: Double, b: Any?): Double = Ops.sar(Ops.num(a), b).cast<Double>()
+    @JvmStatic fun sarAD(a: Any?, b: Double): Double = Ops.sar(a, Ops.num(b)).cast<Double>()
+    @JvmStatic fun shrDA(a: Double, b: Any?): Double = Ops.shr(Ops.num(a), b).cast<Double>()
+    @JvmStatic fun shrAD(a: Any?, b: Double): Double = Ops.shr(a, Ops.num(b)).cast<Double>()
+
+    @JvmStatic fun ltDA(a: Double, b: Any?): Boolean = if (b is Double) a < b else Ops.lt(Ops.num(a), b)
+    @JvmStatic fun ltAD(a: Any?, b: Double): Boolean = if (a is Double) a < b else Ops.lt(a, Ops.num(b))
+    @JvmStatic fun gtDA(a: Double, b: Any?): Boolean = if (b is Double) a > b else Ops.gt(Ops.num(a), b)
+    @JvmStatic fun gtAD(a: Any?, b: Double): Boolean = if (a is Double) a > b else Ops.gt(a, Ops.num(b))
+    @JvmStatic fun leDA(a: Double, b: Any?): Boolean = if (b is Double) a <= b else Ops.le(Ops.num(a), b)
+    @JvmStatic fun leAD(a: Any?, b: Double): Boolean = if (a is Double) a <= b else Ops.le(a, Ops.num(b))
+    @JvmStatic fun geDA(a: Double, b: Any?): Boolean = if (b is Double) a >= b else Ops.ge(Ops.num(a), b)
+    @JvmStatic fun geAD(a: Any?, b: Double): Boolean = if (a is Double) a >= b else Ops.ge(a, Ops.num(b))
+    @JvmStatic fun eqDA(a: Double, b: Any?): Boolean = if (b is Double) a == b else Ops.looseEquals(Ops.num(a), b)
+    @JvmStatic fun eqAD(a: Any?, b: Double): Boolean = if (a is Double) a == b else Ops.looseEquals(a, Ops.num(b))
+    @JvmStatic fun neDA(a: Double, b: Any?): Boolean = !eqDA(a, b)
+    @JvmStatic fun neAD(a: Any?, b: Double): Boolean = !eqAD(a, b)
+    @JvmStatic fun seqDA(a: Double, b: Any?): Boolean = if (b is Double) a == b else Ops.strictEquals(Ops.num(a), b)
+    @JvmStatic fun seqAD(a: Any?, b: Double): Boolean = if (a is Double) a == b else Ops.strictEquals(a, Ops.num(b))
+    @JvmStatic fun sneDA(a: Double, b: Any?): Boolean = !seqDA(a, b)
+    @JvmStatic fun sneAD(a: Any?, b: Double): Boolean = !seqAD(a, b)
+
+    /** `o[key]` with a number key; the integer-index fast paths are Rt.getElem's. */
+    @JvmStatic fun getElemD(o: Any?, key: Double, f: Frame): Any? {
+        val i = key.toInt()
+        if (i >= 0 && i.toDouble() == key) {
+            if (o is JSArray) return o.getIndexFast(i)
+            if (o is JSTypedArray) return o.getIndex(i)
+        }
+        return Rt.getElem(f.realm, o, Ops.num(key))
+    }
+
+    /** `o[key] = v` with a number key; the integer-index fast paths are Rt.putElem's. Returns [v]. */
+    @JvmStatic fun putElemDA(o: Any?, key: Double, v: Any?, f: Frame): Any? {
+        val i = key.toInt()
+        if (i >= 0 && i.toDouble() == key) {
+            if (o is JSArray && o.trySetIndexFast(i, v)) return v
+            if (o is JSTypedArray && !o.buffer.immutable) {
+                o.setIndex(i, v)
+                return v
+            }
+        }
+        Rt.putElem(f.realm, o, Ops.num(key), v, strict(f))
+        return v
+    }
+
+    @JvmStatic fun putElemDD(o: Any?, key: Double, v: Double, f: Frame): Any? = putElemDA(o, key, Ops.num(v), f)
     @JvmStatic fun concat(a: Any?, b: Any?): Any? = Rope.concat(a.cast<CharSequence>(), b.cast<CharSequence>())
     @JvmStatic fun toObject(a: Any?, f: Frame): Any? = Ops.toObject(f.realm, a)
     @JvmStatic fun requireCoercible(v: Any?): Any? {
