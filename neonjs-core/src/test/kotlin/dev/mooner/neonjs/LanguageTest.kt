@@ -17,6 +17,39 @@ class LanguageTest {
     }
 
     @Test
+    fun directEvalInModulesSeesImportedValues() {
+        for (mode in listOf(ExecutionMode.INTERPRETER, ExecutionMode.COMPILED, ExecutionMode.ADAPTIVE)) {
+            NeonEngine.builder().executionMode(mode).console(null).build().newContext().use { c ->
+                c.setModuleLoader(MapModuleLoader(mapOf(
+                    "lib.js" to "export function foo() { return 'foo!' } export let n = 1; export function bump() { n++ }",
+                )))
+                val received = ArrayList<Boolean>()
+                c["host"] = c.createFunction("host") { a -> received.add(a[0].isFunction); null }
+                val ns = c.evalModule(
+                    """
+                    import { foo, n, bump } from './lib.js';
+                    export const type = eval('typeof foo');
+                    export const called = eval('foo()');
+                    export const nested = (() => eval('(() => foo())()'))();
+                    eval('host(foo)');
+                    bump();
+                    export const live = eval('n');
+                    let error;
+                    try { eval('foo = 1') } catch (e) { error = e.name }
+                    export const assigned = error + ' ' + typeof foo;
+                    """.trimIndent(), "main.js",
+                )
+                assertEquals("function", ns.getMember("type").asString(), "mode $mode")
+                assertEquals("foo!", ns.getMember("called").asString(), "mode $mode")
+                assertEquals("foo!", ns.getMember("nested").asString(), "mode $mode")
+                assertEquals(2, ns.getMember("live").asInt(), "mode $mode: imports stay live bindings")
+                assertEquals("TypeError function", ns.getMember("assigned").asString(), "mode $mode: imports are immutable")
+                assertEquals(listOf(true), received, "mode $mode")
+            }
+        }
+    }
+
+    @Test
     fun notCallableMessagesNameTheCallee() {
         val setup = "var o = { f() { return {} }, a: [1] }; function m(f) { try { f() } catch (e) { return e.message } } "
         both(setup + "m(() => o.f().g())", "o.f(...).g is not a function")

@@ -1,6 +1,8 @@
 package dev.mooner.neonjs.runtime
 
 import dev.mooner.neonjs.compiler.ScopeInfo
+import dev.mooner.neonjs.vm.ImportRef
+import dev.mooner.neonjs.vm.Modules
 
 /** Runtime environment record (scope chain link). */
 abstract class Env(@JvmField val parent: Env?)
@@ -98,6 +100,9 @@ object Names {
             is DeclEnv -> {
                 val v = if (ref.slot >= 0) e.slots[ref.slot] else e.extension!![name]
                 if (v === Uninitialized) throw JSException.referenceError("Cannot access '$name' before initialization")
+                // an import binding of a module holds a live reference to the exporting module's variable (code
+                // compiled in the module reads it with LOAD_IMPORT; a direct eval's code gets here)
+                if (v is ImportRef) return Modules.deref(v)
                 return v
             }
             is ObjectEnv -> {
