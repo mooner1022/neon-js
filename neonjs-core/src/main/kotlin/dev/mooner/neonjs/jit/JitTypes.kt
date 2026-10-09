@@ -144,6 +144,36 @@ internal class TypeAnalysis(private val input: JitInput, val ints: Boolean, val 
      */
     fun putElemResult(key: Byte, value: Byte): Byte = if (elems && JT.isNum(key) && JT.isNum(value)) value else JT.ANY
 
+    /**
+     * The effect on the stack kinds [s] of the instructions that neither read nor write registers (but LOAD_REG, given
+     * the register's kind [regKind]) nor jump: the analysis's rule for them, and the code generator's when it compiles a
+     * few of them twice after a GET_ELEM (JvmCompiler, emitSplit). False for every other instruction.
+     */
+    fun stackStep(op: Int, a: Int, s: KindStack, regKind: Byte): Boolean {
+        when (op) {
+            Op.PUSH_INT -> s.push(intKind)
+            Op.PUSH_CONST -> s.push(constKind(a))
+            Op.LOAD_REG -> s.push(if (JT.isNum(regKind)) regKind else JT.ANY)
+            Op.POP -> s.pop()
+            Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD, Op.EXP, Op.BAND, Op.BOR, Op.BXOR, Op.SHL, Op.SAR, Op.SHR,
+            Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.SEQ, Op.SNE -> {
+                val rb = s.pop()
+                val ra = s.pop()
+                s.push(JT.binaryResult(op, JT.binaryClass(op, ra, rb), intKind))
+            }
+            Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC -> s.push(unaryResult(op, s.pop()))
+            Op.TO_NUMBER -> s.push(toNumberResult(s.pop())) // unary plus: a number, or a TypeError for BigInt
+            Op.PUT_ELEM -> {
+                val v = s.pop()
+                val k = s.pop()
+                s.pop()
+                s.push(putElemResult(k, v))
+            }
+            else -> return false
+        }
+        return true
+    }
+
     /** Kind of the result of TO_NUMBER (unary plus) on a value of kind [t]. */
     fun toNumberResult(t: Byte): Byte = when (t) {
         JT.INT -> JT.INT
@@ -210,12 +240,10 @@ internal class TypeAnalysis(private val input: JitInput, val ints: Boolean, val 
         val s = KindStack().also { it.set(stackInPc) }
         fun next() = merge(pc + len, regs, s.toArray(), work)
         when (op) {
-            Op.PUSH_INT -> { s.push(intKind); next() }
-            Op.PUSH_CONST -> { s.push(constKind(a)); next() }
             Op.PUSH_TRUE, Op.PUSH_FALSE -> { s.push(JT.BOOL); next() }
             Op.LOAD_REG -> {
                 read(a, regs[a])
-                s.push(if (JT.isNum(regs[a])) regs[a] else JT.ANY)
+                stackStep(op, a, s, regs[a])
                 next()
             }
             Op.STORE_REG -> {
@@ -223,26 +251,18 @@ internal class TypeAnalysis(private val input: JitInput, val ints: Boolean, val 
                 regs[a] = if (JT.isNum(k)) k else JT.ANY
                 next()
             }
-            Op.POP -> { s.pop(); next() }
             Op.DUP -> { s.push(s.peek(0)); next() }
             Op.DUP2 -> { s.permute(2, PERM_DUP2); next() }
             Op.DUP3 -> { s.permute(3, PERM_DUP3); next() }
             Op.SWAP -> { s.permute(2, PERM_SWAP); next() }
             Op.ROT3 -> { s.permute(3, PERM_ROT3); next() }
             Op.ROT4 -> { s.permute(4, PERM_ROT4); next() }
-            Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD, Op.EXP, Op.BAND, Op.BOR, Op.BXOR, Op.SHL, Op.SAR, Op.SHR,
-            Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.SEQ, Op.SNE -> {
-                val rb = s.pop()
-                val ra = s.pop()
-                s.push(JT.binaryResult(op, JT.binaryClass(op, ra, rb), intKind))
+            Op.PUSH_INT, Op.PUSH_CONST, Op.POP, Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD, Op.EXP, Op.BAND, Op.BOR, Op.BXOR,
+            Op.SHL, Op.SAR, Op.SHR, Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.SEQ, Op.SNE, Op.NEG, Op.BNOT, Op.INC, Op.DEC,
+            Op.TO_NUMERIC, Op.TO_NUMBER, Op.PUT_ELEM -> {
+                stackStep(op, a, s, JT.ANY)
                 next()
             }
-            Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC -> {
-                val t = s.pop()
-                s.push(unaryResult(op, t))
-                next()
-            }
-            Op.TO_NUMBER -> { s.push(toNumberResult(s.pop())); next() } // unary plus: a number, or a TypeError for BigInt
             Op.NOT -> { s.pop(); s.push(JT.BOOL); next() }
             Op.JUMP_IF_TRUE, Op.JUMP_IF_FALSE -> {
                 s.pop()
@@ -251,13 +271,6 @@ internal class TypeAnalysis(private val input: JitInput, val ints: Boolean, val 
             }
             Op.JUMP -> merge(a, regs, s.toArray(), work)
             Op.GET_ELEM -> { s.pop(); s.pop(); s.push(JT.ANY); next() }
-            Op.PUT_ELEM -> {
-                val v = s.pop()
-                val k = s.pop()
-                s.pop()
-                s.push(putElemResult(k, v))
-                next()
-            }
             Op.RETURN, Op.THROW, Op.THROW_ERROR -> {}
             else -> generic(pc, op, len, a, b, regs, s, work)
         }

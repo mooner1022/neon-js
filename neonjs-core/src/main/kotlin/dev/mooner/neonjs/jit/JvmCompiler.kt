@@ -80,7 +80,7 @@ class JitInput(cb: CodeBlock, debugInfo: Boolean = JvmCompiler.DEBUG_INFO) {
 
     companion object {
         /** Changes when the code generator changes what it emits for the same input. */
-        private const val FORMAT = 5
+        private const val FORMAT = 6
         const val CONST_OTHER: Byte = 0
         const val CONST_NUMBER: Byte = 1
         /** A number that is an int32 (and not -0). */
@@ -126,6 +126,8 @@ object JvmCompiler {
     private const val RT = "dev/mooner/neonjs/jit/JitRt"
     private const val OBJ = "Ljava/lang/Object;"
     private const val FRAME_D = "Ldev/mooner/neonjs/vm/Frame;"
+    private const val AGENT = "dev/mooner/neonjs/runtime/Agent"
+    private const val AGENT_D = "Ldev/mooner/neonjs/runtime/Agent;"
     private const val CONSTS_D = "[Ljava/lang/Object;"
 
     private const val L_FRAME = 1
@@ -133,6 +135,9 @@ object JvmCompiler {
     private const val L_AGENT = 3
     private const val L_BUDGET = 4
     private const val L_REGS = 5
+
+    /** Most instructions after a GET_ELEM compiled twice (Gen.planSplit). */
+    private const val MAX_SPLIT = 6
 
     fun canCompile(cb: CodeBlock): Boolean = !cb.isGenerator && !cb.isAsync && cb.flags and CodeBlock.NO_JIT == 0
 
@@ -306,8 +311,9 @@ object JvmCompiler {
     internal val INT32 = System.getProperty("neonjs.jit.int32") != "false"
 
     /**
-     * Whether unboxed code stores numbers into typed arrays without boxing them (and keeps the assigned value unboxed);
-     * `-Dneonjs.jit.elem=false` turns that off.
+     * Whether unboxed code stores numbers into typed arrays without boxing them (and keeps the assigned value unboxed),
+     * and reads number elements without boxing them where they are used as numbers (emitSplit);
+     * `-Dneonjs.jit.elem=false` turns both off.
      */
     internal val ELEMS = System.getProperty("neonjs.jit.elem") != "false"
 
@@ -356,6 +362,12 @@ object JvmCompiler {
         var nextTemp: Int
         /** Kinds of the values on the JVM operand stack at the current point of the generated code. */
         val st = KindStack()
+        /** Instructions with a line table entry (the generated code stores the pc there), and their source lines. */
+        val stmtStart = BooleanArray(code.size).also { s -> for (p in cb.statementPcs) if (p < s.size) s[p] = true }
+        val stmtLine = IntArray(code.size) { -1 }.also { l ->
+            val lines = cb.lines
+            if (lines != null) for ((k, p) in cb.statementPcs.withIndex()) if (p < l.size) l[p] = lines[k]
+        }
         /** Conditional jumps that must box values first: (label, stack kinds there, target pc), emitted at the end. */
         val trampolines = ArrayList<Triple<Label, ByteArray, Int>>()
 
@@ -526,6 +538,17 @@ object JvmCompiler {
                     lastLine = curLine
                 }
                 val op = code[pc]
+                val split = if (ta != null && op == Op.GET_ELEM) planSplit(pc, ta) else null
+                if (split != null) {
+                    emitSplit(pc, split, ta!!)
+                    // both copies stored the pc at the line table entries inside
+                    while (si < stmts.size && stmts[si] < split.end) {
+                        if (lines != null) curLine = lines[si]
+                        si++
+                    }
+                    pc = split.end
+                    continue
+                }
                 if (ta == null) emitGeneric(pc) else emitOp(pc, ta)
                 val next = pc + Op.length(code, pc)
                 // the fall-through edge: box what the next instruction expects boxed
@@ -541,6 +564,171 @@ object JvmCompiler {
                 st.set(kinds)
                 convertTo(ta!!.stackIn[target]!!)
                 mv.visitJumpInsn(GOTO, label(target))
+            }
+        }
+
+        // ------------------------------------------------------------------ elements read as numbers
+
+        /** A GET_ELEM compiled twice ([emitSplit]): the instructions after it up to [end], and whether its fast case gives an int. */
+        private class Split(val end: Int, val int: Boolean)
+
+        /**
+         * Whether the GET_ELEM at [pc0] (with a number key) is followed by a few instructions that use its value as a
+         * number, so that a fast case reading a number element without a box pays. The instructions are simulated with
+         * the analysis's rules ([TypeAnalysis.stackStep]) for the element as a number and as the analysis has it (an
+         * Object): the split ends where the two have the same kinds again, or where the fast case's convert to the
+         * analysis's. The element's first use decides its kind: the ToInt32 int where it is a bitwise operator's
+         * operand, else the double.
+         */
+        private fun planSplit(pc0: Int, ta: TypeAnalysis): Split? {
+            if (!ta.elems) return null
+            val in0 = ta.stackIn[pc0]!!
+            if (in0.size < 2 || !JT.isNum(in0[in0.size - 1])) return null
+            val asDouble = simulateSplit(pc0, JT.NUM, ta) ?: return null
+            if (ta.ints && asDouble.bitwiseUse) return simulateSplit(pc0, JT.INT, ta)?.let { Split(it.end, true) }
+            return Split(asDouble.end, false)
+        }
+
+        private class SplitSim(val end: Int, val bitwiseUse: Boolean)
+
+        /** The end of a split with the element of kind [elem], or null when there is none worth making. */
+        private fun simulateSplit(pc0: Int, elem: Byte, ta: TypeAnalysis): SplitSim? {
+            var pc = pc0 + Op.length(code, pc0)
+            val static = KindStack().also { it.set(ta.stackIn[pc]!!) }
+            val fast = KindStack().also { it.set(ta.stackIn[pc0]!!); it.pop(); it.pop(); it.push(elem) }
+            if (fast.size != static.size) return null
+            var elemAt = fast.size - 1 // stack index of the element until it is used
+            var bitwiseUse = false
+            var end = -1
+            var n = 0
+            while (n < MAX_SPLIT && pc < code.size) {
+                if (!ta.reachable(pc) || labels.containsKey(pc) || handlerLabels.containsKey(pc)) break
+                if (!static.matches(ta.stackIn[pc]!!)) return null
+                val op = code[pc]
+                val a = if (Op.operands[op] >= 1) code[pc + 1] else 0
+                val regKind = if (op == Op.LOAD_REG) ta.regKind(pc, a) else JT.ANY
+                val before = fast.size
+                if (!ta.stackStep(op, a, fast, regKind)) break
+                ta.stackStep(op, a, static, regKind)
+                if (elemAt >= 0 && elemAt >= before - stackPops(op)) {
+                    if (op == Op.POP) return null // discarded: nothing to gain
+                    bitwiseUse = JT.isBitwise(op) || op == Op.BNOT
+                    elemAt = -1
+                }
+                pc += Op.length(code, pc)
+                n++
+                if (elemAt < 0) {
+                    if (fast.matches(static.toArray())) {
+                        end = pc
+                        break
+                    }
+                    if (convertible(fast, static)) end = pc
+                }
+            }
+            if (end < 0 || !ta.reachable(end)) return null
+            return SplitSim(end, bitwiseUse)
+        }
+
+        /** Values consumed by the instructions [TypeAnalysis.stackStep] handles. */
+        private fun stackPops(op: Int): Int = when (op) {
+            Op.PUSH_INT, Op.PUSH_CONST, Op.LOAD_REG -> 0
+            Op.POP, Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC, Op.TO_NUMBER -> 1
+            Op.PUT_ELEM -> 3
+            else -> 2
+        }
+
+        /** Whether [convertTo] can turn the kinds [from] into [to]. */
+        private fun convertible(from: KindStack, to: KindStack): Boolean {
+            if (from.size != to.size) return false
+            for (i in 0 until from.size) {
+                val f = from[i]
+                val t = to[i]
+                if (f != t && t != JT.ANY && !(f == JT.INT && t == JT.NUM)) return false
+            }
+            return true
+        }
+
+        /**
+         * The GET_ELEM at [pc0] and the instructions after it up to [s]'s end, compiled twice. For a typed array (tested
+         * inline: the elements of other arrays are boxed already, so they gain nothing and take the slow case at once),
+         * the fast case reads a Number element without boxing it (JitRt.elemNumI and the like) and compiles the
+         * instructions with it unboxed; when that does not apply (index, BigInt type), the helper sets Agent.elemMiss,
+         * and the slow case clears it. The slow case performs the whole [[Get]] (getElemI / getElemD) and compiles the
+         * instructions as usual. Both end
+         * with the analysis's kinds. The instructions in between have no labels or handler bounds, so both copies are
+         * covered by the same exception handlers, and both store the pc at the line table entries among them.
+         */
+        private fun emitSplit(pc0: Int, s: Split, ta: TypeAnalysis) {
+            // (obj key -- value): the key stays unboxed, and both are kept for the slow case
+            convertTo(st.toArray().also { it[it.size - 2] = JT.ANY })
+            val key = st.pop()
+            st.pop()
+            val tKey = storeTemp(key)
+            val tObj = temp()
+            mv.visitVarInsn(ASTORE, tObj)
+            val below = st.toArray()
+            val k = if (key == JT.INT) "I" else "D"
+            val slowGet = Label()
+            val miss = Label()
+            val merge = Label()
+            mv.visitVarInsn(ALOAD, tObj)
+            mv.visitTypeInsn(INSTANCEOF, "dev/mooner/neonjs/builtins/JSTypedArray")
+            mv.visitJumpInsn(IFEQ, slowGet)
+            mv.visitVarInsn(ALOAD, tObj)
+            loadTemp(key, tKey)
+            mv.visitVarInsn(ALOAD, L_AGENT)
+            if (s.int) rt("elemInt32$k", "($OBJ$k$AGENT_D)I") else rt("elemNum$k", "($OBJ$k$AGENT_D)D")
+            mv.visitVarInsn(ALOAD, L_AGENT)
+            mv.visitFieldInsn(GETFIELD, AGENT, "elemMiss", "Z")
+            mv.visitJumpInsn(IFNE, miss)
+            // fast case
+            val first = pc0 + Op.length(code, pc0)
+            st.set(below)
+            st.push(if (s.int) JT.INT else JT.NUM)
+            var pc = first
+            while (pc < s.end) {
+                storePc(pc)
+                emitOp(pc, ta)
+                pc += Op.length(code, pc)
+            }
+            convertTo(ta.stackIn[s.end]!!)
+            mv.visitJumpInsn(GOTO, merge)
+            // slow case: from a miss (drop the helper's 0, clear the flag), or from another receiver
+            mv.visitLabel(miss)
+            mv.visitInsn(if (s.int) POP else POP2)
+            mv.visitVarInsn(ALOAD, L_AGENT)
+            mv.visitInsn(ICONST_0)
+            mv.visitFieldInsn(PUTFIELD, AGENT, "elemMiss", "Z")
+            mv.visitLabel(slowGet)
+            mv.visitVarInsn(ALOAD, tObj)
+            loadTemp(key, tKey)
+            frame()
+            if (key == JT.INT) rt("getElemI", "(${OBJ}I$FRAME_D)$OBJ") else rt("getElemD", "(${OBJ}D$FRAME_D)$OBJ")
+            st.set(below)
+            st.push(JT.ANY)
+            if (!st.matches(ta.stackIn[first]!!)) throw JitBailout("split at $pc0: stack kinds differ")
+            pc = first
+            while (pc < s.end) {
+                st.set(ta.stackIn[pc]!!)
+                storePc(pc)
+                emitOp(pc, ta)
+                val next = pc + Op.length(code, pc)
+                convertTo(ta.stackIn[next]!!)
+                pc = next
+            }
+            mv.visitLabel(merge)
+        }
+
+        /** In a split, what the main loop does at a line table entry: f.pc = pc (and the JVM line number). */
+        private fun storePc(pc: Int) {
+            if (!stmtStart[pc]) return
+            frame()
+            iconst(pc)
+            mv.visitFieldInsn(PUTFIELD, FRAME, "pc", "I")
+            if (stmtLine[pc] >= 0) {
+                val l = Label()
+                mv.visitLabel(l)
+                mv.visitLineNumber(stmtLine[pc], l)
             }
         }
 

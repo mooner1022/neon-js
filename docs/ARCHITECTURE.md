@@ -131,15 +131,26 @@ specialised. The rules that keep this sound:
   Number type stores it without a box (`setElemII`/`ID`/`DI`/`DD`): TypedArraySetElement converts nothing for a
   Number, so no user code runs between the index check and the store. Other receivers, and BigInt arrays (whose
   ToBigInt throws), take the boxed path as before.
+- A GET_ELEM with a number key whose value the next few instructions use as a number (constants, register loads,
+  operators and an element store, with no label or handler bound among them) is compiled twice. When the receiver is
+  a typed array (tested inline; other arrays hold boxed numbers already, so they gain nothing and go straight to the
+  slow copy), the fast copy calls `elemNumI`/`elemNumD`, or `elemInt32I`/`elemInt32D` (the ToInt32) when the
+  element's first use is a bitwise operator, and continues with the element unboxed. These read a Number element
+  within the array's current length; they only check and read, so no user code runs between the length check and the
+  read. Otherwise (BigInt types, out-of-range keys) they set `Agent.elemMiss`, which the slow copy clears; the slow
+  copy performs the whole [[Get]] once (`getElemI`/`getElemD`) and runs the same instructions on the Object.
+  The instructions are picked by simulating them with the analysis's own rules (`TypeAnalysis.stackStep`), and both
+  copies end with the analysis's kinds and store the pc at the same line table entries. A stale `elemMiss` can only
+  send a read to the slow copy.
 - Exception handlers see, for each register, the join of its kinds over the protected range, and an Object stack.
 - Constant kinds are part of `JitInput` (blocks share classes, and constants are read at run time), and so are the
   `neonjs.jit.typed`, `neonjs.jit.int32` and `neonjs.jit.elem` settings; `FORMAT` changes whenever the generated code does, since a
   dex-caching definer keys translations by class name.
 - A block the analysis gives up on, or whose unboxed code exceeds the JVM method size limit, gets the Object-only code
   (`JvmCompiler.untypedReasons` counts them). `-Dneonjs.jit.typed=false` turns unboxing off,
-  `-Dneonjs.jit.int32=false` only INT (integers are then NUM), `-Dneonjs.jit.elem=false` the unboxed element stores;
-  `-Dneonjs.jit.dump=DIR` writes every generated class to DIR. These are JVM properties of the host, not reachable
-  from scripts.
+  `-Dneonjs.jit.int32=false` only INT (integers are then NUM), `-Dneonjs.jit.elem=false` the unboxed element stores
+  and reads; `-Dneonjs.jit.dump=DIR` writes every generated class to DIR. These are JVM properties of the host, not
+  reachable from scripts.
 
 The approach is Rhino's (its optimizer gives variables proven numeric `double` locals). V8, JavaScriptCore and
 SpiderMonkey speculate on profiled types and deoptimize when a guard fails; their JIT bugs typically come from a typer

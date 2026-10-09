@@ -52,6 +52,11 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
     @JvmField var depth = 0
     @JvmField var maxDepth = config.maxCallDepth
     @JvmField var topFrame: Frame? = null
+    /**
+     * Set by compiled code's element fast paths (JitRt.elemNumI and the like) when they do not apply; the generated code
+     * clears it and takes the full [[Get]]. A stale true only costs a slow path.
+     */
+    @JvmField var elemMiss = false
     @JvmField val jobs = ArrayDeque<Runnable>()
     @JvmField val symbolRegistry = HashMap<String, JSSymbol>()
 

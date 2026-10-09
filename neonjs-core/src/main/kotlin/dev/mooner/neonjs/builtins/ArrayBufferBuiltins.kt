@@ -215,6 +215,13 @@ internal object BufferOps {
 
     /** GetValueFromBuffer: returns a Double or (for BigInt types) a BigInteger. */
     fun load(a: ByteArray, i: Int, t: ElementType, le: Boolean = true): Any = when (t) {
+        ElementType.BIGINT64 -> BigInteger.valueOf(getI64(a, i, le))
+        ElementType.BIGUINT64 -> bigFromBits(getI64(a, i, le), true)
+        else -> loadNumber(a, i, t, le)
+    }
+
+    /** GetValueFromBuffer for a Number type. */
+    fun loadNumber(a: ByteArray, i: Int, t: ElementType, le: Boolean = true): Double = when (t) {
         ElementType.INT8 -> a[i].toDouble()
         ElementType.UINT8, ElementType.UINT8C -> (a[i].toInt() and 0xFF).toDouble()
         ElementType.INT16 -> getI16(a, i, le).toDouble()
@@ -224,8 +231,17 @@ internal object BufferOps {
         ElementType.FLOAT16 -> Float16.toDouble(getI16(a, i, le))
         ElementType.FLOAT32 -> java.lang.Float.intBitsToFloat(getI32(a, i, le)).toDouble()
         ElementType.FLOAT64 -> java.lang.Double.longBitsToDouble(getI64(a, i, le))
-        ElementType.BIGINT64 -> BigInteger.valueOf(getI64(a, i, le))
-        ElementType.BIGUINT64 -> bigFromBits(getI64(a, i, le), true)
+        ElementType.BIGINT64, ElementType.BIGUINT64 -> throw IllegalArgumentException("a Number from $t")
+    }
+
+    /** ToInt32 of [loadNumber] (for the integer types up to 32 bits, the element's bits themselves). */
+    fun loadToInt32(a: ByteArray, i: Int, t: ElementType): Int = when (t) {
+        ElementType.INT8 -> a[i].toInt()
+        ElementType.UINT8, ElementType.UINT8C -> a[i].toInt() and 0xFF
+        ElementType.INT16 -> getI16(a, i, true).toInt()
+        ElementType.UINT16 -> getI16(a, i, true).toInt() and 0xFFFF
+        ElementType.INT32, ElementType.UINT32 -> getI32(a, i, true)
+        else -> Ops.toInt32(loadNumber(a, i, t))
     }
 
     /** SetValueInBuffer: [v] must already be a Double (Number types) or BigInteger (BigInt types). */

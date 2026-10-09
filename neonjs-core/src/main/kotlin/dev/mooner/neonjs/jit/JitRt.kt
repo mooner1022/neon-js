@@ -1,5 +1,6 @@
 package dev.mooner.neonjs.jit
 
+import dev.mooner.neonjs.builtins.BufferOps
 import dev.mooner.neonjs.builtins.JSTypedArray
 import dev.mooner.neonjs.compiler.*
 import dev.mooner.neonjs.runtime.*
@@ -317,6 +318,43 @@ object JitRt {
             if (o is JSTypedArray) return o.getIndex(i)
         }
         return Rt.getElem(f.realm, o, Ops.num(key))
+    }
+
+    // GET_ELEM's fast case in compiled code that uses the element as a number (JvmCompiler, emitSplit): a Number element
+    // of a typed array within its current length, read without a box (as TypedArrayGetElement reads it). Anything else
+    // sets agent.elemMiss and returns 0; the generated code then calls getElemI / getElemD, which perform the whole
+    // [[Get]] once. Only checks and reads happen here: no user code runs between the length check and the read.
+    @JvmStatic fun elemNumI(o: Any?, key: Int, ag: Agent): Double {
+        if (key >= 0 && o is JSTypedArray) {
+            val t = o.type
+            if (!t.isBigInt && key < o.lengthOrOOB()) return BufferOps.loadNumber(o.buffer.data, o.byteOffset + (key shl t.shift), t)
+        }
+        ag.elemMiss = true
+        return 0.0
+    }
+
+    @JvmStatic fun elemNumD(o: Any?, key: Double, ag: Agent): Double {
+        val i = key.toInt()
+        if (i.toDouble() == key) return elemNumI(o, i, ag)
+        ag.elemMiss = true
+        return 0.0
+    }
+
+    /** [elemNumI] for an element whose only use is a bitwise operator: its ToInt32. */
+    @JvmStatic fun elemInt32I(o: Any?, key: Int, ag: Agent): Int {
+        if (key >= 0 && o is JSTypedArray) {
+            val t = o.type
+            if (!t.isBigInt && key < o.lengthOrOOB()) return BufferOps.loadToInt32(o.buffer.data, o.byteOffset + (key shl t.shift), t)
+        }
+        ag.elemMiss = true
+        return 0
+    }
+
+    @JvmStatic fun elemInt32D(o: Any?, key: Double, ag: Agent): Int {
+        val i = key.toInt()
+        if (i.toDouble() == key) return elemInt32I(o, i, ag)
+        ag.elemMiss = true
+        return 0
     }
 
     /** [getElemD] with an int32 key. */
