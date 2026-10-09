@@ -79,6 +79,13 @@ class HostAccess private constructor(b: Builder) {
     }
 
     /**
+     * Whether instances of [c] may not be called as functions: [c] or a superclass is on the deny list, except the
+     * bases of proxies (`java.lang.reflect.Proxy`) and of the classes Kotlin compiles lambdas and function references
+     * to (`kotlin.jvm.internal`): those are denied for their own members (reflection), not for calls.
+     */
+    internal fun isCallDenied(c: Class<*>): Boolean = isDenied(c) { it === Proxy::class.java || it.name.startsWith("kotlin.jvm.internal.") }
+
+    /**
      * Can JS see the instance members of an object of class [c]? Those of a class that is not public (what
      * `listOf`, `Collections.unmodifiableList`, `Map.of` or `CharBuffer.wrap` return) are the methods of its public
      * superclasses and interfaces, called through those types, as Java code outside its package would call them. A

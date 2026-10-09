@@ -22,12 +22,12 @@ class HostClassInfo private constructor(val cls: Class<*>, val access: HostAcces
     val staticSetters = HashMap<String, MutableList<Method>>()
     val constructors = ArrayList<Constructor<*>>()
     val memberClasses = HashMap<String, Class<*>>()
-    /** Single abstract method if instances are callable (functional interface implementation). */
+    /** The method a call of an instance runs, if instances are functions (see [findFunctionalMethod]). */
     var functionalMethod: Method? = null
 
     init {
         if (instancesVisible) collect()
-        functionalMethod = findFunctionalMethod(cls)
+        functionalMethod = findFunctionalMethod(cls, access)
     }
 
     private fun jsName(m: AccessibleObject, default: String): String = m.getAnnotation(HostName::class.java)?.value ?: default
@@ -134,25 +134,64 @@ class HostClassInfo private constructor(val cls: Class<*>, val access: HostAcces
             return Modifier.isPublic(d.modifiers) && isExported(d) && (d.enclosingClass == null || Modifier.isPublic(d.enclosingClass.modifiers))
         }
 
-        /** The single abstract method of a functional interface implemented by [cls], if any. */
-        fun findFunctionalMethod(cls: Class<*>): Method? {
-            val candidates = ArrayList<Class<*>>()
-            fun collect(c: Class<*>?) {
-                if (c == null) return
-                for (i in c.interfaces) {
-                    candidates.add(i)
-                    collect(i)
+        /**
+         * The method a call of an instance of [cls] runs, or null if instances are not functions. An object is a
+         * function when that is what its class is for:
+         * - a lambda, a method reference or an anonymous class, through the one single-method interface it implements
+         *   (any: Kotlin `fun interface`s, Android listeners);
+         * - otherwise through an interface declared functional, `@FunctionalInterface` as in GraalJS (`Runnable`,
+         *   `Comparator`, `java.util.function.*`) or a Kotlin function type, provided that is the class's only role:
+         *   every other interface it implements has no abstract methods or is a super- or subinterface of that one.
+         *
+         * So an `ArrayList` (`Iterable`), a `File` (`Comparable`), a `LocalDate` (a `TemporalAdjuster`, but also a
+         * `Temporal`) or a named class implementing a Kotlin `fun interface` are objects, whose methods are members.
+         * Nothing is a function under [HostAccess.Level.NONE], nor an instance of a denied class.
+         */
+        fun findFunctionalMethod(cls: Class<*>, access: HostAccess): Method? {
+            if (access.level == HostAccess.Level.NONE || access.isCallDenied(cls)) return null
+            fun samIn(i: Class<*>): Method? =
+                if (Modifier.isPublic(i.modifiers) && !access.isClassDenied(i)) samOf(i)?.takeIf { isCallable(it) } else null
+            if ((cls.isSynthetic || cls.isAnonymousClass) && cls.superclass == Any::class.java) {
+                val sams = cls.interfaces.mapNotNull { samIn(it) }
+                if (sams.size == 1) return sams[0]
+            }
+            // declared functional, nearest first: the class's interfaces in declaration order and theirs, then the superclass's
+            val seen = HashSet<Class<*>>()
+            var fi: Class<*>? = null
+            var sam: Method? = null
+            var c: Class<*>? = cls
+            search@ while (c != null) {
+                val queue = ArrayDeque(c.interfaces.asList())
+                while (queue.isNotEmpty()) {
+                    val i = queue.removeFirst()
+                    if (!seen.add(i)) continue
+                    if (i.isAnnotationPresent(FunctionalInterface::class.java) || KOTLIN_FUNCTION.isAssignableFrom(i)) {
+                        sam = samIn(i)
+                        if (sam != null) {
+                            fi = i
+                            break@search
+                        }
+                    }
+                    queue.addAll(i.interfaces)
                 }
-                collect(c.superclass)
+                c = c.superclass
             }
-            if (cls.isInterface) candidates.add(cls)
-            collect(cls)
-            for (i in candidates) {
-                val sam = samOf(i) ?: continue
-                if (Modifier.isPublic(i.modifiers)) return sam
+            if (fi == null) return null
+            // its only role; the interfaces every enum has, and those of the classes Kotlin compiles lambdas and
+            // references to, are not roles of the class
+            c = cls
+            while (c != null && c != Enum::class.java && !c.name.startsWith("kotlin.jvm.internal.")) {
+                for (i in c.interfaces) {
+                    val related = i.isAssignableFrom(fi) || fi.isAssignableFrom(i) && samOf(i) != null ||
+                        KOTLIN_FUNCTION.isAssignableFrom(i) && KOTLIN_FUNCTION.isAssignableFrom(fi)
+                    if (!related && i.methods.any { Modifier.isAbstract(it.modifiers) && !isObjectMethod(it) }) return null
+                }
+                c = c.superclass
             }
-            return null
+            return sam
         }
+
+        private val KOTLIN_FUNCTION = kotlin.Function::class.java
 
         /** Single abstract method of an interface, or null. */
         fun samOf(i: Class<*>): Method? {

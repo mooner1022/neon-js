@@ -63,8 +63,15 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         is CompletionStage<*> -> promiseOf(v)
         else -> {
             val un = gate.unwrapValue(v)
-            if (un !== NotFound) un else wrap(v)
+            if (un !== NotFound) un else implementedBy(v) ?: wrap(v)
         }
+    }
+
+    /** The JS object behind [v] if [v] is an interface implementation this bridge made ([implement]), else null. */
+    private fun implementedBy(v: Any): JSObject? {
+        if (!Proxy.isProxyClass(v.javaClass)) return null
+        val h = Proxy.getInvocationHandler(v)
+        return if (h is JSImplementation && h.bridge === this) h.target else null
     }
 
     /**
@@ -425,32 +432,40 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
     }
 
     /** Creates a host implementation of interface [iface] backed by a JS function or object. */
-    fun implement(v: JSObject, iface: Class<*>): Any {
-        val handler = InvocationHandler { proxy, method, args ->
-            when {
-                method.declaringClass == Any::class.java -> when (method.name) {
-                    "toString" -> "JSProxy[${iface.simpleName}]"
-                    "hashCode" -> System.identityHashCode(proxy)
-                    "equals" -> proxy === args?.get(0)
-                    else -> null
-                }
-                else -> gate.enter {
-                    val jsArgs = arrayOfNulls<Any?>(args?.size ?: 0)
-                    if (args != null) for (i in args.indices) jsArgs[i] = toJS(args[i])
-                    val r = if (v.isCallable) v.call(Undefined, jsArgs)
-                    else {
-                        val fn = v.get(method.name, v)
-                        if (!Ops.isCallable(fn)) {
-                            if (method.isDefault) return@enter invokeDefault(proxy, method, args)
-                            throw JSException.typeError("${method.name} is not implemented")
-                        }
-                        (fn as JSObject).call(v, jsArgs)
+    fun implement(v: JSObject, iface: Class<*>): Any =
+        Proxy.newProxyInstance(iface.classLoader ?: javaClass.classLoader, arrayOf(iface), JSImplementation(v, iface))
+
+    /**
+     * The handler of the proxies [implement] makes: calls run [target], the JS function or object. Handed back to
+     * this context, such a proxy is [target] again (see [toJS]), so a JS function stays callable and keeps its
+     * identity through host code whatever interface it was given as.
+     */
+    internal inner class JSImplementation(val target: JSObject, private val iface: Class<*>) : InvocationHandler {
+        val bridge: HostBridge get() = this@HostBridge
+
+        override fun invoke(proxy: Any, method: Method, args: Array<Any?>?): Any? = when {
+            method.declaringClass == Any::class.java -> when (method.name) {
+                "toString" -> "JSProxy[${iface.simpleName}]"
+                "hashCode" -> System.identityHashCode(proxy)
+                "equals" -> proxy === args?.get(0)
+                else -> null
+            }
+            else -> gate.enter {
+                val jsArgs = arrayOfNulls<Any?>(args?.size ?: 0)
+                if (args != null) for (i in args.indices) jsArgs[i] = toJS(args[i])
+                val v = target
+                val r = if (v.isCallable) v.call(Undefined, jsArgs)
+                else {
+                    val fn = v.get(method.name, v)
+                    if (!Ops.isCallable(fn)) {
+                        if (method.isDefault) return@enter invokeDefault(proxy, method, args)
+                        throw JSException.typeError("${method.name} is not implemented")
                     }
-                    if (method.returnType == Void.TYPE) null else toHost(r, method.returnType, method.genericReturnType)
+                    (fn as JSObject).call(v, jsArgs)
                 }
+                if (method.returnType == Void.TYPE) null else toHost(r, method.returnType, method.genericReturnType)
             }
         }
-        return Proxy.newProxyInstance(iface.classLoader ?: javaClass.classLoader, arrayOf(iface), handler)
     }
 
     /** Runs the default implementation of an interface method the JS object does not provide. */
