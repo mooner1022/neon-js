@@ -128,7 +128,7 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         val cached = wrapperCache[v]?.get()
         if (cached != null && cached.target === v) return cached
         val info = classInfo(v.javaClass)
-        val w = if (info.accessible || info.functionalMethod != null || v.javaClass.isArray || v is List<*> || v is Map<*, *> || v is Iterable<*>) HostObject(this, v, info) else opaque(v)
+        val w = if (info.instancesVisible || info.functionalMethod != null || v.javaClass.isArray || v is List<*> || v is Map<*, *> || v is Iterable<*>) HostObject(this, v, info) else opaque(v)
         if (v !is Number && v !is String) wrapperCache[v] = java.lang.ref.WeakReference(w)
         return w
     }

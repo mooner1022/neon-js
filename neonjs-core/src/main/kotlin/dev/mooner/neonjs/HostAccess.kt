@@ -3,6 +3,7 @@ package dev.mooner.neonjs
 import java.lang.reflect.Member
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
+import java.lang.reflect.Proxy
 
 /** Marks a host class member (method, field, constructor, Kotlin property getter) as accessible from JS. */
 @Target(AnnotationTarget.FUNCTION, AnnotationTarget.FIELD, AnnotationTarget.CONSTRUCTOR, AnnotationTarget.PROPERTY_GETTER,
@@ -60,14 +61,36 @@ class HostAccess private constructor(b: Builder) {
     }
 
     /** Whether [c], one of its superclasses or one of its interfaces is on the deny list. */
-    fun isClassDenied(c: Class<*>): Boolean {
+    fun isClassDenied(c: Class<*>): Boolean = isDenied(c) { false }
+
+    /**
+     * [isClassDenied], but for the superclasses [base] accepts only where the embedder denied them: the built-in list
+     * denies those for what they offer themselves, not for what their subclasses' instances are.
+     */
+    private inline fun isDenied(c: Class<*>, base: (Class<*>) -> Boolean): Boolean {
         var k: Class<*>? = c
         while (k != null) {
-            if (isNameDenied(k.name)) return true
+            val n = k.name
+            if (isNameDenied(n) && (k === c || !base(k) || n in deniedClasses || deniedPrefixes.any { n.startsWith(it) })) return true
             k = k.superclass
         }
         for (i in c.interfaces) if (isNameDenied(i.name, packages = false)) return true
         return false
+    }
+
+    /**
+     * Can JS see the instance members of an object of class [c]? Those of a class that is not public (what
+     * `listOf`, `Collections.unmodifiableList`, `Map.of` or `CharBuffer.wrap` return) are the methods of its public
+     * superclasses and interfaces, called through those types, as Java code outside its package would call them. A
+     * proxy shows the methods of its interfaces: its base class `java.lang.reflect.Proxy` has no public instance
+     * methods of its own.
+     */
+    internal fun isInstanceAccessible(c: Class<*>): Boolean {
+        if (level == Level.NONE) return false
+        if (c.isArray) return isClassAccessible(c)
+        if (isDenied(c) { it === Proxy::class.java }) return false
+        val f = classFilter
+        return f == null || f(c)
     }
 
     /** Can JS see members of [c] at all? */
@@ -85,6 +108,11 @@ class HostAccess private constructor(b: Builder) {
         return f == null || f(c)
     }
 
+    /**
+     * Whether JS may use member [m] of class [c]: public, not declared by a denied class, exported under [Level.EXPLICIT],
+     * accepted by the member filter. Synthetic methods are not members, except the bridges through which a method is
+     * called by its name (see [isEntryBridge]).
+     */
     fun isMemberAccessible(c: Class<*>, m: Member): Boolean {
         if (!Modifier.isPublic(m.modifiers)) return false
         if (m is Method) {
@@ -92,8 +120,8 @@ class HostAccess private constructor(b: Builder) {
                 // it hands out java.lang.Class: visible only where that class is
                 if (isNameDenied("java.lang.Class")) return false
             } else if (m.name in deniedMethods && m.declaringClass == Any::class.java) return false
-            if (m.isSynthetic || m.isBridge) return false
-            if (isClassDenied(m.declaringClass)) return false
+            if ((m.isSynthetic || m.isBridge) && !isEntryBridge(m)) return false
+            if (isDenied(m.declaringClass) { it === Proxy::class.java }) return false
         }
         when (level) {
             Level.NONE -> return false
@@ -107,6 +135,26 @@ class HostAccess private constructor(b: Builder) {
         }
         val f = memberFilter
         return f == null || f(m)
+    }
+
+    /**
+     * Whether bridge method [m] is how a method is called by this name, rather than a forwarder to a visible method
+     * of its own class. javac adds such bridges to a public class for the public methods it inherits from a
+     * non-public superclass (JDK-6342411: `StringBuilder.length()` for `AbstractStringBuilder.length()`), Kotlin for
+     * the Java names of members of the types it maps (`length()` and `charAt()` of a `CharSequence` implementing
+     * `length` and `get`, `size()`, `remove(int)` for `removeAt`). A covariant-return or generic bridge forwards to a
+     * method of the same name declared next to it, with parameter types as specific or more: that one is the member.
+     * Synthetic methods that are not bridges (accessors, `Java.extend`'s super-call trampolines) stay hidden.
+     */
+    private fun isEntryBridge(m: Method): Boolean {
+        if (!m.isBridge) return false
+        val params = m.parameterTypes
+        for (o in m.declaringClass.declaredMethods) {
+            if (o.name != m.name || o.isBridge || o.isSynthetic || o.parameterCount != params.size) continue
+            val ops = o.parameterTypes
+            if (params.indices.all { params[it].isAssignableFrom(ops[it]) }) return false
+        }
+        return true
     }
 
     /**

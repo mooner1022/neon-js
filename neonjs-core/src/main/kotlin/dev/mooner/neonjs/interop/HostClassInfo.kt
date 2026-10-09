@@ -7,7 +7,10 @@ import java.util.concurrent.ConcurrentHashMap
 
 /** Reflection metadata of a host class as seen from JS under a [HostAccess] policy. */
 class HostClassInfo private constructor(val cls: Class<*>, val access: HostAccess) {
+    /** Whether JS may use the class itself: static members, constructors (and see [instancesVisible]). */
     val accessible: Boolean = access.isClassAccessible(cls)
+    /** Whether instances show members: those of a non-public class are the ones of its public supertypes. */
+    val instancesVisible: Boolean = access.isInstanceAccessible(cls)
 
     val instanceFields = HashMap<String, Field>()
     val instanceMethods = HashMap<String, MutableList<Method>>()
@@ -23,7 +26,7 @@ class HostClassInfo private constructor(val cls: Class<*>, val access: HostAcces
     var functionalMethod: Method? = null
 
     init {
-        if (accessible) collect()
+        if (instancesVisible) collect()
         functionalMethod = findFunctionalMethod(cls)
     }
 
@@ -31,13 +34,15 @@ class HostClassInfo private constructor(val cls: Class<*>, val access: HostAcces
 
     private fun collect() {
         for (f in cls.fields) {
-            if (!access.isMemberAccessible(cls, f)) continue
+            if (!access.isMemberAccessible(cls, f) || !isCallable(f) || Modifier.isStatic(f.modifiers) && !accessible) continue
             val n = jsName(f, f.name)
             if (Modifier.isStatic(f.modifiers)) staticFields[n] = f else instanceFields[n] = f
         }
         for (m0 in cls.methods) {
-            if (!access.isMemberAccessible(cls, m0)) continue
+            if (!access.isMemberAccessible(cls, m0) || Modifier.isStatic(m0.modifiers) && !accessible) continue
             val m = publicVersion(m0) ?: continue
+            // reached through a supertype: that type is what JS calls, so it must not be denied either
+            if (m !== m0 && access.isClassDenied(m.declaringClass)) continue
             val n = jsName(m0, m0.name)
             val target = if (Modifier.isStatic(m.modifiers)) staticMethods else instanceMethods
             val list = target.getOrPut(n) { ArrayList() }
@@ -65,6 +70,7 @@ class HostClassInfo private constructor(val cls: Class<*>, val access: HostAcces
                 }
             }
         }
+        if (!accessible) return
         if (!Modifier.isAbstract(cls.modifiers) && !cls.isInterface) {
             for (c in cls.constructors) if (access.isMemberAccessible(cls, c)) constructors.add(c)
         }
@@ -122,7 +128,8 @@ class HostClassInfo private constructor(val cls: Class<*>, val access: HostAcces
             false
         }
 
-        private fun isCallable(m: Method): Boolean {
+        /** Whether [m] can be used reflectively: its declaring class is public and exported. */
+        private fun isCallable(m: Member): Boolean {
             val d = m.declaringClass
             return Modifier.isPublic(d.modifiers) && isExported(d) && (d.enclosingClass == null || Modifier.isPublic(d.enclosingClass.modifiers))
         }
