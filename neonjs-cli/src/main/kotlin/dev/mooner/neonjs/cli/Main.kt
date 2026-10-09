@@ -17,6 +17,9 @@ private const val USAGE = """usage: neonjs [options] [file.js | file.mjs ...]
   --interpreter   bytecode interpreter only
   --compiled      compile every function to JVM bytecode
   --adaptive      interpret, then compile hot functions (default)
+  --jit-threshold N
+                  adaptive: compile a function on its Nth call (default 1000)
+  --sync-jit      compile on the calling thread instead of in the background
   --module, -m    treat files as ES modules (default for .mjs)
   --dis           print bytecode before running
   -e CODE         evaluate CODE
@@ -44,6 +47,8 @@ private fun cliMain(args: Array<String>) {
     var dis = false
     var mode = 2
     var forceModule = false
+    var jitThreshold = -1
+    var syncJit = false
     val files = ArrayList<String>()
     val snippets = ArrayList<String>()
     fun usageError(message: String): Nothing {
@@ -59,6 +64,8 @@ private fun cliMain(args: Array<String>) {
             a == "--interpreter" -> mode = 0
             a == "--compiled" -> mode = 1
             a == "--adaptive" -> mode = 2
+            a == "--jit-threshold" -> jitThreshold = args.getOrNull(++i)?.toIntOrNull()?.takeIf { it > 0 } ?: usageError("option --jit-threshold requires a positive number")
+            a == "--sync-jit" -> syncJit = true
             a == "--module" || a == "-m" -> forceModule = true
             a == "-e" -> snippets.add(args.getOrNull(++i) ?: usageError("option -e requires code to evaluate"))
             a == "-f" || a == "--file" -> files.add(args.getOrNull(++i) ?: usageError("option $a requires a file path"))
@@ -74,6 +81,8 @@ private fun cliMain(args: Array<String>) {
     System.setErr(java.io.PrintStream(java.io.FileOutputStream(java.io.FileDescriptor.err), true, "UTF-8"))
     val agent = Agent()
     agent.config.executionMode = mode
+    if (jitThreshold > 0) agent.config.jitThreshold = jitThreshold
+    if (syncJit) agent.config.backgroundJit = false
     agent.config.propagateInternalErrors = System.getProperty("neonjs.debug") != null
     var failed = false
     agent.enter {

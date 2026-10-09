@@ -70,7 +70,8 @@ The jars are Java 21 class files. For Android, see [Android](#android).
 ### CLI
 
 ```
-neonjs [--interpreter | --compiled | --adaptive] [--module] [--dis] [-e CODE] [-f FILE ...] [file.js | file.mjs ...]
+neonjs [--interpreter | --compiled | --adaptive] [--jit-threshold N] [--sync-jit] [--module] [--dis]
+       [-e CODE] [-f FILE ...] [file.js | file.mjs ...]
 ```
 
 Local files run in the order given, either as plain arguments or with `-f FILE` / `--file FILE` / `--file=FILE`
@@ -78,7 +79,9 @@ Local files run in the order given, either as plain arguments or with `-f FILE` 
 the remaining files still run (exit status 1); a bad option exits with status 2. Without files or `-e` it starts a
 REPL. The executable jar runs the same way: `java -jar neonjs-cli-<version>-all.jar [options] [files]` (it
 includes `neonjs-intl`, and needs no `-Xss` flag). `print(...)` and `console.*` write to stdout/stderr; `.mjs`
-files (or `--module`) are run as ES modules with relative imports resolved from the file system.
+files (or `--module`) are run as ES modules with relative imports resolved from the file system. `--jit-threshold N`
+(adaptive mode: compile a function on its Nth call) and `--sync-jit` (compile on the calling thread) make compiled
+code run at a fixed point, for tests and comparisons.
 
 ## Embedding
 
