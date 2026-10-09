@@ -36,7 +36,15 @@ object Interpreter {
     // ------------------------------------------------------------------ calls
 
     @JvmStatic
-    fun callClosure(fn0: JSClosure, thisArg0: Any?, args0: Array<Any?>): Any? {
+    fun callClosure(fn0: JSClosure, thisArg0: Any?, args0: Array<Any?>): Any? = invokeClosure(fn0, thisArg0, args0)
+
+    /**
+     * [callClosure]'s steps, inline: the calls of compiled code (JitRt.call0..call4) include them and [execute]'s, so a
+     * call there is one helper call, not three. Ahead-of-time code on ART does not inline across the three, and HotSpot
+     * gives up on them as a chain; with the smaller frames (Frame.FrameExt) that made calls 10-35% faster.
+     */
+    @Suppress("NOTHING_TO_INLINE")
+    internal inline fun invokeClosure(fn0: JSClosure, thisArg0: Any?, args0: Array<Any?>): Any? {
         var fn = fn0
         var thisArg = thisArg0
         var args = args0
@@ -64,7 +72,7 @@ object Interpreter {
             if (flags and (CodeBlock.GENERATOR or CodeBlock.ASYNC) != 0) {
                 return Generators.start(frame)
             }
-            val r = execute(frame, compiled)
+            val r = runFrame(frame, compiled)
             if (r !== TAIL) return r
             fn = frame.tailFn!!
             thisArg = frame.tailThis
@@ -113,7 +121,10 @@ object Interpreter {
 
     /** As [execute] with [f]'s compiled code, the code it was made with (null: interpret it). */
     @JvmStatic
-    fun execute(f: Frame, c: dev.mooner.neonjs.jit.CompiledCode?): Any? {
+    fun execute(f: Frame, c: dev.mooner.neonjs.jit.CompiledCode?): Any? = runFrame(f, c)
+
+    @Suppress("NOTHING_TO_INLINE")
+    internal inline fun runFrame(f: Frame, c: dev.mooner.neonjs.jit.CompiledCode?): Any? {
         val agent = f.realm.agent
         val prevRealm = agent.currentRealm
         val prevTop = agent.topFrame

@@ -468,31 +468,32 @@ object JitRt {
         if (fnv is JSObject && fnv.special and JSObject.CALLABLE != 0) return fnv.call(thisV, args)
         throw Rt.notCallable(fnv, f.code, pc)
     }
-    // the JS function case of call() again: ahead-of-time code on ART does not inline call() into these
+    // the JS function case of call() again, with callClosure's steps inline: ahead-of-time code on ART does not inline
+    // call() or callClosure() into these
     @JvmStatic fun call0(fnv: Any?, t: Any?, f: Frame, pc: Int): Any? {
         if (fnv !is JSClosure) return call(fnv, t, EMPTY_ARGS, f, pc)
         f.pc = pc
-        return Interpreter.callClosure(fnv, t, EMPTY_ARGS)
+        return Interpreter.invokeClosure(fnv, t, EMPTY_ARGS)
     }
     @JvmStatic fun call1(fnv: Any?, t: Any?, a: Any?, f: Frame, pc: Int): Any? {
         if (fnv !is JSClosure) return call(fnv, t, arrayOf(a), f, pc)
         f.pc = pc
-        return Interpreter.callClosure(fnv, t, arrayOf(a))
+        return Interpreter.invokeClosure(fnv, t, arrayOf(a))
     }
     @JvmStatic fun call2(fnv: Any?, t: Any?, a: Any?, b: Any?, f: Frame, pc: Int): Any? {
         if (fnv !is JSClosure) return call(fnv, t, arrayOf(a, b), f, pc)
         f.pc = pc
-        return Interpreter.callClosure(fnv, t, arrayOf(a, b))
+        return Interpreter.invokeClosure(fnv, t, arrayOf(a, b))
     }
     @JvmStatic fun call3(fnv: Any?, t: Any?, a: Any?, b: Any?, c: Any?, f: Frame, pc: Int): Any? {
         if (fnv !is JSClosure) return call(fnv, t, arrayOf(a, b, c), f, pc)
         f.pc = pc
-        return Interpreter.callClosure(fnv, t, arrayOf(a, b, c))
+        return Interpreter.invokeClosure(fnv, t, arrayOf(a, b, c))
     }
     @JvmStatic fun call4(fnv: Any?, t: Any?, a: Any?, b: Any?, c: Any?, d: Any?, f: Frame, pc: Int): Any? {
         if (fnv !is JSClosure) return call(fnv, t, arrayOf(a, b, c, d), f, pc)
         f.pc = pc
-        return Interpreter.callClosure(fnv, t, arrayOf(a, b, c, d))
+        return Interpreter.invokeClosure(fnv, t, arrayOf(a, b, c, d))
     }
     @JvmStatic fun callSpread(fnv: Any?, thisV: Any?, arr: Any?, f: Frame, pc: Int): Any? = call(fnv, thisV, Rt.arrayToArgs(arr.cast<JSArray>()), f, pc)
 

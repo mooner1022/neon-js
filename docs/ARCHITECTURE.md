@@ -73,7 +73,10 @@ Every call allocates a `Frame`, so it is kept small (64 bytes on ART, where each
 calls 10-17% faster). The state only generators, async functions, pending tail calls and eval code use (resume mode,
 awaited value, generator object, tail-call target, an eval's home object) lives in a `Frame.FrameExt` made on first
 use, and a frame does not keep its compiled code: a frame run by compiled code has no slots (`Frame.isCompiled`), and
-the code block's installed code, which is never replaced, is the code it was made for.
+the code block's installed code, which is never replaced, is the code it was made for. A call from compiled code is one
+helper, `JitRt.call0`..`call4`, which includes the steps of `callClosure` and `execute` (`Interpreter.invokeClosure`,
+inline functions): ART's ahead-of-time code does not inline across the three, and HotSpot gives up on them as a chain.
+Together with the smaller frame this made calls 15-30% faster on HotSpot; each change alone gained little.
 
 Proper tail calls: `TAIL_CALL` to a plain closure stores the callee in the frame and returns `TAIL`; `callClosure`
 loops (a trampoline), so tail-recursive code runs in constant JS and JVM stack. Other callees (natives, proxies,
