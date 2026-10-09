@@ -113,8 +113,12 @@ object JitQueue {
 
     private fun install(t: JitTask, code: CompiledCode?) {
         val cb = t.cb
-        // the result first, then the task goes: a thread seeing neither would queue the block again
-        if (code != null) cb.compiled = code else cb.jitFailed = true
+        // the result first, then the task goes: a thread seeing neither would queue the block again. One that read
+        // `compiled` just before it was set still can, and code once installed stays: frames run by compiled code
+        // find it through their code block (Frame.isCompiled)
+        if (code != null) {
+            if (cb.compiled == null) cb.compiled = code
+        } else if (cb.compiled == null) cb.jitFailed = true
         TASK.compareAndSet(cb, t, null)
         t.finish()
     }

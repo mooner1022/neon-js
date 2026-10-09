@@ -64,7 +64,7 @@ object Interpreter {
             if (flags and (CodeBlock.GENERATOR or CodeBlock.ASYNC) != 0) {
                 return Generators.start(frame)
             }
-            val r = execute(frame)
+            val r = execute(frame, compiled)
             if (r !== TAIL) return r
             fn = frame.tailFn!!
             thisArg = frame.tailThis
@@ -85,9 +85,10 @@ object Interpreter {
                 return result
             }
             dev.mooner.neonjs.jit.Jit.prepare(code, realm.agent)
-            val frame = Frame(fn, code, realm, Uninitialized, args, newTarget, fn.env)
+            val compiled = code.compiled as dev.mooner.neonjs.jit.CompiledCode?
+            val frame = Frame(fn, code, realm, Uninitialized, args, newTarget, fn.env, compiled)
             // checks happen after the callee context is gone (errors come from the caller's realm)
-            val r = execute(frame) as DerivedResult
+            val r = execute(frame, compiled) as DerivedResult
             val v = r.value
             if (v is JSObject) return v
             if (v !== Undefined) throw JSException.typeError("Derived constructors may only return object or undefined")
@@ -99,15 +100,20 @@ object Interpreter {
         val obj = JSObject(proto)
         if (code.flags and CodeBlock.CLASS_CTOR != 0) Rt.initializeInstanceElements(obj, fn)
         if (code.flags and CodeBlock.DEFAULT_CTOR != 0) return obj
-        val frame = Frame(fn, code, realm, obj, args, newTarget, fn.env)
-        var r = execute(frame)
+        val compiled = code.compiled as dev.mooner.neonjs.jit.CompiledCode?
+        val frame = Frame(fn, code, realm, obj, args, newTarget, fn.env, compiled)
+        var r = execute(frame, compiled)
         if (r === TAIL) r = callClosure(frame.tailFn!!, frame.tailThis, frame.tailArgs!!)
         return r as? JSObject ?: obj
     }
 
     /** Runs a frame with realm / depth bookkeeping. */
     @JvmStatic
-    fun execute(f: Frame): Any? {
+    fun execute(f: Frame): Any? = execute(f, if (f.isCompiled) f.code.compiled as dev.mooner.neonjs.jit.CompiledCode else null)
+
+    /** As [execute] with [f]'s compiled code, the code it was made with (null: interpret it). */
+    @JvmStatic
+    fun execute(f: Frame, c: dev.mooner.neonjs.jit.CompiledCode?): Any? {
         val agent = f.realm.agent
         val prevRealm = agent.currentRealm
         val prevTop = agent.topFrame
@@ -128,7 +134,7 @@ object Interpreter {
         f.parent = prevTop
         agent.topFrame = f
         try {
-            val c = f.compiled ?: return run(f)
+            if (c == null) return run(f)
             try {
                 return c.run(f)
             } catch (e: JSException) {

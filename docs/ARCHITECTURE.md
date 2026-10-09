@@ -69,6 +69,12 @@ JIT-compiles larger methods, which silently makes the whole interpreter several 
 Generators and async functions suspend by returning `SUSPENDED` from `run`; their frame keeps registers, stack and
 pc. Async functions, async generators and async module bodies are resumed by promise reactions.
 
+Every call allocates a `Frame`, so it is kept small (64 bytes on ART, where each allocation costs: going from 96 made
+calls 10-17% faster). The state only generators, async functions, pending tail calls and eval code use (resume mode,
+awaited value, generator object, tail-call target, an eval's home object) lives in a `Frame.FrameExt` made on first
+use, and a frame does not keep its compiled code: a frame run by compiled code has no slots (`Frame.isCompiled`), and
+the code block's installed code, which is never replaced, is the code it was made for.
+
 Proper tail calls: `TAIL_CALL` to a plain closure stores the callee in the frame and returns `TAIL`; `callClosure`
 loops (a trampoline), so tail-recursive code runs in constant JS and JVM stack. Other callees (natives, proxies,
 bound functions) are called directly in the calling function's realm.

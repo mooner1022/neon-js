@@ -12,8 +12,11 @@ class Frame(
     @JvmField val args: Array<Any?>,
     @JvmField val newTarget: Any?,
     @JvmField var env: Env?,
-    /** Compiled code for this activation (set when the code block was JIT-compiled before the call). */
-    @JvmField val compiled: dev.mooner.neonjs.jit.CompiledCode? = code.compiled as dev.mooner.neonjs.jit.CompiledCode?,
+    /**
+     * Compiled code to run this activation with (the code block's installed code, which is never replaced), or null to
+     * interpret it. Not kept: a frame run by compiled code has [NO_SLOTS] (see [isCompiled]).
+     */
+    compiled: dev.mooner.neonjs.jit.CompiledCode? = code.compiled as dev.mooner.neonjs.jit.CompiledCode?,
 ) {
     @JvmField val slots: Array<Any?> = if (compiled != null) NO_SLOTS else arrayOfNulls(code.numRegs + code.maxStack)
     @JvmField var sp: Int = code.numRegs
@@ -61,13 +64,18 @@ class Frame(
         set(v) { ext().tailPending = v }
 
     /** Home object for scripts/eval executed in a method context (unused for functions: taken from fn). */
-    @JvmField var homeObject: JSObject? = null
+    var homeObject: JSObject?
+        get() = ext?.homeObject
+        set(v) { ext().homeObject = v }
     /** Active function for eval code inside functions. */
     @JvmField var parent: Frame? = null
 
     init {
         if (compiled == null) initSlots()
     }
+
+    /** Whether compiled code runs this frame: `code.compiled`, installed before the frame was made. */
+    val isCompiled: Boolean get() = slots === NO_SLOTS
 
     private fun initSlots() {
         val regs = code.numRegs
@@ -93,6 +101,7 @@ class Frame(
         @JvmField var tailThis: Any? = null
         @JvmField var tailArgs: Array<Any?>? = null
         @JvmField var tailPending = false
+        @JvmField var homeObject: JSObject? = null
     }
 
     companion object {
