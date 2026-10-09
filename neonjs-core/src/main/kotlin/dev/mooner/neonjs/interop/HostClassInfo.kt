@@ -87,6 +87,23 @@ class HostClassInfo private constructor(val cls: Class<*>, val access: HostAcces
 
     private fun sameSignature(a: Method, b: Method) = a.name == b.name && a.parameterTypes.contentEquals(b.parameterTypes)
 
+    /**
+     * The overload a signature key names, as in Rhino, Nashorn and GraalJS: `append(java.lang.String)`,
+     * `append(char[])`, `max(int,int)`; parameter types by binary, canonical or simple name. Null if [key] is not a
+     * signature or names no single overload.
+     */
+    fun overload(key: String, static: Boolean): Method? {
+        val open = key.indexOf('(')
+        if (open <= 0 || !key.endsWith(")")) return null
+        val list = (if (static) staticMethods else instanceMethods)[key.substring(0, open)] ?: return null
+        val body = key.substring(open + 1, key.length - 1).trim()
+        val types = if (body.isEmpty()) emptyList() else body.split(',').map { it.trim() }
+        val found = list.filter { m ->
+            m.parameterCount == types.size && m.parameterTypes.withIndex().all { (i, t) -> types[i] == t.name || types[i] == t.typeName || types[i] == t.canonicalName || types[i] == t.simpleName }
+        }
+        return found.singleOrNull()
+    }
+
     companion object {
         private val cache = ConcurrentHashMap<HostAccess, ConcurrentHashMap<Class<*>, HostClassInfo>>()
 

@@ -195,6 +195,13 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         /** Largest Java array created from JS (elements); larger requests are a RangeError. */
         const val MAX_ARRAY_LENGTH = 1 shl 26
 
+        /** Widening primitive conversions (JLS 5.1.2): the types each primitive type converts to. */
+        private val PRIMITIVE_WIDENING: Map<Class<*>, Set<Class<*>>> = run {
+            val b = java.lang.Byte.TYPE; val s = java.lang.Short.TYPE; val c = Character.TYPE; val i = Integer.TYPE
+            val l = java.lang.Long.TYPE; val f = java.lang.Float.TYPE; val d = java.lang.Double.TYPE
+            mapOf(b to setOf(s, i, l, f, d), s to setOf(i, l, f, d), c to setOf(i, l, f, d), i to setOf(l, f, d), l to setOf(f, d), f to setOf(d))
+        }
+
         /** Resolves `int`, `java.lang.String[]`, `int[][]`... to a class (array syntax and primitive names). */
         fun classForName(name: String, loader: ClassLoader?): Class<*> {
             var n = name.trim()
@@ -486,6 +493,7 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
     fun <E : Executable> select(cands: List<E>, args: Array<Any?>): E? {
         var best: E? = null
         var bestCost = IMPOSSIBLE
+        var tied: ArrayList<E>? = null
         for (c in cands) {
             val pts = c.parameterTypes
             var total = 0
@@ -518,9 +526,41 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
             if (total < bestCost) {
                 best = c
                 bestCost = total
+                tied = null
+            } else if (total == bestCost) {
+                (tied ?: arrayListOf(best!!).also { tied = it }).add(c)
             }
         }
-        return best
+        return tied?.let { mostSpecific(it) } ?: best
+    }
+
+    /**
+     * The overload to call among [tied] ones of equal cost: one whose parameter types are each at least as specific
+     * as every other's (Java's rule: `String` over `CharSequence` over `Object`, `int` over `long`), else the first
+     * of the maximally specific ones in a fixed order (array parameters last, then by parameter type names). Never
+     * the order reflection lists methods in, which differs between JVMs (HotSpot, ART) and so would make a call like
+     * `sb.append(null)` mean different things on different platforms.
+     */
+    private fun <E : Executable> mostSpecific(tied: List<E>): E {
+        val sorted = tied.sortedWith(compareBy<E>({ e -> e.parameterTypes.count { it.isArray } }, { e -> e.parameterTypes.joinToString(",") { it.name } }))
+        for (a in sorted) if (sorted.all { b -> asSpecific(a, b) }) return a
+        return sorted.first { a -> sorted.none { b -> asSpecific(b, a) && !asSpecific(a, b) } }
+    }
+
+    /** Whether each parameter type of [a] converts to the matching one of [b] (as specific or more). */
+    private fun asSpecific(a: Executable, b: Executable): Boolean {
+        val pa = a.parameterTypes
+        val pb = b.parameterTypes
+        if (pa.size != pb.size) return a === b
+        for (i in pa.indices) if (!subtype(pa[i], pb[i])) return false
+        return true
+    }
+
+    private fun subtype(s: Class<*>, t: Class<*>): Boolean = when {
+        s == t -> true
+        s.isPrimitive && t.isPrimitive -> PRIMITIVE_WIDENING[s]?.contains(t) == true
+        s.isPrimitive -> t.isAssignableFrom(boxed(s)!!)
+        else -> !t.isPrimitive && t.isAssignableFrom(s)
     }
 
     fun convertArgs(e: Executable, args: Array<Any?>): Array<Any?> {

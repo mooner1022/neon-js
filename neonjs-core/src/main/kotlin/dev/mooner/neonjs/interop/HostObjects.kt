@@ -36,7 +36,9 @@ class HostMethodFunction(
 /**
  * Exotic object exposing a host (Java/Kotlin) object's public members as properties: fields, methods, and
  * bean-style properties (getX/isX/setX, i.e. Kotlin properties). Java arrays and Lists are array-like; Maps expose
- * entries through get/set; Iterables are JS-iterable. Functional interface implementations are callable.
+ * entries through get/set; Iterables are JS-iterable. Functions (lambdas, `@FunctionalInterface` and Kotlin function
+ * type implementations, see [HostClassInfo.findFunctionalMethod]) are callable. A signature key such as
+ * `append(java.lang.String)` names one overload ([HostClassInfo.overload]).
  */
 class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @JvmField val info: HostClassInfo) :
     JSObject(bridge.realm.objectPrototype) {
@@ -65,13 +67,13 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
     }
 
     private fun method(name: String): HostMethodFunction? {
-        val list = info.instanceMethods[name] ?: return null
+        val list = info.instanceMethods[name] ?: info.overload(name, static = false)?.let { listOf(it) } ?: return null
         var mc = methodCache
         if (mc == null) {
             mc = HashMap()
             methodCache = mc
         }
-        return mc.getOrPut(name) { HostMethodFunction(bridge, name, list, target) }
+        return mc.getOrPut(name) { HostMethodFunction(bridge, name.substringBefore('('), list, target) }
     }
 
     private fun isMap() = target is Map<*, *> && access.allowMapAccess
@@ -163,7 +165,7 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
                 when {
                     key == "length" && isArrayLike() -> 0
                     f != null -> (if (Modifier.isFinal(f.modifiers)) 0 else Attr.WRITABLE) or (if (collection) 0 else Attr.ENUMERABLE)
-                    key in info.instanceMethods -> 0
+                    key in info.instanceMethods || info.overload(key, static = false) != null -> 0
                     key in info.instanceGetters -> (if (key in info.instanceSetters) Attr.WRITABLE else 0) or (if (collection) 0 else Attr.ENUMERABLE)
                     else -> Attr.WRITABLE or Attr.ENUMERABLE // Map entry
                 }
@@ -321,6 +323,7 @@ class HostClassObject(@JvmField val bridge: HostBridge, @JvmField val cls: Class
             return try { bridge.toJS(f.get(null)) } catch (_: IllegalAccessException) { throw JSException.typeError("Cannot access field $key") }
         }
         info.staticMethods[key]?.let { list -> return methodCache.getOrPut(key) { HostMethodFunction(bridge, key, list, null) } }
+        info.overload(key, static = true)?.let { m -> return methodCache.getOrPut(key) { HostMethodFunction(bridge, key.substringBefore('('), listOf(m), null) } }
         info.staticGetters[key]?.let { g -> return bridge.invoke(g, null, EMPTY_ARGS) }
         info.memberClasses[key]?.let { return HostClassObject(bridge, it) }
         if (cls.isEnum) {
