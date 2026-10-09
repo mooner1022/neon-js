@@ -50,7 +50,9 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         is Short -> v.toDouble()
         is Byte -> v.toDouble()
         is Char -> v.toString()
-        is CharSequence -> v.toString()
+        // the engine's own strings; any other CharSequence (StringBuilder, CharBuffer, Android's Spanned) is mutable
+        // or carries more than its text, so it stays a host object rather than a copy of the text
+        is Rope -> v
         is BigInteger -> v
         is BigDecimal -> v.toDouble()
         is Undefined -> Undefined
@@ -259,6 +261,8 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
                 if (t.isInstance(x)) return distance(x.javaClass, t)
                 val boxed = boxed(t)
                 if (boxed != null && boxed.isInstance(x)) return 1
+                // a StringBuilder where a String is expected: its text (after any overload taking the object itself)
+                if (t == String::class.java && x is CharSequence) return 8
                 return IMPOSSIBLE
             }
             is HostClassObject -> return if (t == Any::class.java) 5 else IMPOSSIBLE
@@ -314,6 +318,7 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
             is HostObject -> {
                 val x = v.target
                 if (t.isInstance(x) || boxed(t)?.isInstance(x) == true) return x
+                if (t == String::class.java && x is CharSequence) return x.toString()
             }
             is HostClassObject -> if (t == Any::class.java) return v.cls
         }

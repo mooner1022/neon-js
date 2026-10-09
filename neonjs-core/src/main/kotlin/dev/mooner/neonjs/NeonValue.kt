@@ -41,7 +41,9 @@ class NeonValue internal constructor(val context: NeonContext, @PublishedApi int
         if (l.toDouble() != d) throw ArithmeticException("number $d does not fit in a long")
         return l
     }
-    fun asString(): String = (raw as? CharSequence)?.toString() ?: throw ClassCastException("not a string: ${typeOf()}")
+    /** A JS string, or the text of a host `CharSequence` (a StringBuilder, Android's Spanned...). */
+    fun asString(): String = (raw as? CharSequence ?: (raw as? HostObject)?.target as? CharSequence)?.toString()
+        ?: throw ClassCastException("not a string: ${typeOf()}")
     fun asBigInteger(): BigInteger = raw as? BigInteger ?: throw ClassCastException("not a bigint: ${typeOf()}")
 
     @Suppress("UNCHECKED_CAST")
