@@ -127,14 +127,19 @@ specialised. The rules that keep this sound:
   `0 * -1`, or throw on `/` and `%`), so their results are NUM. INT and NUM join to NUM (a loop counter starts as the
   literal 0 and is incremented as a double); a register is an `int` local when every read sees INT and a `double` when
   every read sees a number (a read of it that is INT goes through `exactInt`: every store reaching it was an int).
+- A number stored with a number key (`a[i] = x`) stays unboxed as the assignment's value, and a typed array of a
+  Number type stores it without a box (`setElemII`/`ID`/`DI`/`DD`): TypedArraySetElement converts nothing for a
+  Number, so no user code runs between the index check and the store. Other receivers, and BigInt arrays (whose
+  ToBigInt throws), take the boxed path as before.
 - Exception handlers see, for each register, the join of its kinds over the protected range, and an Object stack.
 - Constant kinds are part of `JitInput` (blocks share classes, and constants are read at run time), and so are the
-  `neonjs.jit.typed` and `neonjs.jit.int32` settings; `FORMAT` changes whenever the generated code does, since a
+  `neonjs.jit.typed`, `neonjs.jit.int32` and `neonjs.jit.elem` settings; `FORMAT` changes whenever the generated code does, since a
   dex-caching definer keys translations by class name.
 - A block the analysis gives up on, or whose unboxed code exceeds the JVM method size limit, gets the Object-only code
   (`JvmCompiler.untypedReasons` counts them). `-Dneonjs.jit.typed=false` turns unboxing off,
-  `-Dneonjs.jit.int32=false` only INT (integers are then NUM); `-Dneonjs.jit.dump=DIR` writes every generated class to
-  DIR. These are JVM properties of the host, not reachable from scripts.
+  `-Dneonjs.jit.int32=false` only INT (integers are then NUM), `-Dneonjs.jit.elem=false` the unboxed element stores;
+  `-Dneonjs.jit.dump=DIR` writes every generated class to DIR. These are JVM properties of the host, not reachable
+  from scripts.
 
 The approach is Rhino's (its optimizer gives variables proven numeric `double` locals). V8, JavaScriptCore and
 SpiderMonkey speculate on profiled types and deoptimize when a guard fails; their JIT bugs typically come from a typer

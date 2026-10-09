@@ -167,6 +167,48 @@ class JitTypesTest {
     }
 
     @Test
+    fun numberStoresIntoElements() {
+        // every key/value kind pair (int or double) into every Number element type
+        same(
+            "(function () { var types = [Int8Array, Uint8Array, Uint8ClampedArray, Int16Array, Uint16Array, Int32Array, Uint32Array, Float16Array, Float32Array, Float64Array]; " +
+                "var nums = [0, -0, 1.5, -1.5, 254.5, 255.5, 256, -1, 2147483648, -2147483649, 4294967295, 1e10, NaN, Infinity, -Infinity, 0.1, 65504, 65520, 1e-8, 3.4028235677973366e38]; var r = []; " +
+                "for (var t = 0; t < types.length; t++) { var a = new types[t](nums.length), b = new types[t](nums.length), c = new types[t](8), d = new types[t](8); " +
+                "for (var i = 0; i < nums.length; i++) { var x = nums[i] * 1; a[i] = x; b[i & 31] = x } " +
+                "for (var k = 0; k < 8; k++) { var v = (k * 0x3fffffff) | 0; c[k] = v; d[k & 7] = v - 1 | 0 } " +
+                "r.push([a, b, c, d].map(function (e) { return Array.prototype.map.call(e, show).join() }).join(' ')) } return r.join('|') })()",
+            "0,0,1,-1,-2,-1,0,-1,0,-1,-1,0,0,0,0,0,-32,-16,0,0 0,0,1,-1,-2,-1,0,-1,0,-1,-1,0,0,0,0,0,-32,-16,0,0 0,-1,-2,-3,-4,-5,-6,-7 -1,-2,-3,-4,-5,-6,-7,-8|0,0,1,255,254,255,0,255,0,255,255,0,0,0,0,0,224,240,0,0 0,0,1,255,254,255,0,255,0,255,255,0,0,0,0,0,224,240,0,0 0,255,254,253,252,251,250,249 255,254,253,252,251,250,249,248|0,0,2,0,254,255,255,0,255,0,255,255,0,255,0,0,255,255,0,255 0,0,2,0,254,255,255,0,255,0,255,255,0,255,0,0,255,255,0,255 0,255,255,0,0,255,255,0 0,255,255,0,0,255,255,0|0,0,1,-1,254,255,256,-1,0,-1,-1,-7168,0,0,0,0,-32,-16,0,0 0,0,1,-1,254,255,256,-1,0,-1,-1,-7168,0,0,0,0,-32,-16,0,0 0,-1,-2,-3,-4,-5,-6,-7 -1,-2,-3,-4,-5,-6,-7,-8|0,0,1,65535,254,255,256,65535,0,65535,65535,58368,0,0,0,0,65504,65520,0,0 0,0,1,65535,254,255,256,65535,0,65535,65535,58368,0,0,0,0,65504,65520,0,0 0,65535,65534,65533,65532,65531,65530,65529 65535,65534,65533,65532,65531,65530,65529,65528|0,0,1,-1,254,255,256,-1,-2147483648,2147483647,-1,1410065408,0,0,0,0,65504,65520,0,0 0,0,1,-1,254,255,256,-1,-2147483648,2147483647,-1,1410065408,0,0,0,0,65504,65520,0,0 0,1073741823,2147483646,-1073741827,-4,1073741819,2147483642,-1073741831 -1,1073741822,2147483645,-1073741828,-5,1073741818,2147483641,-1073741832|0,0,1,4294967295,254,255,256,4294967295,2147483648,2147483647,4294967295,1410065408,0,0,0,0,65504,65520,0,0 0,0,1,4294967295,254,255,256,4294967295,2147483648,2147483647,4294967295,1410065408,0,0,0,0,65504,65520,0,0 0,1073741823,2147483646,3221225469,4294967292,1073741819,2147483642,3221225465 4294967295,1073741822,2147483645,3221225468,4294967291,1073741818,2147483641,3221225464|0,-0,1.5,-1.5,254.5,255.5,256,-1,Infinity,-Infinity,Infinity,Infinity,NaN,Infinity,-Infinity,0.0999755859375,65504,Infinity,0,Infinity 0,-0,1.5,-1.5,254.5,255.5,256,-1,Infinity,-Infinity,Infinity,Infinity,NaN,Infinity,-Infinity,0.0999755859375,65504,Infinity,0,Infinity 0,Infinity,Infinity,-Infinity,-4,Infinity,Infinity,-Infinity -1,Infinity,Infinity,-Infinity,-5,Infinity,Infinity,-Infinity|0,-0,1.5,-1.5,254.5,255.5,256,-1,2147483648,-2147483648,4294967296,10000000000,NaN,Infinity,-Infinity,0.10000000149011612,65504,65520,9.99999993922529e-9,Infinity 0,-0,1.5,-1.5,254.5,255.5,256,-1,2147483648,-2147483648,4294967296,10000000000,NaN,Infinity,-Infinity,0.10000000149011612,65504,65520,9.99999993922529e-9,Infinity 0,1073741824,2147483648,-1073741824,-4,1073741824,2147483648,-1073741824 -1,1073741824,2147483648,-1073741824,-5,1073741824,2147483648,-1073741824|0,-0,1.5,-1.5,254.5,255.5,256,-1,2147483648,-2147483649,4294967295,10000000000,NaN,Infinity,-Infinity,0.1,65504,65520,1e-8,3.4028235677973366e+38 0,-0,1.5,-1.5,254.5,255.5,256,-1,2147483648,-2147483649,4294967295,10000000000,NaN,Infinity,-Infinity,0.1,65504,65520,1e-8,3.4028235677973366e+38 0,1073741823,2147483646,-1073741827,-4,1073741819,2147483642,-1073741831 -1,1073741822,2147483645,-1073741828,-5,1073741818,2147483641,-1073741832",
+        )
+        // the value of the assignment is the value assigned, not the one stored
+        same("(function () { var u = new Uint8Array(2), f = new Float32Array(1), x = 300.5, y = 256 | 0; var p = (u[0] = x), q = (u[1 | 0] = y), s = (f[0] = 0.1); return all(p, q, s, u[0], u[1], f[0]) })()", "300.5 256 0.1 44 0 0.10000000149011612")
+        same(
+            "(function () { var r = [], t = new Int16Array(2), m = -1 | 0, h = 1.5, big = 2 ** 32, z = -0; t[2 | 0] = 5; t[m] = 6; t[h] = 7; t[big] = 8; t[z] = 9; t[1 | 0] = 10.5; " +
+                "r.push(t.join(), Object.keys(t).join(), '-1' in t, t[m], t[h]); " +
+                "var buf = new ArrayBuffer(8, { maxByteLength: 16 }), lt = new Uint8Array(buf), fx = new Uint8Array(buf, 4, 4); buf.resize(2); var i = 3 | 0; lt[i] = 1; fx[0 | 0] = 1; lt[1 | 0] = 2.5; " +
+                "r.push(lt.length, fx.length, lt.join()); buf.resize(8); r.push(fx.join()); " +
+                "var d = new Float64Array(2), moved = d.buffer.transfer(); d[0 | 0] = 1.5; d[1] = 2.5; r.push(d.length, d[0], new Float64Array(moved).join()); " +
+                "var b64 = new BigInt64Array(1), zd = h - 1.5; try { b64[0 | 0] = 1 } catch (e) { r.push(e.name) } try { b64[0] = 1.5 } catch (e) { r.push(e.name) } " +
+                "try { b64[zd] = 2 | 0 } catch (e) { r.push(e.name) } try { b64[zd] = 2.5 } catch (e) { r.push(e.name) } b64[0] = 5n; r.push(String(b64[0])); " +
+                "var arr = [1, 2]; arr[3 | 0] = 4.5; arr[1] = 2.5; r.push(arr.length, String(arr[2]), arr[3], arr[1]); var fr = Object.freeze([1, 2]); fr[0 | 0] = 9; fr[1] = 9.5; r.push(fr.join()); " +
+                "var log = []; Object.defineProperty(Array.prototype, 5, { set: function (v) { log.push(v) }, configurable: true }); var g = [1]; g[5 | 0] = 7.5; g[5] = 8 | 0; delete Array.prototype[5]; r.push(log.join(), g.length); " +
+                "return all.apply(null, r) })()",
+            "\"9,10\" \"0,1\" false undefined undefined 2 0 \"0,2\" \"0,0,0,0\" 0 undefined \"0,0\" \"TypeError\" \"TypeError\" \"TypeError\" \"TypeError\" \"5\" 4 \"undefined\" 4.5 2.5 \"1,2\" \"7.5,8\" 1",
+        )
+        same(
+            "(function () { 'use strict'; var r = [], s = 'abc', fr = Object.freeze([1]), b = new BigInt64Array(1); var cases = [function () { s[0 | 0] = 1 }, function () { fr[0 | 0] = 2.5 }, function () { undefined[0 | 0] = 1 }, function () { b[0] = 1 | 0 }]; " +
+                "for (var i = 0; i < cases.length; i++) { try { cases[i](); r.push('ok') } catch (e) { r.push(e.name) } } return r.join() })()",
+            "TypeError,TypeError,TypeError,TypeError",
+        )
+        // immutable buffers (not in Node): stores are ignored, or throw in strict code
+        same(
+            "(function () { var im = new Uint8Array(new Uint8Array([1, 2]).buffer.transferToImmutable()), one = 2 / 2, zero = one - 1; " +
+                "im[0 | 0] = 5; im[1] = 6.5; im[zero] = 3 | 0; im[one] = 4.5; var r = [im.join()]; (function () { 'use strict'; var o = 2 / 2, z = o - 1; " +
+                "try { im[0 | 0] = 7 } catch (e) { r.push(e.name) } try { im[1] = 7.5 } catch (e) { r.push(e.name) } " +
+                "try { im[z] = 7 | 0 } catch (e) { r.push(e.name) } try { im[o] = 7.5 } catch (e) { r.push(e.name) } })(); return r.join() })()",
+            "1,2,TypeError,TypeError,TypeError,TypeError",
+        )
+    }
+
+    @Test
     fun operandsOfOtherTypes() {
         // valueOf runs once per comparison, at the comparison
         same(

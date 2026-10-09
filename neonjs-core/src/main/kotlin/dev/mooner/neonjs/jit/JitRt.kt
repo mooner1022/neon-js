@@ -344,6 +344,59 @@ object JitRt {
 
     @JvmStatic fun putElemDD(o: Any?, key: Double, v: Double, f: Frame): Any? = putElemDA(o, key, Ops.num(v), f)
 
+    // `o[key] = v` with a number key and a Number value, which is also the result (unboxed): a typed array of a Number
+    // type stores it without boxing (TypedArraySetElement: a Number needs no conversion, so no user code runs before
+    // the index check). A dense array takes it boxed here, and everything else through Rt.putElem, as putElemIA /
+    // putElemDA would (no second helper call: ahead-of-time code on ART does not inline them).
+    @JvmStatic fun setElemII(o: Any?, key: Int, v: Int, f: Frame): Int {
+        if (key >= 0) {
+            if (o is JSArray) {
+                val b = Ops.num(v)
+                if (!o.trySetIndexFast(key, b)) Rt.putElem(f.realm, o, Ops.num(key), b, strict(f))
+                return v
+            }
+            if (o is JSTypedArray && !o.type.isBigInt && !o.buffer.immutable) {
+                o.setInt(key, v)
+                return v
+            }
+        }
+        setElemBoxed(o, key, Ops.num(v), f)
+        return v
+    }
+    @JvmStatic fun setElemID(o: Any?, key: Int, v: Double, f: Frame): Double {
+        if (key >= 0) {
+            if (o is JSArray) {
+                val b = Ops.num(v)
+                if (!o.trySetIndexFast(key, b)) Rt.putElem(f.realm, o, Ops.num(key), b, strict(f))
+                return v
+            }
+            if (o is JSTypedArray && !o.type.isBigInt && !o.buffer.immutable) {
+                o.setNumber(key, v)
+                return v
+            }
+        }
+        setElemBoxed(o, key, Ops.num(v), f)
+        return v
+    }
+    @JvmStatic fun setElemDI(o: Any?, key: Double, v: Int, f: Frame): Int {
+        val i = key.toInt()
+        if (i.toDouble() == key) return setElemII(o, i, v, f)
+        Rt.putElem(f.realm, o, Ops.num(key), Ops.num(v), strict(f))
+        return v
+    }
+    @JvmStatic fun setElemDD(o: Any?, key: Double, v: Double, f: Frame): Double {
+        val i = key.toInt()
+        if (i.toDouble() == key) return setElemID(o, i, v, f)
+        Rt.putElem(f.realm, o, Ops.num(key), Ops.num(v), strict(f))
+        return v
+    }
+
+    /** putElemIA's steps for the receivers [setElemII] and the like leave: typed arrays of BigInt types or immutable buffers, the rest. */
+    private fun setElemBoxed(o: Any?, key: Int, v: Any, f: Frame) {
+        if (key >= 0 && o is JSTypedArray && !o.buffer.immutable) o.setIndex(key, v)
+        else Rt.putElem(f.realm, o, Ops.num(key), v, strict(f))
+    }
+
     /** [putElemDA] with an int32 key. */
     @JvmStatic fun putElemIA(o: Any?, key: Int, v: Any?, f: Frame): Any? {
         if (key >= 0) {

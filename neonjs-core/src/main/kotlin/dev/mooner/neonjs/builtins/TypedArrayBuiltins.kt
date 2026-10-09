@@ -55,6 +55,16 @@ class JSTypedArray internal constructor(
         if (i >= 0 && i < lengthOrOOB()) BufferOps.store(buffer.data, byteOffset + (i shl type.shift), type, num)
     }
 
+    /** TypedArraySetElement of a Number [d] at index [i] >= 0, for a Number type: nothing to convert, no user code. */
+    internal fun setNumber(i: Int, d: Double) {
+        if (i < lengthOrOOB()) BufferOps.storeNumber(buffer.data, byteOffset + (i shl type.shift), type, d)
+    }
+
+    /** [setNumber] of an int32. */
+    internal fun setInt(i: Int, v: Int) {
+        if (i < lengthOrOOB()) BufferOps.storeInt(buffer.data, byteOffset + (i shl type.shift), type, v)
+    }
+
     /** Stores an already converted value (Double / BigInteger) if the index is valid. */
     internal fun storeIndex(i: Int, num: Any) {
         if (i >= 0 && i < lengthOrOOB()) BufferOps.store(buffer.data, byteOffset + (i shl type.shift), type, num)

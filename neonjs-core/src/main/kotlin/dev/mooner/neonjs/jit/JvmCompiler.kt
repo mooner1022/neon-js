@@ -57,6 +57,7 @@ class JitInput(cb: CodeBlock, debugInfo: Boolean = JvmCompiler.DEBUG_INFO) {
         out.writeInt(FORMAT)
         out.writeBoolean(JvmCompiler.TYPED)
         out.writeBoolean(JvmCompiler.INT32)
+        out.writeBoolean(JvmCompiler.ELEMS)
         out.writeUTF(name)
         ints(code)
         ints(handlers)
@@ -79,7 +80,7 @@ class JitInput(cb: CodeBlock, debugInfo: Boolean = JvmCompiler.DEBUG_INFO) {
 
     companion object {
         /** Changes when the code generator changes what it emits for the same input. */
-        private const val FORMAT = 4
+        private const val FORMAT = 5
         const val CONST_OTHER: Byte = 0
         const val CONST_NUMBER: Byte = 1
         /** A number that is an int32 (and not -0). */
@@ -304,6 +305,12 @@ object JvmCompiler {
      */
     internal val INT32 = System.getProperty("neonjs.jit.int32") != "false"
 
+    /**
+     * Whether unboxed code stores numbers into typed arrays without boxing them (and keeps the assigned value unboxed);
+     * `-Dneonjs.jit.elem=false` turns that off.
+     */
+    internal val ELEMS = System.getProperty("neonjs.jit.elem") != "false"
+
     /** Debugging: `-Dneonjs.jit.dump=DIR` writes every generated class there. */
     private val DUMP_DIR: String? = System.getProperty("neonjs.jit.dump")
 
@@ -341,7 +348,7 @@ object JvmCompiler {
         val labels = HashMap<Int, Label>()
         val handlerLabels = HashMap<Int, Label>()
         /** Kinds of the operand stack and of the registers (JitTypes): which values are unboxed. */
-        val ta: TypeAnalysis? = if (typed) TypeAnalysis(cb, INT32).run() else null
+        val ta: TypeAnalysis? = if (typed) TypeAnalysis(cb, INT32, ELEMS).run() else null
         /** How each register is held ([TypeAnalysis.regStorage]; Objects in untyped code). */
         val storage: ByteArray = ta?.regStorage ?: ByteArray(cb.numRegs)
         /** JVM local of each register kept as a `double` or an `int` (-1: an Object local, [reg]). */
@@ -829,6 +836,18 @@ object JvmCompiler {
                 }
                 Op.PUT_ELEM -> {
                     val key = st.peek(1)
+                    val stored = ta.putElemResult(key, st.peek(0))
+                    if (JT.isNum(stored)) {
+                        // (obj key value -- value), the value unboxed
+                        convertTo(st.toArray().also { it[it.size - 3] = JT.ANY })
+                        frame()
+                        val k = if (key == JT.INT) "I" else "D"
+                        val v = if (stored == JT.INT) "I" else "D"
+                        rt("setElem$k$v", "($OBJ$k$v$FRAME_D)$v")
+                        st.pop(); st.pop(); st.pop()
+                        st.push(stored)
+                        return
+                    }
                     if (JT.isNum(key)) {
                         // (obj key value -- value)
                         val vNum = key == JT.NUM && st.peek(0) == JT.NUM

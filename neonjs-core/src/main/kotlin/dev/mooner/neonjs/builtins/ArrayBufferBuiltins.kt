@@ -230,15 +230,31 @@ internal object BufferOps {
 
     /** SetValueInBuffer: [v] must already be a Double (Number types) or BigInteger (BigInt types). */
     fun store(a: ByteArray, i: Int, t: ElementType, v: Any, le: Boolean = true) {
+        if (t.isBigInt) setI64(a, i, (v as BigInteger).toLong(), le) else storeNumber(a, i, t, v as Double, le)
+    }
+
+    /** SetValueInBuffer of a Number into a Number type. */
+    fun storeNumber(a: ByteArray, i: Int, t: ElementType, d: Double, le: Boolean = true) {
         when (t) {
-            ElementType.INT8, ElementType.UINT8 -> a[i] = Ops.toInt32(v as Double).toByte()
-            ElementType.UINT8C -> a[i] = clamp(v as Double).toByte()
-            ElementType.INT16, ElementType.UINT16 -> setI16(a, i, Ops.toInt32(v as Double).toShort(), le)
-            ElementType.INT32, ElementType.UINT32 -> setI32(a, i, Ops.toInt32(v as Double), le)
-            ElementType.FLOAT16 -> setI16(a, i, Float16.fromDouble(v as Double), le)
-            ElementType.FLOAT32 -> setI32(a, i, java.lang.Float.floatToRawIntBits((v as Double).toFloat()), le)
-            ElementType.FLOAT64 -> setI64(a, i, java.lang.Double.doubleToRawLongBits(v as Double), le)
-            ElementType.BIGINT64, ElementType.BIGUINT64 -> setI64(a, i, (v as BigInteger).toLong(), le)
+            ElementType.INT8, ElementType.UINT8 -> a[i] = Ops.toInt32(d).toByte()
+            ElementType.UINT8C -> a[i] = clamp(d).toByte()
+            ElementType.INT16, ElementType.UINT16 -> setI16(a, i, Ops.toInt32(d).toShort(), le)
+            ElementType.INT32, ElementType.UINT32 -> setI32(a, i, Ops.toInt32(d), le)
+            ElementType.FLOAT16 -> setI16(a, i, Float16.fromDouble(d), le)
+            ElementType.FLOAT32 -> setI32(a, i, java.lang.Float.floatToRawIntBits(d.toFloat()), le)
+            ElementType.FLOAT64 -> setI64(a, i, java.lang.Double.doubleToRawLongBits(d), le)
+            ElementType.BIGINT64, ElementType.BIGUINT64 -> throw IllegalArgumentException("a Number into $t")
+        }
+    }
+
+    /** [storeNumber] of an int32 [v] (its ToInt32 is itself). */
+    fun storeInt(a: ByteArray, i: Int, t: ElementType, v: Int) {
+        when (t) {
+            ElementType.INT8, ElementType.UINT8 -> a[i] = v.toByte()
+            ElementType.UINT8C -> a[i] = (if (v < 0) 0 else if (v > 255) 255 else v).toByte()
+            ElementType.INT16, ElementType.UINT16 -> setI16(a, i, v.toShort(), true)
+            ElementType.INT32, ElementType.UINT32 -> setI32(a, i, v, true)
+            else -> storeNumber(a, i, t, v.toDouble())
         }
     }
 

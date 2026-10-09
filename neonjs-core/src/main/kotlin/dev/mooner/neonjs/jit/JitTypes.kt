@@ -104,7 +104,7 @@ internal object JT {
  * that are not reachable get no state (the generator emits nothing for them). Without [ints], nothing is INT (integers
  * are NUM, as before INT existed).
  */
-internal class TypeAnalysis(private val input: JitInput, val ints: Boolean) {
+internal class TypeAnalysis(private val input: JitInput, val ints: Boolean, val elems: Boolean) {
     private val code = input.code
     /** Kind of the values that are int32s by definition: INT, or NUM without [ints]. */
     val intKind = if (ints) JT.INT else JT.NUM
@@ -137,6 +137,12 @@ internal class TypeAnalysis(private val input: JitInput, val ints: Boolean) {
         op == Op.TO_NUMERIC -> t
         else -> JT.NUM // -0 is -0, and ++ / -- can leave the int32 range
     }
+
+    /**
+     * Kind of the result of PUT_ELEM, which is the value stored: unboxed (the value's kind) when the key and the value are
+     * numbers, unless [elems] is off.
+     */
+    fun putElemResult(key: Byte, value: Byte): Byte = if (elems && JT.isNum(key) && JT.isNum(value)) value else JT.ANY
 
     /** Kind of the result of TO_NUMBER (unary plus) on a value of kind [t]. */
     fun toNumberResult(t: Byte): Byte = when (t) {
@@ -245,7 +251,13 @@ internal class TypeAnalysis(private val input: JitInput, val ints: Boolean) {
             }
             Op.JUMP -> merge(a, regs, s.toArray(), work)
             Op.GET_ELEM -> { s.pop(); s.pop(); s.push(JT.ANY); next() }
-            Op.PUT_ELEM -> { s.pop(); s.pop(); s.pop(); s.push(JT.ANY); next() }
+            Op.PUT_ELEM -> {
+                val v = s.pop()
+                val k = s.pop()
+                s.pop()
+                s.push(putElemResult(k, v))
+                next()
+            }
             Op.RETURN, Op.THROW, Op.THROW_ERROR -> {}
             else -> generic(pc, op, len, a, b, regs, s, work)
         }
