@@ -333,6 +333,12 @@ class InteropContractTest {
             assertEquals(java.math.BigInteger.ONE.shiftLeft(70), m["huge"])
             assertEquals("number,5,true,bigint", c.eval("[typeof m.get('small'), m.get('small'), m.get('id') === id, typeof m.get('huge')].join()").asString())
             assertEquals("number,bigint", c.eval("[typeof o.id(5n), typeof o.id(id)].join()").asString())
+            // a number is a Long there only while it is an exact integer, as for long parameters: beyond 2^53 - 1 it
+            // stays a Double, so it comes back as the same number rather than as a BigInt
+            c.eval("m.put('safe', 2 ** 53 - 1); m.put('inexact', 2 ** 60)")
+            assertEquals(maxSafe, m["safe"])
+            assertEquals(Math.pow(2.0, 60.0), m["inexact"])
+            assertEquals("number,true,true", c.eval("[typeof m.get('inexact'), m.get('inexact') === 2 ** 60, o.id(-(2 ** 60)) === -(2 ** 60)].join()").asString())
             // JS functions implementing host interfaces see longs the same way, and may return a BigInt for a long
             val f = c.eval("x => typeof x").`as`(java.util.function.LongFunction::class.java)
             assertEquals("number,bigint", listOf(f.apply(5), f.apply(Long.MAX_VALUE)).joinToString(","))

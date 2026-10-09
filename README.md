@@ -152,8 +152,8 @@ literals (`id === 1234567890123456789n`) or as strings (`String(id)`), not with 
 throws on a BigInt, and mixing a BigInt with numbers in arithmetic is a TypeError. In the other direction a BigInt
 converts exactly to a `long`/`Long` parameter or field when it fits in 64 bits (beyond, a `long` overload does not
 apply and a field assignment is a RangeError), and to an `Object` parameter (`Map.put`, `List.add`) as a `Long` when
-it fits in 64 bits, else as a `BigInteger`. `NeonValue.asLong()` accepts both a number and a BigInt that is exactly a
-long.
+it fits in 64 bits, else as a `BigInteger`; a number goes there as an `Integer` or `Long` while it is an exact integer,
+else as a `Double`. `NeonValue.asLong()` accepts both a number and a BigInt that is exactly a long.
 
 **Asynchronous host APIs.** A `CompletionStage` / `CompletableFuture` handed to JS becomes a promise, and a promise
 (or thenable) passed where a `CompletableFuture`, `CompletionStage` or `Future` is expected becomes a future:

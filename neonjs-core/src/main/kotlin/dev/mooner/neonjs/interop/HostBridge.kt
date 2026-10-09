@@ -433,8 +433,10 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
     fun toObject(v: Any?): Any? = when (v) {
         Undefined, Null, null -> null
         is Boolean -> v
+        // an exact integer is an Integer or a Long; beyond 2^53 - 1 a number is not exact and stays a Double, as it
+        // does not convert to a long parameter either
         is Double -> if (v == round(v) && !v.isInfinite() && !(v == 0.0 && 1.0 / v < 0)) {
-            if (v >= Int.MIN_VALUE && v <= Int.MAX_VALUE) v.toInt() else if (abs(v) < 9.2e18) v.toLong() else v
+            if (v >= Int.MIN_VALUE && v <= Int.MAX_VALUE) v.toInt() else if (abs(v) <= MAX_SAFE_LONG) v.toLong() else v
         } else v
         is CharSequence -> v.toString()
         // a BigInt that fits in 64 bits is a Long (the type a long becomes on the way back), others stay BigIntegers
