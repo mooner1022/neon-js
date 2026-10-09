@@ -10,6 +10,7 @@ import dev.mooner.neonjs.vm.Evaluator
 import dev.mooner.neonjs.vm.HostException
 import dev.mooner.neonjs.vm.Interpreter
 import dev.mooner.neonjs.vm.Frame
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 
 /** A host function callable from JS (Java-friendly SAM). */
@@ -69,7 +70,7 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
 
     override fun <R> enter(block: () -> R): R {
         check(!closed) { "context is closed" }
-        lock.lock()
+        acquire()
         try {
             return agent.enter {
                 realm.enter {
@@ -88,6 +89,26 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
         } finally {
             lock.unlock()
         }
+    }
+
+    /**
+     * Takes the context lock. A thread waits at most the sandbox time limit for another thread's use of the context,
+     * so threads waiting on each other (JS blocking on host work that needs the same context) end with a
+     * [NeonTimeoutException] instead of a deadlock. Without a time limit the wait is unbounded.
+     */
+    private fun acquire() {
+        val limit = engine.sandbox.maxExecutionMillis
+        if (limit <= 0 || lock.isHeldByCurrentThread) {
+            lock.lock()
+            return
+        }
+        val acquired = try {
+            lock.tryLock(limit, TimeUnit.MILLISECONDS)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw NeonInterruptedException("interrupted while waiting for the context")
+        }
+        if (!acquired) throw NeonTimeoutException("context busy on another thread for longer than the time limit ($limit ms)")
     }
 
     /** Runs [block] translating engine exceptions into [NeonException]s. */

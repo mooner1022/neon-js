@@ -24,6 +24,19 @@ class Swallower {
     }
 }
 
+/** Host code that runs [work] on another thread and blocks until it is done. */
+class OtherThread(private val pool: java.util.concurrent.ExecutorService, private val work: () -> Any?) {
+    @Volatile var failure: Throwable? = null
+
+    fun run() {
+        try {
+            pool.submit(java.util.concurrent.Callable { work() }).get()
+        } catch (e: java.util.concurrent.ExecutionException) {
+            failure = e.cause
+        }
+    }
+}
+
 class SecurityTest {
     private fun ctx(policy: SandboxPolicy = SandboxPolicy.STRICT, access: HostAccess = HostAccess.ALL, mode: ExecutionMode = ExecutionMode.INTERPRETER) =
         NeonEngine.builder().sandbox(policy).hostAccess(access).executionMode(mode).build().newContext()
@@ -352,6 +365,34 @@ class SecurityTest {
         val p = SandboxPolicy.builder().maxExecutionTime(300).build()
         ctx(p).use { c ->
             assertThrows<NeonTimeoutException> { c.eval("Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0)") }
+        }
+    }
+
+    @Test
+    @Timeout(30, unit = TimeUnit.SECONDS)
+    fun waitingForABusyContextIsBoundedByTheTimeLimit() {
+        val pool = java.util.concurrent.Executors.newSingleThreadExecutor()
+        try {
+            ctx(SandboxPolicy.builder().maxExecutionTime(500).build()).use { c ->
+                // JS blocks on host work that needs the same context on another thread: that thread gives up after
+                // the time limit, instead of both threads waiting for each other forever
+                val other = OtherThread(pool) { c.eval("1").asInt() }
+                c["other"] = other
+                val start = System.nanoTime()
+                runCatching { c.eval("other.run()") }
+                val ms = (System.nanoTime() - start) / 1_000_000
+                assertInstanceOf(NeonTimeoutException::class.java, other.failure)
+                assertTrue(ms in 400..10_000, "$ms ms")
+                assertEquals(2, c.eval("1 + 1").asInt(), "the context is usable afterwards")
+                // a shorter wait is just a wait
+                val entered = java.util.concurrent.CountDownLatch(1)
+                val later = pool.submit(java.util.concurrent.Callable { entered.await(); c.eval("2").asInt() })
+                c["hold"] = Runnable { entered.countDown(); Thread.sleep(100) }
+                c.eval("hold()")
+                assertEquals(2, later.get(10, TimeUnit.SECONDS))
+            }
+        } finally {
+            pool.shutdownNow()
         }
     }
 
