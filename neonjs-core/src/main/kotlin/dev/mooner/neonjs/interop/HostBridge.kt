@@ -45,7 +45,9 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         is Boolean -> v
         is Double -> v
         is Int -> v.toDouble()
-        is Long -> v.toDouble()
+        // a long is a number while the number is exact (|v| <= 2^53 - 1), and a BigInt beyond that: a 64-bit ID or
+        // timestamp keeps its value instead of rounding to a nearby number
+        is Long -> if (v in -MAX_SAFE_LONG..MAX_SAFE_LONG) v.toDouble() else BigInteger.valueOf(v)
         is Float -> v.toDouble()
         is Short -> v.toDouble()
         is Byte -> v.toDouble()
@@ -194,6 +196,8 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         const val IMPOSSIBLE = Int.MAX_VALUE
         /** Largest Java array created from JS (elements); larger requests are a RangeError. */
         const val MAX_ARRAY_LENGTH = 1 shl 26
+        /** Number.MAX_SAFE_INTEGER: longs up to this magnitude are exact as numbers. */
+        const val MAX_SAFE_LONG = 9007199254740991L
 
         /** Widening primitive conversions (JLS 5.1.2): the types each primitive type converts to. */
         private val PRIMITIVE_WIDENING: Map<Class<*>, Set<Class<*>>> = run {
@@ -342,7 +346,8 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
             java.lang.Boolean.TYPE, java.lang.Boolean::class.java -> return Ops.toBoolean(v)
             java.lang.Double.TYPE, java.lang.Double::class.java -> return Ops.toNumber(v)
             java.lang.Float.TYPE, java.lang.Float::class.java -> return Ops.toNumber(v).toFloat()
-            java.lang.Long.TYPE, java.lang.Long::class.java -> return if (v is BigInteger) v.toLong() else Ops.toNumber(v).toLong()
+            java.lang.Long.TYPE, java.lang.Long::class.java -> return if (v !is BigInteger) Ops.toNumber(v).toLong()
+                else if (v.bitLength() < 64) v.toLong() else throw JSException.rangeError("BigInt $v does not fit in a long")
             Integer.TYPE, Integer::class.java -> return Ops.toNumber(v).toInt()
             java.lang.Short.TYPE, java.lang.Short::class.java -> return Ops.toNumber(v).toInt().toShort()
             java.lang.Byte.TYPE, java.lang.Byte::class.java -> return Ops.toNumber(v).toInt().toByte()
@@ -432,7 +437,8 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
             if (v >= Int.MIN_VALUE && v <= Int.MAX_VALUE) v.toInt() else if (abs(v) < 9.2e18) v.toLong() else v
         } else v
         is CharSequence -> v.toString()
-        is BigInteger -> v
+        // a BigInt that fits in 64 bits is a Long (the type a long becomes on the way back), others stay BigIntegers
+        is BigInteger -> if (v.bitLength() < 64) v.toLong() else v
         is HostObject -> v.target
         is HostClassObject -> v.cls
         else -> gate.wrapValue(v)

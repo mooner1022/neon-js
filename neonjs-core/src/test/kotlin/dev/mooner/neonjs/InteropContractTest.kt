@@ -57,6 +57,13 @@ class Overloads {
     }
 }
 
+/** Takes and keeps 64-bit IDs. */
+class Ids {
+    @JvmField var last = 0L
+    fun echo(id: Long) = id
+    fun boxed(id: Long?) = id
+}
+
 /** Keeps what JS hands it, typed as interfaces. */
 class Keeper {
     var transformer: Transformer? = null
@@ -84,6 +91,7 @@ class InteropContractTest {
                 Triple("Char", 'c', "string"),
                 Triple("Int", 1, "number"),
                 Triple("Long", 2L, "number"),
+                Triple("Long beyond 2^53 - 1", Long.MAX_VALUE, "bigint"),
                 Triple("Short", 3.toShort(), "number"),
                 Triple("Byte", 4.toByte(), "number"),
                 Triple("Float", 1.5f, "number"),
@@ -278,6 +286,60 @@ class InteropContractTest {
             val chosen = HashSet<String>()
             for (perm in permutations(picks)) chosen.add(c.bridge.select(perm, args)!!.parameterTypes[0].name)
             assertEquals(setOf("java.lang.String"), chosen)
+        }
+    }
+
+    @Test
+    fun longsStayExact() {
+        val maxSafe = 9007199254740991L
+        ctx().use { c ->
+            // a long is a number while the number is exact, and a BigInt beyond 2^53 - 1
+            val cases = listOf(
+                0L to "number", maxSafe to "number", -maxSafe to "number",
+                maxSafe + 1 to "bigint", -maxSafe - 1 to "bigint", Long.MAX_VALUE to "bigint", Long.MIN_VALUE to "bigint",
+            )
+            for ((v, type) in cases) {
+                c["v"] = v
+                assertEquals("$type,$v", c.eval("[typeof v, String(v)].join()").asString(), "$v")
+                assertEquals(v, c.eval("v").asLong(), "$v")
+            }
+            // through long parameters, return values and fields: the same value, never rounded to a nearby number
+            val ids = Ids()
+            val id = 1234567890123456789L // 1234567890123456800 as a number
+            c["ids"] = ids
+            c["id"] = id
+            assertEquals("bigint,true,true,1234567890123456789", c.eval("[typeof ids.echo(id), ids.echo(id) === id, ids.boxed(id) === id, String(ids.echo(id))].join()").asString())
+            c.eval("ids.last = id")
+            assertEquals(id, ids.last)
+            c.eval("ids.last = 9223372036854775807n")
+            assertEquals(Long.MAX_VALUE, ids.last)
+            assertEquals("true", c.eval("String(ids.last === 9223372036854775807n)").asString())
+            // a BigInt takes a long parameter when it fits in 64 bits
+            c["o"] = Overloads()
+            assertEquals("long,long,Object", c.eval("[o.num(id), o.num(5n), o.num(2n ** 70n)].join()").asString())
+            assertThrows(NeonException::class.java) { c.eval("ids.echo(2n ** 64n)") }
+            // and does not fit beyond: a RangeError rather than a truncated long
+            assertThrows(java.lang.ArithmeticException::class.java) { c.eval("2n ** 64n").asLong() }
+            assertThrows(NeonException::class.java) { c.eval("2n ** 64n").`as`(Long::class.java) }
+            assertEquals("RangeError", c.eval("try { ids.last = 2n ** 64n; 'no error' } catch (e) { e.name }").asString())
+            assertEquals(Long.MAX_VALUE, ids.last)
+            // Object parameters: a BigInt that fits in 64 bits is a Long, the type a long becomes on the way back, so
+            // a small one comes back as a number; a larger one stays a BigInteger
+            val m = HashMap<String, Any?>()
+            c["m"] = m
+            c.eval("m.put('small', 5n); m.put('id', id); m.put('huge', 2n ** 70n)")
+            assertEquals(5L, m["small"])
+            assertEquals(id, m["id"])
+            assertEquals(java.math.BigInteger.ONE.shiftLeft(70), m["huge"])
+            assertEquals("number,5,true,bigint", c.eval("[typeof m.get('small'), m.get('small'), m.get('id') === id, typeof m.get('huge')].join()").asString())
+            assertEquals("number,bigint", c.eval("[typeof o.id(5n), typeof o.id(id)].join()").asString())
+            // JS functions implementing host interfaces see longs the same way, and may return a BigInt for a long
+            val f = c.eval("x => typeof x").`as`(java.util.function.LongFunction::class.java)
+            assertEquals("number,bigint", listOf(f.apply(5), f.apply(Long.MAX_VALUE)).joinToString(","))
+            val inc = c.eval("x => typeof x === 'bigint' ? x + 1n : x + 1").`as`(java.util.function.LongUnaryOperator::class.java)
+            assertEquals(listOf(6L, maxSafe + 1, Long.MIN_VALUE + 1), listOf(inc.applyAsLong(5), inc.applyAsLong(maxSafe), inc.applyAsLong(Long.MIN_VALUE)))
+            // a BigInt is not a number: compare with BigInt literals or strings
+            assertEquals("false,true,true", c.eval("[id === 1234567890123456789, id === 1234567890123456789n, String(id) === '1234567890123456789'].join()").asString())
         }
     }
 

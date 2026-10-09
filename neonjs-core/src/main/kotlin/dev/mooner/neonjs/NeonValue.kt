@@ -35,7 +35,12 @@ class NeonValue internal constructor(val context: NeonContext, @PublishedApi int
         if (i.toDouble() != d) throw ArithmeticException("number $d does not fit in an int")
         return i
     }
+    /** A number, or a BigInt (host longs beyond 2^53 - 1 arrive as BigInts), that is exactly a long. */
     fun asLong(): Long {
+        if (raw is BigInteger) {
+            if (raw.bitLength() >= 64) throw ArithmeticException("bigint $raw does not fit in a long")
+            return raw.toLong()
+        }
         val d = asDouble()
         val l = d.toLong()
         if (l.toDouble() != d) throw ArithmeticException("number $d does not fit in a long")

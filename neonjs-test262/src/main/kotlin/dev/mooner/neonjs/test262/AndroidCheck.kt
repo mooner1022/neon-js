@@ -192,6 +192,12 @@ private fun hostInterop(): String {
         ctx["keeper"] = CheckKeeper()
         val round = js("var f = s => s + '?'; keeper.keep(f); [keeper.getFn() === f, keeper.getFn()('y')].join()")
         check(round == "true,y?") { "round trip: $round" }
+        // longs beyond 2^53 - 1 are BigInts and come back exact; a BigInt in an Object parameter is a Long
+        ctx["id"] = Long.MAX_VALUE
+        ctx["m"] = HashMap<String, Any?>()
+        val longs = js("m.put('id', id); m.put('small', 5n); [typeof id, typeof Java.type('java.lang.Long').MIN_VALUE, Java.type('java.lang.Long').valueOf(id) === id, typeof m.get('small')].join()")
+        check(longs == "bigint,bigint,true,number") { "longs: $longs" }
+        check(ctx.eval("m.get('id')").asLong() == Long.MAX_VALUE) { "long round trip" }
         val missing = ArrayList<String>()
         var methods = 0
         for ((name, v) in listOf<Pair<String, Any>>("StringBuilder" to StringBuilder("ab"), "listOf" to listOf(1, 2),
@@ -205,7 +211,7 @@ private fun hostInterop(): String {
             }
         }
         check(missing.isEmpty()) { "not members: $missing" }
-        return "StringBuilder, functions, round trip; $methods methods of 5 classes are members"
+        return "StringBuilder, functions, round trip, longs; $methods methods of 5 classes are members"
     }
 }
 
