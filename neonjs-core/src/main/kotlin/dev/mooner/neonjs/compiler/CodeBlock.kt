@@ -98,6 +98,20 @@ class ScopeInfo(
     }
 }
 
+/** The callee a CALL site saw most: a majority vote (Boyer-Moore) over the code blocks called there. */
+class CallFeedback {
+    @JvmField var target: CodeBlock? = null
+    @JvmField var count = 0
+
+    fun record(cb: CodeBlock) {
+        if (target === cb) count++
+        else if (count == 0) {
+            target = cb
+            count = 1
+        } else count--
+    }
+}
+
 /** Compiled function template (bytecode + metadata). */
 class CodeBlock(@JvmField val name: String, @JvmField val kind: FunctionKind) {
     @JvmField var flags = 0
@@ -124,6 +138,17 @@ class CodeBlock(@JvmField val name: String, @JvmField val kind: FunctionKind) {
     @JvmField var completionReg = -1
     /** Mapped arguments: env slot of each parameter in the function scope env. */
     @JvmField var mappedSlots: IntArray? = null
+    /**
+     * Interpreter feedback for the JIT's inlining (dev.mooner.neonjs.jit.Inlining): at the pc of each CALL that called a
+     * JS function, the code block called most. Created on the first such call; written without synchronization (a
+     * heuristic only: the generated code checks its target at every call).
+     */
+    @JvmField var callFeedback: Array<CallFeedback?>? = null
+    /**
+     * The code blocks the compiled code inlines, by site: the generated code inlines site k's body when the function
+     * called is a closure of exactly `inlineTargets[k]`. Set before the compiled code is installed, never changed after.
+     */
+    @JvmField var inlineTargets: Array<CodeBlock?>? = null
     /** JIT state (see dev.mooner.neonjs.jit.Jit): the compiled code, once installed. */
     @JvmField @Volatile var compiled: Any? = null
     @JvmField var invocationCount = 0

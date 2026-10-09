@@ -69,6 +69,12 @@ class Frame(
         set(v) { ext().homeObject = v }
     /** Active function for eval code inside functions. */
     @JvmField var parent: Frame? = null
+    /**
+     * The function whose body compiled code is running inlined in this frame (dev.mooner.neonjs.jit.Inlining), and the
+     * pc in that body; [pc] stays at the call. Stack traces show the inlined call as a frame of its own.
+     */
+    @JvmField var inlineFn: JSClosure? = null
+    @JvmField var inlinePc: Int = 0
 
     init {
         if (compiled == null) initSlots()

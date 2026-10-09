@@ -104,7 +104,13 @@ internal object JT {
  * that are not reachable get no state (the generator emits nothing for them). Without [ints], nothing is INT (integers
  * are NUM, as before INT existed).
  */
-internal class TypeAnalysis(private val input: JitInput, val ints: Boolean, val elems: Boolean) {
+internal class TypeAnalysis(
+    private val input: JitInput,
+    val ints: Boolean,
+    val elems: Boolean,
+    /** For a body inlined at a call (JvmCompiler, Gen): the kinds of the arguments; parameters beyond them are undefined. */
+    private val argKinds: ByteArray? = null,
+) {
     private val code = input.code
     /** Kind of the values that are int32s by definition: INT, or NUM without [ints]. */
     val intKind = if (ints) JT.INT else JT.NUM
@@ -186,7 +192,9 @@ internal class TypeAnalysis(private val input: JitInput, val ints: Boolean, val 
         // catches; handlers whose code expects values below it (destructuring's iterator close) only throw. Code that
         // used such a value or merged back would be rejected below (underflow, or depths differing at a merge).
         val entryRegs = ByteArray(input.numRegs) { JT.UNDEF }
-        input.paramRegs?.forEach { r -> if (r >= 0) entryRegs[r] = JT.ANY }
+        input.paramRegs?.forEachIndexed { i, r ->
+            if (r >= 0) entryRegs[r] = if (argKinds == null) JT.ANY else if (i < argKinds.size) argKinds[i] else JT.UNDEF
+        }
         val work = ArrayDeque<Int>()
         merge(0, entryRegs, ByteArray(0), work)
         while (work.isNotEmpty()) {

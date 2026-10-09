@@ -274,20 +274,28 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
         var f = topFrame
         var n = 0
         while (f != null && n < 50) {
-            val code = f.code
-            val name = f.fn?.debugName()?.ifEmpty { "<anonymous>" } ?: code.name
-            val pos = code.positionAt(f.pc)
-            val src = code.source
-            sb.append("    at ").append(name)
-            if (src != null && pos >= 0) {
-                val (l, c) = src.lineCol(pos)
-                sb.append(" (").append(src.name).append(':').append(l).append(':').append(c).append(')')
+            // a call compiled code runs inlined in this frame is a frame of its own here
+            val inl = f.inlineFn
+            if (inl != null) {
+                appendFrame(sb, inl.debugName().ifEmpty { "<anonymous>" }, inl.code, f.inlinePc)
+                if (++n >= 50) break
             }
-            sb.append('\n')
+            appendFrame(sb, f.fn?.debugName()?.ifEmpty { "<anonymous>" } ?: f.code.name, f.code, f.pc)
             f = f.parent
             n++
         }
         return sb.toString().trimEnd()
+    }
+
+    private fun appendFrame(sb: StringBuilder, name: String, code: dev.mooner.neonjs.compiler.CodeBlock, pc: Int) {
+        val pos = code.positionAt(pc)
+        val src = code.source
+        sb.append("    at ").append(name)
+        if (src != null && pos >= 0) {
+            val (l, c) = src.lineCol(pos)
+            sb.append(" (").append(src.name).append(':').append(l).append(':').append(c).append(')')
+        }
+        sb.append('\n')
     }
 
     inline fun <R> enter(block: () -> R): R {

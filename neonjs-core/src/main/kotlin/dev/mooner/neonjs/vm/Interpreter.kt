@@ -1,5 +1,6 @@
 package dev.mooner.neonjs.vm
 
+import dev.mooner.neonjs.compiler.CallFeedback
 import dev.mooner.neonjs.compiler.CodeBlock
 import dev.mooner.neonjs.compiler.Op
 import dev.mooner.neonjs.compiler.ScopeInfo
@@ -148,10 +149,9 @@ object Interpreter {
             if (c == null) return run(f)
             try {
                 return c.run(f)
-            } catch (e: JSException) {
-                // compiled code keeps f.pc at the current statement (or call)
-                Rt.attachStack(e, f, f.pc)
-                throw e
+            } catch (e: Throwable) {
+                // (a helper: this is copied into every call helper)
+                throw dev.mooner.neonjs.jit.JitRt.leaveCompiled(e, f)
             }
         } finally {
             agent.depth--
@@ -172,6 +172,12 @@ object Interpreter {
         return -1
     }
 
+    /** Notes that the CALL at [pc] in [cb] called a closure of [callee] (feedback for the JIT's inlining). */
+    private fun recordCall(cb: CodeBlock, pc: Int, callee: CodeBlock) {
+        val fb = cb.callFeedback ?: arrayOfNulls<CallFeedback>(cb.code.size).also { cb.callFeedback = it }
+        (fb[pc] ?: CallFeedback().also { fb[pc] = it }).record(callee)
+    }
+
     @JvmStatic
     fun run(f: Frame): Any? {
         val cb = f.code
@@ -179,6 +185,8 @@ object Interpreter {
         val k = cb.constants
         val s = f.slots
         val realm = f.realm
+        // feedback for code that the adaptive mode may compile later, with calls inlined
+        val recordCalls = dev.mooner.neonjs.jit.Inlining.ENABLED && realm.agent.config.executionMode == dev.mooner.neonjs.jit.Jit.MODE_ADAPTIVE
         val strict = cb.flags and CodeBlock.STRICT != 0
         val base = cb.numRegs
         var sp = f.sp
@@ -424,6 +432,7 @@ object Interpreter {
                             s[sp] = null
                             val fnv = s[sp - 1]
                             f.pc = opStart
+                            if (recordCalls && fnv is JSClosure) recordCall(cb, opStart, fnv.code)
                             s[sp - 1] = if (fnv is JSObject && fnv.special and JSObject.CALLABLE != 0) fnv.call(thisV, args)
                             else throw Rt.notCallable(fnv, cb, opStart)
                         }

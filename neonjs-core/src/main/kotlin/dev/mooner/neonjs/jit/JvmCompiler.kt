@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicLong
  * only these fields, so [identity], a hash of all of them, decides whether two code blocks can share a class. Constants
  * are not part of it (generated code reads them from the running frame's code block at run time).
  */
-class JitInput(cb: CodeBlock, debugInfo: Boolean = JvmCompiler.DEBUG_INFO) {
+class JitInput(cb: CodeBlock, debugInfo: Boolean = JvmCompiler.DEBUG_INFO, planInlining: Boolean = true) {
     /** Function name part of the class name (for profilers). */
     @JvmField val name: String = JvmCompiler.sanitize(cb.name)
     @JvmField val code: IntArray = cb.code
@@ -26,6 +26,12 @@ class JitInput(cb: CodeBlock, debugInfo: Boolean = JvmCompiler.DEBUG_INFO) {
      * kinds (the values may differ).
      */
     @JvmField val constKinds: ByteArray = ByteArray(cb.constants.size) { constKind(cb.constants[it]) }
+    /**
+     * Calls compiled with the callee's body inlined (Inlining), by site k: the pc of the CALL and the callee's input
+     * (part of [identity]). [inlineTargets] are the callees themselves, for `CodeBlock.inlineTargets`.
+     */
+    @JvmField val inlineSites: List<Pair<Int, JitInput>>
+    @JvmField val inlineTargets: Array<CodeBlock?>?
     /** Start pc of each statement (the generated code records the pc there). */
     @JvmField val statementPcs: IntArray
     /** Debug info: source line of each statement (or -1), and the source name; null without debug info. */
@@ -33,6 +39,9 @@ class JitInput(cb: CodeBlock, debugInfo: Boolean = JvmCompiler.DEBUG_INFO) {
     @JvmField val sourceName: String?
 
     init {
+        val plan = if (planInlining && JvmCompiler.TYPED) Inlining.plan(cb) else emptyList()
+        inlineSites = plan.map { (pc, callee) -> pc to JitInput(callee, debugInfo = false, planInlining = false) }
+        inlineTargets = if (plan.isEmpty()) null else Array(plan.size) { plan[it].second }
         val lt = cb.lineTable
         statementPcs = IntArray(lt.size / 2) { lt[2 * it] }
         val src = cb.source
@@ -58,6 +67,12 @@ class JitInput(cb: CodeBlock, debugInfo: Boolean = JvmCompiler.DEBUG_INFO) {
         out.writeBoolean(JvmCompiler.TYPED)
         out.writeBoolean(JvmCompiler.INT32)
         out.writeBoolean(JvmCompiler.ELEMS)
+        out.writeBoolean(Inlining.ENABLED)
+        out.writeInt(inlineSites.size)
+        for ((pc, callee) in inlineSites) {
+            out.writeInt(pc)
+            out.writeUTF(callee.identity)
+        }
         out.writeUTF(name)
         ints(code)
         ints(handlers)
@@ -80,7 +95,7 @@ class JitInput(cb: CodeBlock, debugInfo: Boolean = JvmCompiler.DEBUG_INFO) {
 
     companion object {
         /** Changes when the code generator changes what it emits for the same input. */
-        private const val FORMAT = 6
+        private const val FORMAT = 7
         const val CONST_OTHER: Byte = 0
         const val CONST_NUMBER: Byte = 1
         /** A number that is an int32 (and not -0). */
@@ -127,6 +142,11 @@ object JvmCompiler {
     private const val OBJ = "Ljava/lang/Object;"
     private const val FRAME_D = "Ldev/mooner/neonjs/vm/Frame;"
     private const val AGENT = "dev/mooner/neonjs/runtime/Agent"
+    private const val CLOSURE = "dev/mooner/neonjs/vm/JSClosure"
+    private const val CLOSURE_D = "Ldev/mooner/neonjs/vm/JSClosure;"
+    private const val CODEBLOCK = "dev/mooner/neonjs/compiler/CodeBlock"
+    private const val CODEBLOCK_D = "Ldev/mooner/neonjs/compiler/CodeBlock;"
+    private const val REALM_D = "Ldev/mooner/neonjs/runtime/Realm;"
     private const val AGENT_D = "Ldev/mooner/neonjs/runtime/Agent;"
     private const val CONSTS_D = "[Ljava/lang/Object;"
 
@@ -161,6 +181,14 @@ object JvmCompiler {
         val inputs = LinkedHashMap<String, JitInput>()
         val wanting = HashMap<String, MutableList<Int>>()
         for ((i, cb) in blocks.withIndex()) {
+            // a block's code is never replaced. Jit.prepare reads `compiled` before `jitTask`, so a thread that read
+            // it just before the code was installed can queue the block again once the task is gone; the installed
+            // code reads the callees it inlines from the block (inlineTargets), set once with it
+            val installed = cb.compiled
+            if (installed != null) {
+                out[i] = installed as CompiledCode
+                continue
+            }
             if (!canCompile(cb)) continue
             if (!usable) {
                 fail("no usable code definer on this platform")
@@ -168,6 +196,8 @@ object JvmCompiler {
             }
             try {
                 val input = JitInput(cb)
+                // read by the generated code through its frame's code block: set before the code is installed
+                cb.inlineTargets = input.inlineTargets
                 val id = if (cache == null) "#$i" else input.identity
                 val known = cache?.get(id)
                 if (known != null) {
@@ -285,14 +315,21 @@ object JvmCompiler {
         val suffix = if (JvmCodeDefiner.VISIBLE_CLASSES) counter.incrementAndGet().toString() else input.identity
         val name = $$"dev/mooner/neonjs/jit/JS$$${input.name}$$$suffix"
         val bytes = try {
-            classBytes(input, name, version, typed = TYPED)
+            classBytes(input, name, version, typed = TYPED, inline = true)
         } catch (e: Exception) {
-            // unboxed code is larger, and the type analysis gives up on some shapes: such blocks get the Object code,
-            // as before it (deterministic, so equal inputs still give equal classes)
+            // inlined bodies make code larger, unboxed code too, and the type analysis gives up on some shapes: such
+            // blocks get the code without inlined calls, or the Object code, as before them (deterministic, so equal
+            // inputs still give equal classes)
             if (!TYPED || e !is org.objectweb.asm.MethodTooLargeException && e !is JitBailout) throw e
-            untypedReasons.computeIfAbsent(if (e is JitBailout) (e.message ?: "bailout").take(120) else "method too large") { AtomicLong() }
-                .incrementAndGet()
-            classBytes(input, name, version, typed = false)
+            try {
+                if (input.inlineSites.isEmpty()) throw e
+                notInlinedReasons.computeIfAbsent(reason(e)) { AtomicLong() }.incrementAndGet()
+                classBytes(input, name, version, typed = true, inline = false)
+            } catch (e2: Exception) {
+                if (e2 !is org.objectweb.asm.MethodTooLargeException && e2 !is JitBailout) throw e2
+                untypedReasons.computeIfAbsent(reason(e2)) { AtomicLong() }.incrementAndGet()
+                classBytes(input, name, version, typed = false, inline = false)
+            }
         }
         DUMP_DIR?.let { dir -> runCatching { java.io.File(dir, name.substringAfterLast('/') + ".class").writeBytes(bytes) } }
         return name.replace('/', '.') to bytes
@@ -320,10 +357,18 @@ object JvmCompiler {
     /** Debugging: `-Dneonjs.jit.dump=DIR` writes every generated class there. */
     private val DUMP_DIR: String? = System.getProperty("neonjs.jit.dump")
 
+    private fun reason(e: Exception) = if (e is JitBailout) (e.message ?: "bailout").take(120) else "method too large"
+
+    /** Calls compiled with the callee's body inlined (Inlining). */
+    @JvmField val inlinedCalls = AtomicLong()
+
+    /** Blocks compiled without their inlined calls, by reason (see [generate]). */
+    @JvmField val notInlinedReasons = java.util.concurrent.ConcurrentHashMap<String, AtomicLong>()
+
     /** Blocks compiled without unboxed values, by reason (see [generate]). */
     @JvmField val untypedReasons = java.util.concurrent.ConcurrentHashMap<String, AtomicLong>()
 
-    private fun classBytes(input: JitInput, name: String, version: Int, typed: Boolean): ByteArray {
+    private fun classBytes(input: JitInput, name: String, version: Int, typed: Boolean, inline: Boolean): ByteArray {
         val cw = CW()
         cw.visit(version, ACC_PUBLIC or ACC_FINAL or ACC_SUPER, name, null, "java/lang/Object", arrayOf("dev/mooner/neonjs/jit/CompiledCode"))
         input.sourceName?.let { cw.visitSource(it, null) }
@@ -336,7 +381,7 @@ object JvmCompiler {
         init.visitEnd()
         val mv = cw.visitMethod(ACC_PUBLIC or ACC_FINAL, "run", "($FRAME_D)$OBJ", null, null)
         mv.visitCode()
-        Gen(input, mv, typed).emit()
+        Gen(input, mv, typed, inlining = inline).emit()
         mv.visitMaxs(0, 0)
         mv.visitEnd()
         cw.visitEnd()
@@ -349,12 +394,29 @@ object JvmCompiler {
         return if (sb.isEmpty()) "anon" else sb.take(40).toString()
     }
 
-    private class Gen(val cb: JitInput, val mv: MethodVisitor, val typed: Boolean) {
+    /** What the body of a call compiled inlined reads instead of its own frame's state (see Gen.emitInlineCall). */
+    private class InlineCtx(val constsLocal: Int, val envLocal: Int, val resultLocal: Int, val resultKind: Byte, val exit: Label)
+
+    private class Gen(
+        val cb: JitInput,
+        val mv: MethodVisitor,
+        val typed: Boolean,
+        /** For the body of a callee inlined into another function: that function's generator (whose method it is). */
+        val outer: Gen? = null,
+        argKinds: ByteArray? = null,
+        /** Whether [JitInput.inlineSites] are compiled inlined. */
+        inlining: Boolean = false,
+    ) {
         val code = cb.code
         val labels = HashMap<Int, Label>()
         val handlerLabels = HashMap<Int, Label>()
         /** Kinds of the operand stack and of the registers (JitTypes): which values are unboxed. */
-        val ta: TypeAnalysis? = if (typed) TypeAnalysis(cb, INT32, ELEMS).run() else null
+        val ta: TypeAnalysis? = if (typed) TypeAnalysis(cb, INT32, ELEMS, argKinds).run() else null
+        /** Set while this generator emits a body inlined at a call. */
+        var inl: InlineCtx? = null
+        /** CALL pc -> inline site k (the outermost function only: inlined bodies do not inline further). */
+        val inlineAt: Map<Int, Int> =
+            if (!inlining || outer != null || ta == null) emptyMap() else cb.inlineSites.withIndex().associate { (k, s) -> s.first to k }
         /** How each register is held ([TypeAnalysis.regStorage]; Objects in untyped code). */
         val storage: ByteArray = ta?.regStorage ?: ByteArray(cb.numRegs)
         /** JVM local of each register kept as a `double` or an `int` (-1: an Object local, [reg]). */
@@ -371,21 +433,37 @@ object JvmCompiler {
         /** Conditional jumps that must box values first: (label, stack kinds there, target pc), emitted at the end. */
         val trampolines = ArrayList<Triple<Label, ByteArray, Int>>()
 
+        /** JVM local of register 0 (an inlined body's registers are locals of the method it is in). */
+        val regBase: Int
+
         init {
-            var n = L_REGS + cb.numRegs
-            for (r in 0 until cb.numRegs) when (storage[r]) {
-                JT.NUM -> { slots[r] = n; n += 2 }
-                JT.INT -> { slots[r] = n; n += 1 }
+            if (outer == null) {
+                var n = L_REGS + cb.numRegs
+                for (r in 0 until cb.numRegs) when (storage[r]) {
+                    JT.NUM -> { slots[r] = n; n += 2 }
+                    JT.INT -> { slots[r] = n; n += 1 }
+                }
+                nextTemp = n
+                regBase = L_REGS
+            } else {
+                nextTemp = -1
+                regBase = outer.alloc(cb.numRegs)
+                for (r in 0 until cb.numRegs) when (storage[r]) {
+                    JT.NUM -> slots[r] = outer.alloc(2)
+                    JT.INT -> slots[r] = outer.alloc(1)
+                }
             }
-            nextTemp = n
         }
 
         fun label(pc: Int): Label = labels.getOrPut(pc) { Label() }
 
-        fun temp(): Int = nextTemp++
-        fun tempD(): Int = nextTemp.also { nextTemp += 2 }
+        /** [n] new JVM locals, from the outermost generator (the method's). */
+        fun alloc(n: Int): Int = if (outer != null) outer.alloc(n) else nextTemp.also { nextTemp += n }
 
-        fun reg(r: Int) = L_REGS + r
+        fun temp(): Int = alloc(1)
+        fun tempD(): Int = alloc(2)
+
+        fun reg(r: Int) = regBase + r
 
         fun rt(name: String, desc: String) = mv.visitMethodInsn(INVOKESTATIC, RT, name, desc, false)
 
@@ -399,7 +477,10 @@ object JvmCompiler {
         }
 
         fun frame() = mv.visitVarInsn(ALOAD, L_FRAME)
-        fun consts() = mv.visitVarInsn(ALOAD, L_CONSTS)
+        fun consts() = mv.visitVarInsn(ALOAD, inl?.constsLocal ?: L_CONSTS)
+
+        /** The Frame field recording the position: an inlined body's is inlinePc ([Frame.pc] stays at its call). */
+        fun pcField() = if (inl != null) "inlinePc" else "pc"
 
         fun constant(k: Int) {
             consts()
@@ -447,17 +528,7 @@ object JvmCompiler {
         }
 
         fun emit() {
-            // collect labels
-            var pc = 0
-            while (pc < code.size) {
-                val op = code[pc]
-                val len = Op.length(code, pc)
-                if (op == Op.JUMP_TABLE) {
-                    val n = code[pc + 2]
-                    for (i in 0..n) label(code[pc + 3 + i])
-                } else if (Op.isJump(op)) label(code[pc + len - 1])
-                pc += len
-            }
+            collectJumpLabels()
             val h = cb.handlers
             var i = 0
             while (i < h.size) {
@@ -500,7 +571,40 @@ object JvmCompiler {
                     mv.visitVarInsn(ASTORE, reg(r))
                 }
             }
-            pc = 0
+            emitBody()
+            // falling off the end is impossible: emitter always ends with RETURN
+            pushUndefined()
+            mv.visitInsn(ARETURN)
+            emitTrampolines()
+        }
+
+        private fun emitTrampolines() {
+            for ((l, kinds, target) in trampolines) {
+                mv.visitLabel(l)
+                st.set(kinds)
+                convertTo(ta!!.stackIn[target]!!)
+                mv.visitJumpInsn(GOTO, label(target))
+            }
+            trampolines.clear()
+        }
+
+        /** The labels of jump targets (before any code is emitted). */
+        private fun collectJumpLabels() {
+            var pc = 0
+            while (pc < code.size) {
+                val op = code[pc]
+                val len = Op.length(code, pc)
+                if (op == Op.JUMP_TABLE) {
+                    val n = code[pc + 2]
+                    for (i in 0..n) label(code[pc + 3 + i])
+                } else if (Op.isJump(op)) label(code[pc + len - 1])
+                pc += len
+            }
+        }
+
+        /** The instructions, in order: the code of a function, or of a body inlined at a call. */
+        private fun emitBody() {
+            var pc = 0
             var lastLine = -1
             val stmts = cb.statementPcs
             val lines = cb.lines
@@ -529,7 +633,7 @@ object JvmCompiler {
                     // f.pc = pc at each statement, so errors raised between calls point at the right statement
                     frame()
                     iconst(pc)
-                    mv.visitFieldInsn(PUTFIELD, FRAME, "pc", "I")
+                    mv.visitFieldInsn(PUTFIELD, FRAME, pcField(), "I")
                 }
                 if (curLine >= 0 && curLine != lastLine) {
                     val ll = Label()
@@ -549,6 +653,18 @@ object JvmCompiler {
                     pc = split.end
                     continue
                 }
+                val site = if (op == Op.CALL) inlineAt[pc] else null
+                if (site != null) {
+                    val end = emitInlineCall(pc, site, ta!!)
+                    if (end >= 0) {
+                        while (si < stmts.size && stmts[si] < end) {
+                            if (lines != null) curLine = lines[si]
+                            si++
+                        }
+                        pc = end
+                        continue
+                    }
+                }
                 if (ta == null) emitGeneric(pc) else emitOp(pc, ta)
                 val next = pc + Op.length(code, pc)
                 // the fall-through edge: box what the next instruction expects boxed
@@ -556,15 +672,6 @@ object JvmCompiler {
                 pc = next
             }
             labels[pc]?.let { mv.visitLabel(it) }
-            // falling off the end is impossible: emitter always ends with RETURN
-            pushUndefined()
-            mv.visitInsn(ARETURN)
-            for ((l, kinds, target) in trampolines) {
-                mv.visitLabel(l)
-                st.set(kinds)
-                convertTo(ta!!.stackIn[target]!!)
-                mv.visitJumpInsn(GOTO, label(target))
-            }
         }
 
         // ------------------------------------------------------------------ elements read as numbers
@@ -593,9 +700,21 @@ object JvmCompiler {
 
         /** The end of a split with the element of kind [elem], or null when there is none worth making. */
         private fun simulateSplit(pc0: Int, elem: Byte, ta: TypeAnalysis): SplitSim? {
-            var pc = pc0 + Op.length(code, pc0)
+            val first = pc0 + Op.length(code, pc0)
+            val fast = ta.stackIn[pc0]!!.copyOf(ta.stackIn[pc0]!!.size - 1).also { it[it.size - 1] = elem }
+            return simulateRegion(first, fast, allowPop = false, ta)
+        }
+
+        /**
+         * The end of the instructions from [first] worth compiling twice, the fast copy starting with the kinds [fastIn]
+         * (the analysis's, but for the value on top, which is more precise), or null when there is none. A value only
+         * popped gains nothing after a GET_ELEM ([allowPop] false), but avoids boxing a call's unboxed result.
+         */
+        private fun simulateRegion(first: Int, fastIn: ByteArray, allowPop: Boolean, ta: TypeAnalysis): SplitSim? {
+            var pc = first
+            if (!ta.reachable(pc)) return null
             val static = KindStack().also { it.set(ta.stackIn[pc]!!) }
-            val fast = KindStack().also { it.set(ta.stackIn[pc0]!!); it.pop(); it.pop(); it.push(elem) }
+            val fast = KindStack().also { it.set(fastIn) }
             if (fast.size != static.size) return null
             var elemAt = fast.size - 1 // stack index of the element until it is used
             var bitwiseUse = false
@@ -611,7 +730,7 @@ object JvmCompiler {
                 if (!ta.stackStep(op, a, fast, regKind)) break
                 ta.stackStep(op, a, static, regKind)
                 if (elemAt >= 0 && elemAt >= before - stackPops(op)) {
-                    if (op == Op.POP) return null // discarded: nothing to gain
+                    if (op == Op.POP && !allowPop) return null // discarded: nothing to gain
                     bitwiseUse = JT.isBitwise(op) || op == Op.BNOT
                     elemAt = -1
                 }
@@ -685,13 +804,7 @@ object JvmCompiler {
             val first = pc0 + Op.length(code, pc0)
             st.set(below)
             st.push(if (s.int) JT.INT else JT.NUM)
-            var pc = first
-            while (pc < s.end) {
-                storePc(pc)
-                emitOp(pc, ta)
-                pc += Op.length(code, pc)
-            }
-            convertTo(ta.stackIn[s.end]!!)
+            emitRegionFast(first, s.end, ta)
             mv.visitJumpInsn(GOTO, merge)
             // slow case: from a miss (drop the helper's 0, clear the flag), or from another receiver
             mv.visitLabel(miss)
@@ -707,8 +820,25 @@ object JvmCompiler {
             st.set(below)
             st.push(JT.ANY)
             if (!st.matches(ta.stackIn[first]!!)) throw JitBailout("split at $pc0: stack kinds differ")
-            pc = first
-            while (pc < s.end) {
+            emitRegionSlow(first, s.end, ta)
+            mv.visitLabel(merge)
+        }
+
+        /** The fast copy of the instructions [first, end): with the more precise kinds on the stack, then the analysis's. */
+        private fun emitRegionFast(first: Int, end: Int, ta: TypeAnalysis) {
+            var pc = first
+            while (pc < end) {
+                storePc(pc)
+                emitOp(pc, ta)
+                pc += Op.length(code, pc)
+            }
+            convertTo(ta.stackIn[end]!!)
+        }
+
+        /** The slow copy of the instructions [first, end): as the main loop compiles them. */
+        private fun emitRegionSlow(first: Int, end: Int, ta: TypeAnalysis) {
+            var pc = first
+            while (pc < end) {
                 st.set(ta.stackIn[pc]!!)
                 storePc(pc)
                 emitOp(pc, ta)
@@ -716,7 +846,152 @@ object JvmCompiler {
                 convertTo(ta.stackIn[next]!!)
                 pc = next
             }
+        }
+
+        // ------------------------------------------------------------------ inlined calls (Inlining)
+
+        /**
+         * The CALL at [pc] with the body of inline site [k]'s callee compiled in: when the function called is a closure
+         * of exactly `CodeBlock.inlineTargets[k]` (read through the frame's code block: classes are shared by blocks
+         * with equal code) in this realm, its body runs here with its registers as locals of this method and the
+         * arguments as they are (unboxed numbers stay unboxed); otherwise the ordinary call. As after a GET_ELEM
+         * ([emitSplit]), the instructions after the call that use an unboxed result are compiled for both cases.
+         * Returns the pc to continue at, or -1 when the call is compiled as usual instead.
+         */
+        private fun emitInlineCall(pc: Int, k: Int, ta: TypeAnalysis): Int {
+            val argc = code[pc + 1]
+            val n = argc + 2
+            if (st.size < n || st[st.size - n] != JT.ANY) return -1
+            val kinds = ByteArray(n) { st[st.size - n + it] }
+            val argKinds = ByteArray(argc) { val kk = kinds[2 + it]; if (JT.isNum(kk)) kk else JT.ANY }
+            val callee = try {
+                Gen(cb.inlineSites[k].second, mv, true, this, argKinds)
+            } catch (_: JitBailout) {
+                return -1
+            }
+            val r = callee.resultKind()
+            val first = pc + Op.length(code, pc)
+            // (fn this args... -- result)
+            val temps = IntArray(n)
+            for (i in n - 1 downTo 0) temps[i] = storeTemp(kinds[i])
+            repeat(n) { st.pop() }
+            val below = st.toArray()
+            var end = first
+            if (r != JT.ANY) simulateRegion(first, below.copyOf(below.size + 1).also { it[below.size] = r }, allowPop = true, ta)?.let { end = it.end }
+            val slow = Label()
+            val merge = Label()
+            val fn = temps[0]
+            // the guard
+            mv.visitVarInsn(ALOAD, fn)
+            mv.visitTypeInsn(INSTANCEOF, CLOSURE)
+            mv.visitJumpInsn(IFEQ, slow)
+            mv.visitVarInsn(ALOAD, fn)
+            mv.visitTypeInsn(CHECKCAST, CLOSURE)
+            mv.visitFieldInsn(GETFIELD, CLOSURE, "code", CODEBLOCK_D)
+            frame()
+            mv.visitFieldInsn(GETFIELD, FRAME, "code", CODEBLOCK_D)
+            mv.visitFieldInsn(GETFIELD, CODEBLOCK, "inlineTargets", "[$CODEBLOCK_D")
+            iconst(k)
+            mv.visitInsn(AALOAD)
+            mv.visitJumpInsn(IF_ACMPNE, slow)
+            mv.visitVarInsn(ALOAD, fn)
+            mv.visitTypeInsn(CHECKCAST, CLOSURE)
+            mv.visitFieldInsn(GETFIELD, CLOSURE, "realm", REALM_D)
+            frame()
+            mv.visitFieldInsn(GETFIELD, FRAME, "realm", REALM_D)
+            mv.visitJumpInsn(IF_ACMPNE, slow)
+            // the body
+            frame()
+            mv.visitVarInsn(ALOAD, fn)
+            mv.visitTypeInsn(CHECKCAST, CLOSURE)
+            iconst(pc)
+            rt("inlineEnter", "($FRAME_D$CLOSURE_D" + "I)V")
+            val constsLocal = temp()
+            mv.visitVarInsn(ALOAD, fn)
+            mv.visitTypeInsn(CHECKCAST, CLOSURE)
+            mv.visitFieldInsn(GETFIELD, CLOSURE, "code", CODEBLOCK_D)
+            mv.visitFieldInsn(GETFIELD, CODEBLOCK, "constants", CONSTS_D)
+            mv.visitVarInsn(ASTORE, constsLocal)
+            val envLocal = temp()
+            mv.visitVarInsn(ALOAD, fn)
+            mv.visitTypeInsn(CHECKCAST, CLOSURE)
+            mv.visitFieldInsn(GETFIELD, CLOSURE, "env", "Ldev/mooner/neonjs/runtime/Env;")
+            mv.visitVarInsn(ASTORE, envLocal)
+            val resultLocal = if (r == JT.NUM) tempD() else temp()
+            val exit = Label()
+            callee.inl = InlineCtx(constsLocal, envLocal, resultLocal, r, exit)
+            callee.emitInlined(IntArray(argc) { temps[2 + it] }, ByteArray(argc) { kinds[2 + it] })
+            mv.visitLabel(exit)
+            frame()
+            rt("inlineExit", "($FRAME_D)V")
+            st.set(below)
+            loadTemp(r, resultLocal)
+            st.push(r)
+            emitRegionFast(first, end, ta)
+            mv.visitJumpInsn(GOTO, merge)
+            // the ordinary call
+            mv.visitLabel(slow)
+            st.set(below)
+            for (i in 0 until n) {
+                loadTemp(kinds[i], temps[i])
+                box(kinds[i])
+                st.push(JT.ANY)
+            }
+            emitGeneric(pc)
+            st.set(below)
+            st.push(JT.ANY)
+            if (!st.matches(ta.stackIn[first]!!)) throw JitBailout("inlined call at $pc: stack kinds differ")
+            emitRegionSlow(first, end, ta)
             mv.visitLabel(merge)
+            inlinedCalls.incrementAndGet()
+            return end
+        }
+
+        /** The kind of the values this (inlined) function returns: INT or NUM when every return is one, else ANY. */
+        fun resultKind(): Byte {
+            val ta = ta!!
+            var r: Byte = -1
+            var pc = 0
+            while (pc < code.size) {
+                if (code[pc] == Op.RETURN && ta.reachable(pc)) {
+                    val s = ta.stackIn[pc]!!
+                    val k = if (s.isEmpty()) JT.ANY else s[s.size - 1]
+                    r = if (r < 0) k else JT.join(r, k)
+                }
+                pc += Op.length(code, pc)
+            }
+            return if (JT.isNum(r)) r else JT.ANY
+        }
+
+        /** This function's body, inlined: registers start undefined, the arguments in [argTemps] go to the parameters. */
+        fun emitInlined(argTemps: IntArray, argKinds: ByteArray) {
+            collectJumpLabels()
+            for (r in 0 until cb.numRegs) {
+                pushUndefined()
+                mv.visitVarInsn(ASTORE, reg(r))
+                when (storage[r]) {
+                    JT.NUM -> { mv.visitInsn(DCONST_0); mv.visitVarInsn(DSTORE, slots[r]) }
+                    JT.INT -> { mv.visitInsn(ICONST_0); mv.visitVarInsn(ISTORE, slots[r]) }
+                }
+            }
+            cb.paramRegs?.forEachIndexed { i, r ->
+                if (i < argTemps.size) {
+                    loadTemp(argKinds[i], argTemps[i])
+                    storeReg(r, argKinds[i])
+                }
+            }
+            emitBody()
+            emitTrampolines()
+        }
+
+        /** RETURN in an inlined body: the value to the result local (in the call's result kind), then to the exit. */
+        private fun emitInlineReturn() {
+            val inl = inl!!
+            val k = st.pop()
+            convert(k, inl.resultKind)
+            mv.visitVarInsn(when (inl.resultKind) { JT.NUM -> DSTORE; JT.INT -> ISTORE; else -> ASTORE }, inl.resultLocal)
+            while (st.size > 0) popValue(st.pop())
+            mv.visitJumpInsn(GOTO, inl.exit)
         }
 
         /** In a split, what the main loop does at a line table entry: f.pc = pc (and the JVM line number). */
@@ -724,7 +999,7 @@ object JvmCompiler {
             if (!stmtStart[pc]) return
             frame()
             iconst(pc)
-            mv.visitFieldInsn(PUTFIELD, FRAME, "pc", "I")
+            mv.visitFieldInsn(PUTFIELD, FRAME, pcField(), "I")
             if (stmtLine[pc] >= 0) {
                 val l = Label()
                 mv.visitLabel(l)
@@ -913,19 +1188,11 @@ object JvmCompiler {
                     return
                 }
                 Op.STORE_REG -> {
-                    val k = st.pop()
-                    // a value of a kind the register is not held as is never loaded from it (TypeAnalysis): a dead store
-                    when (storage[a]) {
-                        JT.INT -> if (k == JT.INT) mv.visitVarInsn(ISTORE, slots[a]) else popValue(k)
-                        JT.NUM -> if (JT.isNum(k)) {
-                            toDouble(k)
-                            mv.visitVarInsn(DSTORE, slots[a])
-                        } else popValue(k)
-                        else -> {
-                            box(k)
-                            mv.visitVarInsn(ASTORE, reg(a))
-                        }
-                    }
+                    storeReg(a, st.pop())
+                    return
+                }
+                Op.RETURN -> if (inl != null) {
+                    emitInlineReturn()
                     return
                 }
                 Op.POP -> {
@@ -1166,6 +1433,22 @@ object JvmCompiler {
             if (intResult && cls != JT.NN && result == JT.NUM) mv.visitInsn(I2D)
         }
 
+        /** Stores the value of [k] on the stack in register [a] (STORE_REG). */
+        private fun storeReg(a: Int, k: Byte) {
+            // a value of a kind the register is not held as is never loaded from it (TypeAnalysis): a dead store
+            when (storage[a]) {
+                JT.INT -> if (k == JT.INT) mv.visitVarInsn(ISTORE, slots[a]) else popValue(k)
+                JT.NUM -> if (JT.isNum(k)) {
+                    toDouble(k)
+                    mv.visitVarInsn(DSTORE, slots[a])
+                } else popValue(k)
+                else -> {
+                    box(k)
+                    mv.visitVarInsn(ASTORE, reg(a))
+                }
+            }
+        }
+
         /** Pushes 0 or 1 for the comparison of the two ints on the stack. */
         private fun compareInts(op: Int) {
             val jump = when (op) {
@@ -1283,15 +1566,25 @@ object JvmCompiler {
                 Op.GET_ENV -> { frame(); mv.visitFieldInsn(GETFIELD, FRAME, "env", "Ldev/mooner/neonjs/runtime/Env;") }
                 Op.SET_ENV -> { frame(); rt("setEnv", "($OBJ$FRAME_D)V") }
                 Op.PUSH_WITH -> { frame(); rt("pushWith", "($OBJ$FRAME_D)V") }
-                Op.LOAD_ENV -> { frame(); iconst(a); iconst(b); rt("loadEnv", "(${FRAME_D}II)$OBJ") }
-                Op.STORE_ENV -> { frame(); iconst(a); iconst(b); rt("storeEnv", "($OBJ${FRAME_D}II)V") }
+                // an inlined body's environment is its closure's
+                Op.LOAD_ENV -> if (inl != null) {
+                    mv.visitVarInsn(ALOAD, inl!!.envLocal); iconst(a); iconst(b); rt("loadEnvE", "(${OBJ}II)$OBJ")
+                } else { frame(); iconst(a); iconst(b); rt("loadEnv", "(${FRAME_D}II)$OBJ") }
+                Op.STORE_ENV -> if (inl != null) {
+                    mv.visitVarInsn(ALOAD, inl!!.envLocal); iconst(a); iconst(b); rt("storeEnvE", "($OBJ${OBJ}II)V")
+                } else { frame(); iconst(a); iconst(b); rt("storeEnv", "($OBJ${FRAME_D}II)V") }
                 Op.LOAD_IMPORT -> {
                     frame(); iconst(a); iconst(b); rt("loadEnv", "(${FRAME_D}II)$OBJ")
                     mv.visitMethodInsn(INVOKESTATIC, "dev/mooner/neonjs/vm/Modules", "deref", "($OBJ)$OBJ", false)
                 }
                 Op.LOAD_ENV_TDZ, Op.CHECK_ENV_TDZ -> {
-                    frame(); iconst(a); iconst(b); iconst(c); consts()
-                    rt("loadEnvTdz", "(${FRAME_D}III$CONSTS_D)$OBJ")
+                    if (inl != null) {
+                        mv.visitVarInsn(ALOAD, inl!!.envLocal); iconst(a); iconst(b); iconst(c); consts()
+                        rt("loadEnvTdzE", "(${OBJ}III$CONSTS_D)$OBJ")
+                    } else {
+                        frame(); iconst(a); iconst(b); iconst(c); consts()
+                        rt("loadEnvTdz", "(${FRAME_D}III$CONSTS_D)$OBJ")
+                    }
                     if (op == Op.CHECK_ENV_TDZ) mv.visitInsn(POP)
                 }
                 Op.LOAD_NAME -> { frame(); constant(a); rt("loadName", "($FRAME_D$OBJ)$OBJ") }
@@ -1419,17 +1712,19 @@ object JvmCompiler {
                 }
                 Op.RETURN -> mv.visitInsn(ARETURN)
                 Op.CALL -> {
+                    // from an inlined body: the frame's pc stays at the inlined call (icall* record the body's pc)
+                    val c = if (inl != null) "icall" else "call"
                     when (a) {
-                        0 -> { frame(); iconst(pc); rt("call0", "($OBJ$OBJ${FRAME_D}I)$OBJ") }
-                        1 -> { frame(); iconst(pc); rt("call1", "($OBJ$OBJ$OBJ${FRAME_D}I)$OBJ") }
-                        2 -> { frame(); iconst(pc); rt("call2", "($OBJ$OBJ$OBJ$OBJ${FRAME_D}I)$OBJ") }
-                        3 -> { frame(); iconst(pc); rt("call3", "($OBJ$OBJ$OBJ$OBJ$OBJ${FRAME_D}I)$OBJ") }
-                        4 -> { frame(); iconst(pc); rt("call4", "($OBJ$OBJ$OBJ$OBJ$OBJ$OBJ${FRAME_D}I)$OBJ") }
-                        else -> { packArray(a); frame(); iconst(pc); rt("call", "($OBJ$OBJ$CONSTS_D${FRAME_D}I)$OBJ") }
+                        0 -> { frame(); iconst(pc); rt(c + "0", "($OBJ$OBJ${FRAME_D}I)$OBJ") }
+                        1 -> { frame(); iconst(pc); rt(c + "1", "($OBJ$OBJ$OBJ${FRAME_D}I)$OBJ") }
+                        2 -> { frame(); iconst(pc); rt(c + "2", "($OBJ$OBJ$OBJ$OBJ${FRAME_D}I)$OBJ") }
+                        3 -> { frame(); iconst(pc); rt(c + "3", "($OBJ$OBJ$OBJ$OBJ$OBJ${FRAME_D}I)$OBJ") }
+                        4 -> { frame(); iconst(pc); rt(c + "4", "($OBJ$OBJ$OBJ$OBJ$OBJ$OBJ${FRAME_D}I)$OBJ") }
+                        else -> { packArray(a); frame(); iconst(pc); rt(c, "($OBJ$OBJ$CONSTS_D${FRAME_D}I)$OBJ") }
                     }
                 }
                 Op.CALL_SPREAD -> { frame(); iconst(pc); rt("callSpread", "($OBJ$OBJ$OBJ${FRAME_D}I)$OBJ") }
-                Op.NEW -> { packArray(a); frame(); iconst(pc); rt("construct", "($OBJ$CONSTS_D${FRAME_D}I)$OBJ") }
+                Op.NEW -> { packArray(a); frame(); iconst(pc); rt(if (inl != null) "iconstruct" else "construct", "($OBJ$CONSTS_D${FRAME_D}I)$OBJ") }
                 Op.NEW_SPREAD -> { frame(); iconst(pc); rt("newSpread", "($OBJ$OBJ${FRAME_D}I)$OBJ") }
                 Op.CALL_EVAL -> {
                     packArray(a); frame(); iconst(b); iconst(pc); rt("callEval", "($OBJ$OBJ$CONSTS_D${FRAME_D}II)$OBJ")

@@ -168,6 +168,46 @@ that proves too much and lets a later phase drop a bounds or type check. Here no
 also keep int32s unboxed, doing int arithmetic with overflow and -0 checks that deoptimize; the bugs there come from
 range analysis that removes those checks. Here int arithmetic is never done, so there is no such check to remove.
 
+Inlined calls (`jit/Inlining.kt`): in adaptive mode the interpreter records, at each `CALL`, the code block of the JS
+function called most (`CodeBlock.callFeedback`, a majority vote). When the caller is compiled, a call whose recorded
+callee ran at least 16 times there (`-Dneonjs.jit.inlineMinCount`) and is small and simple enough gets the callee's
+body compiled into the caller, at most 8 calls per function and never further inside an inlined body. The callee must
+be an ordinary function (not a generator, async function or class constructor) of at most 96 bytecode ints, with the
+caller's strictness, no exception handlers, its parameters in registers and only instructions from a closed list: none
+reads the callee's own frame (`this`, `arguments`, `new.target`, the function), creates scopes or closures, or
+resolves names dynamically. The inlined body runs behind a guard: the function called is a `JSClosure` whose code block
+is that very block (`CodeBlock.inlineTargets[k]`, an object identity) and whose realm is the caller's; anything else
+takes the ordinary call, which is compiled next to it. Nothing is assumed beyond the guard, so nothing deoptimizes.
+The callee's registers become JVM locals of the caller (missing arguments are `undefined`, extra ones are evaluated and
+dropped), its constants are read from the closure's code block and its variables from the closure's environment, and
+the kinds of the arguments flow into its type analysis, so a number argument stays unboxed. `RETURN` stores into a
+result local and jumps to the end of the body; when every return gives a number of one kind and the caller uses the
+result as a number, the instructions after the call are compiled twice as for `GET_ELEM` above, the fast copy with the
+result unboxed. The rules that keep calls the same as before:
+
+- Depth and interrupts: `JitRt.inlineEnter` counts the call against the depth limit and the interrupt budget as
+  `Interpreter.execute` would, and the depth is given back on the way out of the body: by `inlineExit`, by
+  `JitRt.catchValue` when the caller catches an exception from it, by `JitRt.leaveCompiled` when the exception leaves
+  the caller.
+- Stack traces: while the body runs, `Frame.inlineFn` is the callee and `Frame.inlinePc` its position (compiled code
+  stores positions there instead of `Frame.pc`, which stays at the call). `Agent.captureStack` prints the inlined
+  call as a frame of its own; errors raised by the body (and messages such as "f is not a function", which quote the
+  source) name the callee's code. An exception caught by the caller gets its stack before the frame leaves the body.
+- Realms: one code block runs in several realms (a script compiled once, Test262's `createRealm`) and compiled code
+  reads globals and intrinsics from the frame's realm, so a closure of the same code from another realm is called.
+- Strictness: helpers read it from the frame (the caller's), so only callees of the caller's strictness are inlined.
+- Identity: the inlined sites and the callees' own `JitInput`s are part of the caller's `JitInput`, and
+  `CodeBlock.inlineTargets` is set before the code is installed through the volatile `compiled` field. A block whose
+  code with inlined calls would exceed the JVM method size limit is compiled without them
+  (`JvmCompiler.notInlinedReasons`). `COMPILED` mode records no calls and inlines nothing;
+  `-Dneonjs.jit.inline=false` turns inlining off.
+
+V8 (TurboFan), JavaScriptCore (DFG/FTL) and SpiderMonkey (Warp) inline from the same kind of call target feedback,
+behind a check of the closure or its code; a failing check deoptimizes, and their inlining bugs come from frame states
+rebuilt wrongly on deoptimization, missing stack frames, or the inlined function's `arguments`. Here a failing check
+takes the ordinary call compiled next to it, the frame keeps the position of both functions, and callees that read
+their own frame are not inlined.
+
 Background compilation (`jit/JitQueue.kt`): a block due for compilation gets a `JitTask` (`CodeBlock.jitTask`,
 set by CAS, so one thread compiles it) and is queued; daemon workers drain whatever is queued (up to a batch) and
 hand it to the backend, one batch per backend. A thread that needs the code now (compiled mode) takes a queued task
@@ -272,7 +312,8 @@ reactions; JS `Date`/`Temporal.Instant` convert to `java.time` types.
 ## Testing
 
 - `neonjs-core` unit tests: public API, interop, sandbox/security, inline-cache invalidation, console, language
-  corner cases, proposals (decorators, ShadowRealm, deferred imports), web globals, method sizes.
+  corner cases, proposals (decorators, ShadowRealm, deferred imports), web globals, method sizes; inlined calls
+  (`InliningTest`: each case interpreted and in adaptive mode with calls inlined, stack traces and limits included).
 - `neonjs-intl` unit tests: Intl basics, default locale and host-locale hiding, input caps, threads, method sizes.
 - `neonjs-test262`: the Test262 runner and the mutation fuzzer `FuzzKt` (see the README). Fuzzer findings become
   regression tests (`SecurityTest.fuzzerRegressions`, `builtinLoopsOverHugeArrayLikesAreInterruptible`).

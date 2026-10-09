@@ -144,7 +144,123 @@ object JitRt {
         }
     }
 
-    @JvmStatic fun catchValue(t: Throwable, f: Frame): Any? = Rt.catchValue(t, f.realm, f, f.pc)
+    @JvmStatic fun catchValue(t: Throwable, f: Frame): Any? {
+        // the stack trace first, while an inlined call the exception came from still shows in it
+        val v = Rt.catchValue(t, f.realm, f, f.pc)
+        if (f.inlineFn != null) {
+            f.inlineFn = null
+            f.realm.agent.depth--
+        }
+        return v
+    }
+
+    // ------------------------------------------------------------------ inlined calls (Inlining)
+
+    /**
+     * Entering the body of [fn] inlined at the call at [pc]: the steps of a call that matter without a frame of its
+     * own (Interpreter.execute's depth limit and call budget, in the same order), then the frame records the call for
+     * stack traces. The realm is the caller's (the generated guard checks it). An exception leaving the body is
+     * cleaned up by [catchValue] (a handler of the caller) or by [leaveCompiled] (leaving the caller).
+     */
+    @JvmStatic fun inlineEnter(f: Frame, fn: JSClosure, pc: Int) {
+        f.pc = pc
+        val agent = f.realm.agent
+        if (++agent.depth > agent.maxDepth) {
+            agent.depth--
+            throw JSException.rangeError("Maximum call stack size exceeded")
+        }
+        if (--agent.callBudget < 0) {
+            agent.callBudget = 1024
+            try {
+                agent.checkInterrupt()
+            } catch (t: Throwable) {
+                agent.depth--
+                throw t
+            }
+        }
+        f.inlinePc = 0
+        f.inlineFn = fn
+    }
+
+    @JvmStatic fun inlineExit(f: Frame) {
+        f.inlineFn = null
+        f.realm.agent.depth--
+    }
+
+    /**
+     * [t] leaving compiled code running [f] (Interpreter.execute): a JS error gets its stack trace (compiled code keeps
+     * f.pc at the current statement or call, and f.inlinePc in an inlined body), then an inlined call it left ends.
+     */
+    @JvmStatic fun leaveCompiled(t: Throwable, f: Frame): Throwable {
+        if (t is JSException) Rt.attachStack(t, f, f.pc)
+        if (f.inlineFn != null) {
+            f.inlineFn = null
+            f.realm.agent.depth--
+        }
+        return t
+    }
+
+    // calls from an inlined body: the frame's pc stays at the inlined call, and the body's position is inlinePc
+    @JvmStatic fun icall(fnv: Any?, thisV: Any?, args: Array<Any?>, f: Frame, pc: Int): Any? {
+        f.inlinePc = pc
+        if (fnv is JSClosure) return Interpreter.callClosure(fnv, thisV, args)
+        if (fnv is JSObject && fnv.special and JSObject.CALLABLE != 0) return fnv.call(thisV, args)
+        throw Rt.notCallable(fnv, f.inlineFn!!.code, pc)
+    }
+    @JvmStatic fun iconstruct(fnv: Any?, args: Array<Any?>, f: Frame, pc: Int): Any? {
+        f.inlinePc = pc
+        if (fnv !is JSObject || fnv.special and JSObject.CONSTRUCTOR == 0) {
+            throw JSException.typeError("${Rt.calleeText(f.inlineFn!!.code, pc, fnv)} is not a constructor")
+        }
+        return fnv.construct(args, fnv)
+    }
+    // the JS function case of icall() again, as for call0..call4
+    @JvmStatic fun icall0(fnv: Any?, t: Any?, f: Frame, pc: Int): Any? {
+        if (fnv !is JSClosure) return icall(fnv, t, EMPTY_ARGS, f, pc)
+        f.inlinePc = pc
+        return Interpreter.invokeClosure(fnv, t, EMPTY_ARGS)
+    }
+    @JvmStatic fun icall1(fnv: Any?, t: Any?, a: Any?, f: Frame, pc: Int): Any? {
+        if (fnv !is JSClosure) return icall(fnv, t, arrayOf(a), f, pc)
+        f.inlinePc = pc
+        return Interpreter.invokeClosure(fnv, t, arrayOf(a))
+    }
+    @JvmStatic fun icall2(fnv: Any?, t: Any?, a: Any?, b: Any?, f: Frame, pc: Int): Any? {
+        if (fnv !is JSClosure) return icall(fnv, t, arrayOf(a, b), f, pc)
+        f.inlinePc = pc
+        return Interpreter.invokeClosure(fnv, t, arrayOf(a, b))
+    }
+    @JvmStatic fun icall3(fnv: Any?, t: Any?, a: Any?, b: Any?, c: Any?, f: Frame, pc: Int): Any? {
+        if (fnv !is JSClosure) return icall(fnv, t, arrayOf(a, b, c), f, pc)
+        f.inlinePc = pc
+        return Interpreter.invokeClosure(fnv, t, arrayOf(a, b, c))
+    }
+    @JvmStatic fun icall4(fnv: Any?, t: Any?, a: Any?, b: Any?, c: Any?, d: Any?, f: Frame, pc: Int): Any? {
+        if (fnv !is JSClosure) return icall(fnv, t, arrayOf(a, b, c, d), f, pc)
+        f.inlinePc = pc
+        return Interpreter.invokeClosure(fnv, t, arrayOf(a, b, c, d))
+    }
+
+    // environment slots of an inlined body: through its closure's environment
+    @JvmStatic fun loadEnvE(env: Any?, h: Int, s: Int): Any? {
+        var e = env as Env?
+        var n = h
+        while (n-- > 0) e = e!!.parent
+        return (e.cast<DeclEnv>()).slots[s]
+    }
+
+    @JvmStatic fun storeEnvE(v: Any?, env: Any?, h: Int, s: Int) {
+        var e = env as Env?
+        var n = h
+        while (n-- > 0) e = e!!.parent
+        (e.cast<DeclEnv>()).slots[s] = v
+    }
+
+    @JvmStatic fun loadEnvTdzE(env: Any?, h: Int, s: Int, k: Int, consts: Array<Any?>): Any? {
+        val v = loadEnvE(env, h, s)
+        if (v === Uninitialized) throw tdzError(consts[k].cast<String>())
+        return v
+    }
 
     // ------------------------------------------------------------------ properties
 

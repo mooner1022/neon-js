@@ -74,6 +74,8 @@ fun main(args: Array<String>) {
             " background batches=${dev.mooner.neonjs.jit.JitQueue.batches} blocks=${dev.mooner.neonjs.jit.JitQueue.batchedBlocks} takenOver=${dev.mooner.neonjs.jit.JitQueue.takenOver}")
         dev.mooner.neonjs.jit.JvmCompiler.failureReasons.entries.sortedByDescending { it.value.get() }.take(15).forEach { System.err.println("  ${it.value} ${it.key}") }
         dev.mooner.neonjs.jit.JvmCompiler.untypedReasons.entries.sortedByDescending { it.value.get() }.take(15).forEach { System.err.println("  ${it.value} compiled without unboxed values: ${it.key}") }
+        System.err.println("JIT inlined calls=${dev.mooner.neonjs.jit.JvmCompiler.inlinedCalls}")
+        dev.mooner.neonjs.jit.JvmCompiler.notInlinedReasons.entries.sortedByDescending { it.value.get() }.take(15).forEach { System.err.println("  ${it.value} compiled without inlined calls: ${it.key}") }
     }
     // exit status 1 when a test failed that the --known list does not expect
     val unexpected = failed.filter { it !in known }

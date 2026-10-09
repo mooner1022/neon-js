@@ -115,7 +115,7 @@ object JitQueue {
         val cb = t.cb
         // the result first, then the task goes: a thread seeing neither would queue the block again. One that read
         // `compiled` just before it was set still can, and code once installed stays: frames run by compiled code
-        // find it through their code block (Frame.isCompiled)
+        // find it through their code block (Frame.isCompiled), and it goes with the block's inlineTargets
         if (code != null) {
             if (cb.compiled == null) cb.compiled = code
         } else if (cb.compiled == null) cb.jitFailed = true
