@@ -104,8 +104,9 @@ engine.newContext().use { ctx ->
 
 A `NeonEngine` holds configuration and is thread-safe; it creates isolated `NeonContext`s (each with its own
 realm, globals and job queue). A context is single-threaded but may be entered from any thread: calls are
-serialized by an internal lock, so host callbacks invoked on other threads are safe. Compiled scripts
-(`engine.compile(source)`) can be evaluated in any context of the same engine.
+serialized by an internal lock, so host callbacks invoked on other threads are safe. A thread waits for the lock at
+most the sandbox time limit (`NeonTimeoutException` after that), and a closed context throws `IllegalStateException`.
+Compiled scripts (`engine.compile(source)`) can be evaluated in any context of the same engine.
 
 ### Execution modes
 

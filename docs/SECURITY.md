@@ -85,7 +85,11 @@ differences between the interpreter and compiled code. Classes used on error pat
   return values, fields, nested objects. Prefer `EXPLICIT` access with small facade classes for untrusted code.
 - **Callbacks run on your threads.** A Java thread invoking a JS callback (listener proxy, `Java.extend` adapter,
   `List`/`Map` view) enters the context and holds its lock while JS runs, so other threads using that context wait
-  for it (bounded by the policy's time limit). Likewise, a `CompletableFuture` made from a JS promise is completed
+  for it — at most the policy's time limit, after which they get a `NeonTimeoutException`. That also ends the case of
+  JS blocking on host work that needs the same context on another thread (a host method waiting on a future that
+  evaluates in the context), which would otherwise wait forever; without a time limit the wait is unbounded. Once
+  the context is closed, entering it throws `IllegalStateException`, from callbacks and proxies too: unregister
+  listeners that hold JS functions before closing. Likewise, a `CompletableFuture` made from a JS promise is completed
   in a job on the context's thread with the context lock held, so its dependent stages (`thenAccept`…) run there
   too unless they are `*Async` stages.
 - **Termination crossing Java frames.** If JS is terminated while running inside a host callback, the termination
