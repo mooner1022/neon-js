@@ -19,19 +19,46 @@ class Frame(
     @JvmField var sp: Int = code.numRegs
     @JvmField var pc: Int = 0
 
+    /**
+     * Generator / async and tail-call state, created on first use: most frames never need it, and every call allocates
+     * a frame (a smaller one is cheaper, notably on ART).
+     */
+    @JvmField var ext: FrameExt? = null
+
+    private fun ext(): FrameExt = ext ?: FrameExt().also { ext = it }
+
     // generator / async state
-    @JvmField var resumeMode = 0
-    @JvmField var suspendKind = 0
-    @JvmField var suspendValue: Any? = null
-    @JvmField var generator: Any? = null
+    var resumeMode: Int
+        get() = ext?.resumeMode ?: 0
+        set(v) { ext().resumeMode = v }
+    var suspendKind: Int
+        get() = ext?.suspendKind ?: 0
+        set(v) { ext().suspendKind = v }
+    var suspendValue: Any?
+        get() = ext?.suspendValue
+        set(v) { ext().suspendValue = v }
+    var generator: Any?
+        get() = ext?.generator
+        set(v) { ext().generator = v }
     /** pc of the await instruction the frame is suspended at. */
+    var awaitPc: Int
+        get() = ext?.awaitPc ?: 0
+        set(v) { ext().awaitPc = v }
+
     /** Proper tail call request (see [Interpreter.TAIL]). */
-    @JvmField var tailFn: JSClosure? = null
-    @JvmField var tailThis: Any? = null
-    @JvmField var tailArgs: Array<Any?>? = null
+    var tailFn: JSClosure?
+        get() = ext?.tailFn
+        set(v) { ext().tailFn = v }
+    var tailThis: Any?
+        get() = ext?.tailThis
+        set(v) { ext().tailThis = v }
+    var tailArgs: Array<Any?>?
+        get() = ext?.tailArgs
+        set(v) { ext().tailArgs = v }
     /** Set by instructions outside the main loop that requested a tail call. */
-    @JvmField var tailPending = false
-    @JvmField var awaitPc = 0
+    var tailPending: Boolean
+        get() = ext?.tailPending ?: false
+        set(v) { ext().tailPending = v }
 
     /** Home object for scripts/eval executed in a method context (unused for functions: taken from fn). */
     @JvmField var homeObject: JSObject? = null
@@ -53,6 +80,19 @@ class Frame(
                 if (r >= 0) slots[r] = args[i]
             }
         }
+    }
+
+    /** The rarely used part of a [Frame]. */
+    class FrameExt {
+        @JvmField var resumeMode = 0
+        @JvmField var suspendKind = 0
+        @JvmField var suspendValue: Any? = null
+        @JvmField var generator: Any? = null
+        @JvmField var awaitPc = 0
+        @JvmField var tailFn: JSClosure? = null
+        @JvmField var tailThis: Any? = null
+        @JvmField var tailArgs: Array<Any?>? = null
+        @JvmField var tailPending = false
     }
 
     companion object {
