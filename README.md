@@ -130,7 +130,7 @@ classes to).
 
 ### Values
 
-`NeonValue` wraps a JS value: `asInt/asDouble/asString/asBoolean/asBigInteger`, `as(Class)` / `to<T>()` for
+`NeonValue` wraps a JS value: `asInt/asLong/asDouble/asString/asBoolean/asBigInteger`, `as(Class)` / `to<T>()` for
 conversions (collections, functional interfaces, host objects), `getMember/putMember/memberKeys`,
 `getElement/arraySize`, `call/callMember/newInstance`, and `await()` for promises.
 
@@ -138,10 +138,21 @@ JS → host conversions follow the declared parameter types of the called method
 `List`/`Map` live views, functional interfaces from JS functions, any interface from a JS object, and `java.time`
 types or `java.util.Date` from a JS `Date` or `Temporal.Instant` — local types in the context's time zone;
 `NeonValue.asInstant()` does the same). Host → JS:
-numbers, `String`s and `Character`s become primitives, `null` becomes `null`, everything else becomes a host object.
+numbers, `String`s and `Character`s become primitives, `BigInteger`s become BigInts, `null` becomes `null`, everything
+else becomes a host object.
 That includes the other `CharSequence`s (`StringBuilder`, `CharBuffer`, Android's `Spanned` and `Editable`), which
 may be mutable or carry more than text: JS reads their text with `String(x)` or `'' + x`, a `String` parameter
 receives their text, and `NeonValue.asString()` returns the text of a JS string or of a host `CharSequence`.
+
+**64-bit integers.** A `long` is a number while the number is exact (up to 2^53 - 1, `Number.MAX_SAFE_INTEGER`, in
+magnitude) and a BigInt beyond that, so 64-bit IDs and timestamps keep their value (`System.nanoTime()` too, which can
+exceed 2^53 on a long-running host). JS code receiving such values should expect both types: compare them with BigInt
+literals (`id === 1234567890123456789n`) or as strings (`String(id)`), not with number literals; `JSON.stringify`
+throws on a BigInt, and mixing a BigInt with numbers in arithmetic is a TypeError. In the other direction a BigInt
+converts exactly to a `long`/`Long` parameter or field when it fits in 64 bits (beyond, a `long` overload does not
+apply and a field assignment is a RangeError), and to an `Object` parameter (`Map.put`, `List.add`) as a `Long` when
+it fits in 64 bits, else as a `BigInteger`. `NeonValue.asLong()` accepts both a number and a BigInt that is exactly a
+long.
 
 **Asynchronous host APIs.** A `CompletionStage` / `CompletableFuture` handed to JS becomes a promise, and a promise
 (or thenable) passed where a `CompletableFuture`, `CompletionStage` or `Future` is expected becomes a future:

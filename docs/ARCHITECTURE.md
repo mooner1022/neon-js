@@ -292,7 +292,10 @@ read before the callback.
 
 `HostBridge` converts values in both directions and selects overloads by conversion cost, breaking ties by
 specificity and then by a fixed order, never by the order reflection lists methods in (it differs between HotSpot and
-ART). `HostClassInfo` caches the reflective view of a class under a `HostAccess` policy (fields, methods, bean
+ART). A `long` becomes a number up to 2^53 - 1 in magnitude and a BigInt beyond, and a BigInt going to an `Object`
+parameter becomes a `Long` when it fits in 64 bits, so 64-bit values round-trip exactly (Rhino and GraalJS keep an
+exact long inside a JS number; NeonJS numbers are only doubles). `HostClassInfo` caches the reflective view of a
+class under a `HostAccess` policy (fields, methods, bean
 properties, constructors, nested classes, functional method). Members are what Java code outside the class's package
 can call: an object of a non-public class gets the methods of its public supertypes (`publicVersion`), and the
 bridges through which a method is called by its name are members (javac's for methods inherited from a non-public
