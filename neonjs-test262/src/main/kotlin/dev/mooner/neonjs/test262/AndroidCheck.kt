@@ -12,6 +12,7 @@ import dev.mooner.neonjs.jit.GeneratedClass
 import dev.mooner.neonjs.jit.JitQueue
 import dev.mooner.neonjs.jit.JvmCompiler
 import java.io.File
+import java.lang.reflect.Modifier
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.system.exitProcess
 
@@ -24,6 +25,27 @@ abstract class CheckShape {
 /** Calls a default method of an interface a JS object implements ([defaultInterfaceMethods]). */
 class CheckHost {
     fun reversedCompare(c: Comparator<Any?>): Int = c.reversed().compare(1, 2)
+}
+
+/** A Kotlin `fun interface` ([hostInterop]): its lambdas are functions in JS. */
+fun interface CheckFun {
+    fun apply(s: String): String
+}
+
+/** Keeps a JS function given as a [CheckFun] ([hostInterop]). */
+class CheckKeeper {
+    var fn: CheckFun? = null
+    fun keep(f: CheckFun) {
+        fn = f
+    }
+}
+
+/** A Kotlin CharSequence: its Java names (`length()`, `charAt()`) are bridges ([hostInterop]). */
+class CheckChars(private val s: String) : CharSequence {
+    override val length get() = s.length
+    override fun get(index: Int) = s[index]
+    override fun subSequence(startIndex: Int, endIndex: Int): CharSequence = CheckChars(s.substring(startIndex, endIndex))
+    override fun toString() = s
 }
 
 private class CountingConverter(private val inner: DexConverter) : DexConverter {
@@ -124,6 +146,69 @@ private fun defaultInterfaceMethods(): String {
     return "default method of a JS-implemented interface ran"
 }
 
+/** The public instance methods Java code outside its package can call on an instance of [cls] (as HostMemberSweepTest). */
+private fun callableMethodNames(cls: Class<*>): Set<String> {
+    val types = LinkedHashSet<Class<*>>()
+    fun add(t: Class<*>?) {
+        if (t == null || !types.add(t)) return
+        add(t.superclass)
+        t.interfaces.forEach { add(it) }
+    }
+    add(cls)
+    val out = HashSet<String>()
+    for (t in types) {
+        if (!Modifier.isPublic(t.modifiers)) continue
+        for (m in t.methods) {
+            if (Modifier.isStatic(m.modifiers) || m.isSynthetic && !m.isBridge) continue
+            if (m.declaringClass == Any::class.java && m.name in HostAccess.deniedMethods) continue
+            out.add(m.name)
+        }
+    }
+    return out
+}
+
+/**
+ * Host objects on ART, whose class library and dex conversion differ from the JVM's: a StringBuilder is a Java object
+ * with the methods it inherits from the package-private AbstractStringBuilder; null picks the same overload as on the
+ * JVM; d8-desugared lambdas are functions while a list or a date is not; a JS function given to Java comes back as
+ * itself; and every public method of a few classes of different shapes is a member.
+ */
+private fun hostInterop(): String {
+    val access = HostAccess.builder(HostAccess.Level.ALL).allowLookup { true }.build()
+    NeonEngine.builder().hostAccess(access).console(null).sandbox(SandboxPolicy.builder().exposeJavaGlobal(true).build()).build().newContext().use { ctx ->
+        fun js(src: String) = ctx.eval(src, "<check>").asString()
+        val sb = js("var SB = Java.type('java.lang.StringBuilder'); var sb = new SB(); var r = sb.append('a').append(1).append(null); " +
+            "[typeof sb, r === sb, String(sb), sb.length(), (sb.setLength(1), String(sb)), sb.charAt(0)].join()")
+        check(sb == "object,true,a1null,6,a,a") { "StringBuilder: $sb" }
+        ctx["kl"] = { x: Int -> x + 1 }
+        ctx["fl"] = CheckFun { "$it!" }
+        ctx["ob"] = object : Runnable {
+            override fun run() {}
+        }
+        ctx["al"] = arrayListOf(1)
+        ctx["ld"] = java.time.LocalDate.of(2026, 1, 2)
+        val types = js("[typeof kl, kl(1), typeof fl, fl('x'), typeof ob, typeof al, typeof ld].join()")
+        check(types == "function,2,function,x!,function,object,object") { "functions: $types" }
+        ctx["keeper"] = CheckKeeper()
+        val round = js("var f = s => s + '?'; keeper.keep(f); [keeper.getFn() === f, keeper.getFn()('y')].join()")
+        check(round == "true,y?") { "round trip: $round" }
+        val missing = ArrayList<String>()
+        var methods = 0
+        for ((name, v) in listOf<Pair<String, Any>>("StringBuilder" to StringBuilder("ab"), "listOf" to listOf(1, 2),
+            "CharBuffer.wrap" to java.nio.CharBuffer.wrap("ab"), "ConcurrentHashMap.keySet" to java.util.concurrent.ConcurrentHashMap<String, Int>().keySet(0),
+            "Kotlin CharSequence" to CheckChars("ab"))) {
+            ctx["x"] = v
+            for (n in callableMethodNames(v.javaClass)) {
+                methods++
+                ctx["n"] = n
+                if (js("typeof x[n]") != "function") missing.add("$name.$n")
+            }
+        }
+        check(missing.isEmpty()) { "not members: $missing" }
+        return "StringBuilder, functions, round trip; $methods methods of 5 classes are members"
+    }
+}
+
 private fun cacheDirectory(dir: File): String {
     dir.deleteRecursively()
     val src = "function sq(x) { return x * x } function cube(x) { return x * x * x } [sq(7), cube(3)].join()"
@@ -158,6 +243,7 @@ fun androidCheck(args: Array<String>) {
         "background batches" to ::backgroundBatches,
         "Java.extend" to ::javaExtendThroughDex,
         "default interface methods" to ::defaultInterfaceMethods,
+        "host interop" to ::hostInterop,
         "cache directory" to { cacheDirectory(cacheDir) },
     )
     var failed = 0

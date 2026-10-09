@@ -1,0 +1,286 @@
+package dev.mooner.neonjs
+
+import dev.mooner.neonjs.fixtures.Narrowed
+import dev.mooner.neonjs.fixtures.Version
+import dev.mooner.neonjs.fixtures.Visible
+import dev.mooner.neonjs.runtime.Null
+import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Test
+
+private fun shout(s: String) = s.uppercase() + "!"
+
+/** A Kotlin functional interface: not annotated `@FunctionalInterface`. */
+fun interface Transformer {
+    fun transform(s: String): String
+}
+
+/** A named class implementing a functional interface: not a function itself, its method is a member. */
+class NamedTransformer : Transformer {
+    override fun transform(s: String) = "named $s"
+}
+
+/** `Runnable` is annotated `@FunctionalInterface`: any implementation is a function. */
+class NamedRunnable : Runnable {
+    var runs = 0
+    override fun run() {
+        runs++
+    }
+}
+
+/** A CharSequence that is not a String. */
+class Rot13(private val s: String) : CharSequence {
+    override val length get() = s.length
+    override fun get(index: Int): Char = s[index].let { if (it in 'a'..'z') 'a' + (it - 'a' + 13) % 26 else it }
+    override fun subSequence(startIndex: Int, endIndex: Int): CharSequence = Rot13(s.substring(startIndex, endIndex))
+    override fun toString() = String(CharArray(length) { get(it) })
+}
+
+class Overloads {
+    fun pick(x: Any?) = "Object"
+    fun pick(x: String?) = "String"
+    fun pick(x: CharSequence?) = "CharSequence"
+    fun pick(x: StringBuilder?) = "StringBuilder"
+    fun pick(x: IntArray?) = "int[]"
+    fun num(x: Int) = "int"
+    fun num(x: Long) = "long"
+    fun num(x: Double) = "double"
+    fun num(x: Any?) = "Object"
+    fun take(r: Runnable) = "Runnable"
+    fun take(c: java.util.concurrent.Callable<*>) = "Callable:" + c.call()
+    fun text(s: String) = "text:$s"
+    fun seq(s: CharSequence) = s
+    fun id(x: Any?) = x
+
+    companion object {
+        @JvmStatic fun stat(x: Int) = "static int"
+        @JvmStatic fun stat(x: String) = "static String"
+    }
+}
+
+/** Keeps what JS hands it, typed as interfaces. */
+class Keeper {
+    var transformer: Transformer? = null
+    var runnable: Runnable? = null
+    fun keep(t: Transformer) { transformer = t }
+    fun keepRunnable(r: Runnable) { runnable = r }
+}
+
+/**
+ * The host interop contract, value by value: what host values become in JS, which members JS sees, which host objects
+ * are functions, how overloads are chosen. Each case states the rule it checks, so a change of rule shows up here.
+ */
+class InteropContractTest {
+    private fun ctx(access: HostAccess = HostAccess.ALL, javaGlobal: Boolean = false) =
+        NeonEngine.builder().hostAccess(access).console(null)
+            .sandbox(SandboxPolicy.builder().exposeJavaGlobal(javaGlobal).build()).build().newContext()
+
+    private val lookupAll = HostAccess.builder(HostAccess.Level.ALL).allowLookup { true }.build()
+
+    @Test
+    fun hostValuesInJs() {
+        ctx().use { c ->
+            val cases = listOf<Triple<String, Any?, String>>(
+                Triple("String", "s", "string"),
+                Triple("Char", 'c', "string"),
+                Triple("Int", 1, "number"),
+                Triple("Long", 2L, "number"),
+                Triple("Short", 3.toShort(), "number"),
+                Triple("Byte", 4.toByte(), "number"),
+                Triple("Float", 1.5f, "number"),
+                Triple("Double", 2.5, "number"),
+                Triple("Boolean", true, "boolean"),
+                Triple("null", null, "object"),
+                Triple("Unit", Unit, "undefined"),
+                Triple("BigInteger", java.math.BigInteger.TEN, "bigint"),
+                Triple("BigDecimal", java.math.BigDecimal("1.25"), "number"),
+                // a CharSequence other than String stays a host object: it may be mutable (StringBuilder, CharBuffer,
+                // Android's Editable) or carry more than its text (Spanned)
+                Triple("StringBuilder", StringBuilder("sb"), "object"),
+                Triple("StringBuffer", StringBuffer("sf"), "object"),
+                Triple("CharBuffer", java.nio.CharBuffer.wrap("cb"), "object"),
+                Triple("custom CharSequence", Rot13("abc"), "object"),
+                Triple("List", arrayListOf(1), "object"),
+                Triple("Map", hashMapOf("k" to 1), "object"),
+                Triple("int[]", intArrayOf(1), "object"),
+                Triple("enum", java.time.DayOfWeek.MONDAY, "object"),
+                // a TemporalAdjuster (functional), but also a Temporal: a value, not a function
+                Triple("LocalDate", java.time.LocalDate.of(2026, 1, 2), "object"),
+                Triple("Class", StringBuilder::class.java, "function"),
+                Triple("Runnable lambda", Runnable { }, "function"),
+            )
+            for ((name, v, type) in cases) {
+                c["v"] = v
+                assertEquals(type, c.eval("typeof v").asString(), name)
+            }
+            c["v"] = java.util.concurrent.CompletableFuture.completedFuture(1)
+            assertTrue(c.eval("v instanceof Promise").asBoolean(), "a CompletionStage becomes a promise")
+        }
+    }
+
+    @Test
+    fun stringBuildersAreJavaObjects() {
+        ctx(lookupAll, javaGlobal = true).use { c ->
+            // the reported case: new StringBuilder() was the empty string "", with no members
+            assertEquals("object,true,function", c.eval("var SB = Java.type('java.lang.StringBuilder'); var sb = new SB(); [typeof sb, Java.isJavaObject(sb), typeof sb.append].join()").asString())
+            // append returns the builder itself: the same object, so chains build one string
+            assertEquals("a1-1.5-true-x-null|true", c.eval("var r = sb.append('a').append(1).append('-').append(1.5).append('-').append(true).append('-').append('x').append('-').append(null); sb.toString() + '|' + (r === sb)").asString())
+            // methods inherited from the package-private AbstractStringBuilder (through visibility bridges)
+            assertEquals("2,a,true,1a,z1a,za,0,a", c.eval("sb.setLength(2); [sb.length(), sb.charAt(0), sb.capacity() >= 2, String(sb.reverse()), String(sb.insert(0, 'z')), String(sb.deleteCharAt(1)), sb.indexOf('z'), sb.substring(1)].join()").asString())
+            // text in JS: conversions go through toString(); a builder is not a string
+            assertEquals("za,za,za,true,false", c.eval("[sb + '', `${'$'}{sb}`, String(sb), sb == 'za', sb === 'za'].join()").asString())
+            // the host sees the same object, and changes show on both sides
+            val host = c.eval("sb").asHostObject<StringBuilder>()
+            host.append("!")
+            assertEquals("za!", c.eval("sb.toString()").asString())
+            c.eval("sb.append('?')")
+            assertEquals("za!?", host.toString())
+            // given back to Java: a String parameter takes the text, CharSequence and Object parameters the object
+            c["o"] = Overloads()
+            assertEquals("text:za!?", c.eval("o.text(sb)").asString())
+            assertEquals("true,true", c.eval("[o.seq(sb) === sb, o.id(sb) === sb].join()").asString())
+            assertSame(host, c.eval("o.seq(sb)").asHostObject<StringBuilder>())
+            // NeonValue: the text through asString() and as(String), the object through as(StringBuilder)
+            val v = c.eval("sb")
+            assertFalse(v.isString)
+            assertEquals("za!?", v.asString())
+            assertEquals("za!?", v.`as`(String::class.java))
+            assertSame(host, v.`as`(StringBuilder::class.java))
+            // a builder made by the host, used from JS
+            c["made"] = StringBuilder("x")
+            c.eval("made.append(1).append(made.length())")
+            assertEquals("x12", c.eval("made.toString()").asString())
+        }
+    }
+
+    @Test
+    fun otherCharSequences() {
+        ctx().use { c ->
+            c["buf"] = java.nio.CharBuffer.wrap("abc")
+            assertEquals("3,b,bc,abc", c.eval("[buf.length(), buf.charAt(1), buf.subSequence(1, 3), buf].join()").asString())
+            c["rot"] = Rot13("abc")
+            assertEquals("nop,3,o", c.eval("[String(rot), rot.length(), rot.charAt(1)].join()").asString())
+            c["o"] = Overloads()
+            assertEquals("text:nop", c.eval("o.text(rot)").asString(), "the text where a String is expected")
+            assertEquals("CharSequence", c.eval("o.pick(buf)").asString(), "the object where a CharSequence is expected")
+            // strings made in JS are still JS strings in Java, whatever their representation (ropes)
+            assertEquals("text:ab", c.eval("var s = 'a'; s += 'b'; o.text(s)").asString())
+            assertEquals("string", c.eval("typeof o.seq(s)").asString())
+        }
+    }
+
+    @Test
+    fun methodsInheritedFromNonPublicClasses() {
+        ctx().use { c ->
+            c["v"] = Visible()
+            assertEquals("hello from Visible,6,own,true", c.eval("[v.hello(), v.twice(3), v.own(), v.self() === v].join()").asString())
+            assertEquals("x", c.eval("v.set('x'); v.get()").asString())
+            assertEquals("undefined", c.eval("typeof v.count").asString(), "a field of a non-public class: out of reflection's reach")
+            c["n"] = Narrowed()
+            assertEquals("y!", c.eval("n.set('y'); n.get()").asString(), "the override, not the bridge")
+            assertEquals("TypeError", c.eval("try { n.set({}) } catch (e) { e.name }").asString(), "the generic bridge set(Object) is no overload")
+            c["a"] = Version(1)
+            c["b"] = Version(2)
+            assertEquals(-1, c.eval("a.compareTo(b)").asInt())
+            assertEquals("TypeError", c.eval("try { a.compareTo('x') } catch (e) { e.name }").asString(), "the generic bridge compareTo(Object) is no overload")
+            // the JDK's cases
+            val keys = java.util.concurrent.ConcurrentHashMap<String, Int>().keySet(0)
+            c["keys"] = keys
+            assertTrue(c.eval("keys.getMap() !== undefined && typeof keys.removeAll").asString() == "function")
+            c["date"] = java.time.chrono.HijrahDate.of(1447, 1, 1)
+            assertTrue(c.eval("date.toString()").asString().startsWith("Hijrah-umalqura AH 1447-01-01"))
+        }
+    }
+
+    @Test
+    fun whichHostObjectsAreFunctions() {
+        val ran = NamedRunnable()
+        ctx().use { c ->
+            val functions = linkedMapOf<String, Pair<Any, String>>(
+                "Kotlin lambda" to ({ x: Int -> x + 1 } to "f(1)"),
+                "Kotlin fun interface lambda" to (Transformer { it.uppercase() } to "f('a')"),
+                "Kotlin function reference" to (::shout to "f('abc')"),
+                "Runnable lambda" to (Runnable { ran.run() } to "f()"),
+                "object : Runnable" to (object : Runnable { override fun run() = ran.run() } to "f()"),
+                "object : fun interface" to (object : Transformer { override fun transform(s: String) = "$s!" } to "f('b')"),
+                "named Runnable" to (ran to "f()"),
+                "Comparator" to (String.CASE_INSENSITIVE_ORDER to "f('a', 'B')"),
+                "java.util.function.Function" to (java.util.function.Function<Any?, Any?> { "fn $it" } to "f('c')"),
+            )
+            val expected = listOf("2", "A", "ABC!", "undefined", "undefined", "b!", "undefined", "-1", "fn c")
+            for ((i, e) in functions.entries.withIndex()) {
+                c["f"] = e.value.first
+                assertEquals("function", c.eval("typeof f").asString(), e.key)
+                assertEquals(expected[i], c.eval("String(${e.value.second})").asString(), e.key)
+            }
+            assertEquals(3, ran.runs)
+            // objects that happen to implement a single-method interface are not functions
+            val objects = linkedMapOf<String, Any>(
+                "ArrayList (Iterable)" to arrayListOf(1),
+                "File (Comparable)" to java.io.File("x"),
+                "StringBuilder (Comparable)" to StringBuilder(),
+                "Iterator" to listOf(1).iterator(),
+                "named fun interface implementation" to NamedTransformer(),
+                "Kotlin data class" to Pair(1, 2),
+            )
+            for ((name, v) in objects) {
+                c["x"] = v
+                assertEquals("object", c.eval("typeof x").asString(), name)
+                assertEquals("TypeError", c.eval("try { x(); 'called' } catch (e) { e.name }").asString(), name)
+            }
+            c["x"] = NamedTransformer()
+            assertEquals("named q", c.eval("x.transform('q')").asString(), "its method is a member")
+        }
+    }
+
+    @Test
+    fun jsFunctionsComeBackAsThemselves() {
+        val keeper = Keeper()
+        ctx().use { c ->
+            c["keeper"] = keeper
+            c.eval("var f = s => s + '?'; keeper.keep(f); var g = () => {}; keeper.keepRunnable(g)")
+            assertEquals("a?", keeper.transformer!!.transform("a"))
+            assertEquals("true,true,b?", c.eval("[keeper.getTransformer() === f, keeper.getRunnable() === g, keeper.getTransformer()('b')].join()").asString())
+            // in another context the proxy is a host object: a function only through a declared functional interface
+            ctx().use { c2 ->
+                c2["keeper"] = keeper
+                assertEquals("object,c?,function", c2.eval("[typeof keeper.getTransformer(), keeper.getTransformer().transform('c'), typeof keeper.getRunnable()].join()").asString())
+            }
+        }
+    }
+
+    @Test
+    fun overloadsAreChosenTheSameWayEverywhere() {
+        ctx().use { c ->
+            c["o"] = Overloads()
+            c.exposeClass("O", Overloads::class.java)
+            val cases = listOf(
+                "o.pick(null)" to "String", // the most specific of String, StringBuilder, int[] in a fixed order
+                "o.pick('x')" to "String",
+                "o.pick(1)" to "Object",
+                "o.num(1)" to "int", // int is more specific than long
+                "o.num(2 ** 40)" to "long",
+                "o.num(1.5)" to "double",
+                "o.num('x')" to "Object",
+                "o.take(() => 1)" to "Runnable", // neither interface is more specific: the first by name
+                "o['take(java.util.concurrent.Callable)'](() => 1)" to "Callable:1",
+                "o['pick(java.lang.Object)']('x')" to "Object",
+                "o['pick(Object)']('x')" to "Object",
+                "o['pick(int[])'](null)" to "int[]",
+                "O.stat(1)" to "static int",
+                "O['stat(java.lang.String)']('1')" to "static String",
+                "typeof o['pick(Nothing)']" to "undefined",
+                "Object.getOwnPropertyNames(o).some(k => k.includes('('))" to "false",
+            )
+            for ((src, want) in cases) assertEquals(want, c.eval("String($src)").asString(), src)
+            // the choice does not depend on the order reflection lists the overloads in
+            val picks = Overloads::class.java.methods.filter { it.name == "pick" }
+            val args = arrayOf<Any?>(Null)
+            val chosen = HashSet<String>()
+            for (perm in permutations(picks)) chosen.add(c.bridge.select(perm, args)!!.parameterTypes[0].name)
+            assertEquals(setOf("java.lang.String"), chosen)
+        }
+    }
+
+    private fun <T> permutations(xs: List<T>): List<List<T>> =
+        if (xs.size <= 1) listOf(xs) else xs.indices.flatMap { i -> permutations(xs.filterIndexed { j, _ -> j != i }).map { listOf(xs[i]) + it } }
+}

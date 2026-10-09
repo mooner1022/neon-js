@@ -11,6 +11,8 @@ class Secret {
     fun reveal() = password
 }
 
+private fun secretFn(s: String) = "fn $s"
+
 class Swallower {
     /** Badly behaved host code: swallows every runtime exception thrown by the callback. */
     fun run(r: Runnable) {
@@ -169,6 +171,41 @@ class SecurityTest {
             assertEquals("undefined", c.eval("typeof s.reveal").asString())
             assertEquals("undefined", c.eval("typeof s.password").asString())
             assertEquals(0, c.eval("Object.keys(s).length").asInt())
+            // opaque includes not callable, and not array-like
+            c["r"] = Runnable { }
+            c["f"] = { x: Int -> x }
+            c["l"] = java.util.List.of(1, 2)
+            assertEquals("object,object,TypeError,undefined", c.eval("[typeof r, typeof f, (() => { try { r() } catch (e) { return e.name } })(), typeof l.size].join()").asString())
+        }
+    }
+
+    @Test
+    fun hostFunctionsFollowTheAccessPolicy() {
+        ctx().use { c ->
+            // a denied class implementing Runnable: neither callable nor showing members
+            c["t"] = Thread { }
+            assertEquals("object,TypeError,undefined,undefined", c.eval("[typeof t, (() => { try { t() } catch (e) { return e.name } })(), typeof t.run, typeof t.start].join()").asString())
+            // a lambda implementing a denied interface: not callable, its method hidden
+            c["pa"] = java.security.PrivilegedAction { "secret" }
+            assertEquals("object,undefined", c.eval("[typeof pa, typeof pa.run].join()").asString())
+            // Kotlin function references are callable, but their kotlin.jvm.internal base still hides its members
+            c["fr"] = ::secretFn
+            assertEquals("function,fn x,undefined,undefined", c.eval("[typeof fr, fr('x'), typeof fr.getOwner, typeof fr.getName].join()").asString())
+            // a proxy from another context shows its interface's methods, not Proxy's
+            val keeper = Keeper()
+            ctx().use { other ->
+                other["keeper"] = keeper
+                other.eval("keeper.keep(s => s + '!')")
+                c["p"] = keeper.transformer
+                assertEquals("y!,undefined,undefined", c.eval("[p.transform('y'), typeof p.getInvocationHandler, typeof p.getClass].join()").asString())
+            }
+        }
+        // under EXPLICIT, functions handed over by the host stay callable (they are the host's explicit choice) while
+        // members of collections need annotations
+        ctx(access = HostAccess.EXPLICIT).use { c ->
+            c["r"] = Runnable { }
+            c["l"] = java.util.List.of(1, 2)
+            assertEquals("function,undefined,2", c.eval("[typeof r, typeof l.size, l.length].join()").asString())
         }
     }
 
