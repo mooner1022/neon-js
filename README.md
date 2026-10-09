@@ -138,7 +138,10 @@ JS → host conversions follow the declared parameter types of the called method
 `List`/`Map` live views, functional interfaces from JS functions, any interface from a JS object, and `java.time`
 types or `java.util.Date` from a JS `Date` or `Temporal.Instant` — local types in the context's time zone;
 `NeonValue.asInstant()` does the same). Host → JS:
-numbers and strings become primitives, `null` becomes `null`, everything else becomes a host object.
+numbers, `String`s and `Character`s become primitives, `null` becomes `null`, everything else becomes a host object.
+That includes the other `CharSequence`s (`StringBuilder`, `CharBuffer`, Android's `Spanned` and `Editable`), which
+may be mutable or carry more than text: JS reads their text with `String(x)` or `'' + x`, a `String` parameter
+receives their text, and `NeonValue.asString()` returns the text of a JS string or of a host `CharSequence`.
 
 **Asynchronous host APIs.** A `CompletionStage` / `CompletableFuture` handed to JS becomes a promise, and a promise
 (or thenable) passed where a `CompletableFuture`, `CompletionStage` or `Future` is expected becomes a future:
@@ -169,11 +172,24 @@ ctx.defineModule("host:db", mapOf("query" to queryFunction, "version" to 2))   /
 ```
 
 - Java fields, methods (with overload resolution), Kotlin properties (`getX/isX/setX`), Kotlin companion
-  members, enums and nested classes are visible according to the `HostAccess` policy.
+  members, enums and nested classes are visible according to the `HostAccess` policy. Members are what Java code
+  outside the class's package can call: methods inherited from non-public classes (`StringBuilder.length()`), the
+  methods of objects whose class is not public through its public supertypes (`listOf(…).size()`,
+  `Map.of(…).get(k)`), and the Java names of Kotlin implementations of Java types (`size()`, `length()`, `charAt()`,
+  which win over the Kotlin property of the same name).
+- Overloads: the cheapest conversion of the arguments wins; ties go to the most specific parameter types, as in Java
+  (`String` before `Object`, `int` before `long`), then to a fixed order, the same on every JVM and on ART. A
+  signature names one overload, as in Rhino, Nashorn and GraalJS: `sb['append(java.lang.String)'](null)`,
+  `Math['max(int,int)'](1, 2)` (binary, canonical or simple type names).
+- Host objects that are functions can be called: lambdas, method references and anonymous classes (through the one
+  single-method interface they implement), and objects whose only role is a `@FunctionalInterface` interface or a
+  Kotlin function type. Other objects are not functions even with a single-method interface (an `ArrayList` is
+  `Iterable`, a `LocalDate` a `TemporalAdjuster`): call their methods.
 - Java arrays and `List`s behave like JS arrays; `Iterable`s and `Iterator`s work with `for…of` and spread; `Map`
   entries are readable and writable as properties.
 - JS functions convert to any functional interface (`Runnable`, `Consumer`, Kotlin `fun interface`s, …) and JS
-  objects to any interface. The proxies re-enter the context safely from any thread.
+  objects to any interface. The proxies re-enter the context safely from any thread, and come back to the context
+  that made them as the original JS function or object.
 - Host exceptions surface in JS as `HostError` objects (catchable); uncaught JS errors surface in the host as
   `NeonException` with `guestValue` and the JS stack trace.
 
@@ -382,10 +398,10 @@ python3 tools/android/device.py test262 neonjs-test262 --mode compiled --timeout
 
 `bundle.py` dexes jars with the SDK's D8 and keeps their resources; adding `neonjs-test262/build/d8-libs` makes a
 bundle that uses D8 at run time. `AndroidCheck` covers what Test262 does not: the dex definer, background batches,
-`Java.extend`, default methods of JS-implemented interfaces and the cache directory. `tools/android/ci-emulator.sh`
-runs these with dx and with D8 (pick the device with `ANDROID_SERIAL`); the Android workflow runs it on API 26
-and API 34 emulators. An emulator without Android Studio (on Windows it uses the Windows Hypervisor Platform; in
-`cmd`, quote the package names, which contain `;`):
+`Java.extend`, default methods of JS-implemented interfaces, host objects on ART's class library and d8-desugared
+lambdas, and the cache directory. `tools/android/ci-emulator.sh` runs these with dx and with D8 (pick the device
+with `ANDROID_SERIAL`); the Android workflow runs it on API 26 and API 34 emulators. An emulator without Android
+Studio (on Windows it uses the Windows Hypervisor Platform; in `cmd`, quote the package names, which contain `;`):
 
 ```bash
 sdkmanager "system-images;android-26;default;x86_64"

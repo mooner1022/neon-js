@@ -35,7 +35,7 @@ if host code swallowed the exception. Every entry into a context from the host (
 **Host access.** Nothing of the host is visible unless the host puts it there (`ctx[...]`, `exposeClass`,
 `defineModule`, `setFunction`) or enables the `Java` global. `HostAccess` decides what is visible on those objects:
 
-- `NONE`: host objects are opaque.
+- `NONE`: host objects are opaque: no members, not callable, not array-like.
 - `EXPLICIT`: only members annotated with `@HostExport` (or members of annotated classes).
 - `ALL`: all public members.
 
@@ -44,7 +44,13 @@ At every level a deny list blocks `java.lang.Class`, class loaders, `System`, `R
 and `java.lang.invoke` packages, `sun.*`/`com.sun.*`/`jdk.internal.*`, `java.security.*`, management and
 instrumentation APIs, and the engine's own internal packages. `getClass` (while `java.lang.Class` is denied),
 `wait`, `notify*` and `finalize` are never exposed. Arrays are judged by their element type, host objects by their
-own class (an instance of a denied class stays opaque even when it is typed as an allowed interface). `Java.type`
+own class (an instance of a denied class stays opaque, and cannot be called, even when it is typed as an allowed
+interface). An object of a non-public class shows the methods of its public supertypes, as Java code outside its
+package sees them, and only those of supertypes that are not denied. Two denied bases are not held against the
+instances of their subclasses unless the embedder denies them itself: `java.lang.reflect.Proxy`, whose instances'
+public methods are those of their interfaces, and `kotlin.jvm.internal`, the bases of Kotlin lambdas and function
+references, which can then be called while their own members (reflection) stay hidden. Only lambdas, anonymous
+classes and objects whose only role is a functional interface are callable, through that interface. `Java.type`
 additionally requires an explicit `allowLookup` predicate. `Java.extend` requires `allowImplementations` and only
 extends accessible, non-final, non-denied classes; adapters are defined in their own class loader, and under
 `EXPLICIT` their methods are visible only where they override an exported method. Host-defined modules

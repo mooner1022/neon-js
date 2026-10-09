@@ -290,14 +290,20 @@ read before the callback.
 
 ## Interop (`interop/`)
 
-`HostBridge` converts values in both directions and selects overloads by conversion cost. `HostClassInfo` caches
-the reflective view of a class under a `HostAccess` policy (fields, methods, bean properties, constructors, nested
-classes, functional method). `HostObject` and `HostClassObject` are exotic objects exposing them. Interface
-implementations are `java.lang.reflect.Proxy`s; `Java.extend` generates subclasses with ASM (`Adapters.kt`), each in
-its own class loader. All host→JS re-entry (callbacks, proxies, adapters, `List`/`Map` views) goes through the
-context's `ContextGate`, which takes the context lock. `CompletionStage`s become promises settled by external
-jobs, and promises passed as `CompletableFuture`/`CompletionStage`/`Future` become futures completed by promise
-reactions; JS `Date`/`Temporal.Instant` convert to `java.time` types.
+`HostBridge` converts values in both directions and selects overloads by conversion cost, breaking ties by
+specificity and then by a fixed order, never by the order reflection lists methods in (it differs between HotSpot and
+ART). `HostClassInfo` caches the reflective view of a class under a `HostAccess` policy (fields, methods, bean
+properties, constructors, nested classes, functional method). Members are what Java code outside the class's package
+can call: an object of a non-public class gets the methods of its public supertypes (`publicVersion`), and the
+bridges through which a method is called by its name are members (javac's for methods inherited from a non-public
+class, Kotlin's for the Java names of mapped types), while covariant and generic bridges are not. `HostObject` and
+`HostClassObject` are exotic objects exposing them. Interface implementations are `java.lang.reflect.Proxy`s whose
+handler (`JSImplementation`) turns back into the JS object when the proxy returns to its context; `Java.extend`
+generates subclasses with ASM (`Adapters.kt`), each in its own class loader. All host→JS re-entry (callbacks,
+proxies, adapters, `List`/`Map` views) goes through the context's `ContextGate`, which takes the context lock.
+`CompletionStage`s become promises settled by external jobs, and promises passed as
+`CompletableFuture`/`CompletionStage`/`Future` become futures completed by promise reactions; JS
+`Date`/`Temporal.Instant` convert to `java.time` types.
 
 ## Optional modules and extensions
 
@@ -314,6 +320,11 @@ reactions; JS `Date`/`Temporal.Instant` convert to `java.time` types.
 - `neonjs-core` unit tests: public API, interop, sandbox/security, inline-cache invalidation, console, language
   corner cases, proposals (decorators, ShadowRealm, deferred imports), web globals, method sizes; inlined calls
   (`InliningTest`: each case interpreted and in adaptive mode with calls inlined, stack traces and limits included).
+  Interop: `InteropContractTest` states the host interop rules value by value (what host values become, which
+  objects are functions, overload choice); `HostMemberSweepTest` checks, over common JDK, Kotlin and fixture classes
+  (Java fixtures in `src/test/java`), that every public method Java code could call is a JS member and that calling
+  one fails only in the method, with the expected names taken from the running JVM's reflection; `AndroidCheck`
+  repeats the essentials on ART.
 - `neonjs-intl` unit tests: Intl basics, default locale and host-locale hiding, input caps, threads, method sizes.
 - `neonjs-test262`: the Test262 runner and the mutation fuzzer `FuzzKt` (see the README). Fuzzer findings become
   regression tests (`SecurityTest.fuzzerRegressions`, `builtinLoopsOverHugeArrayLikesAreInterruptible`).
