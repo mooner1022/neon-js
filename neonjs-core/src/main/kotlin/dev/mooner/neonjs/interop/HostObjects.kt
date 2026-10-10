@@ -27,10 +27,9 @@ class HostMethodFunction(
             recv = (thisArg as? HostObject)?.target ?: throw JSException.typeError("Host method ${debugName()} called on incompatible receiver")
         }
         val s = sigs ?: bridge.sigs(overloads).also { sigs = it }
-        val m = bridge.select(overloads, s, args) ?: throw JSException.typeError(
-            "No applicable overload for ${debugName()} with arguments (${args.joinToString { Ops.typeOf(it) }})"
-        )
-        return bridge.invoke(m, recv, args)
+        val i = bridge.selectIndex(s, args)
+        if (i < 0) throw JSException.typeError("No applicable overload for ${debugName()} with arguments (${args.joinToString { Ops.typeOf(it) }})")
+        return bridge.invoke(overloads[i], s[i], recv, args)
     }
 
     override fun sourceText(): String = "function ${debugName()}() { [native code] }"

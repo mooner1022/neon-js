@@ -67,8 +67,14 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         fun comesBefore(o: Sig): Boolean = if (arrays != o.arrays) arrays < o.arrays else names < o.names
     }
 
-    /** Sigs by method or constructor. Equality, not identity: proxies may be handed a new Method for every call. */
-    private val sigs = HashMap<Executable, Sig>()
+    /**
+     * Sigs of the members calls choose from (the methods and constructors of [HostClassInfo]s and adapters), by
+     * identity: the overloads of a method have the same hash code, and comparing Methods is slow on ART.
+     */
+    private val sigs = java.util.IdentityHashMap<Executable, Sig>()
+
+    /** Sigs of the interface methods proxies run, by equality: on ART a proxy is handed a new Method for every call. */
+    private val proxySigs = HashMap<Method, Sig>()
 
     internal fun sig(e: Executable): Sig = sigs[e] ?: Sig(e).also { sigs[e] = it }
 
@@ -518,7 +524,7 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
                     }
                     (fn as JSObject).call(v, jsArgs)
                 }
-                val s = sig(method)
+                val s = proxySigs[method] ?: Sig(method).also { proxySigs[method] = it }
                 if (s.returnType == Void.TYPE) null else toHost(r, s.returnType, s.genericReturn())
             }
         }
@@ -545,14 +551,18 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
 
     /** [select] with the [sigs] of [cands] at hand. */
     internal fun <E : Executable> select(cands: List<E>, sigs: Array<Sig>, args: Array<Any?>): E? {
-        var best: E? = null
+        val i = selectIndex(sigs, args)
+        return if (i < 0) null else cands[i]
+    }
+
+    /** The index in [sigs] of the overload [select] chooses, or -1. */
+    internal fun selectIndex(sigs: Array<Sig>, args: Array<Any?>): Int {
         var bestCost = IMPOSSIBLE
         var bestIndex = -1
         // indices of the candidates tied at bestCost (when tiedCount > 0)
         var tied: IntArray? = null
         var tiedCount = 0
-        for (index in cands.indices) {
-            val c = cands[index]
+        for (index in sigs.indices) {
             val s = sigs[index]
             val pts = s.params
             var total = 0
@@ -583,17 +593,16 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
                 if (total == IMPOSSIBLE) continue
             }
             if (total < bestCost) {
-                best = c
                 bestIndex = index
                 bestCost = total
                 tiedCount = 0
             } else if (total == bestCost) {
-                val t = tied ?: IntArray(cands.size).also { tied = it }
+                val t = tied ?: IntArray(sigs.size).also { tied = it }
                 if (tiedCount == 0) t[tiedCount++] = bestIndex
                 t[tiedCount++] = index
             }
         }
-        return if (tiedCount > 0) cands[mostSpecific(sigs, tied!!, tiedCount)] else best
+        return if (tiedCount > 0) mostSpecific(sigs, tied!!, tiedCount) else bestIndex
     }
 
     /**
@@ -658,8 +667,10 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
     }
 
     /** Invokes a host method/constructor, mapping exceptions. */
-    fun invoke(m: Method, target: Any?, args: Array<Any?>): Any? {
-        val s = sig(m)
+    fun invoke(m: Method, target: Any?, args: Array<Any?>): Any? = invoke(m, sig(m), target, args)
+
+    /** [invoke] with the [Sig] of [m] at hand. */
+    internal fun invoke(m: Method, s: Sig, target: Any?, args: Array<Any?>): Any? {
         val conv = convertArgs(s, args)
         val r = try {
             m.invoke(target, *conv)
