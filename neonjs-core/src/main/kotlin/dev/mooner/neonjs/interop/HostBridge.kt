@@ -50,14 +50,25 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         /** The generic type of parameter [i] where conversions use it (element types of collections and futures). */
         fun generic(i: Int): Type? {
             if (!needsGeneric(params[i])) return null
-            val g = generics ?: e.genericParameterTypes.also { generics = it }
+            val g = generics ?: (resolved { e.genericParameterTypes } ?: Array<Type>(params.size) { params[it] }).also { generics = it }
             // a constructor of an inner class may leave the outer instance out of its generic signature
             return if (g.size == params.size) g[i] else null
         }
 
         fun genericReturn(): Type? {
             if (!needsGeneric(returnType)) return null
-            return genericReturn ?: (e as Method).genericReturnType.also { genericReturn = it }
+            return genericReturn ?: (resolved { (e as Method).genericReturnType } ?: returnType).also { genericReturn = it }
+        }
+
+        /** [get], or null where a generic signature names a type missing at run time (then the raw types serve). */
+        private inline fun <T> resolved(get: () -> T): T? = try {
+            get()
+        } catch (_: TypeNotPresentException) {
+            null
+        } catch (_: java.lang.reflect.MalformedParameterizedTypeException) {
+            null
+        } catch (_: LinkageError) {
+            null
         }
 
         /** The fixed order of overloads that tie (see [mostSpecific]): array parameters last, then by type names. */

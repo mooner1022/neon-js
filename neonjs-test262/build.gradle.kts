@@ -14,6 +14,8 @@ dependencies {
     implementation(project(":neonjs-intl"))
     // DexCheckingDefiner (-Dneonjs.codeDefiner=dev.mooner.neonjs.android.DexCheckingDefiner) and the device checks (AndroidCheck)
     implementation(project(":neonjs-android"))
+    // class files with missing types for AndroidCheck (also a dependency of neonjs-core)
+    implementation("org.ow2.asm:asm:9.9.1")
     d8Runtime(project(":neonjs-android-d8"))
 }
 

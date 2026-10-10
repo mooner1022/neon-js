@@ -29,26 +29,48 @@ class HostClassInfo private constructor(val cls: Class<*>, val access: HostAcces
 
     init {
         if (instancesVisible) collect()
-        functionalMethod = findFunctionalMethod(cls, access)
+        functionalMethod = try {
+            findFunctionalMethod(cls, access)
+        } catch (_: LinkageError) {
+            null
+        }
     }
 
     private fun jsName(m: AccessibleObject, default: String): String = m.getAnnotation(HostName::class.java)?.value ?: default
 
+    /**
+     * Members whose signature names a class missing at run time (an Android API of a later level, an optional
+     * library) are left out, rather than failing the whole class: each member is skipped on its own where the platform
+     * resolves its types one member at a time (ART), the declared members of a class together where it resolves them
+     * all at once (HotSpot), keeping those inherited from the other classes of the hierarchy.
+     */
     private fun collect() {
-        for (f in cls.fields) {
-            if (!access.isMemberAccessible(cls, f) || !isCallable(f) || Modifier.isStatic(f.modifiers) && !accessible) continue
-            val n = jsName(f, f.name)
-            if (Modifier.isStatic(f.modifiers)) staticFields[n] = f else instanceFields[n] = f
+        for (f in publicMembers(Class<*>::getFields, Class<*>::getDeclaredFields)) {
+            try {
+                if (!access.isMemberAccessible(cls, f) || !isCallable(f) || Modifier.isStatic(f.modifiers) && !accessible) continue
+                f.type // resolves it (ART resolves types when first asked for)
+                val n = jsName(f, f.name)
+                if (Modifier.isStatic(f.modifiers)) staticFields[n] = f else instanceFields[n] = f
+            } catch (_: LinkageError) {
+                // a missing type
+            }
         }
-        for (m0 in cls.methods) {
-            if (!access.isMemberAccessible(cls, m0) || Modifier.isStatic(m0.modifiers) && !accessible) continue
-            val m = publicVersion(m0) ?: continue
-            // reached through a supertype: that type is what JS calls, so it must not be denied either
-            if (m !== m0 && access.isClassDenied(m.declaringClass)) continue
-            val n = jsName(m0, m0.name)
-            val target = if (Modifier.isStatic(m.modifiers)) staticMethods else instanceMethods
-            val list = target.getOrPut(n) { ArrayList() }
-            if (list.none { sameSignature(it, m) }) list.add(m)
+        for (m0 in publicMembers(Class<*>::getMethods, Class<*>::getDeclaredMethods)) {
+            try {
+                if (!access.isMemberAccessible(cls, m0) || Modifier.isStatic(m0.modifiers) && !accessible) continue
+                val m = publicVersion(m0) ?: continue
+                // reached through a supertype: that type is what JS calls, so it must not be denied either
+                if (m !== m0 && access.isClassDenied(m.declaringClass)) continue
+                // resolves its types (ART resolves them when first asked for)
+                m.parameterTypes
+                m.returnType
+                val n = jsName(m0, m0.name)
+                val target = if (Modifier.isStatic(m.modifiers)) staticMethods else instanceMethods
+                val list = target.getOrPut(n) { ArrayList() }
+                if (list.none { sameSignature(it, m) }) list.add(m)
+            } catch (_: LinkageError) {
+                // a missing type
+            }
         }
         // bean-style properties (Kotlin properties compile to getX/isX/setX)
         for ((isStatic, methods) in listOf(false to instanceMethods, true to staticMethods)) {
@@ -74,11 +96,74 @@ class HostClassInfo private constructor(val cls: Class<*>, val access: HostAcces
         }
         if (!accessible) return
         if (!Modifier.isAbstract(cls.modifiers) && !cls.isInterface) {
-            for (c in cls.constructors) if (access.isMemberAccessible(cls, c)) constructors.add(c)
+            for (c in orNone { cls.constructors }) {
+                try {
+                    c.parameterTypes // resolves them
+                    if (access.isMemberAccessible(cls, c)) constructors.add(c)
+                } catch (_: LinkageError) {
+                    // a missing type
+                }
+            }
         }
-        for (mc in cls.classes) {
+        for (mc in orNone { cls.classes }) {
             if (Modifier.isPublic(mc.modifiers) && Modifier.isStatic(mc.modifiers) && access.isClassAccessible(mc)) memberClasses[mc.simpleName] = mc
         }
+    }
+
+    private inline fun <T> orNone(get: () -> Array<T>): List<T> = try {
+        get().asList()
+    } catch (_: LinkageError) {
+        emptyList()
+    }
+
+    /**
+     * The public fields or methods of [cls] ([all]: `getFields`, `getMethods`). Where those fail because a type of
+     * one of them is missing, the public members of each class of the hierarchy ([declared]) whose members load, the
+     * nearest declaration of each signature first, without the static methods of supertypes' interfaces.
+     */
+    private fun <M : Member> publicMembers(all: (Class<*>) -> Array<M>, declared: (Class<*>) -> Array<M>): List<M> {
+        try {
+            return all(cls).asList()
+        } catch (_: LinkageError) {
+            // collect them class by class below
+        }
+        val found = LinkedHashMap<String, M>()
+        val seen = HashSet<Class<*>>()
+        fun add(c: Class<*>) {
+            if (!seen.add(c)) return
+            val members = try {
+                declared(c)
+            } catch (_: LinkageError) {
+                return
+            }
+            for (m in members) {
+                if (!Modifier.isPublic(m.modifiers)) continue
+                if (c !== cls && c.isInterface && m is Method && Modifier.isStatic(m.modifiers)) continue
+                val key = try {
+                    if (m is Method) m.name + m.parameterTypes.joinToString(",", "(", ")") { it.name } else m.name
+                } catch (_: LinkageError) {
+                    continue
+                }
+                found.putIfAbsent(key, m)
+            }
+        }
+        fun addInterfaces(c: Class<*>) {
+            for (i in c.interfaces) {
+                add(i)
+                addInterfaces(i)
+            }
+        }
+        var c: Class<*>? = cls
+        while (c != null) {
+            add(c)
+            c = c.superclass
+        }
+        c = cls
+        while (c != null) {
+            addInterfaces(c)
+            c = c.superclass
+        }
+        return found.values.toList()
     }
 
     private fun decap(s: String): String {

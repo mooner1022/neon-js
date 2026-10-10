@@ -66,6 +66,37 @@ class Ids {
     fun boxed(id: Long?) = id
 }
 
+/** Defines classes from bytes: classes whose signatures name a class that is missing at run time. */
+private class BytesLoader(parent: ClassLoader) : ClassLoader(parent) {
+    fun define(name: String, bytes: ByteArray): Class<*> = defineClass(name, bytes, 0, bytes.size)
+}
+
+/** A public class [name] (internal name) extending [superName], with a public no-argument constructor. */
+private fun classBytes(name: String, superName: String, members: (org.objectweb.asm.ClassWriter) -> Unit): ByteArray {
+    val cw = org.objectweb.asm.ClassWriter(org.objectweb.asm.ClassWriter.COMPUTE_MAXS)
+    cw.visit(org.objectweb.asm.Opcodes.V1_8, org.objectweb.asm.Opcodes.ACC_PUBLIC or org.objectweb.asm.Opcodes.ACC_SUPER, name, null, superName, null)
+    val init = cw.visitMethod(org.objectweb.asm.Opcodes.ACC_PUBLIC, "<init>", "()V", null, null)
+    init.visitCode()
+    init.visitVarInsn(org.objectweb.asm.Opcodes.ALOAD, 0)
+    init.visitMethodInsn(org.objectweb.asm.Opcodes.INVOKESPECIAL, superName, "<init>", "()V", false)
+    init.visitInsn(org.objectweb.asm.Opcodes.RETURN)
+    init.visitMaxs(0, 0)
+    init.visitEnd()
+    members(cw)
+    cw.visitEnd()
+    return cw.toByteArray()
+}
+
+/** A public method [name] returning the string [value] ([descriptor]'s parameters are ignored). */
+private fun org.objectweb.asm.ClassWriter.stringMethod(name: String, value: String, descriptor: String = "()Ljava/lang/String;") {
+    val mv = visitMethod(org.objectweb.asm.Opcodes.ACC_PUBLIC, name, descriptor, null, null)
+    mv.visitCode()
+    mv.visitLdcInsn(value)
+    mv.visitInsn(org.objectweb.asm.Opcodes.ARETURN)
+    mv.visitMaxs(0, 0)
+    mv.visitEnd()
+}
+
 /** Keeps what JS hands it, typed as interfaces. */
 class Keeper {
     var transformer: Transformer? = null
@@ -351,6 +382,26 @@ class InteropContractTest {
             assertEquals(listOf(6L, maxSafe + 1, Long.MIN_VALUE + 1), listOf(inc.applyAsLong(5), inc.applyAsLong(maxSafe), inc.applyAsLong(Long.MIN_VALUE)))
             // a BigInt is not a number: compare with BigInt literals or strings
             assertEquals("false,true,true", c.eval("[id === 1234567890123456789, id === 1234567890123456789n, String(id) === '1234567890123456789'].join()").asString())
+        }
+    }
+
+    @Test
+    fun missingClassesLeaveOutOnlyTheirMembers() {
+        // Sub's bad(Absent) and absent field name a class missing at run time, as an Android API of a later level would
+        val loader = BytesLoader(javaClass.classLoader)
+        loader.define("missing.Base", classBytes("missing/Base", "java/lang/Object") { it.stringMethod("ok", "ok") })
+        val sub = loader.define("missing.Sub", classBytes("missing/Sub", "missing/Base") { cw ->
+            cw.stringMethod("fine", "fine")
+            cw.stringMethod("bad", "bad", "(Lmissing/Absent;)Ljava/lang/String;")
+            cw.visitField(org.objectweb.asm.Opcodes.ACC_PUBLIC, "absent", "Lmissing/Absent;", null, null).visitEnd()
+        })
+        ctx().use { c ->
+            c["x"] = sub.getConstructor().newInstance()
+            // HotSpot resolves the signatures of a class's methods together, so fine() goes with bad() there; ART
+            // resolves them one by one and keeps it (AndroidCheck checks that)
+            assertEquals("ok,undefined,undefined,string", c.eval("[x.ok(), typeof x.bad, typeof x.absent, typeof x.toString()].join()").asString())
+            c.exposeClass("Sub", sub)
+            assertEquals("ok", c.eval("new Sub().ok()").asString())
         }
     }
 

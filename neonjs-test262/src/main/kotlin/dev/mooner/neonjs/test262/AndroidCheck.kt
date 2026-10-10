@@ -198,6 +198,14 @@ private fun hostInterop(): String {
         val longs = js("m.put('id', id); m.put('small', 5n); [typeof id, typeof Java.type('java.lang.Long').MIN_VALUE, Java.type('java.lang.Long').valueOf(id) === id, typeof m.get('small')].join()")
         check(longs == "bigint,bigint,true,number") { "longs: $longs" }
         check(ctx.eval("m.get('id')").asLong() == Long.MAX_VALUE) { "long round trip" }
+        // a method naming a class missing at run time is left out; ART resolves signatures method by method, so the
+        // class's other methods stay
+        val definer = CodeDefiners.default
+        val base = definer.define("missing.CheckBase", missingClassBytes("missing/CheckBase", "java/lang/Object", "ok", null), AndroidCheck::class.java.classLoader!!)
+        val sub = definer.define("missing.CheckSub", missingClassBytes("missing/CheckSub", "missing/CheckBase", "fine", "bad"), base.classLoader)
+        ctx["x"] = sub.getConstructor().newInstance()
+        val partial = js("[x.ok(), x.fine(), typeof x.bad].join()")
+        check(partial == "ok,fine,undefined") { "missing class: $partial" }
         val missing = ArrayList<String>()
         var methods = 0
         for ((name, v) in listOf<Pair<String, Any>>("StringBuilder" to StringBuilder("ab"), "listOf" to listOf(1, 2),
@@ -211,8 +219,34 @@ private fun hostInterop(): String {
             }
         }
         check(missing.isEmpty()) { "not members: $missing" }
-        return "StringBuilder, functions, round trip, longs; $methods methods of 5 classes are members"
+        return "StringBuilder, functions, round trip, longs, missing classes; $methods methods of 5 classes are members"
     }
+}
+
+/**
+ * A public class [name] extending [superName] with a no-argument constructor, a method [ok] returning its name and,
+ * if [bad] is given, a method [bad] taking a `missing.Absent`, a class that does not exist.
+ */
+private fun missingClassBytes(name: String, superName: String, ok: String, bad: String?): ByteArray {
+    val cw = org.objectweb.asm.ClassWriter(org.objectweb.asm.ClassWriter.COMPUTE_MAXS)
+    cw.visit(org.objectweb.asm.Opcodes.V1_8, org.objectweb.asm.Opcodes.ACC_PUBLIC or org.objectweb.asm.Opcodes.ACC_SUPER, name, null, superName, null)
+    val init = cw.visitMethod(org.objectweb.asm.Opcodes.ACC_PUBLIC, "<init>", "()V", null, null)
+    init.visitCode()
+    init.visitVarInsn(org.objectweb.asm.Opcodes.ALOAD, 0)
+    init.visitMethodInsn(org.objectweb.asm.Opcodes.INVOKESPECIAL, superName, "<init>", "()V", false)
+    init.visitInsn(org.objectweb.asm.Opcodes.RETURN)
+    init.visitMaxs(0, 0)
+    init.visitEnd()
+    for ((m, desc) in listOfNotNull(ok to "()Ljava/lang/String;", bad?.let { it to "(Lmissing/Absent;)Ljava/lang/String;" })) {
+        val mv = cw.visitMethod(org.objectweb.asm.Opcodes.ACC_PUBLIC, m, desc, null, null)
+        mv.visitCode()
+        mv.visitLdcInsn(m)
+        mv.visitInsn(org.objectweb.asm.Opcodes.ARETURN)
+        mv.visitMaxs(0, 0)
+        mv.visitEnd()
+    }
+    cw.visitEnd()
+    return cw.toByteArray()
 }
 
 private fun cacheDirectory(dir: File): String {
