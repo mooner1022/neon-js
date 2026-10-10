@@ -45,6 +45,24 @@ class Overloads {
     fun num(x: Long) = "long"
     fun num(x: Double) = "double"
     fun num(x: Any?) = "Object"
+    fun small(b: Byte) = "byte"
+    fun small(s: Short) = "short"
+    fun small(c: Char) = "char"
+    fun small(f: Float) = "float"
+    fun small(x: Any?) = "Object"
+    fun big(i: java.math.BigInteger) = "BigInteger"
+    fun big(l: Long) = "long"
+    fun big(s: String) = "String"
+    fun shapes(r: Runnable) = "Runnable"
+    fun shapes(l: List<Any?>) = "List"
+    fun shapes(d: java.util.Date) = "Date"
+    fun shapes(m: Map<String, Any?>) = "Map"
+    fun shapes(b: Boolean) = "boolean"
+    fun shapes(s: Number) = "Number"
+    fun day(d: java.time.DayOfWeek) = "day"
+    fun day(x: Any?) = "Object"
+    fun days(vararg d: java.time.DayOfWeek) = "days"
+    fun days(vararg i: Int) = "ints"
     fun take(r: Runnable) = "Runnable"
     fun take(c: java.util.concurrent.Callable<*>) = "Callable:" + c.call()
     fun text(s: String) = "text:$s"
@@ -480,6 +498,49 @@ class InteropContractTest {
             assertEquals("ok,undefined,undefined,string", c.eval("[x.ok(), typeof x.bad, typeof x.absent, typeof x.toString()].join()").asString())
             c.exposeClass("Sub", sub)
             assertEquals("ok", c.eval("new Sub().ok()").asString())
+        }
+    }
+
+    @Test
+    fun rememberedChoicesAreTheChoicesMade() {
+        // a choice is remembered for arguments of the same kinds: whatever was chosen before, every argument list must
+        // get the overload it would get on its own, for overloads of many shapes
+        ctx().use { c ->
+            val lists = listOf(StringBuilder::class.java, Math::class.java, String::class.java, Overloads::class.java, java.util.ArrayList::class.java,
+                java.util.Arrays::class.java, Character::class.java)
+                .flatMap { cls -> c.bridge.classInfo(cls).let { it.instanceMethods.values + it.staticMethods.values } }
+                .filter { it.size > 1 }
+            assertTrue(lists.size > 30, "${lists.size}")
+            // two or more values of each kind
+            val values = c.eval("""[undefined, null, true, false, 1.5, NaN, Infinity, -2.5, 0, -0, 127, -5, 128, -200, 30000, 40000,
+                2 ** 31 - 1, -(2 ** 31), 2 ** 31, 2 ** 40, -(2 ** 52), 2 ** 60, -(2 ** 70), 'x', 'é', '', 'xy', 'MONDAY', 1n, -5n, 2n ** 70n,
+                -(2n ** 64n), new Date(0), new Date(1), () => 1, function f() {}, [1], [], {}, { a: 1 }]""").let { v -> (0 until v.arraySize).map { v.getElement(it.toLong()).raw } }
+            val random = java.util.Random(7)
+            var compared = 0
+            c.call {
+                fun check(sigs: Array<dev.mooner.neonjs.interop.HostBridge.Sig>, first: Array<Any?>, then: Array<Any?>) {
+                    val o = dev.mooner.neonjs.interop.HostBridge.Overloads(sigs)
+                    c.bridge.selectIndex(o, first)
+                    assertEquals(c.bridge.selectIndex(sigs, then), c.bridge.selectIndex(o, then),
+                        "${sigs.size} overloads, (${first.joinToString { dev.mooner.neonjs.runtime.Ops.toDisplayString(it) }}) then (${then.joinToString { dev.mooner.neonjs.runtime.Ops.toDisplayString(it) }})")
+                    compared++
+                }
+                for (list in lists) {
+                    @Suppress("UNCHECKED_CAST") val sigs = c.bridge.sigs(list as List<java.lang.reflect.Executable>)
+                    // one argument: every value after every other
+                    if (sigs.any { it.params.size == 1 }) for (a in values) for (b in values) check(sigs, arrayOf(a), arrayOf(b))
+                    // more: lists differing in one argument
+                    for (n in 2..3) {
+                        if (sigs.none { it.params.size == n || it.varArgs }) continue
+                        repeat(1500) {
+                            val first = Array(n) { values[random.nextInt(values.size)] }
+                            val then = first.copyOf().also { it[random.nextInt(n)] = values[random.nextInt(values.size)] }
+                            check(sigs, first, then)
+                        }
+                    }
+                }
+            }
+            assertTrue(compared > 50_000, "$compared")
         }
     }
 

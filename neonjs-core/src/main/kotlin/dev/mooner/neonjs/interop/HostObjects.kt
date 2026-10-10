@@ -13,7 +13,7 @@ class HostMethodFunction(
     @JvmField val overloads: List<Method>,
     @JvmField val target: Any?,
 ) : JSFunction(bridge.realm, bridge.realm.functionPrototype) {
-    private var sigs: Array<HostBridge.Sig>? = null
+    private var choice: HostBridge.Overloads? = null
 
     init {
         defineOwn("length", (overloads.minOfOrNull { it.parameterCount } ?: 0).toDouble(), Attr.CONFIGURABLE)
@@ -26,10 +26,10 @@ class HostMethodFunction(
             // unbound instance method: use thisArg
             recv = (thisArg as? HostObject)?.target ?: throw JSException.typeError("Host method ${debugName()} called on incompatible receiver")
         }
-        val s = sigs ?: bridge.sigs(overloads).also { sigs = it }
-        val i = bridge.selectIndex(s, args)
+        val o = choice ?: bridge.overloads(overloads).also { choice = it }
+        val i = bridge.selectIndex(o, args)
         if (i < 0) throw JSException.typeError("No applicable overload for ${debugName()} with arguments (${args.joinToString { Ops.typeOf(it) }})")
-        return bridge.invoke(overloads[i], s[i], recv, args)
+        return bridge.invoke(overloads[i], o.sigs[i], recv, args)
     }
 
     override fun sourceText(): String = "function ${debugName()}() { [native code] }"
@@ -217,7 +217,7 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
         }
         val setters = info.instanceSetters[key]
         if (setters != null) {
-            val m = bridge.select(setters, arrayOf(value)) ?: throw JSException.typeError("Cannot convert value for property $key")
+            val m = bridge.choose(setters, arrayOf(value)) ?: throw JSException.typeError("Cannot convert value for property $key")
             bridge.invoke(m, target, arrayOf(value))
             return true
         }
@@ -284,7 +284,7 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
         val m = info.functionalMethod ?: throw JSException.typeError("Host object is not callable")
         val all = info.callOverloads ?: (bridge.classInfo(m.declaringClass).instanceMethods[m.name]
             ?.filter { it.parameterCount == m.parameterCount }?.ifEmpty { null } ?: listOf(m)).also { info.callOverloads = it }
-        val chosen = bridge.select(all, args) ?: m
+        val chosen = bridge.choose(all, args) ?: m
         if (chosen.parameterCount != args.size && !chosen.isVarArgs) {
             val padded = Array(chosen.parameterCount) { i -> if (i < args.size) args[i] else Undefined }
             return bridge.invoke(chosen, target, padded)
@@ -378,7 +378,7 @@ class HostClassObject(@JvmField val bridge: HostBridge, @JvmField val cls: Class
             val c = companion ?: return false
             return c.set(key, value, c)
         }
-        val m = bridge.select(setters, arrayOf(value)) ?: return false
+        val m = bridge.choose(setters, arrayOf(value)) ?: return false
         bridge.invoke(m, null, arrayOf(value))
         return true
     }
@@ -406,7 +406,7 @@ class HostClassObject(@JvmField val bridge: HostBridge, @JvmField val cls: Class
             val impl = args.arg(0) as? JSObject ?: throw JSException.typeError("Implementing ${cls.simpleName} requires a function or object")
             return bridge.toJS(bridge.implement(impl, cls))
         }
-        val c = bridge.select(info.constructors, args)
+        val c = bridge.choose(info.constructors, args)
             ?: throw JSException.typeError("No applicable constructor for ${cls.simpleName} with arguments (${args.joinToString { Ops.typeOf(it) }})")
         return bridge.construct(c, args)
     }

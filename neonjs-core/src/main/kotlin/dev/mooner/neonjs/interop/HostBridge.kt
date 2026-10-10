@@ -295,6 +295,8 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         const val MAX_ARRAY_LENGTH = 1 shl 26
         /** Number.MAX_SAFE_INTEGER: longs up to this magnitude are exact as numbers. */
         const val MAX_SAFE_LONG = 9007199254740991L
+        /** Combinations of argument kinds an [Overloads] remembers. */
+        private const val MEMO_SIZE = 8
 
         /** Whether converting to [t] uses its generic type: collection interfaces and futures (see [elementType]). */
         private fun needsGeneric(t: Class<*>) = t.isInterface || t == CompletableFuture::class.java
@@ -613,6 +615,80 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
     fun <E : Executable> select(cands: List<E>, args: Array<Any?>): E? = select(cands, sigs(cands), args)
 
     internal fun sigs(cands: List<Executable>): Array<Sig> = Array(cands.size) { sig(cands[it]) }
+
+    /**
+     * The overloads of a method (or the constructors of a class) as calls choose among them: their Sigs, and the
+     * choices made so far, by the kinds of the arguments ([kindOf]).
+     */
+    internal class Overloads(@JvmField val sigs: Array<Sig>) {
+        /**
+         * Whether choices depend on the kinds of the arguments alone: not where a string may name an enum constant (an
+         * enum parameter, or the enum elements of a varargs parameter).
+         */
+        @JvmField val memoizable: Boolean = sigs.size > 1 && sigs.none { s -> s.params.any { it.isEnum || it.isArray && it.componentType.isEnum } }
+        @JvmField val keys = LongArray(MEMO_SIZE)
+        @JvmField val choices = IntArray(MEMO_SIZE)
+        @JvmField var size = 0
+    }
+
+    private val overloadsByList = java.util.IdentityHashMap<List<Executable>, Overloads>()
+
+    /** The [Overloads] of [cands], a list as long-lived as the [HostClassInfo] holding it. */
+    internal fun overloads(cands: List<Executable>): Overloads =
+        if (cands.size == 1) Overloads(arrayOf(sig(cands[0])))
+        else overloadsByList[cands] ?: Overloads(sigs(cands)).also { overloadsByList[cands] = it }
+
+    /** [select] among [cands], a list as long-lived as the [HostClassInfo] holding it, remembering choices. */
+    internal fun <E : Executable> choose(cands: List<E>, args: Array<Any?>): E? {
+        val i = selectIndex(overloads(cands), args)
+        return if (i < 0) null else cands[i]
+    }
+
+    /** [selectIndex] remembering the choice for arguments of the same kinds (up to [MEMO_SIZE] combinations). */
+    internal fun selectIndex(o: Overloads, args: Array<Any?>): Int {
+        if (!o.memoizable || args.size > 15) return selectIndex(o.sigs, args)
+        var key = args.size.toLong()
+        for (a in args) {
+            val k = kindOf(a)
+            if (k < 0) return selectIndex(o.sigs, args)
+            key = key shl 4 or k.toLong()
+        }
+        for (i in 0 until o.size) if (o.keys[i] == key) return o.choices[i]
+        val chosen = selectIndex(o.sigs, args)
+        if (o.size < MEMO_SIZE) {
+            o.keys[o.size] = key
+            o.choices[o.size] = chosen
+            o.size++
+        }
+        return chosen
+    }
+
+    /**
+     * What [cost] looks at in [v], as a code from 0 to 15: the same code means the same cost for every parameter type
+     * (enum types aside). -1 where cost looks at more: the class of a host object, a proxy.
+     */
+    private fun kindOf(v: Any?): Int = when (v) {
+        Undefined, Null, null -> 0
+        is Boolean -> 1
+        is Double -> when {
+            v != round(v) || v.isInfinite() -> 2
+            v >= Byte.MIN_VALUE && v <= Byte.MAX_VALUE -> 3
+            v >= Short.MIN_VALUE && v <= Short.MAX_VALUE -> 4
+            v >= Int.MIN_VALUE && v <= Int.MAX_VALUE -> 5
+            abs(v) <= MAX_SAFE_LONG -> 6
+            else -> 7
+        }
+        is CharSequence -> if (v.length == 1) 8 else 9
+        is BigInteger -> if (v.bitLength() < 64) 10 else 11
+        is HostObject, is HostClassObject, is ProxyObject -> -1
+        is JSObject -> when {
+            v is dev.mooner.neonjs.builtins.JSDate || v is dev.mooner.neonjs.builtins.temporal.JSTemporalInstant -> 12
+            v.isCallable -> 13
+            Ops.isArray(v) -> 14
+            else -> 15
+        }
+        else -> -1
+    }
 
     /** [select] with the [sigs] of [cands] at hand. */
     internal fun <E : Executable> select(cands: List<E>, sigs: Array<Sig>, args: Array<Any?>): E? {
