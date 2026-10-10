@@ -294,8 +294,8 @@ read before the callback.
 specificity and then by a fixed order, never by the order reflection lists methods in (it differs between HotSpot and
 ART). A `long` becomes a number up to 2^53 - 1 in magnitude and a BigInt beyond, and a BigInt going to an `Object`
 parameter becomes a `Long` when it fits in 64 bits, so 64-bit values round-trip exactly (Rhino and GraalJS keep an
-exact long inside a JS number; NeonJS numbers are only doubles). `HostClassInfo` caches the reflective view of a
-class under a `HostAccess` policy (fields, methods, bean
+exact long inside a JS number; NeonJS numbers are only doubles). `HostClassInfo` is the reflective view of a
+class under a `HostAccess` policy, cached in the policy (fields, methods, bean
 properties, constructors, nested classes, functional method). Members are what Java code outside the class's package
 can call: an object of a non-public class gets the methods of its public supertypes (`publicVersion`), and the
 bridges through which a method is called by its name are members (javac's for methods inherited from a non-public
@@ -307,6 +307,17 @@ proxies, adapters, `List`/`Map` views) goes through the context's `ContextGate`,
 `CompletionStage`s become promises settled by external jobs, and promises passed as
 `CompletableFuture`/`CompletionStage`/`Future` become futures completed by promise reactions; JS
 `Date`/`Temporal.Instant` convert to `java.time` types.
+
+What a call needs is computed once per context, in the bridge, since reflection copies arrays on every call and ART
+parses generic signatures and compares Methods in native code:
+- a `Sig` per method or constructor (parameter types, return type, generic types where conversions use them), found
+  by identity for the members of `HostClassInfo`s and by equality for the interface methods proxies run (ART hands a
+  proxy a new `Method` for every call);
+- per overload list, `Overloads`: the Sigs and up to 8 choices remembered by the kinds of the arguments (a 4-bit code
+  per argument of what `cost` looks at), except for enum parameters and arguments that are host objects or proxies;
+- the JS objects of host classes, and the wrappers of host objects in a weak identity map (never the host's
+  `equals`/`hashCode`);
+- the views of `Java.extend` adapter classes, which would otherwise keep them loaded beyond their context.
 
 ## Optional modules and extensions
 
@@ -327,8 +338,10 @@ proxies, adapters, `List`/`Map` views) goes through the context's `ContextGate`,
   objects are functions, overload choice); `HostMemberSweepTest` checks, over common JDK, Kotlin and fixture classes
   (Java fixtures in `src/test/java`), that every public method Java code could call is a JS member and that calling
   one fails only in the method, with the expected names taken from the running JVM's reflection; `AndroidCheck`
-  repeats the essentials on ART.
+  repeats the essentials on ART; `SecurityTest` lists the compiled classes of the engine package, each of which must
+  be denied or declared harmless.
 - `neonjs-intl` unit tests: Intl basics, default locale and host-locale hiding, input caps, threads, method sizes.
 - `neonjs-test262`: the Test262 runner and the mutation fuzzer `FuzzKt` (see the README). Fuzzer findings become
   regression tests (`SecurityTest.fuzzerRegressions`, `builtinLoopsOverHugeArrayLikesAreInterruptible`).
-- `bench/`: micro-benchmarks (`basic.js`, `props.js`), run with the CLI in each execution mode.
+- `bench/`: micro-benchmarks (`basic.js`, `props.js`), run with the CLI in each execution mode; host interop
+  calls are timed by `InteropBench` in `neonjs-test262`, on the JVM and on devices (the CLI has no `Java` global).

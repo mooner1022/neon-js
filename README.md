@@ -151,7 +151,7 @@ exceed 2^53 on a long-running host). JS code receiving such values should expect
 literals (`id === 1234567890123456789n`) or as strings (`String(id)`), not with number literals; `JSON.stringify`
 throws on a BigInt, and mixing a BigInt with numbers in arithmetic is a TypeError. In the other direction a BigInt
 converts exactly to a `long`/`Long` parameter or field when it fits in 64 bits (beyond, a `long` overload does not
-apply and a field assignment is a RangeError), and to an `Object` parameter (`Map.put`, `List.add`) as a `Long` when
+apply and a field assignment is a TypeError), and to an `Object` parameter (`Map.put`, `List.add`) as a `Long` when
 it fits in 64 bits, else as a `BigInteger`; a number goes there as an `Integer` or `Long` while it is an exact integer,
 else as a `Double`. `NeonValue.asLong()` accepts both a number and a BigInt that is exactly a long.
 
@@ -188,7 +188,12 @@ ctx.defineModule("host:db", mapOf("query" to queryFunction, "version" to 2))   /
   outside the class's package can call: methods inherited from non-public classes (`StringBuilder.length()`), the
   methods of objects whose class is not public through its public supertypes (`listOf(…).size()`,
   `Map.of(…).get(k)`), and the Java names of Kotlin implementations of Java types (`size()`, `length()`, `charAt()`,
-  which win over the Kotlin property of the same name).
+  which win over the Kotlin property of the same name). A member whose signature names a class missing at run time
+  (an Android API of a later level) is left out: on ART that member only, on HotSpot the members its class declares.
+- A host object is the same JS object each time it reaches JS while JS holds it (`a === b` for the same object, never
+  for an equal one), and a class is one JS object per context (`Java.type('X') === Java.type('X')`).
+- A field takes what a parameter of its type would take; anything else is a TypeError (`obj.count = 'abc'` with an
+  `int` field). Java array elements convert as typed array elements do (`ints[0] = 1.9` stores 1).
 - Overloads: the cheapest conversion of the arguments wins; ties go to the most specific parameter types, as in Java
   (`String` before `Object`, `int` before `long`), then to a fixed order, the same on every JVM and on ART. A
   signature names one overload, as in Rhino, Nashorn and GraalJS: `sb['append(java.lang.String)'](null)`,
@@ -198,7 +203,8 @@ ctx.defineModule("host:db", mapOf("query" to queryFunction, "version" to 2))   /
   Kotlin function type. Other objects are not functions even with a single-method interface (an `ArrayList` is
   `Iterable`, a `LocalDate` a `TemporalAdjuster`): call their methods.
 - Java arrays and `List`s behave like JS arrays; `Iterable`s and `Iterator`s work with `for…of` and spread; `Map`
-  entries are readable and writable as properties.
+  entries are readable and writable as properties. A JS array or object passed as a `List` or `Map` is a live view
+  (changes through its entries included) and comes back to its context as the same array or object.
 - JS functions convert to any functional interface (`Runnable`, `Consumer`, Kotlin `fun interface`s, …) and JS
   objects to any interface. The proxies re-enter the context safely from any thread, and come back to the context
   that made them as the original JS function or object.
@@ -411,7 +417,9 @@ python3 tools/android/device.py test262 neonjs-test262 --mode compiled --timeout
 `bundle.py` dexes jars with the SDK's D8 and keeps their resources; adding `neonjs-test262/build/d8-libs` makes a
 bundle that uses D8 at run time. `AndroidCheck` covers what Test262 does not: the dex definer, background batches,
 `Java.extend`, default methods of JS-implemented interfaces, host objects on ART's class library and d8-desugared
-lambdas, and the cache directory. `tools/android/ci-emulator.sh` runs these with dx and with D8 (pick the device
+lambdas, and the cache directory. `InteropBench` (`device.py run neonjs-test262 dev.mooner.neonjs.test262.InteropBench
+-n 50000`, or `java -cp "neonjs-test262/build/install/neonjs-test262/lib/*"` on the JVM) times host calls, overload
+choice, wrapping and callbacks. `tools/android/ci-emulator.sh` runs these with dx and with D8 (pick the device
 with `ANDROID_SERIAL`); the Android workflow runs it on API 26 and API 34 emulators. An emulator without Android
 Studio (on Windows it uses the Windows Hypervisor Platform; in `cmd`, quote the package names, which contain `;`):
 
