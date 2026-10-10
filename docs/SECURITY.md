@@ -42,7 +42,10 @@ if host code swallowed the exception. Every entry into a context from the host (
 At every level a deny list blocks `java.lang.Class`, class loaders, `System`, `Runtime`, processes, threads,
 `SecurityManager`, modules, `StackWalker`, `Unsafe`, `MethodHandles`, object serialization streams, reflection
 and `java.lang.invoke` packages, `sun.*`/`com.sun.*`/`jdk.internal.*`, `java.security.*`, management and
-instrumentation APIs, and the engine's own internal packages. `getClass` (while `java.lang.Class` is denied),
+instrumentation APIs, and the engine itself: all of its packages, and the API classes that control engines, contexts,
+policies and values or read files (`NeonEngine`, `NeonContext`, `NeonValue`, `NeonScript`, `HostAccess`,
+`SandboxPolicy`, the module loaders), so engine objects a script gets hold of are opaque (exceptions, annotations and
+the interfaces host code implements stay visible). `getClass` (while `java.lang.Class` is denied),
 `wait`, `notify*` and `finalize` are never exposed. Arrays are judged by their element type, host objects by their
 own class (an instance of a denied class stays opaque, and cannot be called, even when it is typed as an allowed
 interface). An object of a non-public class shows the methods of its public supertypes, as Java code outside its
