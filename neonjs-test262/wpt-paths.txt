@@ -1,0 +1,17 @@
+/resources/testharness.js
+/resources/testharnessreport.js
+/common/
+/encoding/
+/url/
+/dom/events/
+/dom/abort/
+/FileAPI/
+/xhr/formdata/
+/fetch/api/headers/
+/hr-time/
+/WebCryptoAPI/getRandomValues.any.js
+/WebCryptoAPI/randomUUID.any.js
+/resources/WebIDLParser.js
+/resources/idlharness.js
+/interfaces/
+/resources/webidl2/lib/

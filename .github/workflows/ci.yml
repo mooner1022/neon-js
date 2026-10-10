@@ -13,6 +13,8 @@ concurrency:
 env:
   # the Test262 revision the engine is tested against (third_party/test262 locally)
   TEST262_COMMIT: 5992dc3b60faf62a48fd6be8a40ae9d9a8c84d81
+  # the web-platform-tests revision the web globals are tested against (third_party/wpt locally)
+  WPT_COMMIT: d6713be63025929a1e8d8af45baaff0744b5e50d
 
 jobs:
   jvm:
@@ -49,3 +51,13 @@ jobs:
         run: >-
           neonjs-test262/build/install/neonjs-test262/bin/neonjs-test262 --root third_party/test262 --intl
           --known neonjs-test262/known-failures.txt test/intl402
+      - name: Check out web-platform-tests (the directories of neonjs-test262/wpt-paths.txt)
+        run: |
+          git init -q third_party/wpt
+          git -C third_party/wpt sparse-checkout set --no-cone --stdin < neonjs-test262/wpt-paths.txt
+          git -C third_party/wpt fetch -q --depth 1 --filter=blob:none https://github.com/web-platform-tests/wpt.git "$WPT_COMMIT"
+          git -C third_party/wpt checkout -q FETCH_HEAD
+      - name: web-platform-tests
+        run: >-
+          java -Xss16m -cp "neonjs-test262/build/install/neonjs-test262/lib/*" dev.mooner.neonjs.test262.WptKt
+          --root third_party/wpt --known neonjs-test262/wpt-known-failures.txt encoding

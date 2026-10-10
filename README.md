@@ -28,6 +28,7 @@ scripts in Java/Kotlin applications:
 | Test262 `staging/` | 1,467 / 1,483 — the rest are SpiderMonkey extensions left out on purpose (`f.caller`/`f.arguments`, 12), two Annex B tests that contradict the main suite, and two engine-specific Date parsing heuristics |
 | Test262 `intl402/` (with `neonjs-intl`) | **3,363 / 3,365** in all modes — the two failures are ICU 78 data limits: one Chinese-calendar month boundary (2030) where ICU's astronomy differs from the official table Temporal uses, and islamic-civil eras that ICU does not distinguish |
 | Skipped Test262 features | `export-defer` (no stable semantics yet) |
+| web-platform-tests (web globals) | `encoding/`: 52 subtests pass; the rest need other encodings than UTF-8 or streams (`neonjs-test262/wpt-known-failures.txt`) |
 | JVM | Java 21+ (built with a JDK 25 toolchain, `jvmTarget` 21) |
 
 Implemented highlights: full ES2025 syntax and semantics (classes with private members, generators, async
@@ -388,7 +389,7 @@ their context).
 | `neonjs-android` | `CodeDefiner` translating generated classes to dex (dx) for the JIT and `Java.extend` on Android |
 | `neonjs-android-d8` | optional `DexConverter` using D8 (r8 library) instead of dx |
 | `neonjs-cli` | command-line runner and REPL |
-| `neonjs-test262` | Test262 runner |
+| `neonjs-test262` | Test262 and web-platform-tests runners |
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the internals.
 
@@ -418,6 +419,22 @@ tests check source text exactly.
 
 The runner exits with status 1 when a test fails that `--known FILE` does not list (`neonjs-test262/known-failures.txt`
 holds the two ICU-data failures of `intl402/`).
+
+The web globals are tested with the `.any.js` tests of [web-platform-tests](https://github.com/web-platform-tests/wpt),
+run as WPT's server runs them in a worker (testharness.js, `META: script` and `variant` included; fixtures are read
+by a `fetch` of local files that only the runner defines). The directories it needs are listed in
+`neonjs-test262/wpt-paths.txt`:
+
+```bash
+git init third_party/wpt && cd third_party/wpt
+git sparse-checkout set --no-cone --stdin < ../../neonjs-test262/wpt-paths.txt
+git fetch --depth 1 --filter=blob:none https://github.com/web-platform-tests/wpt.git <commit>   # WPT_COMMIT in ci.yml
+git checkout FETCH_HEAD && cd ../..
+java -Xss16m -cp "neonjs-test262/build/install/neonjs-test262/lib/*" dev.mooner.neonjs.test262.WptKt --root third_party/wpt     --known neonjs-test262/wpt-known-failures.txt encoding
+```
+
+Results are per subtest; `--write-known FILE` writes the current failures in the format of the known list. Tests meant
+only for windows (`META: global=window`) are skipped.
 
 ### On Android devices and emulators
 

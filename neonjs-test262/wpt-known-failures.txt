@@ -1,0 +1,56 @@
+# web-platform-tests failures the CI run expects (WptKt --known): a line per failing subtest ("path[?variant] :: name")
+# or per file ("path[?variant]": all of its subtests). Lines starting with '#' are comments. After a change, regenerate
+# with --write-known for the directories CI runs and review the difference.
+#
+# encoding: TextDecoder supports UTF-8 only (other labels are a RangeError); no streams (TextEncoderStream,
+# TextDecoderStream, ReadableStream); no XMLHttpRequest. idlharness: web interface members are not enumerable yet.
+encoding/idlharness.any.js :: TextDecoder interface: operation decode(optional AllowSharedBufferSource, optional TextDecodeOptions)
+encoding/idlharness.any.js :: TextDecoder interface: attribute encoding
+encoding/idlharness.any.js :: TextDecoder interface: attribute fatal
+encoding/idlharness.any.js :: TextDecoder interface: attribute ignoreBOM
+encoding/idlharness.any.js :: TextEncoder interface: operation encode(optional USVString)
+encoding/idlharness.any.js :: TextEncoder interface: operation encodeInto(USVString, Uint8Array)
+encoding/idlharness.any.js :: TextEncoder interface: attribute encoding
+encoding/idlharness.any.js :: TextDecoderStream interface: existence and properties of interface object
+encoding/idlharness.any.js :: TextDecoderStream interface object length
+encoding/idlharness.any.js :: TextDecoderStream interface object name
+encoding/idlharness.any.js :: TextDecoderStream interface: existence and properties of interface prototype object
+encoding/idlharness.any.js :: TextDecoderStream interface: existence and properties of interface prototype object's "constructor" property
+encoding/idlharness.any.js :: TextDecoderStream interface: existence and properties of interface prototype object's @@unscopables property
+encoding/idlharness.any.js :: TextDecoderStream interface: attribute encoding
+encoding/idlharness.any.js :: TextDecoderStream interface: attribute fatal
+encoding/idlharness.any.js :: TextDecoderStream interface: attribute ignoreBOM
+encoding/idlharness.any.js :: TextEncoderStream interface: existence and properties of interface object
+encoding/idlharness.any.js :: TextEncoderStream interface object length
+encoding/idlharness.any.js :: TextEncoderStream interface object name
+encoding/idlharness.any.js :: TextEncoderStream interface: existence and properties of interface prototype object
+encoding/idlharness.any.js :: TextEncoderStream interface: existence and properties of interface prototype object's "constructor" property
+encoding/idlharness.any.js :: TextEncoderStream interface: existence and properties of interface prototype object's @@unscopables property
+encoding/idlharness.any.js :: TextEncoderStream interface: attribute encoding
+encoding/iso-2022-jp-decoder.any.js
+encoding/legacy-mb-schinese/gb18030/gb18030-decoder.any.js
+encoding/legacy-mb-schinese/gbk/gbk-decoder.any.js
+encoding/replacement-encodings.any.js
+encoding/streams/backpressure.any.js
+encoding/streams/decode-attributes.any.js
+encoding/streams/decode-bad-chunks.any.js
+encoding/streams/decode-ignore-bom.any.js
+encoding/streams/decode-incomplete-input.any.js
+encoding/streams/decode-non-utf8.any.js
+encoding/streams/decode-split-character.any.js
+encoding/streams/decode-utf8.any.js
+encoding/streams/encode-bad-chunks.any.js
+encoding/streams/encode-utf8.any.js
+encoding/streams/readable-writable-properties.any.js
+encoding/textdecoder-eof.any.js
+encoding/textdecoder-fatal-single-byte.any.js?1-1000
+encoding/textdecoder-fatal-single-byte.any.js?1001-2000
+encoding/textdecoder-fatal-single-byte.any.js?2001-3000
+encoding/textdecoder-fatal-single-byte.any.js?3001-4000
+encoding/textdecoder-fatal-single-byte.any.js?4001-5000
+encoding/textdecoder-fatal-single-byte.any.js?5001-6000
+encoding/textdecoder-fatal-single-byte.any.js?6001-7000
+encoding/textdecoder-fatal-single-byte.any.js?7001-last
+encoding/textdecoder-fatal-streaming.any.js
+encoding/textdecoder-utf16-surrogates.any.js
+encoding/unsupported-encodings.any.js
