@@ -304,6 +304,7 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
                 t == String::class.java || t == CharSequence::class.java -> 0
                 t == Character.TYPE || t == Character::class.java -> if (v.length == 1) 1 else IMPOSSIBLE
                 t == Any::class.java -> 2
+                t.isPrimitive || t.isArray -> IMPOSSIBLE
                 t.isEnum -> if (t.enumConstants.any { (it as Enum<*>).name == v.toString() }) 2 else IMPOSSIBLE
                 else -> IMPOSSIBLE
             }
