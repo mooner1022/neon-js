@@ -53,7 +53,9 @@ class DexDefinerTest {
     @Test
     fun javaExtendAdaptersTranslateToDex() {
         val before = DexCheckingDefiner.converted.get()
-        val access = HostAccess.builder(HostAccess.Level.ALL).allowLookup { it.startsWith("dev.mooner.neonjs.android.") }.build()
+        // the fixture is in an engine package, denied unless lifted
+        val access = HostAccess.builder(HostAccess.Level.ALL).allowLookup { it.startsWith("dev.mooner.neonjs.android.") }
+            .allowClass("dev.mooner.neonjs.android.Shape").build()
         val engine = NeonEngine.builder().hostAccess(access).codeDefiner(DexCheckingDefiner()).console(null)
             .sandbox(SandboxPolicy.builder().exposeJavaGlobal(true).build()).build()
         engine.newContext().use { ctx ->

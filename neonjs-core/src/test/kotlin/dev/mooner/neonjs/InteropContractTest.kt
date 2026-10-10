@@ -50,6 +50,8 @@ class Overloads {
     fun text(s: String) = "text:$s"
     fun seq(s: CharSequence) = s
     fun id(x: Any?) = x
+    fun sameList(l: List<Any?>) = l
+    fun sameMap(m: Map<String, Any?>) = m
 
     companion object {
         @JvmStatic fun stat(x: Int) = "static int"
@@ -248,6 +250,9 @@ class InteropContractTest {
             c.eval("var f = s => s + '?'; keeper.keep(f); var g = () => {}; keeper.keepRunnable(g)")
             assertEquals("a?", keeper.transformer!!.transform("a"))
             assertEquals("true,true,b?", c.eval("[keeper.getTransformer() === f, keeper.getRunnable() === g, keeper.getTransformer()('b')].join()").asString())
+            // a JS array or object given as a List or Map comes back as itself
+            c["o"] = Overloads()
+            assertEquals("true,true,2", c.eval("var arr = [1, 2]; var obj = { k: 1 }; [o.sameList(arr) === arr, o.sameMap(obj) === obj, o.sameList(arr).length].join()").asString())
             // in another context the proxy is a host object: a function only through a declared functional interface
             ctx().use { c2 ->
                 c2["keeper"] = keeper

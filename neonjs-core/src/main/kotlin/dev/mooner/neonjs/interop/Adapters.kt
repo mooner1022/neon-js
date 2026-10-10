@@ -73,7 +73,8 @@ object Adapters {
         if (ctors.isEmpty()) throw JSException.typeError("Java.extend: ${base.name} has no accessible constructor")
 
         val methods = collectMethods(base, ifaces)
-        val name = "dev.mooner.neonjs.interop.gen.NeonAdapter${counter.incrementAndGet()}"
+        // outside the engine's denied packages: the adapter's members are those of the types it extends
+        val name = "dev.mooner.neonjs.adapters.NeonAdapter${counter.incrementAndGet()}"
         val internal = name.replace('.', '/')
         val cw = object : ClassWriter(COMPUTE_FRAMES or COMPUTE_MAXS) {
             // the generated code never merges distinct reference types; avoid loading classes here

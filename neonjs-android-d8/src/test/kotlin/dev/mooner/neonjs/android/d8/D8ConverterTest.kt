@@ -50,7 +50,9 @@ class D8ConverterTest {
     @Test
     fun javaExtendAdaptersTranslate() {
         val before = DexCheckingDefiner.converted.get()
-        val access = HostAccess.builder(HostAccess.Level.ALL).allowLookup { it.startsWith("dev.mooner.neonjs.android.d8.") }.build()
+        // the fixture is in an engine package, denied unless lifted
+        val access = HostAccess.builder(HostAccess.Level.ALL).allowLookup { it.startsWith("dev.mooner.neonjs.android.d8.") }
+            .allowClass("dev.mooner.neonjs.android.d8.Greeter").build()
         val engine = NeonEngine.builder().hostAccess(access).codeDefiner(DexCheckingDefiner(D8Converter())).console(null)
             .sandbox(SandboxPolicy.builder().exposeJavaGlobal(true).build()).build()
         engine.newContext().use { ctx ->

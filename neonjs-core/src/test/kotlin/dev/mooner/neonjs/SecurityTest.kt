@@ -237,6 +237,59 @@ class SecurityTest {
     }
 
     @Test
+    fun theEngineItselfIsDenied() {
+        // compiled classes of the engine's package and subpackages: a new one must be denied or declared harmless here
+        val harmless = setOf(
+            "HostExport", "HostName", "HostFunction", "NeonConsole", "NeonModuleLoader", "ExecutionMode", "NeonException",
+            "NeonSyntaxException", "NeonTerminatedException", "NeonTimeoutException", "NeonResourceLimitException",
+            "NeonInterruptedException",
+        )
+        val names = engineClassNames()
+        val loader = NeonEngine::class.java.classLoader
+        val root = names.filter { it.lastIndexOf('.') == "dev.mooner.neonjs".length }
+        assertTrue(root.size > 20, "$root")
+        for (n in root) {
+            val outer = n.substringAfterLast('.').substringBefore('$')
+            assertTrue(outer in harmless || HostAccess.ALL.isClassDenied(Class.forName(n, false, loader)), n)
+        }
+        val packages = names.filter { it !in root }.groupBy { it.split('.')[3] }
+        assertTrue(packages.keys.containsAll(listOf("interop", "jit", "builtins", "vm")), "${packages.keys}")
+        for ((pkg, classes) in packages) assertTrue(HostAccess.ALL.isClassDenied(Class.forName(classes.first(), false, loader)), pkg)
+
+        val access = HostAccess.builder(HostAccess.Level.ALL).allowLookup { true }.build()
+        val p = SandboxPolicy.builder().exposeJavaGlobal(true).build()
+        ctx(p, access).use { c ->
+            for (cls in listOf("dev.mooner.neonjs.NeonEngine", "dev.mooner.neonjs.NeonEngine${'$'}Builder", "dev.mooner.neonjs.HostAccess",
+                "dev.mooner.neonjs.SandboxPolicy${'$'}Builder", "dev.mooner.neonjs.interop.HostBridge", "dev.mooner.neonjs.jit.JvmCompiler")) {
+                assertThrows<NeonException>(cls) { c.eval("Java.type('$cls')") }
+            }
+            // handed to JS by the host, engine objects are opaque: a context, and a value of another context
+            c["self"] = c
+            ctx(p, access).use { other ->
+                c["foreign"] = other.eval("({ a: 1 })")
+                assertEquals("object,undefined,object,undefined", c.eval("[typeof self, typeof self.eval, typeof foreign, typeof foreign.getMember].join()").asString())
+            }
+            // exceptions and annotations stay visible
+            assertEquals("NeonTimeoutException", c.eval("Java.type('dev.mooner.neonjs.NeonTimeoutException').name").asString().substringAfterLast('.'))
+        }
+        // and the embedder can lift the denial
+        val lifted = HostAccess.builder(HostAccess.Level.ALL).allowClass("dev.mooner.neonjs.NeonContext").build()
+        ctx(access = lifted).use { c ->
+            c["self"] = c
+            assertEquals("function", c.eval("typeof self.eval").asString())
+        }
+    }
+
+    /** Binary names of the classes compiled from neonjs-core's main sources. */
+    private fun engineClassNames(): List<String> {
+        val location = java.io.File(NeonEngine::class.java.protectionDomain.codeSource.location.toURI())
+        val prefix = "dev/mooner/neonjs/"
+        val paths = if (location.isDirectory) location.walk().filter { it.isFile }.map { it.relativeTo(location).invariantSeparatorsPath }.toList()
+        else java.util.jar.JarFile(location).use { jar -> jar.entries().toList().map { it.name } }
+        return paths.filter { it.startsWith(prefix) && it.endsWith(".class") }.map { it.removeSuffix(".class").replace('/', '.') }.sorted()
+    }
+
+    @Test
     fun builtInDenialsCanBeLifted() {
         val p = SandboxPolicy.builder().exposeJavaGlobal(true).build()
         val lifted = HostAccess.builder(HostAccess.Level.ALL).allowLookup { true }

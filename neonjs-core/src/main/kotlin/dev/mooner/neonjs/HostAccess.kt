@@ -57,7 +57,14 @@ class HostAccess private constructor(b: Builder) {
     private fun isNameDenied(n: String, packages: Boolean = true): Boolean {
         if (n in deniedClasses || packages && deniedPrefixes.any { n.startsWith(it) }) return true
         if (!defaultDenyList || n in allowedClasses || allowedPrefixes.any { n.startsWith(it) }) return false
-        return n in defaultDenied || packages && defaultDeniedPrefixes.any { n.startsWith(it) }
+        return n in defaultDenied || isEngineApi(n) || packages && defaultDeniedPrefixes.any { n.startsWith(it) }
+    }
+
+    /** Whether [n] is one of [defaultDeniedEngineClasses] or a class nested in one. */
+    private fun isEngineApi(n: String): Boolean {
+        if (!n.startsWith(ENGINE_PACKAGE) || n.indexOf('.', ENGINE_PACKAGE.length) >= 0) return false
+        val end = n.indexOf('$').let { if (it < 0) n.length else it }
+        return n.substring(ENGINE_PACKAGE.length, end) in defaultDeniedEngineClasses
     }
 
     /** Whether [c], one of its superclasses or one of its interfaces is on the deny list. */
@@ -259,8 +266,25 @@ class HostAccess private constructor(b: Builder) {
         )
         val defaultDeniedPrefixes = listOf(
             "java.lang.reflect.", "java.lang.invoke.", "sun.", "com.sun.", "jdk.internal.", "java.security.",
-            "javax.script.", "java.lang.instrument.", "java.lang.management.", "dev.mooner.neonjs.vm.", "dev.mooner.neonjs.compiler.",
-            "dev.mooner.neonjs.runtime.", "kotlin.reflect.", "kotlin.jvm.internal.", "com.ibm.icu.",
+            "javax.script.", "java.lang.instrument.", "java.lang.management.", "kotlin.reflect.", "kotlin.jvm.internal.",
+            "com.ibm.icu.",
+            // the engine's own packages
+            "dev.mooner.neonjs.android.", "dev.mooner.neonjs.builtins.", "dev.mooner.neonjs.cli.", "dev.mooner.neonjs.compiler.",
+            "dev.mooner.neonjs.ext.", "dev.mooner.neonjs.interop.", "dev.mooner.neonjs.intl.", "dev.mooner.neonjs.jit.",
+            "dev.mooner.neonjs.parser.", "dev.mooner.neonjs.regexp.", "dev.mooner.neonjs.runtime.", "dev.mooner.neonjs.unicode.",
+            "dev.mooner.neonjs.vm.",
+        )
+
+        private const val ENGINE_PACKAGE = "dev.mooner.neonjs."
+
+        /**
+         * The classes of the engine's API package that control engines, contexts, policies and values, or read files
+         * (simple names; classes nested in them are denied too). The rest of the package (annotations, exceptions,
+         * `HostFunction`, `NeonConsole`, `NeonModuleLoader`) is used or implemented by host code, and stays visible.
+         */
+        val defaultDeniedEngineClasses = setOf(
+            "NeonEngine", "NeonContext", "NeonValue", "NeonScript", "HostAccess", "SandboxPolicy", "FileSystemModuleLoader",
+            "MapModuleLoader",
         )
         /** java.lang.Object methods never exposed (`getClass` only while `java.lang.Class` is denied). */
         val deniedMethods = setOf("getClass", "wait", "notify", "notifyAll", "finalize")

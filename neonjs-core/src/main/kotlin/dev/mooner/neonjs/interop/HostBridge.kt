@@ -107,8 +107,15 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         is CompletionStage<*> -> promiseOf(v)
         else -> {
             val un = gate.unwrapValue(v)
-            if (un !== NotFound) un else implementedBy(v) ?: wrap(v)
+            if (un !== NotFound) un else implementedBy(v) ?: viewedBy(v) ?: wrap(v)
         }
+    }
+
+    /** The JS array or object behind [v] if [v] is a `List` or `Map` view this bridge made, else null. */
+    private fun viewedBy(v: Any): JSObject? = when (v) {
+        is JSListView -> if (v.bridge === this) v.arr else null
+        is JSMapView -> if (v.bridge === this) v.obj else null
+        else -> null
     }
 
     /** The JS object behind [v] if [v] is an interface implementation this bridge made ([implement]), else null. */
@@ -742,7 +749,7 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
 }
 
 /** Live java.util.List view of a JS array. */
-class JSListView(private val bridge: HostBridge, private val arr: JSObject, private val et: Class<*>) : java.util.AbstractList<Any?>() {
+class JSListView(internal val bridge: HostBridge, internal val arr: JSObject, private val et: Class<*>) : java.util.AbstractList<Any?>() {
     override val size: Int get() = bridge.gate.enter { Ops.lengthOfArrayLike(arr).toInt() }
     override fun get(index: Int): Any? = bridge.gate.enter {
         if (index < 0 || index >= Ops.lengthOfArrayLike(arr)) throw IndexOutOfBoundsException("$index")
@@ -763,7 +770,7 @@ class JSListView(private val bridge: HostBridge, private val arr: JSObject, priv
 }
 
 /** Live java.util.Map view of a JS object's own enumerable string-keyed properties. */
-class JSMapView(private val bridge: HostBridge, private val obj: JSObject, private val vt: Class<*>) : java.util.AbstractMap<String, Any?>() {
+class JSMapView(internal val bridge: HostBridge, internal val obj: JSObject, private val vt: Class<*>) : java.util.AbstractMap<String, Any?>() {
     override val entries: MutableSet<MutableMap.MutableEntry<String, Any?>>
         get() = bridge.gate.enter {
             val set = LinkedHashSet<MutableMap.MutableEntry<String, Any?>>()
