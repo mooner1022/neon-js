@@ -169,12 +169,68 @@ class WebGlobalsTest {
 
     @Test
     fun offByDefaultAndAbsentFromShadowRealms() {
+        val names = "[typeof setTimeout, typeof TextEncoder, typeof queueMicrotask, typeof EventTarget, typeof Event, typeof AbortController, typeof AbortSignal].join()"
         NeonEngine.builder().console(null).build().newContext().use { c ->
-            assertEquals("undefined,undefined,undefined", c.eval("[typeof setTimeout, typeof TextEncoder, typeof queueMicrotask].join()").asString())
+            assertEquals(List(7) { "undefined" }.joinToString(","), c.eval(names).asString())
         }
         ctx().use { c ->
-            assertEquals("function", c.eval("typeof setTimeout").asString())
-            assertEquals("undefined", c.eval("new ShadowRealm().evaluate('typeof setTimeout')").asString())
+            assertEquals(List(7) { "function" }.joinToString(","), c.eval(names).asString())
+            assertEquals(List(7) { "undefined" }.joinToString(","), c.eval("new ShadowRealm().evaluate('$names')").asString())
+        }
+    }
+
+    @Test
+    fun listenerExceptionsAreReportedAndTheDispatchGoesOn() {
+        ctx().use { c ->
+            val seen = ArrayList<String>()
+            c.setUncaughtErrorHandler { e, _ -> seen.add(e.message ?: "") }
+            assertEquals("a,c,true", c.eval("""
+                var log = [], t = new EventTarget();
+                t.addEventListener('x', () => log.push('a'));
+                t.addEventListener('x', () => { throw new Error('in b') });
+                t.addEventListener('x', { handleEvent() { log.push('c') } });
+                var r = t.dispatchEvent(new Event('x'));
+                log.push(r);
+                log.join()
+            """).asString())
+            assertEquals(listOf("Error: in b"), seen)
+        }
+    }
+
+    @Test
+    fun abortSignals() {
+        ctx().use { c ->
+            assertEquals("abort:AbortError,handler,true,AbortError,TypeError", c.eval("""
+                var log = [], ac = new AbortController(), s = ac.signal;
+                s.addEventListener('abort', e => log.push(e.type + ':' + s.reason.name));
+                s.onabort = () => log.push('handler');
+                var any = AbortSignal.any([s, new AbortController().signal]);
+                ac.abort();
+                log.push(any.aborted, any.reason.name);
+                try { new AbortSignal() } catch (e) { log.push(e.name) }
+                log.join()
+            """).asString())
+            // AbortSignal.timeout fires as a task, and does not keep the loop waiting
+            c.eval("var timedOut = null; AbortSignal.timeout(50).onabort = e => { timedOut = e.target.reason.name }")
+            assertTrue(c.runEventLoop(5_000))
+            assertEquals("null", c.eval("String(timedOut)").asString(), "the loop ended without waiting for the timeout")
+            Thread.sleep(150)
+            c.runJobs()
+            assertEquals("TimeoutError", c.eval("timedOut").asString())
+        }
+        // a dependent signal held by its onabort alone still fires: its sources keep it
+        ctx().use { c ->
+            c.eval("var fired = false, ac = new AbortController(); AbortSignal.any([ac.signal]).onabort = () => { fired = true }")
+            repeat(3) {
+                System.gc()
+                Thread.sleep(20)
+            }
+            c.eval("ac.abort()")
+            assertTrue(c.eval("fired").asBoolean())
+        }
+        // and counts against the limit of pending timers
+        ctx(SandboxPolicy.builder().maxTimers(2).build()).use { c ->
+            assertEquals("RangeError", c.eval("setTimeout(() => {}, 1000); AbortSignal.timeout(1000); try { AbortSignal.timeout(1000) } catch (e) { e.name }").asString())
         }
     }
 }

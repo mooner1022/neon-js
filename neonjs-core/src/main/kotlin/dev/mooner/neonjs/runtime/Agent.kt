@@ -236,14 +236,21 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
     /** The size of [externalJobs], readable without the lock. */
     @Volatile private var externalCount = 0
     private val externalSources: MutableSet<ExternalSource> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+    /** Sources that do not keep an event loop waiting (an unref'd timer): only [closeExternal] needs them. */
+    private val idleSources: MutableSet<ExternalSource> = java.util.concurrent.ConcurrentHashMap.newKeySet()
     @Volatile private var externalClosed = false
 
-    /** Registers [s] as pending; false after [closeExternal]. Thread-safe. */
-    fun addExternalSource(s: ExternalSource): Boolean {
+    /**
+     * Registers [s] as pending; false after [closeExternal]. With [keepsAlive] false the source does not count as
+     * pending work ([hasPendingExternal]): an event loop may end before its job comes, which then waits in the queue
+     * for the next run of jobs. Thread-safe.
+     */
+    fun addExternalSource(s: ExternalSource, keepsAlive: Boolean = true): Boolean {
         if (externalClosed) return false
-        externalSources.add(s)
+        val set = if (keepsAlive) externalSources else idleSources
+        set.add(s)
         if (externalClosed) {
-            externalSources.remove(s)
+            set.remove(s)
             return false
         }
         return true
@@ -251,6 +258,7 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
 
     /** Unregisters [s] (its job has run, or it was withdrawn). Thread-safe. */
     fun removeExternalSource(s: ExternalSource) {
+        if (idleSources.remove(s)) return
         if (!externalSources.remove(s) || externalSources.isNotEmpty()) return
         externalLock.lock()
         try {
@@ -261,7 +269,7 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
     }
 
     /** Number of registered external sources (used to cap per-agent host resources). */
-    val externalSourceCount: Int get() = externalSources.size
+    val externalSourceCount: Int get() = externalSources.size + idleSources.size
 
     /** Posts [job] to run on the owner thread at its next [runJobs]; dropped after [closeExternal]. Thread-safe. */
     fun postExternalJob(job: Runnable) {
@@ -342,8 +350,9 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
         } finally {
             externalLock.unlock()
         }
-        for (s in externalSources.toList()) {
+        for (s in externalSources.toList() + idleSources.toList()) {
             externalSources.remove(s)
+            idleSources.remove(s)
             try {
                 s.cancel()
             } catch (_: RuntimeException) {

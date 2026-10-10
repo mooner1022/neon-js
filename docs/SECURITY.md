@@ -113,8 +113,10 @@ differences between the interpreter and compiled code. Classes used on error pat
   `NeonValue.await` wait for it (bounded by the time limit and `interrupt()`). Its completion value goes through
   the normal host → JS conversion, and a failure becomes a `HostError` carrying only the exception's message.
 - **Timers** (`webGlobals(true)`). One shared daemon thread schedules all timers; it only queues jobs, and the
-  callbacks run on the context's thread under its limits. Timers are capped per context (`maxTimers`), take no
-  string callbacks, and are cancelled when the context is closed.
+  callbacks run on the context's thread under its limits. Timers are capped per context (`maxTimers`, which
+  `AbortSignal.timeout` counts against too), take no string callbacks, and are cancelled when the context is closed.
+  An exception thrown by an event listener does not escape `dispatchEvent`: it is rethrown by a microtask, so it
+  reaches the context's uncaught error handler (or ends the call running jobs without one).
 - **Intl data.** `neonjs-intl` bundles ICU4J; all of its packages (`com.ibm.icu.*`) are on the deny list, so
   scripts reach locale data only through `Intl`. `Intl` resolves locales itself and passes ICU only available
   locales (or root), so the host's locale is never used implicitly, and it caps language tags (512 characters) and

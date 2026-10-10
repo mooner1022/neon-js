@@ -473,3 +473,7 @@ encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported f
 encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: UTF-16LE
 encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: x-user-defined
 encoding/unsupported-encodings.any.js
+# dom: the global object is no EventTarget (as in Node); AbortSignal.timeout is present although WebIDL exposes it to
+# windows and workers only (testharness.js sees a shell)
+dom/events/EventTarget-removeEventListener.any.js :: removing a null event listener should succeed
+dom/idlharness.any.js :: AbortSignal interface: member timeout

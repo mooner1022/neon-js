@@ -189,6 +189,20 @@ internal object Idl {
 
     private fun truncate(x: Double) = if (x < 0) Math.ceil(x) else Math.floor(x)
 
+    /** A `sequence<T>` argument: the values of an iterable object, each converted by [item]. */
+    fun <T> sequence(realm: Realm, v: Any?, what: String, item: (Any?) -> T): List<T> {
+        val m = if (v is JSObject) Ops.getMethod(v, JSSymbol.iterator) else Undefined
+        if (m === Undefined) typeErr("$what is not iterable")
+        val rec = dev.mooner.neonjs.vm.Iteration.fromMethod(v, m)
+        val out = ArrayList<T>()
+        while (true) {
+            val x = dev.mooner.neonjs.vm.Iteration.stepValue(rec)
+            if (x === NotFound) return out
+            out.add(item(x))
+            if (out.size and 1023 == 0) realm.agent.checkInterrupt()
+        }
+    }
+
     /**
      * A copy of the bytes of a BufferSource (ArrayBuffer or view; a SharedArrayBuffer or a view of one only when
      * [allowShared]), or a TypeError. A detached buffer gives no bytes.

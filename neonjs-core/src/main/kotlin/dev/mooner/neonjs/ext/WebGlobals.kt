@@ -19,7 +19,8 @@ import java.util.concurrent.TimeUnit
 /**
  * Opt-in web platform globals that embedded scripts commonly expect (not part of ECMAScript): `queueMicrotask`,
  * `setTimeout` / `setInterval` / `clearTimeout` / `clearInterval`, `structuredClone`, `DOMException`, `atob` /
- * `btoa`, and UTF-8 `TextEncoder` / `TextDecoder`.
+ * `btoa`, UTF-8 `TextEncoder` / `TextDecoder`, `Event` / `CustomEvent` / `EventTarget` ([Events]) and
+ * `AbortController` / `AbortSignal` ([Abort]).
  */
 object WebGlobals {
     fun install(realm: Realm, maxTimers: Int) {
@@ -35,6 +36,8 @@ object WebGlobals {
             StructuredClone(f.realm).run(a[0], StructuredClone.transferList(f.realm, a.arg(1)))
         }
         installTimers(realm, maxTimers)
+        Events.install(realm)
+        Abort.install(realm)
         installBase64(realm)
         installTextEncoder(realm)
         installTextDecoder(realm)
@@ -101,8 +104,22 @@ object WebGlobals {
     /** Number of timer tasks queued in the shared scheduler (for tests). */
     internal val scheduledTaskCount: Int get() = scheduler.queue.size
 
+    /** A task scheduled with [Timers.task]; cancelling it (or closing the context) withdraws it. */
+    internal class ScheduledTask : Agent.ExternalSource {
+        @Volatile @JvmField var future: ScheduledFuture<*>? = null
+        @Volatile @JvmField var cancelled = false
+
+        override fun cancel() {
+            cancelled = true
+            future?.cancel(false)
+        }
+    }
+
+    /** The timers of [realm] (installed with the web globals). */
+    internal fun timersOf(realm: Realm): Timers = realm.intrinsicsAny["%Timers%"] as Timers
+
     /** A pending timer; registered with the agent as an external source until it fires for the last time. */
-    private class Timer(@JvmField val id: Int, @JvmField val fn: Any?, @JvmField val args: Array<Any?>, @JvmField val interval: Long) :
+    internal class Timer(@JvmField val id: Int, @JvmField val fn: Any?, @JvmField val args: Array<Any?>, @JvmField val interval: Long) :
         Agent.ExternalSource {
         @Volatile @JvmField var future: ScheduledFuture<*>? = null
         @Volatile @JvmField var cancelled = false
@@ -113,14 +130,41 @@ object WebGlobals {
         }
     }
 
-    private class Timers(val realm: Realm, val max: Int) {
+    /**
+     * The timers of a realm: `setTimeout` / `setInterval`, and the tasks other APIs schedule ([task]), within one limit
+     * of pending timers ([SandboxPolicy.maxTimers][dev.mooner.neonjs.SandboxPolicy.maxTimers]).
+     */
+    internal class Timers(val realm: Realm, val max: Int) {
         val active = HashMap<Int, Timer>()
         var nextId = 1
+        /** Pending tasks of [task]. */
+        private var tasks = 0
+
+        /**
+         * Runs [job] as a task of the realm's agent after [ms] milliseconds. With [keepsAlive] false the pending task
+         * does not keep an event loop waiting (as Node's unref'd timers). Null after the agent closed.
+         */
+        fun task(ms: Long, keepsAlive: Boolean, job: Runnable): ScheduledTask? {
+            if (active.size + tasks >= max) rangeErr("Too many active timers (limit $max)")
+            val agent = realm.agent
+            val t = ScheduledTask()
+            if (!agent.addExternalSource(t, keepsAlive)) return null
+            tasks++
+            t.future = scheduler.schedule({
+                agent.postExternalJob {
+                    tasks--
+                    agent.removeExternalSource(t)
+                    if (!t.cancelled) job.run()
+                }
+            }, ms, TimeUnit.MILLISECONDS)
+            if (t.cancelled) t.future?.cancel(false)
+            return t
+        }
 
         fun start(name: String, fn: Any?, delay: Any?, args: Array<Any?>, repeat: Boolean): Any? {
             if (!Ops.isCallable(fn)) typeErr("$name requires a function (string callbacks are not supported)")
             val ms = delayOf(delay)
-            if (active.size >= max) rangeErr("Too many active timers (limit $max)")
+            if (active.size + tasks >= max) rangeErr("Too many active timers (limit $max)")
             var id = nextId
             while (active.containsKey(id)) id = if (id == Int.MAX_VALUE) 1 else id + 1
             nextId = if (id == Int.MAX_VALUE) 1 else id + 1
@@ -180,6 +224,7 @@ object WebGlobals {
 
     private fun installTimers(realm: Realm, maxTimers: Int) {
         val timers = Timers(realm, maxTimers)
+        realm.intrinsicsAny["%Timers%"] = timers
         fun starter(name: String, repeat: Boolean) = NativeFunction(realm, name, 1, { _, _, a, _ ->
             timers.start(name, a.arg(0), a.arg(1), if (a.size > 2) a.copyOfRange(2, a.size) else EMPTY_ARGS, repeat)
         })
