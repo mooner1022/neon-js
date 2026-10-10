@@ -621,3 +621,83 @@ fetch/api/headers/header-values-normalize.any.js :: fetch() with value %20
 fetch/api/headers/header-values.any.js :: fetch() with all valid values
 fetch/api/headers/headers-forbidden-override.any.js
 fetch/api/headers/headers-no-cors.any.js
+#
+# url: urlencoded-parser also reads forms with Request and Response, which are not there yet. IdnaTestV2.json is
+# generated from newer Unicode data than the engine's (17.0): code points that 17.0 leaves unassigned are disallowed.
+url/IdnaTestV2.any.js :: ToASCII("ⴍ𿣍ꡨ֮.ⴞ")
+url/IdnaTestV2.any.js :: ToASCII("Ⴍ𿣍ꡨ֮.Ⴞ")
+url/IdnaTestV2.any.js :: ToASCII("Ⴍ𿣍ꡨ֮.ⴞ")
+url/IdnaTestV2.any.js :: ToASCII("𾢬。ܩ。쯙5")
+url/IdnaTestV2.any.js :: ToASCII("𾢬。ܩ。쯙5")
+url/IdnaTestV2.any.js :: ToASCII("𾢬.ܩ.쯙5")
+url/IdnaTestV2.any.js :: ToASCII("𾢬.ܩ.쯙5")
+url/urlencoded-parser.any.js :: request.formData() with input: test
+url/urlencoded-parser.any.js :: response.formData() with input: test
+url/urlencoded-parser.any.js :: request.formData() with input: ﻿test=﻿
+url/urlencoded-parser.any.js :: response.formData() with input: ﻿test=﻿
+url/urlencoded-parser.any.js :: request.formData() with input: %EF%BB%BFtest=%EF%BB%BF
+url/urlencoded-parser.any.js :: response.formData() with input: %EF%BB%BFtest=%EF%BB%BF
+url/urlencoded-parser.any.js :: request.formData() with input: %EF%BF%BF=%EF%BF%BF
+url/urlencoded-parser.any.js :: response.formData() with input: %EF%BF%BF=%EF%BF%BF
+url/urlencoded-parser.any.js :: request.formData() with input: %FE%FF
+url/urlencoded-parser.any.js :: response.formData() with input: %FE%FF
+url/urlencoded-parser.any.js :: request.formData() with input: %FF%FE
+url/urlencoded-parser.any.js :: response.formData() with input: %FF%FE
+url/urlencoded-parser.any.js :: request.formData() with input: †&†=x
+url/urlencoded-parser.any.js :: response.formData() with input: †&†=x
+url/urlencoded-parser.any.js :: request.formData() with input: %C2
+url/urlencoded-parser.any.js :: response.formData() with input: %C2
+url/urlencoded-parser.any.js :: request.formData() with input: %C2x
+url/urlencoded-parser.any.js :: response.formData() with input: %C2x
+url/urlencoded-parser.any.js :: request.formData() with input: _charset_=windows-1252&test=%C2x
+url/urlencoded-parser.any.js :: response.formData() with input: _charset_=windows-1252&test=%C2x
+url/urlencoded-parser.any.js :: request.formData() with input:\u0020
+url/urlencoded-parser.any.js :: response.formData() with input:\u0020
+url/urlencoded-parser.any.js :: request.formData() with input: a
+url/urlencoded-parser.any.js :: response.formData() with input: a
+url/urlencoded-parser.any.js :: request.formData() with input: a=b
+url/urlencoded-parser.any.js :: response.formData() with input: a=b
+url/urlencoded-parser.any.js :: request.formData() with input: a=
+url/urlencoded-parser.any.js :: response.formData() with input: a=
+url/urlencoded-parser.any.js :: request.formData() with input: =b
+url/urlencoded-parser.any.js :: response.formData() with input: =b
+url/urlencoded-parser.any.js :: request.formData() with input: &
+url/urlencoded-parser.any.js :: response.formData() with input: &
+url/urlencoded-parser.any.js :: request.formData() with input: &a
+url/urlencoded-parser.any.js :: response.formData() with input: &a
+url/urlencoded-parser.any.js :: request.formData() with input: a&
+url/urlencoded-parser.any.js :: response.formData() with input: a&
+url/urlencoded-parser.any.js :: request.formData() with input: a&a
+url/urlencoded-parser.any.js :: response.formData() with input: a&a
+url/urlencoded-parser.any.js :: request.formData() with input: a&b&c
+url/urlencoded-parser.any.js :: response.formData() with input: a&b&c
+url/urlencoded-parser.any.js :: request.formData() with input: a=b&c=d
+url/urlencoded-parser.any.js :: response.formData() with input: a=b&c=d
+url/urlencoded-parser.any.js :: request.formData() with input: a=b&c=d&
+url/urlencoded-parser.any.js :: response.formData() with input: a=b&c=d&
+url/urlencoded-parser.any.js :: request.formData() with input: &&&a=b&&&&c=d&
+url/urlencoded-parser.any.js :: response.formData() with input: &&&a=b&&&&c=d&
+url/urlencoded-parser.any.js :: request.formData() with input: a=a&a=b&a=c
+url/urlencoded-parser.any.js :: response.formData() with input: a=a&a=b&a=c
+url/urlencoded-parser.any.js :: request.formData() with input: a==a
+url/urlencoded-parser.any.js :: response.formData() with input: a==a
+url/urlencoded-parser.any.js :: request.formData() with input: a=a+b+c+d
+url/urlencoded-parser.any.js :: response.formData() with input: a=a+b+c+d
+url/urlencoded-parser.any.js :: request.formData() with input: %=a
+url/urlencoded-parser.any.js :: response.formData() with input: %=a
+url/urlencoded-parser.any.js :: request.formData() with input: %a=a
+url/urlencoded-parser.any.js :: response.formData() with input: %a=a
+url/urlencoded-parser.any.js :: request.formData() with input: %a_=a
+url/urlencoded-parser.any.js :: response.formData() with input: %a_=a
+url/urlencoded-parser.any.js :: request.formData() with input: %61=a
+url/urlencoded-parser.any.js :: response.formData() with input: %61=a
+url/urlencoded-parser.any.js :: request.formData() with input: %61+%4d%4D=
+url/urlencoded-parser.any.js :: response.formData() with input: %61+%4d%4D=
+url/urlencoded-parser.any.js :: request.formData() with input: id=0&value=%
+url/urlencoded-parser.any.js :: response.formData() with input: id=0&value=%
+url/urlencoded-parser.any.js :: request.formData() with input: b=%2sf%2a
+url/urlencoded-parser.any.js :: response.formData() with input: b=%2sf%2a
+url/urlencoded-parser.any.js :: request.formData() with input: b=%2%2af%2a
+url/urlencoded-parser.any.js :: response.formData() with input: b=%2%2af%2a
+url/urlencoded-parser.any.js :: request.formData() with input: b=%%2a
+url/urlencoded-parser.any.js :: response.formData() with input: b=%%2a

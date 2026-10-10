@@ -28,7 +28,7 @@ scripts in Java/Kotlin applications:
 | Test262 `staging/` | 1,467 / 1,483 — the rest are SpiderMonkey extensions left out on purpose (`f.caller`/`f.arguments`, 12), two Annex B tests that contradict the main suite, and two engine-specific Date parsing heuristics |
 | Test262 `intl402/` (with `neonjs-intl`) | **3,363 / 3,365** in all modes — the two failures are ICU 78 data limits: one Chinese-calendar month boundary (2030) where ICU's astronomy differs from the official table Temporal uses, and islamic-civil eras that ICU does not distinguish |
 | Skipped Test262 features | `export-defer` (no stable semantics yet) |
-| web-platform-tests (web globals) | `encoding/`: 3,642 subtests pass, the rest need other encodings than UTF-8, streams or WebAssembly; `dom/events`, `dom/abort`, `hr-time`, `WebCryptoAPI` (getRandomValues, randomUUID) and their IDL tests: 370 / 373, the 3 are deliberate; `FileAPI`: 367 subtests pass (Blob, File), the rest need streams, FileReader, blob URLs or a server; `xhr/formdata`: 40 / 40; `fetch/api/headers`: the 102 subtests that need no `fetch`, `Request` or `Response` pass (`neonjs-test262/wpt-known-failures.txt`) |
+| web-platform-tests (web globals) | `encoding/`: 3,642 subtests pass, the rest need other encodings than UTF-8, streams or WebAssembly; `dom/events`, `dom/abort`, `hr-time`, `WebCryptoAPI` (getRandomValues, randomUUID) and their IDL tests: 370 / 373, the 3 are deliberate; `FileAPI`: 367 subtests pass (Blob, File), the rest need streams, FileReader, blob URLs or a server; `xhr/formdata`: 40 / 40; `fetch/api/headers`: the 102 subtests that need no `fetch`, `Request` or `Response` pass; `url` (with the UTS #46 tests of `IdnaTestV2`): 4,842 / 4,919, the rest need `Request` / `Response` or Unicode data newer than 17.0 (`neonjs-test262/wpt-known-failures.txt`) |
 | JVM | Java 21+ (built with a JDK 25 toolchain, `jvmTarget` 21) |
 
 Implemented highlights: full ES2025 syntax and semantics (classes with private members, generators, async
@@ -278,7 +278,8 @@ Contexts get a `console` object (`log`, `info`, `warn`, `error`, `debug`, `trace
 `AbortSignal.any` and `AbortSignal.timeout`, whose timer, like Node's, does not keep the event loop waiting),
 `performance` (`now()` in steps of 5 µs, `timeOrigin`), `crypto.getRandomValues` / `crypto.randomUUID` (no
 `crypto.subtle`), `QuotaExceededError`, and `Blob` / `File` (`slice`, `text()`, `arrayBuffer()`, `bytes()`; no
-`stream()` yet), which `structuredClone` copies, `FormData` (without form elements) and `Headers`. They follow WebIDL (enumerable members, argument conversions, `new`
+`stream()` yet), which `structuredClone` copies, `FormData` (without form elements), `Headers`, and `URL` /
+`URLSearchParams` (the WHATWG URL Standard, with UTS #46 for international domain names; no blob URLs yet). They follow WebIDL (enumerable members, argument conversions, `new`
 required). The global object is no `EventTarget`, as in Node. Under `SandboxPolicy.deterministic`, `performance.now()`
 is 0 and the random values come from the seeded source. Timers fire on the context's thread while the host runs its event loop:
 
@@ -440,7 +441,7 @@ java -Xss16m -cp "neonjs-test262/build/install/neonjs-test262/lib/*" dev.mooner.
 ```
 
 Results are per subtest; `--write-known FILE` writes the current failures in the format of the known list. Tests meant
-only for windows (`META: global=window`) are skipped, and to idlharness.js the global object looks like a dedicated
+only for windows (`META: global=window`) are skipped unless named with `--include-window`, and to idlharness.js the global object looks like a dedicated
 worker's: the web globals are what workers (and Node) have, which WebIDL exposes to windows and workers.
 
 ### On Android devices and emulators

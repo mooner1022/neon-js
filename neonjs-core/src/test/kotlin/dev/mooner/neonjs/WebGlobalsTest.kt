@@ -171,13 +171,13 @@ class WebGlobalsTest {
     fun offByDefaultAndAbsentFromShadowRealms() {
         val names = "[typeof setTimeout, typeof TextEncoder, typeof queueMicrotask, typeof EventTarget, typeof Event, typeof AbortController, " +
             "typeof AbortSignal, typeof Performance, typeof Crypto, typeof QuotaExceededError, typeof Blob, typeof File, typeof FormData, " +
-            "typeof Headers, typeof performance, typeof crypto].join()"
+            "typeof Headers, typeof URL, typeof URLSearchParams, typeof performance, typeof crypto].join()"
         NeonEngine.builder().console(null).build().newContext().use { c ->
-            assertEquals(List(16) { "undefined" }.joinToString(","), c.eval(names).asString())
+            assertEquals(List(18) { "undefined" }.joinToString(","), c.eval(names).asString())
         }
         ctx().use { c ->
-            assertEquals(List(14) { "function" }.plus(listOf("object", "object")).joinToString(","), c.eval(names).asString())
-            assertEquals(List(16) { "undefined" }.joinToString(","), c.eval("new ShadowRealm().evaluate('$names')").asString())
+            assertEquals(List(16) { "function" }.plus(listOf("object", "object")).joinToString(","), c.eval(names).asString())
+            assertEquals(List(18) { "undefined" }.joinToString(","), c.eval("new ShadowRealm().evaluate('$names')").asString())
         }
     }
 
@@ -239,6 +239,20 @@ class WebGlobalsTest {
         // the size of a blob is charged to the allocation budget before its bytes are allocated
         ctx(SandboxPolicy.builder().maxAllocatedBytes(16L shl 20).build()).use { c ->
             assertThrows<NeonResourceLimitException> { c.eval("const mb = new Blob([new Uint8Array(1 << 20)]); new Blob(Array(64).fill(mb))") }
+        }
+    }
+
+    @Test
+    fun urls() {
+        ctx().use { c ->
+            assertEquals("https://xn--bcher-kva.de:8080/a/c?x=1&y=%C3%A9#f|https://xn--bcher-kva.de:8080|x=2&y=%C3%A9&z=+|true,false", c.eval("""
+                const u = new URL('../c?x=1&y=é#f', 'https://Bücher.DE:8080/a/b/');
+                const href = u.href, origin = u.origin;
+                u.searchParams.set('x', '2');
+                u.searchParams.append('z', ' ');
+                [href, origin, u.search.slice(1), [URL.canParse('a:b'), URL.canParse('http://[::')].join()].join('|')
+            """).asString())
+            assertEquals("TypeError", c.eval("try { new URL('nope') } catch (e) { e.name }").asString())
         }
     }
 

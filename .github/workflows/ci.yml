@@ -60,4 +60,6 @@ jobs:
       - name: web-platform-tests
         run: >-
           java -Xss16m -cp "neonjs-test262/build/install/neonjs-test262/lib/*" dev.mooner.neonjs.test262.WptKt
-          --root third_party/wpt --known neonjs-test262/wpt-known-failures.txt encoding dom/events dom/abort dom/idlharness.any.js hr-time WebCryptoAPI FileAPI xhr/formdata fetch/api/headers
+          --root third_party/wpt --known neonjs-test262/wpt-known-failures.txt
+          --include-window url/IdnaTestV2.any.js --include-window url/IdnaTestV2-removed.any.js
+          encoding dom/events dom/abort dom/idlharness.any.js hr-time WebCryptoAPI FileAPI xhr/formdata fetch/api/headers url

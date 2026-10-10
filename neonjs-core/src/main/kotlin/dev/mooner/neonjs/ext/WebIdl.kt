@@ -255,17 +255,18 @@ internal object Idl {
 
     /**
      * A `record<K, V>` argument: for each own key of [o] (symbols included: their descriptors are asked for too), the
-     * enumerable ones converted by [key] (a TypeError for a symbol) and their values by [value], in order.
+     * enumerable ones converted by [key] (a TypeError for a symbol) and their values by [value], in order. Keys
+     * equal once converted (lone surrogates replaced, for USVString) keep the first one's place and the last value.
      */
     fun <K, V> record(o: JSObject, key: (Any?) -> K, value: (Any?) -> V): List<Pair<K, V>> {
-        val out = ArrayList<Pair<K, V>>()
+        val out = LinkedHashMap<K, V>()
         for (k in o.ownPropertyKeys()) {
             val d = o.getOwnProperty(k) ?: continue
             if (!d.enumerable) continue
             val typedKey = key(if (k is JSSymbol) k else PK.toStringKey(k))
-            out.add(typedKey to value(o.get(k, o)))
+            out[typedKey] = value(o.get(k, o))
         }
-        return out
+        return out.map { it.key to it.value }
     }
 
     /** A `sequence<T>` argument: the values of an iterable object, each converted by [item]. */
