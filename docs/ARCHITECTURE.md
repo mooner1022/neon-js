@@ -262,10 +262,20 @@ agent (a ShadowRealm gets fresh built-ins only, shares the module loader but not
 
 **External jobs.** Work completing on other threads — host `CompletionStage`s handed to JS, timers, Atomics.waitAsync
 wake-ups, `$262.agent` reports — never runs guest code there: the other thread posts a job
-(`Agent.postExternalJob`) and the owner thread moves it into the job queue in `runJobs` / `awaitExternal`. While
-such work is outstanding it is registered as an `ExternalSource`, so an event loop (`NeonContext.runEventLoop`,
+(`Agent.postExternalJob`) to the agent's external queue. `runJobs` is a run of event-loop turns: it empties the job
+queue (a microtask checkpoint), then takes the external jobs one at a time as tasks, each followed by a checkpoint.
+While such work is outstanding it is registered as an `ExternalSource`, so an event loop (`NeonContext.runEventLoop`,
 `NeonValue.await`) knows to wait; `closeExternal` (context close) cancels every source. Blocking waits check only
 the interrupt flag and the deadline (`checkWaitLimits`), not the instruction budget.
+
+`NeonContext` waits for a post (`waitForExternal`) without the context lock when it waits at the top of a call (no
+JS frames of the thread live), so other threads can enter meanwhile; their entries start limits of their own, so
+the waiting thread restores its limits (`saveLimits`), its current realm and its depth afterwards, and an interrupt
+counter (`interruptCount`) shows it requests a later `startLimits` cleared. With `limitsPerTask`, `runJobs` restarts
+the limits before each task (`restartLimits`, keeping a requested interrupt) and waits count against none of them.
+With an `Agent.uncaught` sink, a job's exception goes to the sink instead of ending `runJobs`, and promises
+rejected without a handler (`trackRejection`, HostPromiseRejectionTracker) are reported at the end of each
+checkpoint.
 
 ## Modules (`vm/Modules.kt`)
 
@@ -333,7 +343,9 @@ parses generic signatures and compares Methods in native code:
 
 - `neonjs-core` unit tests: public API, interop, sandbox/security, inline-cache invalidation, console, language
   corner cases, proposals (decorators, ShadowRealm, deferred imports), web globals, method sizes; inlined calls
-  (`InliningTest`: each case interpreted and in adaptive mode with calls inlined, stack traces and limits included).
+  (`InliningTest`: each case interpreted and in adaptive mode with calls inlined, stack traces and limits included);
+  the event loop used by several threads (`EventLoopTest`: other threads entering while a loop waits, interrupts,
+  each thread's limits, loops ending in any order, uncaught errors).
   Interop: `InteropContractTest` states the host interop rules value by value (what host values become, which
   objects are functions, overload choice); `HostMemberSweepTest` checks, over common JDK, Kotlin and fixture classes
   (Java fixtures in `src/test/java`), that every public method Java code could call is a JS member and that calling

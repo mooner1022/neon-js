@@ -16,7 +16,8 @@ inline caches never carry state between contexts (see ARCHITECTURE.md). Compiled
 contexts because code blocks are immutable apart from caches that are validated per context.
 
 **Termination.** With a `SandboxPolicy` the engine enforces, per top-level evaluation (including the promise jobs
-it triggers):
+it triggers; with `limitsPerTask`, the time, instruction and allocation limits per event-loop task instead, waits
+uncounted):
 
 | Limit | Policy | Enforcement points |
 |---|---|---|
@@ -25,7 +26,7 @@ it triggers):
 | call depth | `maxCallDepth` | every JS call (proper tail calls do not grow the depth but remain interruptible) |
 | string length | `maxStringLength` | concatenation, `repeat`, `pad*`, `join`, JSON, template building… |
 | allocated bytes | `maxAllocatedBytes` | sampled with the time checks; large allocations (buffers, Java arrays, long strings) are charged before they happen |
-| host interrupt | `NeonContext.interrupt()` | same as time |
+| host interrupt | `NeonContext.interrupt()` | same as time; also ends an event loop waiting in the context |
 
 Termination exceptions are not JS exceptions: `catch`, `finally` and promise reactions cannot intercept them.
 Exceeded limits are sticky for the rest of the evaluation, so the condition is raised again at the next check even

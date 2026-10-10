@@ -237,7 +237,9 @@ Limits are enforced at loop back-edges, calls, job dispatch, inside long-running
 `join`, `repeat`, buffer and array allocation…) and in compiled code alike. Exceeding one throws a
 `NeonTerminatedException` subclass (`NeonTimeoutException`, `NeonResourceLimitException`,
 `NeonInterruptedException`); JS `catch`/`finally` blocks and promise handlers cannot intercept it.
-`ctx.interrupt()` stops a running evaluation from another thread.
+`ctx.interrupt()` stops a running evaluation, and an event loop waiting in the context, from another thread. With
+`limitsPerTask(true)` the time, instruction and allocation limits apply to each task of the event loop rather than
+to the whole `runEventLoop` call (see [Web globals](#web-globals)).
 
 `ShadowRealm`s created by a script get fresh built-ins only — no host globals, no `Java` object, no console, no
 host-defined modules — and run under the same limits as their creator.
@@ -278,11 +280,28 @@ ctx.eval("setTimeout(() => console.log('later'), 100)")
 ctx.runEventLoop()            // returns once no timer, promise job or host future is pending
 ```
 
-`runEventLoop` is one evaluation as far as `maxExecutionTime` is concerned, so give long-running loops (an endless
-`setInterval`) a generous limit or stop them with `interrupt()`. Timer callbacks must be functions (no string
-evaluation), and `SandboxPolicy.maxTimers` caps pending timers per context (10,000 by default). `TextDecoder`
-supports only UTF-8 (other labels are a `RangeError`). The CLI enables these globals and runs the event loop after
-each script.
+Each task (a timer callback, a host future's completion) runs with the microtasks it queues before the next task,
+as in browsers and Node. By default `runEventLoop` is one evaluation as far as the limits are concerned, so give
+long-running loops (an endless `setInterval`) a generous limit or stop them with `interrupt()`. For scripts serving
+events for a long time, `SandboxPolicy.limitsPerTask(true)` gives each task the whole time, instruction and
+allocation budget instead and counts nothing while the loop waits; the loop is then bounded by its timeout or
+`interrupt()`:
+
+```kotlin
+val engine = NeonEngine.builder().webGlobals(true)
+    .sandbox(SandboxPolicy.builder().maxExecutionTime(2_000).limitsPerTask(true).build())
+    .build()
+val ctx = engine.newContext()
+ctx.setUncaughtErrorHandler { error, rejection -> log.warn(if (rejection) "unhandled rejection" else "uncaught", error) }
+thread { ctx.runEventLoop() }   // other threads can evaluate code and call into ctx while the loop waits
+```
+
+The handler receives the exceptions tasks and microtasks throw (that job ends, the loop goes on) and, at the end of
+each microtask checkpoint, the promises still rejected without a handler. Without one, such an exception ends
+`runEventLoop` with the remaining jobs queued for the next call, and rejections go unreported. Tasks run on
+whichever thread runs jobs (any evaluation does). Timer callbacks must be functions (no string evaluation), and
+`SandboxPolicy.maxTimers` caps pending timers per context (10,000 by default). `TextDecoder` supports only UTF-8
+(other labels are a `RangeError`). The CLI enables these globals and runs the event loop after each script.
 
 ## Android
 
