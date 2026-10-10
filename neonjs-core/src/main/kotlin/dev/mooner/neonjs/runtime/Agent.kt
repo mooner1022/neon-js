@@ -159,10 +159,11 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
     // ------------------------------------------------------------------ external jobs
     //
     // Jobs originating outside this agent's thread, e.g. an Atomics.waitAsync waiter resolved by Atomics.notify on
-    // another agent or by its timeout timer. Other threads only ever *post* such a job; the owner thread moves it into
-    // [jobs] in [runJobs] / [awaitExternal] and runs it there (under the context lock), so no foreign thread runs guest
-    // code. While an [ExternalSource] is registered the agent still expects an external job, and a host event loop
-    // should keep waiting ([hasPendingExternal] / [awaitExternal]) instead of concluding that nothing is pending.
+    // another agent or by its timeout timer. Other threads only ever *post* such a job; the thread running [runJobs]
+    // takes it from the queue and runs it there (under the context lock), so no foreign thread runs guest code. Each
+    // external job is a task of the event loop: [runJobs] runs the microtasks it queues before the next task. While an
+    // [ExternalSource] is registered the agent still expects an external job, and a host event loop should keep
+    // waiting ([hasPendingExternal] / [awaitExternal]) instead of concluding that nothing is pending.
 
     /** A registered producer of a future external job (e.g. a pending Atomics.waitAsync waiter). */
     fun interface ExternalSource {
@@ -170,7 +171,12 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
         fun cancel()
     }
 
-    private val externalJobs = java.util.concurrent.LinkedBlockingQueue<Runnable>()
+    /** Guards [externalJobs]; [externalPosted] is signalled when a job is posted or the queue is closed. */
+    private val externalLock = java.util.concurrent.locks.ReentrantLock()
+    private val externalPosted = externalLock.newCondition()
+    private val externalJobs = ArrayDeque<Runnable>()
+    /** The size of [externalJobs], readable without the lock. */
+    @Volatile private var externalCount = 0
     private val externalSources: MutableSet<ExternalSource> = java.util.concurrent.ConcurrentHashMap.newKeySet()
     @Volatile private var externalClosed = false
 
@@ -195,45 +201,68 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
 
     /** Posts [job] to run on the owner thread at its next [runJobs]; dropped after [closeExternal]. Thread-safe. */
     fun postExternalJob(job: Runnable) {
-        if (!externalClosed) externalJobs.add(job)
+        externalLock.lock()
+        try {
+            if (externalClosed) return
+            externalJobs.addLast(job)
+            externalCount = externalJobs.size
+            externalPosted.signalAll()
+        } finally {
+            externalLock.unlock()
+        }
     }
 
     /** True while posted external jobs await the owner thread or registered sources may still post one. */
-    fun hasPendingExternal(): Boolean = !externalJobs.isEmpty() || externalSources.isNotEmpty()
+    fun hasPendingExternal(): Boolean = externalCount > 0 || externalSources.isNotEmpty()
 
-    /** Moves posted external jobs to the end of [jobs] (owner thread). */
-    private fun drainExternal(): Boolean {
-        var moved = false
-        while (true) {
-            val j = externalJobs.poll() ?: return moved
-            jobs.addLast(j)
-            moved = true
+    /** The next posted external job, or null (owner thread). */
+    private fun pollExternal(): Runnable? {
+        if (externalCount == 0) return null
+        externalLock.lock()
+        try {
+            val j = externalJobs.removeFirstOrNull()
+            externalCount = externalJobs.size
+            return j
+        } finally {
+            externalLock.unlock()
         }
     }
 
     /**
-     * Blocks the owner thread until an external job is posted (it is moved into [jobs]; returns true) or [timeoutMillis]
-     * elapse (false). Waits in slices of at most 50 ms and calls [checkInterrupt] between slices, so an interrupt or the
-     * execution deadline still terminates the wait; a Java interrupt of the thread ends it as an interrupted execution.
+     * Blocks the owner thread until an external job has been posted (true; [runJobs] runs it) or [timeoutMillis]
+     * elapse (false). Waits in slices of at most 50 ms and checks [checkWaitLimits] between slices, so an interrupt or
+     * the execution deadline still terminates the wait; a Java interrupt of the thread ends it as an interrupted
+     * execution.
      */
     fun awaitExternal(timeoutMillis: Long): Boolean {
         val end = System.nanoTime() + java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(maxOf(timeoutMillis, 0L))
         while (true) {
-            if (drainExternal()) return true
+            if (externalCount > 0) return true
             checkWaitLimits()
             val remaining = end - System.nanoTime()
             if (remaining <= 0) return false
-            val j = try {
-                externalJobs.poll(minOf(remaining, EXTERNAL_WAIT_SLICE_NANOS), java.util.concurrent.TimeUnit.NANOSECONDS)
-            } catch (_: InterruptedException) {
-                Thread.currentThread().interrupt()
-                throw InterruptedExecutionException("Execution interrupted")
+            if (waitForExternal(minOf(remaining, EXTERNAL_WAIT_SLICE_NANOS))) return true
+        }
+    }
+
+    /**
+     * Waits up to [nanos] for an external job to be posted; true if one is queued. Reads no other state of the agent,
+     * so it may be called without the context lock. A Java interrupt of the thread ends it as an interrupted execution.
+     */
+    fun waitForExternal(nanos: Long): Boolean {
+        externalLock.lock()
+        try {
+            var left = nanos
+            while (externalJobs.isEmpty()) {
+                if (left <= 0 || externalClosed) return false
+                left = externalPosted.awaitNanos(left)
             }
-            if (j != null) {
-                jobs.addLast(j)
-                drainExternal()
-                return true
-            }
+            return true
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw InterruptedExecutionException("Execution interrupted")
+        } finally {
+            externalLock.unlock()
         }
     }
 
@@ -242,7 +271,15 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
      * context is closed or its host is done with it, so pending waiters and their timers do not outlive it. Thread-safe.
      */
     fun closeExternal() {
-        externalClosed = true
+        externalLock.lock()
+        try {
+            externalClosed = true
+            externalJobs.clear()
+            externalCount = 0
+            externalPosted.signalAll()
+        } finally {
+            externalLock.unlock()
+        }
         for (s in externalSources.toList()) {
             externalSources.remove(s)
             try {
@@ -251,13 +288,33 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
                 // a failing withdrawal must not prevent closing the others
             }
         }
-        externalJobs.clear()
     }
 
-    /** Runs pending jobs (microtasks), including posted external jobs, until the queue is empty. */
+    /**
+     * Runs what is ready, as turns of an event loop: the pending jobs (microtasks), then each posted external job as a
+     * task followed by the microtasks it queued, until neither is left. A job that throws ends the call, leaving the
+     * rest queued.
+     */
     fun runJobs() {
+        try {
+            runMicrotasks()
+            while (true) {
+                val task = pollExternal() ?: return
+                if (--callBudget < 0) {
+                    callBudget = 1024
+                    checkInterrupt()
+                }
+                task.run()
+                runMicrotasks()
+            }
+        } finally {
+            keptAlive.clear()
+        }
+    }
+
+    /** Runs jobs until the queue is empty (a microtask checkpoint); WeakRef targets are kept alive until its end. */
+    private fun runMicrotasks() {
         while (true) {
-            if (!externalJobs.isEmpty()) drainExternal()
             val j = jobs.removeFirstOrNull() ?: break
             if (--callBudget < 0) {
                 callBudget = 1024

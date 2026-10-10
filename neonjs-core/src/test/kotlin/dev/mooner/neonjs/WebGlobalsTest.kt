@@ -28,6 +28,21 @@ class WebGlobalsTest {
     }
 
     @Test
+    fun eachTaskIsFollowedByItsMicrotasks() {
+        ctx().use { c ->
+            // both timers are due before the loop takes the first: the first one's microtasks still run before the second
+            c.eval("""
+                var log = [];
+                setTimeout(() => { log.push('t1'); Promise.resolve().then(() => log.push('m1')); queueMicrotask(() => log.push('q1')) }, 0);
+                setTimeout(() => log.push('t2'), 0);
+                var end = Date.now() + 50; while (Date.now() < end) {}
+            """)
+            assertTrue(c.runEventLoop(10_000))
+            assertEquals("t1,m1,q1,t2", c.eval("log.join()").asString())
+        }
+    }
+
+    @Test
     fun pendingTimersKeepTheLoopBusyAndAreReleasedOnClose() {
         val before = WebGlobals.scheduledTaskCount
         val c = ctx()

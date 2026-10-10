@@ -20,6 +20,9 @@ class Exec(val root: File, val timeoutMillis: Long, val mode: Int = 0) {
     private val harnessDir = File(root, "harness")
     private val harnessSrc = ConcurrentHashMap<String, String>()
     private val clockOrigin = System.nanoTime()
+    /** Runs the host setTimeout's timers; they only post tasks, the callbacks run on the agent's thread. */
+    private val timers = java.util.concurrent.ScheduledThreadPoolExecutor(1) { r -> Thread(r, "t262-timers").also { it.isDaemon = true } }
+        .also { it.removeOnCancelPolicy = true }
 
     private fun harness(name: String): String = harnessSrc.getOrPut(name) { File(harnessDir, name).readText() }
 
@@ -203,6 +206,34 @@ class Exec(val root: File, val timeoutMillis: Long, val mode: Int = 0) {
         }), Attr.WC)
     }
 
+    /**
+     * A host setTimeout, which atomicsHelper.js uses when there is one: its callback runs as a task of the agent.
+     * Without it the harness falls back to a loop of promise jobs, which (as in an HTML event loop) keeps the agent's
+     * tasks, such as Atomics.waitAsync timeouts, from running until the loop ends.
+     */
+    private fun setTimeout(realm: Realm): NativeFunction = NativeFunction(realm, "setTimeout", 2, { _, _, args, _ ->
+        val cb = args.arg(0)
+        if (!Ops.isCallable(cb)) throw JSException.typeError("setTimeout requires a function")
+        val d = if (args.size > 1) Ops.toNumber(args[1]) else 0.0
+        val ms = if (d.isNaN() || d < 0) 0L else minOf(d, timeoutMillis.toDouble()).toLong()
+        val agent = realm.agent
+        val timer = object : Agent.ExternalSource {
+            @Volatile var future: java.util.concurrent.ScheduledFuture<*>? = null
+            override fun cancel() {
+                future?.cancel(false)
+            }
+        }
+        if (agent.addExternalSource(timer)) {
+            timer.future = timers.schedule({
+                agent.postExternalJob {
+                    agent.removeExternalSource(timer)
+                    Ops.call(cb, Undefined, EMPTY_ARGS)
+                }
+            }, ms, TimeUnit.MILLISECONDS)
+        }
+        Undefined
+    })
+
     private fun newRealm(agent: Agent, host: Host): Realm {
         val realm = Realm(agent)
         Builtins.install(realm)
@@ -224,6 +255,7 @@ class Exec(val root: File, val timeoutMillis: Long, val mode: Int = 0) {
                 Undefined
             })
             g.defineOwn("print", print, Attr.WC)
+            g.defineOwn("setTimeout", setTimeout(realm), Attr.WC)
             val d = JSObject(realm.objectPrototype)
             d.defineOwn("global", g, Attr.WC)
             d.defineOwn("createRealm", NativeFunction(realm, "createRealm", 0, { _, _, _, _ ->
