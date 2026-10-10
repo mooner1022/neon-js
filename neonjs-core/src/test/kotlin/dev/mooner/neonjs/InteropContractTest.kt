@@ -401,6 +401,12 @@ class InteropContractTest {
             c["self"] = self
             assertEquals("true,1", c.eval("[self.get(0) === self, self.size()].join()").asString())
         }
+        // a class is one object, however JS gets it
+        ctx(lookupAll, javaGlobal = true).use { c ->
+            c["cls"] = StringBuilder::class.java
+            c.exposeClass("SB", StringBuilder::class.java)
+            assertEquals("true,true,true", c.eval("[cls === SB, Java.type('java.lang.StringBuilder') === SB, Java.type('java.util.Map').Entry === Java.type('java.util.Map${'$'}Entry')].join()").asString())
+        }
     }
 
     @Test

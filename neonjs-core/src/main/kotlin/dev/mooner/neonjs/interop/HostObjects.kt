@@ -327,7 +327,7 @@ class HostClassObject(@JvmField val bridge: HostBridge, @JvmField val cls: Class
         info.staticMethods[key]?.let { list -> return methodCache.getOrPut(key) { HostMethodFunction(bridge, key, list, null) } }
         info.overload(key, static = true)?.let { m -> return methodCache.getOrPut(key) { HostMethodFunction(bridge, key.substringBefore('('), listOf(m), null) } }
         info.staticGetters[key]?.let { g -> return bridge.invoke(g, null, EMPTY_ARGS) }
-        info.memberClasses[key]?.let { return HostClassObject(bridge, it) }
+        info.memberClasses[key]?.let { return bridge.classObject(it) }
         if (cls.isEnum) {
             val c = cls.enumConstants.firstOrNull { (it as Enum<*>).name == key }
             if (c != null) return bridge.toJS(c)

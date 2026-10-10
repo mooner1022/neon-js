@@ -34,6 +34,11 @@ interface ContextGate {
 class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate) {
     private val wrappers = WrapperCache()
 
+    private val classObjects = HashMap<Class<*>, HostClassObject>()
+
+    /** The JS object of host class [c]: one per class in a context, as a JS constructor is one object. */
+    fun classObject(c: Class<*>): HostClassObject = classObjects.getOrPut(c) { HostClassObject(this, c) }
+
     /** Views of the `Java.extend` adapter classes of this context: kept here, so they go with the context. */
     private val adapterInfos = HashMap<Class<*>, HostClassInfo>()
 
@@ -118,7 +123,7 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         is Null -> Null
         is JSSymbol -> v
         is Unit -> Undefined
-        is Class<*> -> if (access.isClassAccessible(v)) HostClassObject(this, v) else opaque(v)
+        is Class<*> -> if (access.isClassAccessible(v)) classObject(v) else opaque(v)
         is CompletionStage<*> -> promiseOf(v)
         else -> {
             val un = gate.unwrapValue(v)
