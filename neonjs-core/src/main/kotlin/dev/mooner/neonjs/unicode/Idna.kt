@@ -167,7 +167,10 @@ internal object Idna {
     }
 }
 
-/** Punycode (RFC 3492): the Bootstring parameters of IDNA. */
+/**
+ * Punycode (RFC 3492): the Bootstring parameters of IDNA. Both directions take time quadratic in the length of a label
+ * and nothing bounds that length, so they check for the agent's interrupts and limits as they go.
+ */
 internal object Punycode {
     private const val BASE = 36
     private const val TMIN = 1
@@ -196,6 +199,10 @@ internal object Punycode {
     }
 
     private fun digitChar(d: Int): Char = if (d < 26) 'a' + d else '0' + (d - 26)
+
+    private fun tick(i: Int) {
+        if (i and 0x3FF == 0x3FF) dev.mooner.neonjs.runtime.Agent.current.get()?.checkInterrupt()
+    }
 
     /** The code points [input] encodes, or null when it is not valid Punycode. */
     fun decode(input: String): String? {
@@ -229,6 +236,7 @@ internal object Punycode {
             i %= (out.size + 1)
             out.add(i.toInt(), n)
             i++
+            tick(out.size)
         }
         val sb = StringBuilder(out.size)
         for (cp in out) {
@@ -254,7 +262,8 @@ internal object Punycode {
             delta += (m - n).toLong() * (h + 1)
             if (delta > Int.MAX_VALUE) return null
             n = m
-            for (c in cps) {
+            for ((idx, c) in cps.withIndex()) {
+                tick(idx)
                 if (c < n) delta++
                 if (delta > Int.MAX_VALUE) return null
                 if (c == n) {

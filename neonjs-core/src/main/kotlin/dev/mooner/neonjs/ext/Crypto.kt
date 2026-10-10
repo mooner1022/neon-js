@@ -34,8 +34,10 @@ internal object Crypto {
             crypto(t, "getRandomValues")
             Idl.required(a, 1, "Crypto.getRandomValues")
             val array = a[0]
-            if (array is JSDataView) throw WebGlobals.domException(f.realm, "getRandomValues takes an integer typed array", "TypeMismatchError")
-            if (array !is JSTypedArray) typeErr("Crypto.getRandomValues: the argument is not an ArrayBufferView")
+            // the argument is converted first: an ArrayBufferView, not of a SharedArrayBuffer (no [AllowShared])
+            val buffer = (array as? JSTypedArray)?.buffer ?: (array as? JSDataView)?.buffer ?: typeErr("Crypto.getRandomValues: the argument is not an ArrayBufferView")
+            if (buffer.isShared) typeErr("Crypto.getRandomValues: the array is a view of a SharedArrayBuffer")
+            if (array !is JSTypedArray) throw WebGlobals.domException(f.realm, "getRandomValues takes an integer typed array", "TypeMismatchError")
             if (array.type !in INTEGER_TYPES) throw WebGlobals.domException(f.realm, "getRandomValues takes an integer typed array", "TypeMismatchError")
             val n = maxOf(array.lengthOrOOB(), 0) * array.type.size
             if (n > 65536) throw JSException(WebGlobals.newQuotaExceededError(f.realm, "getRandomValues takes at most 65536 bytes"))

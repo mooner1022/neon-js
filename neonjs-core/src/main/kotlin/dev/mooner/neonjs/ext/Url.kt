@@ -403,6 +403,12 @@ internal object Url {
         val cps = input.codePoints().toArray()
         var state = override ?: State.SCHEME_START
         val buffer = StringBuilder()
+        // the opaque path and the fragment grow by a code point at a time: built here, stored when the parse ends
+        // (no state reads them meanwhile)
+        val opaque = StringBuilder()
+        val fragment = StringBuilder()
+        val agent = Agent.current.get()
+        var steps = 0
         var atSignSeen = false
         var insideBrackets = false
         var passwordTokenSeen = false
@@ -547,6 +553,8 @@ internal object Url {
                         if (atSignSeen) buffer.insert(0, "%40")
                         atSignSeen = true
                         val b = buffer.toString()
+                        val username = StringBuilder(url.username)
+                        val password = StringBuilder(url.password)
                         var k = 0
                         while (k < b.length) {
                             val cp = b.codePointAt(k)
@@ -555,10 +563,10 @@ internal object Url {
                                 passwordTokenSeen = true
                                 continue
                             }
-                            val sb = StringBuilder()
-                            percentEncode(sb, cp, ::userinfoSet)
-                            if (passwordTokenSeen) url.password += sb else url.username += sb
+                            percentEncode(if (passwordTokenSeen) password else username, cp, ::userinfoSet)
                         }
+                        url.username = username.toString()
+                        url.password = password.toString()
                         buffer.setLength(0)
                     } else if (c == EOF || c == '/'.code || c == '?'.code || c == '#'.code || (url.isSpecial && c == '\\'.code)) {
                         if (atSignSeen && buffer.isEmpty()) return false
@@ -720,12 +728,8 @@ internal object Url {
                     } else if (c == ' '.code) {
                         // a space before a query or fragment is encoded, so that it survives their removal
                         val next = if (pointer + 1 < cps.size) cps[pointer + 1] else EOF
-                        url.opaquePath += if (next == '?'.code || next == '#'.code) "%20" else " "
-                    } else if (c != EOF) {
-                        val sb = StringBuilder()
-                        percentEncode(sb, c, ::c0Control)
-                        url.opaquePath += sb
-                    }
+                        opaque.append(if (next == '?'.code || next == '#'.code) "%20" else " ")
+                    } else if (c != EOF) percentEncode(opaque, c, ::c0Control)
                 }
                 State.QUERY -> {
                     if ((override == null && c == '#'.code) || c == EOF) {
@@ -738,18 +742,15 @@ internal object Url {
                         }
                     } else if (c != EOF) buffer.appendCodePoint(c)
                 }
-                State.FRAGMENT -> {
-                    if (c != EOF) {
-                        val sb = StringBuilder()
-                        percentEncode(sb, c, ::fragmentSet)
-                        url.fragment = (url.fragment ?: "") + sb
-                    }
-                }
+                State.FRAGMENT -> if (c != EOF) percentEncode(fragment, c, ::fragmentSet)
             }
             // the end is where the pointer is after the state ran (a state may move it back from the end)
             if (pointer >= cps.size) break
             pointer++
+            if (++steps and 0xFFF == 0) agent?.checkInterrupt()
         }
+        if (opaque.isNotEmpty()) url.opaquePath = (url.opaquePath ?: "") + opaque
+        if (fragment.isNotEmpty()) url.fragment = (url.fragment ?: "") + fragment
         return true
     }
 
@@ -990,11 +991,8 @@ internal object Url {
             val first = x.list.indexOfFirst { it.first == name }
             if (first < 0) x.list.add(name to value) else {
                 x.list[first] = name to value
-                var k = x.list.size - 1
-                while (k > first) {
-                    if (x.list[k].first == name) x.list.removeAt(k)
-                    k--
-                }
+                var k = -1
+                x.list.removeIf { k++; k > first && it.first == name }
             }
             x.update()
             Undefined

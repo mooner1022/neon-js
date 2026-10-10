@@ -40,21 +40,17 @@ internal object Headers {
                 return
             }
             list[first] = list[first].first to value
-            var k = list.size - 1
-            while (k > first) {
-                if (list[k].first.equals(name, ignoreCase = true)) list.removeAt(k)
-                k--
-            }
+            var k = -1
+            list.removeIf { k++; k > first && it.first.equals(name, ignoreCase = true) }
         }
 
         /** "sort and combine": lower-case names in order, values combined except Set-Cookie's. */
         fun sortedAndCombined(): List<Pair<Any?, Any?>> {
-            val out = ArrayList<Pair<Any?, Any?>>()
-            val names = list.map { it.first.lowercase(java.util.Locale.ROOT) }.distinct().sorted()
-            for (n in names) {
-                if (n == "set-cookie") {
-                    for (h in list) if (h.first.equals(n, ignoreCase = true)) out.add(n to h.second)
-                } else out.add(n to get(n))
+            val values = java.util.TreeMap<String, ArrayList<String>>()
+            for ((n, v) in list) values.getOrPut(n.lowercase(java.util.Locale.ROOT)) { ArrayList(1) }.add(v)
+            val out = ArrayList<Pair<Any?, Any?>>(values.size)
+            for ((n, vs) in values) {
+                if (n == "set-cookie") for (v in vs) out.add(n to v) else out.add(n to vs.joinToString(", "))
             }
             return out
         }

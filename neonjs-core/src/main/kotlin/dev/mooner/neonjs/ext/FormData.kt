@@ -80,11 +80,8 @@ internal object FormData {
             val first = x.entries.indexOfFirst { it.first == entry.first }
             if (first < 0) x.entries.add(entry) else {
                 x.entries[first] = entry
-                var k = x.entries.size - 1
-                while (k > first) {
-                    if (x.entries[k].first == entry.first) x.entries.removeAt(k)
-                    k--
-                }
+                var k = -1
+                x.entries.removeIf { k++; k > first && it.first == entry.first }
             }
             Undefined
         }

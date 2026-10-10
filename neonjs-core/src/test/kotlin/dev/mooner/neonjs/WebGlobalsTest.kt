@@ -257,6 +257,29 @@ class WebGlobalsTest {
     }
 
     @Test
+    fun urlParsingIsLinearAndInterruptible() {
+        ctx().use { c ->
+            // a long fragment, opaque path and username are built in linear time
+            val start = System.nanoTime()
+            assertEquals(3_000_001, c.eval("""
+                new URL('a:#' + 'x'.repeat(1e6)).hash.length + new URL('a:' + 'y'.repeat(1e6)).pathname.length +
+                    new URL('http://' + 'u'.repeat(1e6) + '@h/').username.length
+            """).asInt())
+            val ms = (System.nanoTime() - start) / 1_000_000
+            assertTrue(ms < 5_000, "$ms ms")
+        }
+        // encoding a label in Punycode takes time in its length times its distinct code points, and nothing bounds
+        // that length: the time limit stops it
+        ctx(SandboxPolicy.builder().maxExecutionTime(300).build()).use { c ->
+            c.eval("var label = Array.from({ length: 200000 }, (_, i) => String.fromCharCode(0x4E00 + i % 20000)).join('')")
+            val start = System.nanoTime()
+            assertThrows<NeonTimeoutException> { c.eval("new URL('http://' + label + '/')") }
+            val ms = (System.nanoTime() - start) / 1_000_000
+            assertTrue(ms < 3_000, "stopped after $ms ms")
+        }
+    }
+
+    @Test
     fun listenerExceptionsAreReportedAndTheDispatchGoesOn() {
         ctx().use { c ->
             val seen = ArrayList<String>()
