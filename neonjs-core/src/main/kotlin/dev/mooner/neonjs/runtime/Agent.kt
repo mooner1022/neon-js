@@ -88,6 +88,31 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
     /** Host hook invoked for unhandled promise rejections. */
     @JvmField var rejectionTracker: ((JSObject, Boolean) -> Unit)? = null
 
+    /** Receives what jobs leave uncaught. */
+    interface UncaughtSink {
+        /** An exception a job threw: a [JSException] or a [dev.mooner.neonjs.vm.HostException]. */
+        fun exception(e: RuntimeException)
+
+        /** A promise still rejected without a handler at the end of a microtask checkpoint. */
+        fun rejection(p: dev.mooner.neonjs.vm.JSPromise)
+    }
+
+    /**
+     * Where exceptions thrown by jobs go (the job ends, the others run) and promises rejected without a handler are
+     * reported. Null: an exception ends [runJobs], leaving the rest queued, and rejections are not tracked.
+     */
+    @JvmField var uncaught: UncaughtSink? = null
+
+    /** Promises rejected without a handler during the current microtask checkpoint (with [uncaught] only). */
+    private val unhandledRejections = LinkedHashSet<dev.mooner.neonjs.vm.JSPromise>()
+
+    /** HostPromiseRejectionTracker: [handled] false when [p] is rejected with no handler, true when one is added later. */
+    fun trackRejection(p: dev.mooner.neonjs.vm.JSPromise, handled: Boolean) {
+        rejectionTracker?.invoke(p, handled)
+        if (uncaught == null) return
+        if (handled) unhandledRejections.remove(p) else unhandledRejections.add(p)
+    }
+
     /** Deterministic random source (sandbox), or null for ThreadLocalRandom. */
     @JvmField var randomSource: java.util.Random? = null
     /** Clock override for Date.now (sandbox), or null for the system clock. */
@@ -343,7 +368,7 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
                     callBudget = 1024
                     checkInterrupt()
                 }
-                task.run()
+                runJob(task)
                 runMicrotasks()
             }
         } finally {
@@ -351,7 +376,10 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
         }
     }
 
-    /** Runs jobs until the queue is empty (a microtask checkpoint); WeakRef targets are kept alive until its end. */
+    /**
+     * Runs jobs until the queue is empty (a microtask checkpoint); WeakRef targets are kept alive until its end, and
+     * then the promises it left rejected without a handler are reported.
+     */
     private fun runMicrotasks() {
         while (true) {
             val j = jobs.removeFirstOrNull() ?: break
@@ -359,9 +387,32 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
                 callBudget = 1024
                 checkInterrupt()
             }
-            j.run()
+            runJob(j)
         }
         keptAlive.clear()
+        if (unhandledRejections.isNotEmpty()) reportRejections()
+    }
+
+    private fun runJob(j: Runnable) {
+        val sink = uncaught
+        if (sink == null) {
+            j.run()
+            return
+        }
+        try {
+            j.run()
+        } catch (e: JSException) {
+            sink.exception(e)
+        } catch (e: dev.mooner.neonjs.vm.HostException) {
+            sink.exception(e)
+        }
+    }
+
+    private fun reportRejections() {
+        val rejected = unhandledRejections.toList()
+        unhandledRejections.clear()
+        val sink = uncaught ?: return
+        for (p in rejected) if (!p.isHandled) sink.rejection(p)
     }
 
     /** Captures a JS stack trace string from the active interpreter frames. */

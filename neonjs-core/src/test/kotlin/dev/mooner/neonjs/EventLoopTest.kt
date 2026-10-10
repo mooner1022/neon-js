@@ -108,6 +108,38 @@ class EventLoopTest {
     }
 
     @Test
+    fun uncaughtErrorsGoToTheHandler() {
+        ctx().use { c ->
+            val seen = ArrayList<String>()
+            c.setUncaughtErrorHandler { e, rejection -> seen.add((if (rejection) "rejection " else "exception ") + e.message) }
+            c.setFunction("hostFails") { throw IllegalStateException("from the host") }
+            c.eval("""
+                var after = [];
+                setTimeout(() => { throw new Error('in a timer') }, 1);
+                setTimeout(hostFails, 2);
+                setTimeout(() => after.push('next timer'), 20);
+                queueMicrotask(() => { throw new TypeError('in a microtask') });
+                queueMicrotask(() => after.push('next microtask'));
+                Promise.reject(new Error('never handled'));
+                Promise.reject(new Error('handled in the same turn')).catch(() => after.push('caught'));
+                (async () => { throw new RangeError('in an async function') })();
+            """)
+            assertTrue(c.runEventLoop(5_000))
+            assertEquals(listOf(
+                "exception TypeError: in a microtask", "rejection Error: never handled", "rejection RangeError: in an async function",
+                "exception Error: in a timer", "exception Host exception: java.lang.IllegalStateException: from the host",
+            ), seen)
+            assertEquals("next microtask,caught,next timer", c.eval("after.join()").asString())
+            // the reason is the guest value
+            seen.clear()
+            var reason: NeonValue? = null
+            c.setUncaughtErrorHandler { e, _ -> reason = e.guestValue }
+            c.eval("Promise.reject({ code: 7 })")
+            assertEquals(7, reason!!.getMember("code").asInt())
+        }
+    }
+
+    @Test
     fun loopsMayEndInAnyOrder() {
         ctx().use { c ->
             // the first loop to enter ends first, while the second waits; the second then runs the remaining task

@@ -124,7 +124,7 @@ object Promises {
         p.fulfillReactions = null
         p.rejectReactions = null
         p.state = JSPromise.REJECTED
-        if (!p.isHandled) realm.agent.rejectionTracker?.invoke(p, false)
+        if (!p.isHandled) realm.agent.trackRejection(p, false)
         if (reactions != null) for (r in reactions) enqueueReaction(realm, r, reason)
     }
 
@@ -217,7 +217,7 @@ object Promises {
             }
             JSPromise.FULFILLED -> enqueueReaction(realm, fr, p.result)
             else -> {
-                if (!p.isHandled) realm.agent.rejectionTracker?.invoke(p, true)
+                if (!p.isHandled) realm.agent.trackRejection(p, true)
                 enqueueReaction(realm, rr, p.result)
             }
         }

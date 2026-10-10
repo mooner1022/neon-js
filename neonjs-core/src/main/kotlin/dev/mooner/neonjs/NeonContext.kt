@@ -18,6 +18,15 @@ fun interface HostFunction {
     fun call(args: Array<NeonValue>): Any?
 }
 
+/** Receives the errors JS leaves uncaught while jobs run (see [NeonContext.setUncaughtErrorHandler]). */
+fun interface UncaughtErrorHandler {
+    /**
+     * [error] carries the thrown value or the rejection reason as its [NeonException.guestValue]; [rejection] tells
+     * which. Called on the thread running the jobs, inside the context.
+     */
+    fun uncaught(error: NeonException, rejection: Boolean)
+}
+
 /**
  * An isolated JS execution context: one realm (global object + intrinsics), one job queue and its own sandbox
  * limits. Contexts are single-threaded: concurrent use from several threads is serialized by an internal lock.
@@ -296,6 +305,28 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
 
     /** Runs pending Promise jobs (microtasks). */
     fun runJobs() = guarded { agent.runJobs() }
+
+    /**
+     * Sets what receives the errors JS leaves uncaught while jobs run, so an event loop can report them and go on: an
+     * exception thrown by a task or a microtask (a timer or `queueMicrotask` callback; that job ends, the others still
+     * run) and, at the end of each microtask checkpoint, the promises still rejected without a handler. Without one
+     * (the default) such an exception ends the call running the jobs ([eval], [runEventLoop]...) with the rest left
+     * queued, and rejections go unreported.
+     */
+    fun setUncaughtErrorHandler(handler: UncaughtErrorHandler?) = guarded {
+        agent.uncaught = handler?.let { h ->
+            object : Agent.UncaughtSink {
+                override fun exception(e: RuntimeException) {
+                    val cause = (e as? HostException)?.hostCause ?: e
+                    h.uncaught(if (e is JSException) toHostException(e) else NeonException("Host exception: $cause", cause), false)
+                }
+
+                override fun rejection(p: dev.mooner.neonjs.vm.JSPromise) {
+                    h.uncaught(toHostException(JSException(p.result)), true)
+                }
+            }
+        }
+    }
 
     /**
      * Runs pending jobs and waits for external events — completions of host futures handed to JS (they appear as
