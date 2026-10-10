@@ -23,17 +23,17 @@ import java.util.concurrent.TimeUnit
  */
 object WebGlobals {
     fun install(realm: Realm, maxTimers: Int) {
-        realm.global("queueMicrotask", NativeFunction(realm, "queueMicrotask", 1, { _, _, a, _ ->
+        WebInterface.globalOperation(realm, "queueMicrotask", 1) { _, _, a, _ ->
             val cb = a.arg(0)
             if (!Ops.isCallable(cb)) typeErr("queueMicrotask requires a function")
             realm.agent.enqueueJob { Ops.call(cb, Undefined, EMPTY_ARGS) }
             Undefined
-        }))
+        }
         installDOMException(realm)
-        realm.global("structuredClone", NativeFunction(realm, "structuredClone", 1, { f, _, a, _ ->
+        WebInterface.globalOperation(realm, "structuredClone", 1) { f, _, a, _ ->
             if (a.isEmpty()) typeErr("structuredClone requires 1 argument")
             StructuredClone(f.realm).run(a[0], StructuredClone.transferList(f.realm, a.arg(1)))
-        }))
+        }
         installTimers(realm, maxTimers)
         installBase64(realm)
         installTextEncoder(realm)
@@ -75,27 +75,17 @@ object WebGlobals {
     internal fun domException(realm: Realm, message: String, name: String): JSException = JSException(newDOMException(realm, message, name))
 
     private fun installDOMException(realm: Realm) {
-        val proto = JSObject(realm.errorPrototype)
-        realm.intrinsics["%DOMException.prototype%"] = proto
-        val ctor = makeCtor(realm, "DOMException", 0, proto) { f, _, a, nt ->
-            if (nt == null) typeErr("Constructor DOMException requires 'new'")
-            val message = if (a.arg(0) === Undefined) "" else Ops.toString(a.arg(0))
-            val name = if (a.arg(1) === Undefined) "Error" else Ops.toString(a.arg(1))
-            val e = JSDOMException(Ops.getPrototypeFromConstructor(nt) { it.intrinsic("%DOMException.prototype%") }, name, message)
-            if (f.realm.agent.topFrame != null) e.stackTrace = f.realm.agent.captureStack()
+        val i = WebInterface.define(realm, "DOMException", 0, protoParent = realm.errorPrototype) { a, proto ->
+            val message = if (a.arg(0) === Undefined) "" else Idl.domString(a.arg(0))
+            val name = if (a.arg(1) === Undefined) "Error" else Idl.domString(a.arg(1))
+            val e = JSDOMException(proto, name, message)
+            if (realm.agent.topFrame != null) e.stackTrace = realm.agent.captureStack()
             e
         }
-        realm.global("DOMException", ctor)
-        fun check(t: Any?, m: String) = t as? JSDOMException ?: typeErr("DOMException.prototype.$m called on incompatible receiver ${Ops.describe(t)}")
-        proto.getter(realm, "name") { _, t, _, _ -> check(t, "name").excName }
-        proto.getter(realm, "message") { _, t, _, _ -> check(t, "message").excMessage }
-        proto.getter(realm, "code") { _, t, _, _ -> (LEGACY_CODES[check(t, "code").excName]?.second ?: 0).toDouble() }
-        val constants = (LEGACY_CODES.values.toList() + EXTRA_CONSTANTS).sortedBy { it.second }
-        for ((n, c) in constants) {
-            ctor.defineOwn(n, c.toDouble(), Attr.ENUMERABLE)
-            proto.defineOwn(n, c.toDouble(), Attr.ENUMERABLE)
-        }
-        proto.defineOwn(JSSymbol.toStringTag, "DOMException", Attr.CONFIGURABLE)
+        i.attribute("name", { _, t, _, _ -> Idl.self<JSDOMException>(t, "DOMException", "name").excName })
+        i.attribute("message", { _, t, _, _ -> Idl.self<JSDOMException>(t, "DOMException", "message").excMessage })
+        i.attribute("code", { _, t, _, _ -> (LEGACY_CODES[Idl.self<JSDOMException>(t, "DOMException", "code").excName]?.second ?: 0).toDouble() })
+        for ((n, c) in (LEGACY_CODES.values.toList() + EXTRA_CONSTANTS).sortedBy { it.second }) i.constant(n, c.toDouble())
     }
 
     // ------------------------------------------------------------------ timers
@@ -197,10 +187,8 @@ object WebGlobals {
             timers.clear(a.arg(0))
             Undefined
         })
-        realm.global("setTimeout", starter("setTimeout", false))
-        realm.global("setInterval", starter("setInterval", true))
-        realm.global("clearTimeout", clearer("clearTimeout"))
-        realm.global("clearInterval", clearer("clearInterval"))
+        for (f in listOf(starter("setTimeout", false), starter("setInterval", true), clearer("clearTimeout"), clearer("clearInterval")))
+            realm.global(f.debugName(), f, Attr.ALL)
     }
 
     // ------------------------------------------------------------------ atob / btoa
@@ -208,9 +196,9 @@ object WebGlobals {
     private const val B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
     private fun installBase64(realm: Realm) {
-        realm.global("btoa", NativeFunction(realm, "btoa", 1, { f, _, a, _ ->
-            if (a.isEmpty()) typeErr("btoa requires 1 argument")
-            val s = Ops.toString(a[0])
+        WebInterface.globalOperation(realm, "btoa", 1) { f, _, a, _ ->
+            Idl.required(a, 1, "btoa")
+            val s = Idl.domString(a[0])
             val bytes = ByteArray(s.length)
             for (i in s.indices) {
                 val c = s[i]
@@ -219,12 +207,12 @@ object WebGlobals {
             }
             f.realm.agent.checkStringLength((s.length + 2L) / 3 * 4)
             java.util.Base64.getEncoder().encodeToString(bytes)
-        }))
-        realm.global("atob", NativeFunction(realm, "atob", 1, { f, _, a, _ ->
-            if (a.isEmpty()) typeErr("atob requires 1 argument")
-            forgivingBase64Decode(Ops.toString(a[0]))
+        }
+        WebInterface.globalOperation(realm, "atob", 1) { f, _, a, _ ->
+            Idl.required(a, 1, "atob")
+            forgivingBase64Decode(Idl.domString(a[0]))
                 ?: throw domException(f.realm, "The string to be decoded is not correctly encoded.", "InvalidCharacterError")
-        }))
+        }
     }
 
     /** The forgiving-base64 decode of the Infra standard, to a binary string; null on failure. */
@@ -297,26 +285,20 @@ object WebGlobals {
     }
 
     private fun installTextEncoder(realm: Realm) {
-        val proto = JSObject(realm.objectPrototype)
-        realm.intrinsics["%TextEncoder.prototype%"] = proto
-        val ctor = makeCtor(realm, "TextEncoder", 0, proto) { _, _, _, nt ->
-            if (nt == null) typeErr("Constructor TextEncoder requires 'new'")
-            JSTextEncoder(Ops.getPrototypeFromConstructor(nt) { it.intrinsic("%TextEncoder.prototype%") })
-        }
-        realm.global("TextEncoder", ctor)
-        fun check(t: Any?, m: String) = t as? JSTextEncoder ?: typeErr("TextEncoder.prototype.$m called on incompatible receiver ${Ops.describe(t)}")
-        proto.getter(realm, "encoding") { _, t, _, _ -> check(t, "encoding"); "utf-8" }
-        proto.method(realm, "encode", 0) { f, t, a, _ ->
+        val i = WebInterface.define(realm, "TextEncoder", 0) { _, proto -> JSTextEncoder(proto) }
+        fun check(t: Any?, m: String) = Idl.self<JSTextEncoder>(t, "TextEncoder", m)
+        i.operation("encode", 0) { f, t, a, _ ->
             check(t, "encode")
             val input = a.arg(0)
-            val bytes = utf8(if (input === Undefined) "" else Ops.toString(input))
+            val bytes = utf8(if (input === Undefined) "" else Idl.usvString(input))
             val ta = TypedArrayBuiltins.allocate(f.realm, ElementType.UINT8, TypedArrayBuiltins.protoOf(f.realm, ElementType.UINT8), bytes.size.toLong())
             System.arraycopy(bytes, 0, ta.buffer.data, 0, bytes.size)
             ta
         }
-        proto.method(realm, "encodeInto", 2) { f, t, a, _ ->
+        i.operation("encodeInto", 2) { f, t, a, _ ->
             check(t, "encodeInto")
-            val s = Ops.toString(a.arg(0))
+            Idl.required(a, 2, "TextEncoder.encodeInto")
+            val s = Idl.usvString(a[0])
             val dest = a.arg(1) as? JSTypedArray
             if (dest == null || dest.type != ElementType.UINT8) typeErr("TextEncoder.prototype.encodeInto requires a Uint8Array destination")
             val cap = maxOf(dest.lengthOrOOB(), 0)
@@ -338,7 +320,7 @@ object WebGlobals {
             r.createDataProperty("written", written.toDouble())
             r
         }
-        proto.defineOwn(JSSymbol.toStringTag, "TextEncoder", Attr.CONFIGURABLE)
+        i.attribute("encoding", { _, t, _, _ -> check(t, "encoding"); "utf-8" })
     }
 
     // ------------------------------------------------------------------ TextDecoder
@@ -361,52 +343,24 @@ object WebGlobals {
     private val UTF8_LABELS = setOf("unicode-1-1-utf-8", "unicode11utf8", "unicode20utf8", "utf-8", "utf8", "x-unicode20utf8")
 
     private fun installTextDecoder(realm: Realm) {
-        val proto = JSObject(realm.objectPrototype)
-        realm.intrinsics["%TextDecoder.prototype%"] = proto
-        val ctor = makeCtor(realm, "TextDecoder", 0, proto) { _, _, a, nt ->
-            if (nt == null) typeErr("Constructor TextDecoder requires 'new'")
-            val label = if (a.arg(0) === Undefined) "utf-8" else Ops.toString(a.arg(0)).trim { it == ' ' || it == '\t' || it == '\n' || it == '\u000C' || it == '\r' }.lowercase()
+        val i = WebInterface.define(realm, "TextDecoder", 0) { a, proto ->
+            val label = if (a.arg(0) === Undefined) "utf-8" else Idl.domString(a.arg(0)).trim { it == ' ' || it == '\t' || it == '\n' || it == '\u000C' || it == '\r' }.lowercase()
+            val o = Idl.dictionary(a.arg(1), "TextDecoder options")
+            val fatal = Ops.toBoolean(Idl.member(o, "fatal"))
+            val ignoreBOM = Ops.toBoolean(Idl.member(o, "ignoreBOM"))
             if (label !in UTF8_LABELS) rangeErr("TextDecoder: unsupported encoding '$label' (only UTF-8 is available)")
-            val o = when (val opts = a.arg(1)) {
-                Undefined, Null -> null
-                is JSObject -> opts
-                else -> typeErr("TextDecoder options must be an object")
-            }
-            val fatal = o != null && Ops.toBoolean(o.get("fatal", o))
-            val ignoreBOM = o != null && Ops.toBoolean(o.get("ignoreBOM", o))
-            JSTextDecoder(Ops.getPrototypeFromConstructor(nt) { it.intrinsic("%TextDecoder.prototype%") }, fatal, ignoreBOM)
+            JSTextDecoder(proto, fatal, ignoreBOM)
         }
-        realm.global("TextDecoder", ctor)
-        fun check(t: Any?, m: String) = t as? JSTextDecoder ?: typeErr("TextDecoder.prototype.$m called on incompatible receiver ${Ops.describe(t)}")
-        proto.getter(realm, "encoding") { _, t, _, _ -> check(t, "encoding"); "utf-8" }
-        proto.getter(realm, "fatal") { _, t, _, _ -> check(t, "fatal").fatal }
-        proto.getter(realm, "ignoreBOM") { _, t, _, _ -> check(t, "ignoreBOM").ignoreBOM }
-        proto.method(realm, "decode", 0) { f, t, a, _ ->
+        fun check(t: Any?, m: String) = Idl.self<JSTextDecoder>(t, "TextDecoder", m)
+        i.attribute("encoding", { _, t, _, _ -> check(t, "encoding"); "utf-8" })
+        i.attribute("fatal", { _, t, _, _ -> check(t, "fatal").fatal })
+        i.attribute("ignoreBOM", { _, t, _, _ -> check(t, "ignoreBOM").ignoreBOM })
+        i.operation("decode", 0) { f, t, a, _ ->
             val d = check(t, "decode")
-            val bytes = bytesOf(a.arg(0))
-            val stream = when (val opts = a.arg(1)) {
-                Undefined, Null -> false
-                is JSObject -> Ops.toBoolean(opts.get("stream", opts))
-                else -> typeErr("TextDecoder.prototype.decode options must be an object")
-            }
+            val bytes = if (a.arg(0) === Undefined) ByteArray(0) else Idl.bytes(a.arg(0), "TextDecoder.decode input", allowShared = true)
+            val stream = Ops.toBoolean(Idl.member(Idl.dictionary(a.arg(1), "TextDecoder.decode options"), "stream"))
             decode(f.realm, d, bytes, stream)
         }
-        proto.defineOwn(JSSymbol.toStringTag, "TextDecoder", Attr.CONFIGURABLE)
-    }
-
-    /** A copy of the bytes of a BufferSource (ArrayBuffer, SharedArrayBuffer, typed array or DataView). */
-    private fun bytesOf(v: Any?): ByteArray = when (v) {
-        Undefined -> ByteArray(0)
-        is JSArrayBuffer -> v.data.copyOfRange(0, v.byteLength())
-        is JSTypedArray -> {
-            val n = maxOf(v.lengthOrOOB(), 0) * v.type.size
-            v.buffer.data.copyOfRange(v.byteOffset, v.byteOffset + n)
-        }
-        is JSDataView -> {
-            val n = maxOf(v.byteLengthOrOOB(), 0)
-            v.buffer.data.copyOfRange(v.byteOffset, v.byteOffset + n)
-        }
-        else -> typeErr("TextDecoder.prototype.decode requires an ArrayBuffer, a typed array or a DataView")
     }
 
     private fun decode(realm: Realm, d: JSTextDecoder, bytes: ByteArray, stream: Boolean): String {

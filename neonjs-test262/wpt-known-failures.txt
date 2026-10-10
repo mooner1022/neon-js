@@ -3,14 +3,7 @@
 # with --write-known for the directories CI runs and review the difference.
 #
 # encoding: TextDecoder supports UTF-8 only (other labels are a RangeError); no streams (TextEncoderStream,
-# TextDecoderStream, ReadableStream); no XMLHttpRequest. idlharness: web interface members are not enumerable yet.
-encoding/idlharness.any.js :: TextDecoder interface: operation decode(optional AllowSharedBufferSource, optional TextDecodeOptions)
-encoding/idlharness.any.js :: TextDecoder interface: attribute encoding
-encoding/idlharness.any.js :: TextDecoder interface: attribute fatal
-encoding/idlharness.any.js :: TextDecoder interface: attribute ignoreBOM
-encoding/idlharness.any.js :: TextEncoder interface: operation encode(optional USVString)
-encoding/idlharness.any.js :: TextEncoder interface: operation encodeInto(USVString, Uint8Array)
-encoding/idlharness.any.js :: TextEncoder interface: attribute encoding
+# TextDecoderStream, ReadableStream); no XMLHttpRequest.
 encoding/idlharness.any.js :: TextDecoderStream interface: existence and properties of interface object
 encoding/idlharness.any.js :: TextDecoderStream interface object length
 encoding/idlharness.any.js :: TextDecoderStream interface object name
