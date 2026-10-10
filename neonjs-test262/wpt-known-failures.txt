@@ -2,8 +2,67 @@
 # or per file ("path[?variant]": all of its subtests). Lines starting with '#' are comments. After a change, regenerate
 # with --write-known for the directories CI runs and review the difference.
 #
-# encoding: TextDecoder supports UTF-8 only (other labels are a RangeError); no streams (TextEncoderStream,
-# TextDecoderStream, ReadableStream); no XMLHttpRequest.
+# encoding: TextDecoder supports UTF-8 only (UTF-16 and the legacy encodings are a RangeError); no streams
+# (TextEncoderStream, TextDecoderStream, ReadableStream); no XMLHttpRequest, MessageChannel or WebAssembly (common/sab.js
+# gets the SharedArrayBuffer constructor from a shared WebAssembly.Memory).
+encoding/api-basics.any.js :: Decode sample: utf-16le
+encoding/api-basics.any.js :: Decode sample: utf-16be
+encoding/api-basics.any.js :: Decode sample: utf-16
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with Hi and destination length 0, offset 0, filler 0
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with Hi and destination length 0, offset 4, filler 0
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with Hi and destination length 0, offset 0, filler 128
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with Hi and destination length 0, offset 4, filler 128
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with Hi and destination length 0, offset 0, filler random
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with Hi and destination length 0, offset 4, filler random
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with A and destination length 10, offset 0, filler 0
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with A and destination length 10, offset 4, filler 0
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with A and destination length 10, offset 0, filler 128
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with A and destination length 10, offset 4, filler 128
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with A and destination length 10, offset 0, filler random
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with A and destination length 10, offset 4, filler random
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with 𝌆 and destination length 4, offset 0, filler 0
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with 𝌆 and destination length 4, offset 4, filler 0
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with 𝌆 and destination length 4, offset 0, filler 128
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with 𝌆 and destination length 4, offset 4, filler 128
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with 𝌆 and destination length 4, offset 0, filler random
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with 𝌆 and destination length 4, offset 4, filler random
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with 𝌆A and destination length 3, offset 0, filler 0
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with 𝌆A and destination length 3, offset 4, filler 0
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with 𝌆A and destination length 3, offset 0, filler 128
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with 𝌆A and destination length 3, offset 4, filler 128
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with 𝌆A and destination length 3, offset 0, filler random
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with 𝌆A and destination length 3, offset 4, filler random
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with \uD834A\uDF06A¥Hi and destination length 10, offset 0, filler 0
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with \uD834A\uDF06A¥Hi and destination length 10, offset 4, filler 0
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with \uD834A\uDF06A¥Hi and destination length 10, offset 0, filler 128
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with \uD834A\uDF06A¥Hi and destination length 10, offset 4, filler 128
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with \uD834A\uDF06A¥Hi and destination length 10, offset 0, filler random
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with \uD834A\uDF06A¥Hi and destination length 10, offset 4, filler random
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with A\uDF06 and destination length 4, offset 0, filler 0
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with A\uDF06 and destination length 4, offset 4, filler 0
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with A\uDF06 and destination length 4, offset 0, filler 128
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with A\uDF06 and destination length 4, offset 4, filler 128
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with A\uDF06 and destination length 4, offset 0, filler random
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with A\uDF06 and destination length 4, offset 4, filler random
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with ¥¥ and destination length 4, offset 0, filler 0
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with ¥¥ and destination length 4, offset 4, filler 0
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with ¥¥ and destination length 4, offset 0, filler 128
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with ¥¥ and destination length 4, offset 4, filler 128
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with ¥¥ and destination length 4, offset 0, filler random
+encoding/encodeInto.any.js :: encodeInto() into SharedArrayBuffer with ¥¥ and destination length 4, offset 4, filler random
+encoding/encodeInto.any.js :: Invalid encodeInto() destination: DataView, backed by: SharedArrayBuffer
+encoding/encodeInto.any.js :: Invalid encodeInto() destination: Int8Array, backed by: SharedArrayBuffer
+encoding/encodeInto.any.js :: Invalid encodeInto() destination: Int16Array, backed by: SharedArrayBuffer
+encoding/encodeInto.any.js :: Invalid encodeInto() destination: Int32Array, backed by: SharedArrayBuffer
+encoding/encodeInto.any.js :: Invalid encodeInto() destination: Uint16Array, backed by: SharedArrayBuffer
+encoding/encodeInto.any.js :: Invalid encodeInto() destination: Uint32Array, backed by: SharedArrayBuffer
+encoding/encodeInto.any.js :: Invalid encodeInto() destination: Uint8ClampedArray, backed by: SharedArrayBuffer
+encoding/encodeInto.any.js :: Invalid encodeInto() destination: BigInt64Array, backed by: SharedArrayBuffer
+encoding/encodeInto.any.js :: Invalid encodeInto() destination: BigUint64Array, backed by: SharedArrayBuffer
+encoding/encodeInto.any.js :: Invalid encodeInto() destination: Float16Array, backed by: SharedArrayBuffer
+encoding/encodeInto.any.js :: Invalid encodeInto() destination: Float32Array, backed by: SharedArrayBuffer
+encoding/encodeInto.any.js :: Invalid encodeInto() destination: Float64Array, backed by: SharedArrayBuffer
+encoding/encodeInto.any.js :: encodeInto() and a detached output buffer
 encoding/idlharness.any.js :: TextDecoderStream interface: existence and properties of interface object
 encoding/idlharness.any.js :: TextDecoderStream interface object length
 encoding/idlharness.any.js :: TextDecoderStream interface object name
@@ -35,6 +94,10 @@ encoding/streams/decode-utf8.any.js
 encoding/streams/encode-bad-chunks.any.js
 encoding/streams/encode-utf8.any.js
 encoding/streams/readable-writable-properties.any.js
+encoding/textdecoder-arguments.any.js :: TextDecoder decode() with array buffer detached during arg conversion
+encoding/textdecoder-byte-order-marks.any.js :: Byte-order marks: utf-16le
+encoding/textdecoder-byte-order-marks.any.js :: Byte-order marks: utf-16be
+encoding/textdecoder-copy.any.js :: Modify buffer after passing it in (SharedArrayBuffer)
 encoding/textdecoder-eof.any.js
 encoding/textdecoder-fatal-single-byte.any.js?1-1000
 encoding/textdecoder-fatal-single-byte.any.js?1001-2000
@@ -45,5 +108,368 @@ encoding/textdecoder-fatal-single-byte.any.js?5001-6000
 encoding/textdecoder-fatal-single-byte.any.js?6001-7000
 encoding/textdecoder-fatal-single-byte.any.js?7001-last
 encoding/textdecoder-fatal-streaming.any.js
+encoding/textdecoder-fatal.any.js :: Fatal flag: utf-16le - truncated code unit
+encoding/textdecoder-ignorebom.any.js :: BOM is ignored if ignoreBOM option is specified: utf-16le
+encoding/textdecoder-ignorebom.any.js :: BOM is ignored if ignoreBOM option is specified: utf-16be
+encoding/textdecoder-labels.any.js :: 866 => IBM866
+encoding/textdecoder-labels.any.js :: cp866 => IBM866
+encoding/textdecoder-labels.any.js :: csibm866 => IBM866
+encoding/textdecoder-labels.any.js :: ibm866 => IBM866
+encoding/textdecoder-labels.any.js :: csisolatin2 => ISO-8859-2
+encoding/textdecoder-labels.any.js :: iso-8859-2 => ISO-8859-2
+encoding/textdecoder-labels.any.js :: iso-ir-101 => ISO-8859-2
+encoding/textdecoder-labels.any.js :: iso8859-2 => ISO-8859-2
+encoding/textdecoder-labels.any.js :: iso88592 => ISO-8859-2
+encoding/textdecoder-labels.any.js :: iso_8859-2 => ISO-8859-2
+encoding/textdecoder-labels.any.js :: iso_8859-2:1987 => ISO-8859-2
+encoding/textdecoder-labels.any.js :: l2 => ISO-8859-2
+encoding/textdecoder-labels.any.js :: latin2 => ISO-8859-2
+encoding/textdecoder-labels.any.js :: csisolatin3 => ISO-8859-3
+encoding/textdecoder-labels.any.js :: iso-8859-3 => ISO-8859-3
+encoding/textdecoder-labels.any.js :: iso-ir-109 => ISO-8859-3
+encoding/textdecoder-labels.any.js :: iso8859-3 => ISO-8859-3
+encoding/textdecoder-labels.any.js :: iso88593 => ISO-8859-3
+encoding/textdecoder-labels.any.js :: iso_8859-3 => ISO-8859-3
+encoding/textdecoder-labels.any.js :: iso_8859-3:1988 => ISO-8859-3
+encoding/textdecoder-labels.any.js :: l3 => ISO-8859-3
+encoding/textdecoder-labels.any.js :: latin3 => ISO-8859-3
+encoding/textdecoder-labels.any.js :: csisolatin4 => ISO-8859-4
+encoding/textdecoder-labels.any.js :: iso-8859-4 => ISO-8859-4
+encoding/textdecoder-labels.any.js :: iso-ir-110 => ISO-8859-4
+encoding/textdecoder-labels.any.js :: iso8859-4 => ISO-8859-4
+encoding/textdecoder-labels.any.js :: iso88594 => ISO-8859-4
+encoding/textdecoder-labels.any.js :: iso_8859-4 => ISO-8859-4
+encoding/textdecoder-labels.any.js :: iso_8859-4:1988 => ISO-8859-4
+encoding/textdecoder-labels.any.js :: l4 => ISO-8859-4
+encoding/textdecoder-labels.any.js :: latin4 => ISO-8859-4
+encoding/textdecoder-labels.any.js :: csisolatincyrillic => ISO-8859-5
+encoding/textdecoder-labels.any.js :: cyrillic => ISO-8859-5
+encoding/textdecoder-labels.any.js :: iso-8859-5 => ISO-8859-5
+encoding/textdecoder-labels.any.js :: iso-ir-144 => ISO-8859-5
+encoding/textdecoder-labels.any.js :: iso8859-5 => ISO-8859-5
+encoding/textdecoder-labels.any.js :: iso88595 => ISO-8859-5
+encoding/textdecoder-labels.any.js :: iso_8859-5 => ISO-8859-5
+encoding/textdecoder-labels.any.js :: iso_8859-5:1988 => ISO-8859-5
+encoding/textdecoder-labels.any.js :: arabic => ISO-8859-6
+encoding/textdecoder-labels.any.js :: asmo-708 => ISO-8859-6
+encoding/textdecoder-labels.any.js :: csiso88596e => ISO-8859-6
+encoding/textdecoder-labels.any.js :: csiso88596i => ISO-8859-6
+encoding/textdecoder-labels.any.js :: csisolatinarabic => ISO-8859-6
+encoding/textdecoder-labels.any.js :: ecma-114 => ISO-8859-6
+encoding/textdecoder-labels.any.js :: iso-8859-6 => ISO-8859-6
+encoding/textdecoder-labels.any.js :: iso-8859-6-e => ISO-8859-6
+encoding/textdecoder-labels.any.js :: iso-8859-6-i => ISO-8859-6
+encoding/textdecoder-labels.any.js :: iso-ir-127 => ISO-8859-6
+encoding/textdecoder-labels.any.js :: iso8859-6 => ISO-8859-6
+encoding/textdecoder-labels.any.js :: iso88596 => ISO-8859-6
+encoding/textdecoder-labels.any.js :: iso_8859-6 => ISO-8859-6
+encoding/textdecoder-labels.any.js :: iso_8859-6:1987 => ISO-8859-6
+encoding/textdecoder-labels.any.js :: csisolatingreek => ISO-8859-7
+encoding/textdecoder-labels.any.js :: ecma-118 => ISO-8859-7
+encoding/textdecoder-labels.any.js :: elot_928 => ISO-8859-7
+encoding/textdecoder-labels.any.js :: greek => ISO-8859-7
+encoding/textdecoder-labels.any.js :: greek8 => ISO-8859-7
+encoding/textdecoder-labels.any.js :: iso-8859-7 => ISO-8859-7
+encoding/textdecoder-labels.any.js :: iso-ir-126 => ISO-8859-7
+encoding/textdecoder-labels.any.js :: iso8859-7 => ISO-8859-7
+encoding/textdecoder-labels.any.js :: iso88597 => ISO-8859-7
+encoding/textdecoder-labels.any.js :: iso_8859-7 => ISO-8859-7
+encoding/textdecoder-labels.any.js :: iso_8859-7:1987 => ISO-8859-7
+encoding/textdecoder-labels.any.js :: sun_eu_greek => ISO-8859-7
+encoding/textdecoder-labels.any.js :: csiso88598e => ISO-8859-8
+encoding/textdecoder-labels.any.js :: csisolatinhebrew => ISO-8859-8
+encoding/textdecoder-labels.any.js :: hebrew => ISO-8859-8
+encoding/textdecoder-labels.any.js :: iso-8859-8 => ISO-8859-8
+encoding/textdecoder-labels.any.js :: iso-8859-8-e => ISO-8859-8
+encoding/textdecoder-labels.any.js :: iso-ir-138 => ISO-8859-8
+encoding/textdecoder-labels.any.js :: iso8859-8 => ISO-8859-8
+encoding/textdecoder-labels.any.js :: iso88598 => ISO-8859-8
+encoding/textdecoder-labels.any.js :: iso_8859-8 => ISO-8859-8
+encoding/textdecoder-labels.any.js :: iso_8859-8:1988 => ISO-8859-8
+encoding/textdecoder-labels.any.js :: visual => ISO-8859-8
+encoding/textdecoder-labels.any.js :: csiso88598i => ISO-8859-8-I
+encoding/textdecoder-labels.any.js :: iso-8859-8-i => ISO-8859-8-I
+encoding/textdecoder-labels.any.js :: logical => ISO-8859-8-I
+encoding/textdecoder-labels.any.js :: csisolatin6 => ISO-8859-10
+encoding/textdecoder-labels.any.js :: iso-8859-10 => ISO-8859-10
+encoding/textdecoder-labels.any.js :: iso-ir-157 => ISO-8859-10
+encoding/textdecoder-labels.any.js :: iso8859-10 => ISO-8859-10
+encoding/textdecoder-labels.any.js :: iso885910 => ISO-8859-10
+encoding/textdecoder-labels.any.js :: l6 => ISO-8859-10
+encoding/textdecoder-labels.any.js :: latin6 => ISO-8859-10
+encoding/textdecoder-labels.any.js :: iso-8859-13 => ISO-8859-13
+encoding/textdecoder-labels.any.js :: iso8859-13 => ISO-8859-13
+encoding/textdecoder-labels.any.js :: iso885913 => ISO-8859-13
+encoding/textdecoder-labels.any.js :: iso-8859-14 => ISO-8859-14
+encoding/textdecoder-labels.any.js :: iso8859-14 => ISO-8859-14
+encoding/textdecoder-labels.any.js :: iso885914 => ISO-8859-14
+encoding/textdecoder-labels.any.js :: csisolatin9 => ISO-8859-15
+encoding/textdecoder-labels.any.js :: iso-8859-15 => ISO-8859-15
+encoding/textdecoder-labels.any.js :: iso8859-15 => ISO-8859-15
+encoding/textdecoder-labels.any.js :: iso885915 => ISO-8859-15
+encoding/textdecoder-labels.any.js :: iso_8859-15 => ISO-8859-15
+encoding/textdecoder-labels.any.js :: l9 => ISO-8859-15
+encoding/textdecoder-labels.any.js :: iso-8859-16 => ISO-8859-16
+encoding/textdecoder-labels.any.js :: cskoi8r => KOI8-R
+encoding/textdecoder-labels.any.js :: koi => KOI8-R
+encoding/textdecoder-labels.any.js :: koi8 => KOI8-R
+encoding/textdecoder-labels.any.js :: koi8-r => KOI8-R
+encoding/textdecoder-labels.any.js :: koi8_r => KOI8-R
+encoding/textdecoder-labels.any.js :: koi8-ru => KOI8-U
+encoding/textdecoder-labels.any.js :: koi8-u => KOI8-U
+encoding/textdecoder-labels.any.js :: csmacintosh => macintosh
+encoding/textdecoder-labels.any.js :: mac => macintosh
+encoding/textdecoder-labels.any.js :: macintosh => macintosh
+encoding/textdecoder-labels.any.js :: x-mac-roman => macintosh
+encoding/textdecoder-labels.any.js :: dos-874 => windows-874
+encoding/textdecoder-labels.any.js :: iso-8859-11 => windows-874
+encoding/textdecoder-labels.any.js :: iso8859-11 => windows-874
+encoding/textdecoder-labels.any.js :: iso885911 => windows-874
+encoding/textdecoder-labels.any.js :: tis-620 => windows-874
+encoding/textdecoder-labels.any.js :: windows-874 => windows-874
+encoding/textdecoder-labels.any.js :: cp1250 => windows-1250
+encoding/textdecoder-labels.any.js :: windows-1250 => windows-1250
+encoding/textdecoder-labels.any.js :: x-cp1250 => windows-1250
+encoding/textdecoder-labels.any.js :: cp1251 => windows-1251
+encoding/textdecoder-labels.any.js :: windows-1251 => windows-1251
+encoding/textdecoder-labels.any.js :: x-cp1251 => windows-1251
+encoding/textdecoder-labels.any.js :: ansi_x3.4-1968 => windows-1252
+encoding/textdecoder-labels.any.js :: ascii => windows-1252
+encoding/textdecoder-labels.any.js :: cp1252 => windows-1252
+encoding/textdecoder-labels.any.js :: cp819 => windows-1252
+encoding/textdecoder-labels.any.js :: csisolatin1 => windows-1252
+encoding/textdecoder-labels.any.js :: ibm819 => windows-1252
+encoding/textdecoder-labels.any.js :: iso-8859-1 => windows-1252
+encoding/textdecoder-labels.any.js :: iso-ir-100 => windows-1252
+encoding/textdecoder-labels.any.js :: iso8859-1 => windows-1252
+encoding/textdecoder-labels.any.js :: iso88591 => windows-1252
+encoding/textdecoder-labels.any.js :: iso_8859-1 => windows-1252
+encoding/textdecoder-labels.any.js :: iso_8859-1:1987 => windows-1252
+encoding/textdecoder-labels.any.js :: l1 => windows-1252
+encoding/textdecoder-labels.any.js :: latin1 => windows-1252
+encoding/textdecoder-labels.any.js :: us-ascii => windows-1252
+encoding/textdecoder-labels.any.js :: windows-1252 => windows-1252
+encoding/textdecoder-labels.any.js :: x-cp1252 => windows-1252
+encoding/textdecoder-labels.any.js :: cp1253 => windows-1253
+encoding/textdecoder-labels.any.js :: windows-1253 => windows-1253
+encoding/textdecoder-labels.any.js :: x-cp1253 => windows-1253
+encoding/textdecoder-labels.any.js :: cp1254 => windows-1254
+encoding/textdecoder-labels.any.js :: csisolatin5 => windows-1254
+encoding/textdecoder-labels.any.js :: iso-8859-9 => windows-1254
+encoding/textdecoder-labels.any.js :: iso-ir-148 => windows-1254
+encoding/textdecoder-labels.any.js :: iso8859-9 => windows-1254
+encoding/textdecoder-labels.any.js :: iso88599 => windows-1254
+encoding/textdecoder-labels.any.js :: iso_8859-9 => windows-1254
+encoding/textdecoder-labels.any.js :: iso_8859-9:1989 => windows-1254
+encoding/textdecoder-labels.any.js :: l5 => windows-1254
+encoding/textdecoder-labels.any.js :: latin5 => windows-1254
+encoding/textdecoder-labels.any.js :: windows-1254 => windows-1254
+encoding/textdecoder-labels.any.js :: x-cp1254 => windows-1254
+encoding/textdecoder-labels.any.js :: cp1255 => windows-1255
+encoding/textdecoder-labels.any.js :: windows-1255 => windows-1255
+encoding/textdecoder-labels.any.js :: x-cp1255 => windows-1255
+encoding/textdecoder-labels.any.js :: cp1256 => windows-1256
+encoding/textdecoder-labels.any.js :: windows-1256 => windows-1256
+encoding/textdecoder-labels.any.js :: x-cp1256 => windows-1256
+encoding/textdecoder-labels.any.js :: cp1257 => windows-1257
+encoding/textdecoder-labels.any.js :: windows-1257 => windows-1257
+encoding/textdecoder-labels.any.js :: x-cp1257 => windows-1257
+encoding/textdecoder-labels.any.js :: cp1258 => windows-1258
+encoding/textdecoder-labels.any.js :: windows-1258 => windows-1258
+encoding/textdecoder-labels.any.js :: x-cp1258 => windows-1258
+encoding/textdecoder-labels.any.js :: x-mac-cyrillic => x-mac-cyrillic
+encoding/textdecoder-labels.any.js :: x-mac-ukrainian => x-mac-cyrillic
+encoding/textdecoder-labels.any.js :: chinese => GBK
+encoding/textdecoder-labels.any.js :: csgb2312 => GBK
+encoding/textdecoder-labels.any.js :: csiso58gb231280 => GBK
+encoding/textdecoder-labels.any.js :: gb2312 => GBK
+encoding/textdecoder-labels.any.js :: gb_2312 => GBK
+encoding/textdecoder-labels.any.js :: gb_2312-80 => GBK
+encoding/textdecoder-labels.any.js :: gbk => GBK
+encoding/textdecoder-labels.any.js :: iso-ir-58 => GBK
+encoding/textdecoder-labels.any.js :: x-gbk => GBK
+encoding/textdecoder-labels.any.js :: gb18030 => gb18030
+encoding/textdecoder-labels.any.js :: big5 => Big5
+encoding/textdecoder-labels.any.js :: big5-hkscs => Big5
+encoding/textdecoder-labels.any.js :: cn-big5 => Big5
+encoding/textdecoder-labels.any.js :: csbig5 => Big5
+encoding/textdecoder-labels.any.js :: x-x-big5 => Big5
+encoding/textdecoder-labels.any.js :: cseucpkdfmtjapanese => EUC-JP
+encoding/textdecoder-labels.any.js :: euc-jp => EUC-JP
+encoding/textdecoder-labels.any.js :: x-euc-jp => EUC-JP
+encoding/textdecoder-labels.any.js :: csiso2022jp => ISO-2022-JP
+encoding/textdecoder-labels.any.js :: iso-2022-jp => ISO-2022-JP
+encoding/textdecoder-labels.any.js :: csshiftjis => Shift_JIS
+encoding/textdecoder-labels.any.js :: ms932 => Shift_JIS
+encoding/textdecoder-labels.any.js :: ms_kanji => Shift_JIS
+encoding/textdecoder-labels.any.js :: shift-jis => Shift_JIS
+encoding/textdecoder-labels.any.js :: shift_jis => Shift_JIS
+encoding/textdecoder-labels.any.js :: sjis => Shift_JIS
+encoding/textdecoder-labels.any.js :: windows-31j => Shift_JIS
+encoding/textdecoder-labels.any.js :: x-sjis => Shift_JIS
+encoding/textdecoder-labels.any.js :: cseuckr => EUC-KR
+encoding/textdecoder-labels.any.js :: csksc56011987 => EUC-KR
+encoding/textdecoder-labels.any.js :: euc-kr => EUC-KR
+encoding/textdecoder-labels.any.js :: iso-ir-149 => EUC-KR
+encoding/textdecoder-labels.any.js :: korean => EUC-KR
+encoding/textdecoder-labels.any.js :: ks_c_5601-1987 => EUC-KR
+encoding/textdecoder-labels.any.js :: ks_c_5601-1989 => EUC-KR
+encoding/textdecoder-labels.any.js :: ksc5601 => EUC-KR
+encoding/textdecoder-labels.any.js :: ksc_5601 => EUC-KR
+encoding/textdecoder-labels.any.js :: windows-949 => EUC-KR
+encoding/textdecoder-labels.any.js :: unicodefffe => UTF-16BE
+encoding/textdecoder-labels.any.js :: utf-16be => UTF-16BE
+encoding/textdecoder-labels.any.js :: csunicode => UTF-16LE
+encoding/textdecoder-labels.any.js :: iso-10646-ucs-2 => UTF-16LE
+encoding/textdecoder-labels.any.js :: ucs-2 => UTF-16LE
+encoding/textdecoder-labels.any.js :: unicode => UTF-16LE
+encoding/textdecoder-labels.any.js :: unicodefeff => UTF-16LE
+encoding/textdecoder-labels.any.js :: utf-16 => UTF-16LE
+encoding/textdecoder-labels.any.js :: utf-16le => UTF-16LE
+encoding/textdecoder-labels.any.js :: x-user-defined => x-user-defined
+encoding/textdecoder-mistakes.any.js :: Invalid Unicode input is replaced: utf-16le
+encoding/textdecoder-mistakes.any.js :: Invalid Unicode input is replaced: utf-16be
+encoding/textdecoder-mistakes.any.js :: Single-byte encodings are ASCII supersets: windows-1252
+encoding/textdecoder-mistakes.any.js :: Single-byte encodings are ASCII supersets: ibm866
+encoding/textdecoder-mistakes.any.js :: Most legacy multi-byte encodings are ASCII supersets: gbk
+encoding/textdecoder-mistakes.any.js :: Most legacy multi-byte encodings are ASCII supersets: gb18030
+encoding/textdecoder-mistakes.any.js :: Most legacy multi-byte encodings are ASCII supersets: big5
+encoding/textdecoder-mistakes.any.js :: Most legacy multi-byte encodings are ASCII supersets: euc-jp
+encoding/textdecoder-mistakes.any.js :: Most legacy multi-byte encodings are ASCII supersets: shift_jis
+encoding/textdecoder-mistakes.any.js :: Most legacy multi-byte encodings are ASCII supersets: euc-kr
+encoding/textdecoder-mistakes.any.js :: Fast path misdetection: windows-874
+encoding/textdecoder-mistakes.any.js :: Fast path misdetection: windows-1250
+encoding/textdecoder-mistakes.any.js :: Fast path misdetection: windows-1252
+encoding/textdecoder-mistakes.any.js :: Fast path misdetection: windows-1253
+encoding/textdecoder-mistakes.any.js :: Fast path misdetection: windows-1254
+encoding/textdecoder-mistakes.any.js :: Fast path misdetection: windows-1255
+encoding/textdecoder-mistakes.any.js :: Fast path misdetection: windows-1257
+encoding/textdecoder-mistakes.any.js :: Fast path misdetection: windows-1258
+encoding/textdecoder-mistakes.any.js :: Fast path misdetection: latin1
+encoding/textdecoder-mistakes.any.js :: Fast path misdetection: ascii
+encoding/textdecoder-mistakes.any.js :: utf-16le does not produce more chars than truncated
+encoding/textdecoder-mistakes.any.js :: utf-16be does not produce more chars than truncated
+encoding/textdecoder-mistakes.any.js :: windows-1252 maps bytes outside of latin1: windows-1252
+encoding/textdecoder-mistakes.any.js :: windows-1252 maps bytes outside of latin1: latin1
+encoding/textdecoder-mistakes.any.js :: windows-1252 maps bytes outside of latin1: ascii
+encoding/textdecoder-mistakes.any.js :: windows-1252 does not contain unmapped chars: windows-1252
+encoding/textdecoder-mistakes.any.js :: windows-1252 does not contain unmapped chars: latin1
+encoding/textdecoder-mistakes.any.js :: windows-1252 does not contain unmapped chars: ascii
+encoding/textdecoder-mistakes.any.js :: specific: x-user-defined
+encoding/textdecoder-mistakes.any.js :: specific: big5
+encoding/textdecoder-mistakes.any.js :: iso-8859-8-i decodes bytes the same way as iso-8859-8
+encoding/textdecoder-mistakes.any.js :: selected single-byte: koi8-u
+encoding/textdecoder-mistakes.any.js :: selected single-byte: windows-874
+encoding/textdecoder-mistakes.any.js :: selected single-byte: windows-1252
+encoding/textdecoder-mistakes.any.js :: selected single-byte: windows-1253
+encoding/textdecoder-mistakes.any.js :: selected single-byte: windows-1255
+encoding/textdecoder-mistakes.any.js :: selected single-byte: macintosh
+encoding/textdecoder-mistakes.any.js :: selected single-byte: windows-1250
+encoding/textdecoder-mistakes.any.js :: selected single-byte: windows-1251
+encoding/textdecoder-mistakes.any.js :: selected single-byte: windows-1254
+encoding/textdecoder-mistakes.any.js :: selected single-byte: windows-1257
+encoding/textdecoder-mistakes.any.js :: selected single-byte: windows-1258
+encoding/textdecoder-mistakes.any.js :: selected single-byte: iso-8859-8-i
+encoding/textdecoder-mistakes.any.js :: selected single-byte: iso-8859-16
+encoding/textdecoder-mistakes.any.js :: selected single-byte: x-mac-cyrillic
+encoding/textdecoder-mistakes.any.js :: Concatenating two ISO-2022-JP outputs is not always valid
+encoding/textdecoder-mistakes.any.js :: gb18030 version and ranges
+encoding/textdecoder-mistakes.any.js :: gbk version and ranges
+encoding/textdecoder-mistakes.any.js :: gbk decoder is gb18030 decoder
+encoding/textdecoder-mistakes.any.js :: Replacement, push back ASCII characters: big5
+encoding/textdecoder-mistakes.any.js :: Replacement, push back ASCII characters: iso-2022-jp
+encoding/textdecoder-mistakes.any.js :: Replacement, push back ASCII characters: gb18030
+encoding/textdecoder-mistakes.any.js :: Replacement, push back ASCII characters: euc-jp
+encoding/textdecoder-mistakes.any.js :: Replacement, push back ASCII characters: euc-kr
+encoding/textdecoder-mistakes.any.js :: Replacement, push back ASCII characters: shift_jis
+encoding/textdecoder-mistakes.any.js :: Replacement, push back ASCII characters: gbk
+encoding/textdecoder-mistakes.any.js :: Sticky multibyte state: iso-2022-jp
+encoding/textdecoder-mistakes.any.js :: Sticky multibyte state: gb18030
+encoding/textdecoder-mistakes.any.js :: Sticky multibyte state: big5
+encoding/textdecoder-mistakes.any.js :: Sticky multibyte state: shift_jis
+encoding/textdecoder-mistakes.any.js :: Sticky multibyte state: euc-kr
+encoding/textdecoder-mistakes.any.js :: Sticky multibyte state: gbk
+encoding/textdecoder-mistakes.any.js :: Sticky multibyte state: euc-jp
+encoding/textdecoder-mistakes.any.js :: Sticky fatal BOM: utf-16le
+encoding/textdecoder-mistakes.any.js :: Sticky fatal BOM: utf-16be
+encoding/textdecoder-mistakes.any.js :: BOM splitting / repeats: utf-16le
+encoding/textdecoder-mistakes.any.js :: BOM splitting / repeats: utf-16be
+encoding/textdecoder-mistakes.any.js :: stream: gbk
+encoding/textdecoder-mistakes.any.js :: stream: gb18030
+encoding/textdecoder-mistakes.any.js :: stream: big5
+encoding/textdecoder-mistakes.any.js :: stream: shift_jis
+encoding/textdecoder-mistakes.any.js :: stream: euc-kr
+encoding/textdecoder-mistakes.any.js :: stream: euc-jp
+encoding/textdecoder-mistakes.any.js :: stream: iso-2022-jp
+encoding/textdecoder-mistakes.any.js :: fatal stream: utf-16le
+encoding/textdecoder-mistakes.any.js :: fatal stream: utf-16be
+encoding/textdecoder-mistakes.any.js :: fatal stream: iso-2022-jp
+encoding/textdecoder-mistakes.any.js :: WPT mislabels: euc-jp
+encoding/textdecoder-mistakes.any.js :: WPT mislabels: shift_jis
+encoding/textdecoder-mistakes.any.js :: WPT mislabels: iso-2022-jp
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-16le, 1 byte window (ArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-16le, 2 byte window (ArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-16le, 3 byte window (ArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-16le, 4 byte window (ArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-16le, 5 byte window (ArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-16be, 1 byte window (ArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-16be, 2 byte window (ArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-16be, 3 byte window (ArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-16be, 4 byte window (ArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-16be, 5 byte window (ArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-8, 1 byte window (SharedArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-8, 2 byte window (SharedArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-8, 3 byte window (SharedArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-8, 4 byte window (SharedArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-8, 5 byte window (SharedArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-16le, 1 byte window (SharedArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-16le, 2 byte window (SharedArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-16le, 3 byte window (SharedArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-16le, 4 byte window (SharedArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-16le, 5 byte window (SharedArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-16be, 1 byte window (SharedArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-16be, 2 byte window (SharedArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-16be, 3 byte window (SharedArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-16be, 4 byte window (SharedArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: utf-16be, 5 byte window (SharedArrayBuffer)
+encoding/textdecoder-streaming.any.js :: Streaming decode: UTF-8 chunk tests (SharedArrayBuffer)
 encoding/textdecoder-utf16-surrogates.any.js
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: IBM866
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: ISO-8859-2
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: ISO-8859-3
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: ISO-8859-4
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: ISO-8859-5
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: ISO-8859-6
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: ISO-8859-7
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: ISO-8859-8
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: ISO-8859-8-I
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: ISO-8859-10
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: ISO-8859-13
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: ISO-8859-14
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: ISO-8859-15
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: ISO-8859-16
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: KOI8-R
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: KOI8-U
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: macintosh
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: windows-874
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: windows-1250
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: windows-1251
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: windows-1252
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: windows-1253
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: windows-1254
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: windows-1255
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: windows-1256
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: windows-1257
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: windows-1258
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: x-mac-cyrillic
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: GBK
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: gb18030
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: Big5
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: EUC-JP
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: ISO-2022-JP
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: Shift_JIS
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: EUC-KR
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: UTF-16BE
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: UTF-16LE
+encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: x-user-defined
 encoding/unsupported-encodings.any.js

@@ -16,7 +16,7 @@ import kotlin.system.exitProcess
  * files are evaluated, then the test, then `done()`; the event loop runs until the harness reports completion.
  *
  * Usage: `WptKt [--root third_party/wpt] [--mode interpreter|compiled|adaptive] [--threads N] [--timeout ms]
- * [--known file] [--write-known file] [-v] [dir-or-file...]`. Results are per subtest; the known-failures file lists
+ * [--known file] [--write-known file] [--list] [-v] [dir-or-file...]`; `--list` prints every subtest's result. Results are per subtest; the known-failures file lists
  * `path[?variant] :: subtest name` lines, or a bare `path[?variant]` for all of a file's subtests.
  */
 fun main(args: Array<String>) {
@@ -28,6 +28,7 @@ fun main(args: Array<String>) {
     var known = emptySet<String>()
     var writeKnown: File? = null
     var verbose = false
+    var list = false
     var i = 0
     while (i < args.size) {
         when (val a = args[i]) {
@@ -39,6 +40,7 @@ fun main(args: Array<String>) {
             "--known" -> known = File(args[++i]).readLines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }.toSet()
             "--write-known" -> writeKnown = File(args[++i])
             "-v" -> verbose = true
+            "--list" -> list = true
             else -> filters.add(a)
         }
         i++
@@ -75,6 +77,10 @@ fun main(args: Array<String>) {
                 failures.add("${r.key} :: ${s.name}" to s.message)
             }
         }
+    }
+    if (list) for (r in results.values.sortedBy { it.key }) {
+        if (r.harnessError != null) println("HARNESS ${r.key} :: ${r.harnessError}")
+        for (s in r.subtests) println("${if (s.passed) "PASS" else "FAIL"} ${r.key} :: ${s.name}")
     }
     for ((dir, c) in byDir) System.out.printf("%-60s pass %5d  fail %5d%n", dir, c[0], c[1])
     val pass = byDir.values.sumOf { it[0] }
@@ -139,7 +145,9 @@ class Wpt(val root: File, val timeoutMs: Long, val mode: ExecutionMode) {
 
     fun run(t: TestFile): FileResult {
         if (!runsOutsideWindows(t)) return FileResult(t.key, emptyList(), null, skipped = true)
-        val engine = NeonEngine.builder().webGlobals(true).console(null).executionMode(mode).build()
+        // as in a worker, the scripts are one task: no microtask runs between them (testharness.js decides it has
+        // loaded in a microtask, and would otherwise complete after the first test)
+        val engine = NeonEngine.builder().webGlobals(true).console(null).executionMode(mode).autoRunJobs(false).build()
         engine.use { return runIn(t, it) }
     }
 
@@ -152,7 +160,7 @@ class Wpt(val root: File, val timeoutMs: Long, val mode: ExecutionMode) {
             c.setUncaughtErrorHandler { e, rejection -> errors.add((if (rejection) "unhandled rejection: " else "uncaught: ") + e.message) }
             c.setFunction("__wptResult") { a ->
                 val passed = a[1].asInt() == 0
-                subtests.add(Subtest(a[0].asString().replace("\n", "\\n"), passed, if (a[2].isNullish) "" else a[2].asString()))
+                subtests.add(Subtest(printable(a[0].asString()), passed, if (a[2].isNullish) "" else a[2].asString()))
                 null
             }
             c.setFunction("__wptComplete") { a ->
@@ -168,7 +176,14 @@ class Wpt(val root: File, val timeoutMs: Long, val mode: ExecutionMode) {
                 for ((k, v) in t.meta) if (k == "script") c.eval(source(resolve(t, v)), v)
                 c.eval(source(t.file), "/" + t.rel)
                 c.eval("done()", "wpt-done.js")
-                c.runEventLoop(if (t.meta.any { it.first == "timeout" && it.second == "long" }) timeoutMs * 3 else timeoutMs)
+                // a pending task that does not keep the loop waiting (AbortSignal.timeout) may still be due: keep looking
+                val limit = if (t.meta.any { it.first == "timeout" && it.second == "long" }) timeoutMs * 3 else timeoutMs
+                val end = System.nanoTime() + limit * 1_000_000
+                while (!completed) {
+                    val left = (end - System.nanoTime()) / 1_000_000
+                    if (left <= 0) break
+                    if (c.runEventLoop(left) && !completed) Thread.sleep(5)
+                }
             } catch (e: NeonException) {
                 errors.add("uncaught: ${e.message}")
             }
@@ -205,6 +220,23 @@ class Wpt(val root: File, val timeoutMs: Long, val mode: ExecutionMode) {
             });
         };
     """.trimIndent()
+
+    /** A subtest name as one line of UTF-8: control characters and lone surrogates as \uXXXX escapes. */
+    private fun printable(name: String): String {
+        val sb = StringBuilder(name.length)
+        var i = 0
+        while (i < name.length) {
+            val c = name[i]
+            if (Character.isHighSurrogate(c) && i + 1 < name.length && Character.isLowSurrogate(name[i + 1])) {
+                sb.append(c).append(name[i + 1])
+                i += 2
+                continue
+            }
+            if (c < ' ' || Character.isSurrogate(c)) sb.append("\\u").append("%04X".format(c.code)) else sb.append(c)
+            i++
+        }
+        return sb.toString()
+    }
 
     private fun jsString(s: String) = "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 

@@ -28,7 +28,7 @@ scripts in Java/Kotlin applications:
 | Test262 `staging/` | 1,467 / 1,483 — the rest are SpiderMonkey extensions left out on purpose (`f.caller`/`f.arguments`, 12), two Annex B tests that contradict the main suite, and two engine-specific Date parsing heuristics |
 | Test262 `intl402/` (with `neonjs-intl`) | **3,363 / 3,365** in all modes — the two failures are ICU 78 data limits: one Chinese-calendar month boundary (2030) where ICU's astronomy differs from the official table Temporal uses, and islamic-civil eras that ICU does not distinguish |
 | Skipped Test262 features | `export-defer` (no stable semantics yet) |
-| web-platform-tests (web globals) | `encoding/`: 59 subtests pass; the rest need other encodings than UTF-8 or streams (`neonjs-test262/wpt-known-failures.txt`) |
+| web-platform-tests (web globals) | `encoding/`: 3,642 subtests pass; the rest need other encodings than UTF-8, streams or WebAssembly (`neonjs-test262/wpt-known-failures.txt`) |
 | JVM | Java 21+ (built with a JDK 25 toolchain, `jvmTarget` 21) |
 
 Implemented highlights: full ES2025 syntax and semantics (classes with private members, generators, async
