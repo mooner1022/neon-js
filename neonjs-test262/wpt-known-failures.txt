@@ -481,3 +481,107 @@ dom/events/EventTarget-removeEventListener.any.js
 # interface: performance is an own property of the global object.
 hr-time/idlharness.any.js :: WorkerGlobalScope interface: attribute performance
 hr-time/idlharness.any.js :: WorkerGlobalScope interface: self must inherit property "performance" with the proper type
+#
+# FileAPI: no streams (Blob.stream, Blob.textStream), FileReader, FileList, MessageChannel, blob URLs
+# (URL.createObjectURL) or network (the send-file-formdata tests post to WPT's server).
+FileAPI/blob/Blob-constructor-detached-buffer.any.js
+FileAPI/blob/Blob-constructor.any.js :: Passing a FrozenArray as the blobParts array should work (FrozenArray<MessagePort>).
+FileAPI/blob/Blob-newobject.any.js :: Blob.stream() returns [NewObject]
+FileAPI/blob/Blob-stream.any.js
+FileAPI/blob/Blob-textStream.any.js
+FileAPI/file/send-file-formdata-controls.any.js
+FileAPI/file/send-file-formdata-punctuation.any.js
+FileAPI/file/send-file-formdata-utf-8.any.js
+FileAPI/file/send-file-formdata.any.js
+FileAPI/fileReader.any.js
+FileAPI/idlharness.any.js :: Blob interface: operation stream()
+FileAPI/idlharness.any.js :: Blob interface: operation textStream()
+FileAPI/idlharness.any.js :: Blob interface: new Blob(["TEST"]) must inherit property "stream()" with the proper type
+FileAPI/idlharness.any.js :: Blob interface: new Blob(["TEST"]) must inherit property "textStream()" with the proper type
+FileAPI/idlharness.any.js :: Blob interface: new File(["myFileBits"], "myFileName") must inherit property "stream()" with the proper type
+FileAPI/idlharness.any.js :: Blob interface: new File(["myFileBits"], "myFileName") must inherit property "textStream()" with the proper type
+FileAPI/idlharness.any.js :: FileList interface: existence and properties of interface object
+FileAPI/idlharness.any.js :: FileList interface object length
+FileAPI/idlharness.any.js :: FileList interface object name
+FileAPI/idlharness.any.js :: FileList interface: existence and properties of interface prototype object
+FileAPI/idlharness.any.js :: FileList interface: existence and properties of interface prototype object's "constructor" property
+FileAPI/idlharness.any.js :: FileList interface: existence and properties of interface prototype object's @@unscopables property
+FileAPI/idlharness.any.js :: FileList interface: operation item(unsigned long)
+FileAPI/idlharness.any.js :: FileList interface: attribute length
+FileAPI/idlharness.any.js :: FileReader interface: existence and properties of interface object
+FileAPI/idlharness.any.js :: FileReader interface object length
+FileAPI/idlharness.any.js :: FileReader interface object name
+FileAPI/idlharness.any.js :: FileReader interface: existence and properties of interface prototype object
+FileAPI/idlharness.any.js :: FileReader interface: existence and properties of interface prototype object's "constructor" property
+FileAPI/idlharness.any.js :: FileReader interface: existence and properties of interface prototype object's @@unscopables property
+FileAPI/idlharness.any.js :: FileReader interface: operation readAsArrayBuffer(Blob)
+FileAPI/idlharness.any.js :: FileReader interface: operation readAsBinaryString(Blob)
+FileAPI/idlharness.any.js :: FileReader interface: operation readAsText(Blob, optional DOMString)
+FileAPI/idlharness.any.js :: FileReader interface: operation readAsDataURL(Blob)
+FileAPI/idlharness.any.js :: FileReader interface: operation abort()
+FileAPI/idlharness.any.js :: FileReader interface: constant EMPTY on interface object
+FileAPI/idlharness.any.js :: FileReader interface: constant EMPTY on interface prototype object
+FileAPI/idlharness.any.js :: FileReader interface: constant LOADING on interface object
+FileAPI/idlharness.any.js :: FileReader interface: constant LOADING on interface prototype object
+FileAPI/idlharness.any.js :: FileReader interface: constant DONE on interface object
+FileAPI/idlharness.any.js :: FileReader interface: constant DONE on interface prototype object
+FileAPI/idlharness.any.js :: FileReader interface: attribute readyState
+FileAPI/idlharness.any.js :: FileReader interface: attribute result
+FileAPI/idlharness.any.js :: FileReader interface: attribute error
+FileAPI/idlharness.any.js :: FileReader interface: attribute onloadstart
+FileAPI/idlharness.any.js :: FileReader interface: attribute onprogress
+FileAPI/idlharness.any.js :: FileReader interface: attribute onload
+FileAPI/idlharness.any.js :: FileReader interface: attribute onabort
+FileAPI/idlharness.any.js :: FileReader interface: attribute onerror
+FileAPI/idlharness.any.js :: FileReader interface: attribute onloadend
+FileAPI/idlharness.any.js :: FileReader must be primary interface of new FileReader()
+FileAPI/idlharness.any.js :: Stringification of new FileReader()
+FileAPI/idlharness.any.js :: FileReader interface: new FileReader() must inherit property "readAsArrayBuffer(Blob)" with the proper type
+FileAPI/idlharness.any.js :: FileReader interface: calling readAsArrayBuffer(Blob) on new FileReader() with too few arguments must throw TypeError
+FileAPI/idlharness.any.js :: FileReader interface: new FileReader() must inherit property "readAsBinaryString(Blob)" with the proper type
+FileAPI/idlharness.any.js :: FileReader interface: calling readAsBinaryString(Blob) on new FileReader() with too few arguments must throw TypeError
+FileAPI/idlharness.any.js :: FileReader interface: new FileReader() must inherit property "readAsText(Blob, optional DOMString)" with the proper type
+FileAPI/idlharness.any.js :: FileReader interface: calling readAsText(Blob, optional DOMString) on new FileReader() with too few arguments must throw TypeError
+FileAPI/idlharness.any.js :: FileReader interface: new FileReader() must inherit property "readAsDataURL(Blob)" with the proper type
+FileAPI/idlharness.any.js :: FileReader interface: calling readAsDataURL(Blob) on new FileReader() with too few arguments must throw TypeError
+FileAPI/idlharness.any.js :: FileReader interface: new FileReader() must inherit property "abort()" with the proper type
+FileAPI/idlharness.any.js :: FileReader interface: new FileReader() must inherit property "EMPTY" with the proper type
+FileAPI/idlharness.any.js :: FileReader interface: new FileReader() must inherit property "LOADING" with the proper type
+FileAPI/idlharness.any.js :: FileReader interface: new FileReader() must inherit property "DONE" with the proper type
+FileAPI/idlharness.any.js :: FileReader interface: new FileReader() must inherit property "readyState" with the proper type
+FileAPI/idlharness.any.js :: FileReader interface: new FileReader() must inherit property "result" with the proper type
+FileAPI/idlharness.any.js :: FileReader interface: new FileReader() must inherit property "error" with the proper type
+FileAPI/idlharness.any.js :: FileReader interface: new FileReader() must inherit property "onloadstart" with the proper type
+FileAPI/idlharness.any.js :: FileReader interface: new FileReader() must inherit property "onprogress" with the proper type
+FileAPI/idlharness.any.js :: FileReader interface: new FileReader() must inherit property "onload" with the proper type
+FileAPI/idlharness.any.js :: FileReader interface: new FileReader() must inherit property "onabort" with the proper type
+FileAPI/idlharness.any.js :: FileReader interface: new FileReader() must inherit property "onerror" with the proper type
+FileAPI/idlharness.any.js :: FileReader interface: new FileReader() must inherit property "onloadend" with the proper type
+FileAPI/idlharness.any.js :: FileReaderSync interface: existence and properties of interface object
+FileAPI/idlharness.any.js :: FileReaderSync interface object length
+FileAPI/idlharness.any.js :: FileReaderSync interface object name
+FileAPI/idlharness.any.js :: FileReaderSync interface: existence and properties of interface prototype object
+FileAPI/idlharness.any.js :: FileReaderSync interface: existence and properties of interface prototype object's "constructor" property
+FileAPI/idlharness.any.js :: FileReaderSync interface: existence and properties of interface prototype object's @@unscopables property
+FileAPI/idlharness.any.js :: FileReaderSync interface: operation readAsArrayBuffer(Blob)
+FileAPI/idlharness.any.js :: FileReaderSync interface: operation readAsBinaryString(Blob)
+FileAPI/idlharness.any.js :: FileReaderSync interface: operation readAsText(Blob, optional DOMString)
+FileAPI/idlharness.any.js :: FileReaderSync interface: operation readAsDataURL(Blob)
+FileAPI/idlharness.any.js :: URL interface: operation createObjectURL((Blob or MediaSource))
+FileAPI/idlharness.any.js :: URL interface: operation revokeObjectURL(DOMString)
+FileAPI/reading-data-section/Determining-Encoding.any.js
+FileAPI/reading-data-section/FileReader-event-handler-attributes.any.js
+FileAPI/reading-data-section/FileReader-multiple-reads.any.js
+FileAPI/reading-data-section/filereader_abort.any.js
+FileAPI/reading-data-section/filereader_error.any.js
+FileAPI/reading-data-section/filereader_events.any.js
+FileAPI/reading-data-section/filereader_readAsArrayBuffer.any.js
+FileAPI/reading-data-section/filereader_readAsBinaryString.any.js
+FileAPI/reading-data-section/filereader_readAsDataURL.any.js
+FileAPI/reading-data-section/filereader_readAsText.any.js
+FileAPI/reading-data-section/filereader_readAsText_blob_type_charset.any.js
+FileAPI/reading-data-section/filereader_readystate.any.js
+FileAPI/reading-data-section/filereader_result.any.js
+FileAPI/url/url-format.any.js
+FileAPI/url/url-with-fetch.any.js
+FileAPI/url/url-with-xhr.any.js

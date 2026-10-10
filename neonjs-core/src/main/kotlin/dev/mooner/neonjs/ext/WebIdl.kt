@@ -20,6 +20,20 @@ internal class WebInterface private constructor(@JvmField val realm: Realm, @Jvm
         return f
     }
 
+    /**
+     * An operation returning a promise: [impl] returns the value to resolve it with, and an exception it throws (the
+     * receiver check and argument conversions included) rejects the promise instead of propagating, as WebIDL has it.
+     */
+    fun promiseOperation(name: Any, length: Int, impl: NativeImpl): NativeFunction = operation(name, length) { f, t, a, nt ->
+        try {
+            dev.mooner.neonjs.vm.Promises.promiseResolve(f.realm, f.realm.promiseConstructor, impl.invoke(f, t, a, nt))
+        } catch (e: JSException) {
+            val p = dev.mooner.neonjs.vm.Promises.newPromise(f.realm)
+            dev.mooner.neonjs.vm.Promises.rejectPromise(f.realm, p, e.value)
+            p
+        }
+    }
+
     /** A static operation: an enumerable method of the interface object. */
     fun staticOperation(name: String, length: Int, impl: NativeImpl): NativeFunction {
         val f = NativeFunction(realm, name, length, impl)

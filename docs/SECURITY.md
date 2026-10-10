@@ -116,7 +116,9 @@ differences between the interpreter and compiled code. Classes used on error pat
   callbacks run on the context's thread under its limits. Timers are capped per context (`maxTimers`, which
   `AbortSignal.timeout` counts against too), take no string callbacks, and are cancelled when the context is closed.
   An exception thrown by an event listener does not escape `dispatchEvent`: it is rethrown by a microtask, so it
-  reaches the context's uncaught error handler (or ends the call running jobs without one).
+  reaches the context's uncaught error handler (or ends the call running jobs without one). A `Blob`'s size is
+  charged to the allocation budget before its bytes are allocated (a blob of many copies of another is cheap to ask
+  for), and the bytes of a blob are shared with its slices and clones, never written.
 - **Intl data.** `neonjs-intl` bundles ICU4J; all of its packages (`com.ibm.icu.*`) are on the deny list, so
   scripts reach locale data only through `Intl`. `Intl` resolves locales itself and passes ICU only available
   locales (or root), so the host's locale is never used implicitly, and it caps language tags (512 characters) and

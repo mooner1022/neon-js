@@ -170,13 +170,14 @@ class WebGlobalsTest {
     @Test
     fun offByDefaultAndAbsentFromShadowRealms() {
         val names = "[typeof setTimeout, typeof TextEncoder, typeof queueMicrotask, typeof EventTarget, typeof Event, typeof AbortController, " +
-            "typeof AbortSignal, typeof Performance, typeof Crypto, typeof QuotaExceededError, typeof performance, typeof crypto].join()"
+            "typeof AbortSignal, typeof Performance, typeof Crypto, typeof QuotaExceededError, typeof Blob, typeof File, typeof performance, " +
+            "typeof crypto].join()"
         NeonEngine.builder().console(null).build().newContext().use { c ->
-            assertEquals(List(12) { "undefined" }.joinToString(","), c.eval(names).asString())
+            assertEquals(List(14) { "undefined" }.joinToString(","), c.eval(names).asString())
         }
         ctx().use { c ->
-            assertEquals(List(10) { "function" }.plus(listOf("object", "object")).joinToString(","), c.eval(names).asString())
-            assertEquals(List(12) { "undefined" }.joinToString(","), c.eval("new ShadowRealm().evaluate('$names')").asString())
+            assertEquals(List(12) { "function" }.plus(listOf("object", "object")).joinToString(","), c.eval(names).asString())
+            assertEquals(List(14) { "undefined" }.joinToString(","), c.eval("new ShadowRealm().evaluate('$names')").asString())
         }
     }
 
@@ -197,6 +198,26 @@ class WebGlobalsTest {
         val r = run()
         assertTrue(r.startsWith("0,1000,"), r)
         assertEquals(r, run())
+    }
+
+    @Test
+    fun blobs() {
+        ctx().use { c ->
+            assertEquals("4,text/plain,bc,x.txt,5,true,abcd,TypeError", c.eval("""
+                (async () => {
+                    const b = new Blob(['ab', new Uint8Array([99]), new Blob(['d'])], { type: 'Text/Plain' });
+                    const f = new File([b], 'x.txt', { lastModified: 5 });
+                    const clone = structuredClone(f);
+                    // a promise-returning operation rejects rather than throws
+                    const bad = await Blob.prototype.text.call({}).catch(e => e.name);
+                    return [b.size, b.type, await b.slice(1, 3).text(), f.name, f.lastModified, clone instanceof File, await clone.text(), bad].join();
+                })()
+            """).await(5_000).asString())
+        }
+        // the size of a blob is charged to the allocation budget before its bytes are allocated
+        ctx(SandboxPolicy.builder().maxAllocatedBytes(16L shl 20).build()).use { c ->
+            assertThrows<NeonResourceLimitException> { c.eval("const mb = new Blob([new Uint8Array(1 << 20)]); new Blob(Array(64).fill(mb))") }
+        }
     }
 
     @Test

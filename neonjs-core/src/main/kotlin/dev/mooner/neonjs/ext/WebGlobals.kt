@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit
  * `setTimeout` / `setInterval` / `clearTimeout` / `clearInterval`, `structuredClone`, `DOMException`, `atob` /
  * `btoa`, UTF-8 `TextEncoder` / `TextDecoder`, `Event` / `CustomEvent` / `EventTarget` ([Events]) and
  * `AbortController` / `AbortSignal` ([Abort]), `performance` ([Performance]) and `crypto.getRandomValues` /
- * `randomUUID` ([Crypto]).
+ * `randomUUID` ([Crypto]), `Blob` / `File` ([Blob]).
  */
 object WebGlobals {
     fun install(realm: Realm, maxTimers: Int) {
@@ -42,6 +42,7 @@ object WebGlobals {
         Abort.install(realm)
         Performance.install(realm)
         Crypto.install(realm)
+        Blob.install(realm)
         installBase64(realm)
         installTextEncoder(realm)
         installTextDecoder(realm)
@@ -438,6 +439,9 @@ object WebGlobals {
             decode(f.realm, d, bytes, stream)
         }
     }
+
+    /** UTF-8 decode (Encoding Standard): a leading BOM dropped, invalid sequences replaced by U+FFFD. */
+    internal fun utf8Decode(realm: Realm, bytes: ByteArray): String = decode(realm, JSTextDecoder(null, fatal = false, ignoreBOM = false), bytes, stream = false)
 
     private fun decode(realm: Realm, d: JSTextDecoder, bytes: ByteArray, stream: Boolean): String {
         val out = StringBuilder(bytes.size)

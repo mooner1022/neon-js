@@ -109,6 +109,14 @@ internal class StructuredClone(private val realm: Realm) {
                 }
                 return r
             }
+            is WebGlobals.JSQuotaExceededError -> {
+                val r = WebGlobals.JSQuotaExceededError(proto("%QuotaExceededError.prototype%"), v.excMessage, v.quota, v.requested)
+                memory[v] = r
+                return r
+            }
+            // the bytes of a blob never change: the clone shares them
+            is Blob.JSFile -> return Blob.JSFile(proto("%File.prototype%"), v.data, v.offset, v.size, v.type, v.name, v.lastModified).also { memory[v] = it }
+            is Blob.JSBlob -> return Blob.JSBlob(proto("%Blob.prototype%"), v.data, v.offset, v.size, v.type).also { memory[v] = it }
             is WebGlobals.JSDOMException -> {
                 val r = WebGlobals.newDOMException(realm, v.excMessage, v.excName)
                 memory[v] = r
