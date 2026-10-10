@@ -28,7 +28,7 @@ scripts in Java/Kotlin applications:
 | Test262 `staging/` | 1,467 / 1,483 — the rest are SpiderMonkey extensions left out on purpose (`f.caller`/`f.arguments`, 12), two Annex B tests that contradict the main suite, and two engine-specific Date parsing heuristics |
 | Test262 `intl402/` (with `neonjs-intl`) | **3,363 / 3,365** in all modes — the two failures are ICU 78 data limits: one Chinese-calendar month boundary (2030) where ICU's astronomy differs from the official table Temporal uses, and islamic-civil eras that ICU does not distinguish |
 | Skipped Test262 features | `export-defer` (no stable semantics yet) |
-| web-platform-tests (web globals) | `encoding/`: 3,642 subtests pass, the rest need other encodings than UTF-8, streams or WebAssembly; `dom/events`, `dom/abort` and the DOM's IDL tests: 292 / 294, the two are deliberate (`neonjs-test262/wpt-known-failures.txt`) |
+| web-platform-tests (web globals) | `encoding/`: 3,642 subtests pass, the rest need other encodings than UTF-8, streams or WebAssembly; `dom/events`, `dom/abort`, `hr-time`, `WebCryptoAPI` (getRandomValues, randomUUID) and their IDL tests: 355 / 362, the 7 are deliberate (`neonjs-test262/wpt-known-failures.txt`) |
 | JVM | Java 21+ (built with a JDK 25 toolchain, `jvmTarget` 21) |
 
 Implemented highlights: full ES2025 syntax and semantics (classes with private members, generators, async
@@ -274,10 +274,12 @@ Contexts get a `console` object (`log`, `info`, `warn`, `error`, `debug`, `trace
 `NeonEngine.builder().webGlobals(true)` adds what scripts written for browsers and Node commonly expect:
 `queueMicrotask`, `setTimeout` / `setInterval` / `clearTimeout` / `clearInterval`, `structuredClone` (with
 `transfer`), `DOMException`, `atob` / `btoa`, UTF-8 `TextEncoder` / `TextDecoder` (with `encodeInto`, `fatal`,
-`ignoreBOM` and streaming), `Event` / `CustomEvent` / `EventTarget`, and `AbortController` / `AbortSignal` (with
-`AbortSignal.any` and `AbortSignal.timeout`, whose timer, like Node's, does not keep the event loop waiting). They
-follow WebIDL (enumerable members, argument conversions, `new` required). The global object is no `EventTarget`, as
-in Node. Timers fire on the context's thread while the host runs its event loop:
+`ignoreBOM` and streaming), `Event` / `CustomEvent` / `EventTarget`, `AbortController` / `AbortSignal` (with
+`AbortSignal.any` and `AbortSignal.timeout`, whose timer, like Node's, does not keep the event loop waiting),
+`performance` (`now()` in steps of 5 µs, `timeOrigin`), `crypto.getRandomValues` / `crypto.randomUUID` (no
+`crypto.subtle`) and `QuotaExceededError`. They follow WebIDL (enumerable members, argument conversions, `new`
+required). The global object is no `EventTarget`, as in Node. Under `SandboxPolicy.deterministic`, `performance.now()`
+is 0 and the random values come from the seeded source. Timers fire on the context's thread while the host runs its event loop:
 
 ```kotlin
 ctx.eval("setTimeout(() => console.log('later'), 100)")

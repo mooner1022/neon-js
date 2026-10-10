@@ -86,12 +86,6 @@ internal object Events {
     const val AT_TARGET = 2
     const val BUBBLING_PHASE = 3
 
-    /** DOMHighResTimeStamp: milliseconds since the realm's time origin (constant 0 under a fixed sandbox clock). */
-    fun now(realm: Realm): Double {
-        if (realm.agent.clock != null) return 0.0
-        val origin = realm.intrinsicsAny.getOrPut("%TimeOrigin%") { System.nanoTime() } as Long
-        return (System.nanoTime() - origin) / 1e6
-    }
 
     fun install(realm: Realm) {
         installEvent(realm)
@@ -165,7 +159,7 @@ internal object Events {
         e.composed = Ops.toBoolean(Idl.member(init, "composed"))
         e.initialized = true
         e.type = type
-        e.timeStamp = now(realm)
+        e.timeStamp = Performance.now(realm)
         e.defineAccessor("isTrusted", realm.intrinsicsAny["%Event.isTrusted%"], Undefined, Attr.ENUMERABLE)
         return e
     }

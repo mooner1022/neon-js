@@ -20,10 +20,12 @@ import java.util.concurrent.TimeUnit
  * Opt-in web platform globals that embedded scripts commonly expect (not part of ECMAScript): `queueMicrotask`,
  * `setTimeout` / `setInterval` / `clearTimeout` / `clearInterval`, `structuredClone`, `DOMException`, `atob` /
  * `btoa`, UTF-8 `TextEncoder` / `TextDecoder`, `Event` / `CustomEvent` / `EventTarget` ([Events]) and
- * `AbortController` / `AbortSignal` ([Abort]).
+ * `AbortController` / `AbortSignal` ([Abort]), `performance` ([Performance]) and `crypto.getRandomValues` /
+ * `randomUUID` ([Crypto]).
  */
 object WebGlobals {
     fun install(realm: Realm, maxTimers: Int) {
+        Performance.startClock(realm)
         WebInterface.globalOperation(realm, "queueMicrotask", 1) { _, _, a, _ ->
             val cb = a.arg(0)
             if (!Ops.isCallable(cb)) typeErr("queueMicrotask requires a function")
@@ -38,6 +40,8 @@ object WebGlobals {
         installTimers(realm, maxTimers)
         Events.install(realm)
         Abort.install(realm)
+        Performance.install(realm)
+        Crypto.install(realm)
         installBase64(realm)
         installTextEncoder(realm)
         installTextDecoder(realm)
@@ -46,7 +50,7 @@ object WebGlobals {
     // ------------------------------------------------------------------ DOMException
 
     /** A DOMException: an error object (so `Error.isError` holds) whose name and message are internal slots. */
-    internal class JSDOMException(proto: JSObject?, @JvmField val excName: String, @JvmField val excMessage: String) : JSErrorObject(proto) {
+    internal open class JSDOMException(proto: JSObject?, @JvmField val excName: String, @JvmField val excMessage: String) : JSErrorObject(proto) {
         override val className: String get() = "DOMException"
         override val slotName: String get() = excName
         override val slotMessage: String get() = excMessage
@@ -74,6 +78,18 @@ object WebGlobals {
         return e
     }
 
+    /** A QuotaExceededError (WebIDL): a DOMException with the quota and the amount requested, when known. */
+    internal class JSQuotaExceededError(proto: JSObject?, message: String, @JvmField val quota: Double?, @JvmField val requested: Double?) :
+        JSDOMException(proto, "QuotaExceededError", message) {
+        override val className: String get() = "QuotaExceededError"
+    }
+
+    internal fun newQuotaExceededError(realm: Realm, message: String): JSQuotaExceededError {
+        val e = JSQuotaExceededError(realm.intrinsic("%QuotaExceededError.prototype%"), message, null, null)
+        if (realm.agent.topFrame != null) e.stackTrace = realm.agent.captureStack()
+        return e
+    }
+
     /** A throwable DOMException of [realm] (e.g. "DataCloneError", "InvalidCharacterError"). */
     internal fun domException(realm: Realm, message: String, name: String): JSException = JSException(newDOMException(realm, message, name))
 
@@ -89,6 +105,21 @@ object WebGlobals {
         i.attribute("message", { _, t, _, _ -> Idl.self<JSDOMException>(t, "DOMException", "message").excMessage })
         i.attribute("code", { _, t, _, _ -> (LEGACY_CODES[Idl.self<JSDOMException>(t, "DOMException", "code").excName]?.second ?: 0).toDouble() })
         for ((n, c) in (LEGACY_CODES.values.toList() + EXTRA_CONSTANTS).sortedBy { it.second }) i.constant(n, c.toDouble())
+
+        val q = WebInterface.define(realm, "QuotaExceededError", 0, parent = "DOMException") { a, proto ->
+            val message = if (a.arg(0) === Undefined) "" else Idl.domString(a.arg(0))
+            val o = Idl.dictionary(a.arg(1), "QuotaExceededErrorOptions")
+            val quota = Idl.member(o, "quota").let { if (it === Undefined) null else Idl.double(it, "quota") }
+            val requested = Idl.member(o, "requested").let { if (it === Undefined) null else Idl.double(it, "requested") }
+            if (quota != null && quota < 0) rangeErr("QuotaExceededError: quota is negative")
+            if (requested != null && requested < 0) rangeErr("QuotaExceededError: requested is negative")
+            if (quota != null && requested != null && requested < quota) rangeErr("QuotaExceededError: requested is less than quota")
+            val e = JSQuotaExceededError(proto, message, quota, requested)
+            if (realm.agent.topFrame != null) e.stackTrace = realm.agent.captureStack()
+            e
+        }
+        q.attribute("quota", { _, t, _, _ -> Idl.self<JSQuotaExceededError>(t, "QuotaExceededError", "quota").quota ?: Null })
+        q.attribute("requested", { _, t, _, _ -> Idl.self<JSQuotaExceededError>(t, "QuotaExceededError", "requested").requested ?: Null })
     }
 
     // ------------------------------------------------------------------ timers

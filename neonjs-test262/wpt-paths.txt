@@ -10,7 +10,7 @@
 /fetch/api/headers/
 /hr-time/
 /WebCryptoAPI/getRandomValues.any.js
-/WebCryptoAPI/randomUUID.any.js
+/WebCryptoAPI/randomUUID.https.any.js
 /resources/WebIDLParser.js
 /resources/idlharness.js
 /interfaces/

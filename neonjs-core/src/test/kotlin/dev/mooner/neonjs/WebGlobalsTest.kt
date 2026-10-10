@@ -169,14 +169,34 @@ class WebGlobalsTest {
 
     @Test
     fun offByDefaultAndAbsentFromShadowRealms() {
-        val names = "[typeof setTimeout, typeof TextEncoder, typeof queueMicrotask, typeof EventTarget, typeof Event, typeof AbortController, typeof AbortSignal].join()"
+        val names = "[typeof setTimeout, typeof TextEncoder, typeof queueMicrotask, typeof EventTarget, typeof Event, typeof AbortController, " +
+            "typeof AbortSignal, typeof Performance, typeof Crypto, typeof QuotaExceededError, typeof performance, typeof crypto].join()"
         NeonEngine.builder().console(null).build().newContext().use { c ->
-            assertEquals(List(7) { "undefined" }.joinToString(","), c.eval(names).asString())
+            assertEquals(List(12) { "undefined" }.joinToString(","), c.eval(names).asString())
         }
         ctx().use { c ->
-            assertEquals(List(7) { "function" }.joinToString(","), c.eval(names).asString())
-            assertEquals(List(7) { "undefined" }.joinToString(","), c.eval("new ShadowRealm().evaluate('$names')").asString())
+            assertEquals(List(10) { "function" }.plus(listOf("object", "object")).joinToString(","), c.eval(names).asString())
+            assertEquals(List(12) { "undefined" }.joinToString(","), c.eval("new ShadowRealm().evaluate('$names')").asString())
         }
+    }
+
+    @Test
+    fun performanceAndCrypto() {
+        ctx().use { c ->
+            assertEquals("true,true,true,true", c.eval("""
+                var a = performance.now(), b = performance.now();
+                [a >= 0 && b >= a, Math.abs(performance.timeOrigin - Date.now()) < 60000,
+                 /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}${'$'}/.test(crypto.randomUUID()),
+                 crypto.getRandomValues(new Uint8Array(64)).some(x => x !== 0)].join()
+            """).asString())
+        }
+        // a deterministic sandbox: a still clock, and reproducible random values
+        fun run(): String = ctx(SandboxPolicy.builder().deterministic(42, 1000).build()).use { c ->
+            c.eval("[performance.now(), performance.timeOrigin, crypto.randomUUID(), crypto.getRandomValues(new Uint32Array(2)).join('-')].join()").asString()
+        }
+        val r = run()
+        assertTrue(r.startsWith("0,1000,"), r)
+        assertEquals(r, run())
     }
 
     @Test
