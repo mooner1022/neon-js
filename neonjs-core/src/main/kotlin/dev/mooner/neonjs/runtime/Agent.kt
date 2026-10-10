@@ -134,6 +134,29 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
         if (config.maxAllocatedBytes > 0) allocationBase = threadAllocatedBytes()
     }
 
+    /**
+     * The state of the limits, for a thread that lets others evaluate meanwhile ([startLimits] replaces it; the
+     * allocation base is that of the thread that started them).
+     */
+    fun saveLimits(): LongArray = longArrayOf(deadlineNanos, statementsLeft, allocationBase)
+
+    fun restoreLimits(saved: LongArray) {
+        deadlineNanos = saved[0]
+        statementsLeft = saved[1]
+        allocationBase = saved[2]
+    }
+
+    private val interrupts = java.util.concurrent.atomic.AtomicLong()
+
+    /** How many interrupts were requested: a change shows one even after [startLimits] cleared [interruptRequested]. */
+    val interruptCount: Long get() = interrupts.get()
+
+    /** Sets [interruptRequested]; callable from any thread. */
+    fun requestInterrupt() {
+        interruptRequested = true
+        interrupts.incrementAndGet()
+    }
+
     private fun threadAllocatedBytes(): Long {
         val mx = threadMX ?: return 0L
         @Suppress("DEPRECATION") // threadId() needs JDK 19 / Android API 36
@@ -178,7 +201,10 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
         fun cancel()
     }
 
-    /** Guards [externalJobs]; [externalPosted] is signalled when a job is posted or the queue is closed. */
+    /**
+     * Guards [externalJobs]. [externalPosted] is signalled when a job is posted, when a source goes (a thread waiting
+     * for one may find nothing pending any more) and when the queue is closed.
+     */
     private val externalLock = java.util.concurrent.locks.ReentrantLock()
     private val externalPosted = externalLock.newCondition()
     private val externalJobs = ArrayDeque<Runnable>()
@@ -200,7 +226,13 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
 
     /** Unregisters [s] (its job has run, or it was withdrawn). Thread-safe. */
     fun removeExternalSource(s: ExternalSource) {
-        externalSources.remove(s)
+        if (!externalSources.remove(s) || externalSources.isNotEmpty()) return
+        externalLock.lock()
+        try {
+            externalPosted.signalAll()
+        } finally {
+            externalLock.unlock()
+        }
     }
 
     /** Number of registered external sources (used to cap per-agent host resources). */
@@ -249,23 +281,20 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
             else if (interruptRequested) throw InterruptedExecutionException("Execution interrupted")
             val remaining = end - System.nanoTime()
             if (remaining <= 0) return false
-            if (waitForExternal(minOf(remaining, EXTERNAL_WAIT_SLICE_NANOS))) return true
+            if (waitForExternal(minOf(remaining, WAIT_SLICE_NANOS))) return true
         }
     }
 
     /**
-     * Waits up to [nanos] for an external job to be posted; true if one is queued. Reads no other state of the agent,
-     * so it may be called without the context lock. A Java interrupt of the thread ends it as an interrupted execution.
+     * Waits at most [nanos] for an external job to be posted (less when woken otherwise); true if one is queued.
+     * Reads no other state of the agent, so it may be called without the context lock. A Java interrupt of the
+     * thread ends it as an interrupted execution.
      */
     fun waitForExternal(nanos: Long): Boolean {
         externalLock.lock()
         try {
-            var left = nanos
-            while (externalJobs.isEmpty()) {
-                if (left <= 0 || externalClosed) return false
-                left = externalPosted.awaitNanos(left)
-            }
-            return true
+            if (externalJobs.isEmpty() && !externalClosed && nanos > 0) externalPosted.awaitNanos(nanos)
+            return externalJobs.isNotEmpty()
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
             throw InterruptedExecutionException("Execution interrupted")
@@ -378,8 +407,8 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
     companion object {
         @JvmField val current = ThreadLocal<Agent>()
 
-        /** Longest uninterrupted block in [awaitExternal] between interrupt / deadline checks. */
-        private val EXTERNAL_WAIT_SLICE_NANOS = java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(50)
+        /** Longest uninterrupted wait for an external job ([awaitExternal]) between interrupt / deadline checks. */
+        @JvmField val WAIT_SLICE_NANOS = java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(50)
 
         private val threadMX: com.sun.management.ThreadMXBean? = try {
             (java.lang.management.ManagementFactory.getThreadMXBean() as? com.sun.management.ThreadMXBean)?.also {

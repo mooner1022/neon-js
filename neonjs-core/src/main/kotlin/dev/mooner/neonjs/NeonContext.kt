@@ -300,7 +300,8 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
     /**
      * Runs pending jobs and waits for external events — completions of host futures handed to JS (they appear as
      * promises), Atomics.waitAsync wake-ups — until nothing is pending. Returns false if work was still pending after
-     * [timeoutMillis]. Waiting counts against the sandbox's execution-time limit and can be stopped with [interrupt].
+     * [timeoutMillis]. Waiting counts against the sandbox's execution-time limit (unless [SandboxPolicy.limitsPerTask])
+     * and can be stopped with [interrupt]. While it waits, other threads can use the context.
      */
     fun runEventLoop(timeoutMillis: Long = Long.MAX_VALUE): Boolean = guarded { pumpUntil(timeoutMillis, null) }
 
@@ -316,13 +317,56 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
             if (!agent.hasPendingExternal()) return done == null
             val elapsed = (System.nanoTime() - start) / 1_000_000
             if (elapsed >= timeoutMillis) return false
-            agent.awaitExternal(timeoutMillis - elapsed)
+            // a wait inside JS (a host function awaiting a promise) keeps the context: its frames are live
+            if (depth == 1 && lock.holdCount == 1 && agent.topFrame == null) awaitReleased(timeoutMillis - elapsed)
+            else agent.awaitExternal(timeoutMillis - elapsed)
         }
     }
 
-    /** Requests termination of the currently running evaluation (callable from any thread). */
+    /**
+     * [Agent.awaitExternal] without holding the context, so other threads can evaluate code and call into it
+     * meanwhile (and run the tasks that arrive, as their calls run jobs). Their evaluations start their own limits;
+     * this thread's are restored afterwards, and an interrupt requested meanwhile ends the wait even if their start
+     * cleared it. Called at the top of [enter] only.
+     */
+    private fun awaitReleased(timeoutMillis: Long) {
+        if (agent.interruptRequested) throw InterruptedExecutionException("Execution interrupted")
+        val limits = agent.saveLimits()
+        // other threads' enter / exit restore the current realm in their own order: an exit may clear it under this one
+        // (JS calls set it again, but host code between tasks reads it)
+        val realm = agent.currentRealm
+        val interrupts = agent.interruptCount
+        val deadline = if (agent.config.limitsPerTask) 0L else agent.deadlineNanos
+        val end = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
+        depth = 0
+        lock.unlock()
+        try {
+            // another thread may run the last tasks meanwhile: then nothing will be posted
+            while (!closed && agent.interruptCount == interrupts && agent.hasPendingExternal()) {
+                // differences, not comparisons: end overflows for an unbounded timeout
+                val now = System.nanoTime()
+                var wait = end - now
+                if (deadline != 0L) wait = minOf(wait, deadline - now)
+                if (wait <= 0) break
+                if (agent.waitForExternal(minOf(wait, Agent.WAIT_SLICE_NANOS))) break
+            }
+        } finally {
+            // not acquire(): its time limit is for threads that may wait on each other, and this one holds nothing
+            lock.lock()
+            depth = 1
+            agent.currentRealm = realm
+            agent.restoreLimits(limits)
+        }
+        if (agent.interruptCount != interrupts) throw InterruptedExecutionException("Execution interrupted")
+        if (deadline != 0L) agent.checkWaitLimits()
+    }
+
+    /**
+     * Requests termination of the currently running evaluation and of an event loop waiting in the context (callable
+     * from any thread).
+     */
     fun interrupt() {
-        agent.interruptRequested = true
+        agent.requestInterrupt()
     }
 
     override fun close() {
