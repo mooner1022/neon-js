@@ -205,7 +205,7 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
         if (f != null) {
             if (Modifier.isFinal(f.modifiers)) return false
             try {
-                f.set(target, bridge.toHost(value, f.type, f.genericType))
+                f.set(target, bridge.toField(value, f))
             } catch (_: IllegalAccessException) {
                 return false
             }
@@ -361,7 +361,7 @@ class HostClassObject(@JvmField val bridge: HostBridge, @JvmField val cls: Class
         val f = info.staticFields[key]
         if (f != null && !Modifier.isFinal(f.modifiers)) {
             try {
-                f.set(null, bridge.toHost(value, f.type, f.genericType))
+                f.set(null, bridge.toField(value, f))
             } catch (_: IllegalAccessException) {
                 return false
             }

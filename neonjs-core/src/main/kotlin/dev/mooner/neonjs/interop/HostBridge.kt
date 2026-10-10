@@ -484,6 +484,16 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         throw JSException.typeError("Cannot convert ${Ops.describe(v)} to ${t.name}")
     }
 
+    /**
+     * [value] converted for field [f]: a field takes what a parameter of its type would take (a TypeError otherwise,
+     * rather than `'abc'` becoming 0 or 1.9 becoming 1).
+     */
+    fun toField(value: Any?, f: java.lang.reflect.Field): Any? {
+        val t = f.type
+        if (cost(value, t) == IMPOSSIBLE) throw JSException.typeError("Cannot convert ${Ops.describe(value)} to ${t.name} for field ${f.name}")
+        return toHost(value, t, if (needsGeneric(t)) f.genericType else null)
+    }
+
     /** Date-time types a JS `Date` or `Temporal.Instant` converts to (see [dateTimeOf]). */
     private fun isDateTimeType(t: Class<*>) = t == java.time.Instant::class.java || t == java.util.Date::class.java ||
         t == java.time.ZonedDateTime::class.java || t == java.time.OffsetDateTime::class.java ||

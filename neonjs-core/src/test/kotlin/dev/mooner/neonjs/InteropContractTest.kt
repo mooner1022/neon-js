@@ -59,6 +59,19 @@ class Overloads {
     }
 }
 
+/** Fields of several types, assigned from JS. */
+class Fields {
+    @JvmField var count = 0
+    @JvmField var name = ""
+    @JvmField var ratio = 0.0
+    @JvmField var any: Any? = null
+    @JvmField var ints = IntArray(2)
+
+    companion object {
+        @JvmField var shared = 0
+    }
+}
+
 /** Takes and keeps 64-bit IDs. */
 class Ids {
     @JvmField var last = 0L
@@ -354,10 +367,11 @@ class InteropContractTest {
             c["o"] = Overloads()
             assertEquals("long,long,Object", c.eval("[o.num(id), o.num(5n), o.num(2n ** 70n)].join()").asString())
             assertThrows(NeonException::class.java) { c.eval("ids.echo(2n ** 64n)") }
-            // and does not fit beyond: a RangeError rather than a truncated long
+            // and does not fit beyond: an error rather than a truncated long (a TypeError for a field, which takes
+            // what a parameter would take)
             assertThrows(java.lang.ArithmeticException::class.java) { c.eval("2n ** 64n").asLong() }
             assertThrows(NeonException::class.java) { c.eval("2n ** 64n").`as`(Long::class.java) }
-            assertEquals("RangeError", c.eval("try { ids.last = 2n ** 64n; 'no error' } catch (e) { e.name }").asString())
+            assertEquals("TypeError", c.eval("try { ids.last = 2n ** 64n; 'no error' } catch (e) { e.name }").asString())
             assertEquals(Long.MAX_VALUE, ids.last)
             // Object parameters: a BigInt that fits in 64 bits is a Long, the type a long becomes on the way back, so
             // a small one comes back as a number; a larger one stays a BigInteger
@@ -406,6 +420,25 @@ class InteropContractTest {
             c["cls"] = StringBuilder::class.java
             c.exposeClass("SB", StringBuilder::class.java)
             assertEquals("true,true,true", c.eval("[cls === SB, Java.type('java.lang.StringBuilder') === SB, Java.type('java.util.Map').Entry === Java.type('java.util.Map${'$'}Entry')].join()").asString())
+        }
+    }
+
+    @Test
+    fun fieldsTakeWhatParametersTake() {
+        ctx().use { c ->
+            val f = Fields()
+            c["f"] = f
+            c.exposeClass("Fields", Fields::class.java)
+            c.eval("f.count = 2; f.name = 'n'; f.ratio = 1; f.any = 'x'; Fields.shared = 3")
+            assertEquals(listOf<Any?>(2, "n", 1.0, "x", 3), listOf(f.count, f.name, f.ratio, f.any, Fields.shared))
+            // what no parameter of the type would take is a TypeError, not a converted value
+            for (bad in listOf("f.count = 'abc'", "f.count = 1.9", "f.count = undefined", "f.name = 5", "f.ratio = 'x'", "Fields.shared = 1.5")) {
+                assertEquals("TypeError", c.eval("try { $bad; 'assigned' } catch (e) { e.name }").asString(), bad)
+            }
+            assertEquals(listOf<Any?>(2, "n", 1.0, 3), listOf(f.count, f.name, f.ratio, Fields.shared))
+            // array elements convert as typed array elements do
+            c.eval("f.ints[0] = 1.9; f.ints[1] = '7'")
+            assertEquals(listOf(1, 7), f.ints.toList())
         }
     }
 
