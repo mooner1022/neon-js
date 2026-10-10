@@ -1,9 +1,9 @@
 NeonJS
 Copyright 2026 mooner1022
 
-This product includes data derived from the Unicode Character Database (Unicode 17.0.0):
-the property and case mapping tables of neonjs-core (dev.mooner.neonjs.unicode and
-dev.mooner.neonjs.builtins), distributed under the following license.
+This product includes data derived from the Unicode Character Database and the Unicode IDNA
+mapping table (Unicode 17.0.0): the property, case mapping and IDNA tables of neonjs-core
+(dev.mooner.neonjs.unicode and dev.mooner.neonjs.builtins), distributed under the following license.
 
 UNICODE LICENSE V3
 
