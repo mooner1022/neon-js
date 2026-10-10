@@ -16,7 +16,8 @@ import kotlin.system.exitProcess
  * files are evaluated, then the test, then `done()`; the event loop runs until the harness reports completion.
  *
  * Usage: `WptKt [--root third_party/wpt] [--mode interpreter|compiled|adaptive] [--threads N] [--timeout ms]
- * [--known file] [--write-known file] [--list] [-v] [dir-or-file...]`; `--list` prints every subtest's result. Results are per subtest; the known-failures file lists
+ * [--known file] [--write-known file] [--list] [--include-window path] [-v] [dir-or-file...]`; `--list` prints every
+ * subtest's result, `--include-window` runs a window-only test (repeatable). Results are per subtest; the known-failures file lists
  * `path[?variant] :: subtest name` lines, or a bare `path[?variant]` for all of a file's subtests.
  */
 fun main(args: Array<String>) {
@@ -29,6 +30,7 @@ fun main(args: Array<String>) {
     var writeKnown: File? = null
     var verbose = false
     var list = false
+    val includeWindow = HashSet<String>()
     var i = 0
     while (i < args.size) {
         when (val a = args[i]) {
@@ -41,11 +43,13 @@ fun main(args: Array<String>) {
             "--write-known" -> writeKnown = File(args[++i])
             "-v" -> verbose = true
             "--list" -> list = true
+            // a window-only test that needs no window (IdnaTestV2.any.js only tests new URL)
+            "--include-window" -> includeWindow.add(args[++i])
             else -> filters.add(a)
         }
         i++
     }
-    val runner = Wpt(root, timeoutMs, mode)
+    val runner = Wpt(root, timeoutMs, mode, includeWindow)
     val tests = runner.collect(filters)
     System.err.println("Running ${tests.size} WPT files (with variants) with $threads threads")
     val results = ConcurrentHashMap<String, Wpt.FileResult>()
@@ -102,7 +106,7 @@ fun main(args: Array<String>) {
     exitProcess(if (unexpected.isEmpty()) 0 else 1)
 }
 
-class Wpt(val root: File, val timeoutMs: Long, val mode: ExecutionMode) {
+class Wpt(val root: File, val timeoutMs: Long, val mode: ExecutionMode, val includeWindow: Set<String> = emptySet()) {
     /** One run of a test file: [variant] is its `META: variant` (the query string), or "". */
     class TestFile(val file: File, val rel: String, val variant: String, val meta: List<Pair<String, String>>) {
         val key: String get() = rel + variant
@@ -144,7 +148,7 @@ class Wpt(val root: File, val timeoutMs: Long, val mode: ExecutionMode) {
     }
 
     fun run(t: TestFile): FileResult {
-        if (!runsOutsideWindows(t)) return FileResult(t.key, emptyList(), null, skipped = true)
+        if (!runsOutsideWindows(t) && t.rel !in includeWindow) return FileResult(t.key, emptyList(), null, skipped = true)
         // as in a worker, the scripts are one task: no microtask runs between them (testharness.js decides it has
         // loaded in a microtask, and would otherwise complete after the first test)
         val engine = NeonEngine.builder().webGlobals(true).console(null).executionMode(mode).autoRunJobs(false).build()
@@ -221,8 +225,17 @@ class Wpt(val root: File, val timeoutMs: Long, val mode: ExecutionMode) {
         };
     """.trimIndent()
 
-    /** A subtest name as one line of UTF-8: control characters and lone surrogates as \uXXXX escapes. */
+    /**
+     * A subtest name as one line of UTF-8: control characters and lone surrogates as \uXXXX escapes, and spaces at
+     * either end too (lines of the known list are trimmed).
+     */
     private fun printable(name: String): String {
+        val core = name.trim(' ')
+        if (core.length != name.length) {
+            val lead = name.length - name.trimStart(' ').length
+            val trail = name.length - name.trimEnd(' ').length
+            return "\\u0020".repeat(lead) + printable(core) + "\\u0020".repeat(trail)
+        }
         val sb = StringBuilder(name.length)
         var i = 0
         while (i < name.length) {
