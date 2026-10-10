@@ -13,6 +13,8 @@ class HostMethodFunction(
     @JvmField val overloads: List<Method>,
     @JvmField val target: Any?,
 ) : JSFunction(bridge.realm, bridge.realm.functionPrototype) {
+    private var sigs: Array<HostBridge.Sig>? = null
+
     init {
         defineOwn("length", (overloads.minOfOrNull { it.parameterCount } ?: 0).toDouble(), Attr.CONFIGURABLE)
         defineOwn("name", name, Attr.CONFIGURABLE)
@@ -24,7 +26,8 @@ class HostMethodFunction(
             // unbound instance method: use thisArg
             recv = (thisArg as? HostObject)?.target ?: throw JSException.typeError("Host method ${debugName()} called on incompatible receiver")
         }
-        val m = bridge.select(overloads, args) ?: throw JSException.typeError(
+        val s = sigs ?: bridge.sigs(overloads).also { sigs = it }
+        val m = bridge.select(overloads, s, args) ?: throw JSException.typeError(
             "No applicable overload for ${debugName()} with arguments (${args.joinToString { Ops.typeOf(it) }})"
         )
         return bridge.invoke(m, recv, args)
@@ -276,9 +279,9 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
 
     override fun call(thisArg: Any?, args: Array<Any?>): Any? {
         val m = info.functionalMethod ?: throw JSException.typeError("Host object is not callable")
-        val all = HostClassInfo.of(m.declaringClass, bridge.access).instanceMethods[m.name]?.filter { it.parameterCount == m.parameterCount }
-            ?: listOf(m)
-        val chosen = bridge.select(all.ifEmpty { listOf(m) }, args) ?: m
+        val all = info.callOverloads ?: (bridge.classInfo(m.declaringClass).instanceMethods[m.name]
+            ?.filter { it.parameterCount == m.parameterCount }?.ifEmpty { null } ?: listOf(m)).also { info.callOverloads = it }
+        val chosen = bridge.select(all, args) ?: m
         if (chosen.parameterCount != args.size && !chosen.isVarArgs) {
             val padded = Array(chosen.parameterCount) { i -> if (i < args.size) args[i] else Undefined }
             return bridge.invoke(chosen, target, padded)

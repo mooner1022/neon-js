@@ -24,6 +24,8 @@ class HostClassInfo private constructor(val cls: Class<*>, val access: HostAcces
     val memberClasses = HashMap<String, Class<*>>()
     /** The method a call of an instance runs, if instances are functions (see [findFunctionalMethod]). */
     var functionalMethod: Method? = null
+    /** The overloads of [functionalMethod] a call chooses from (set by the first call). */
+    @Volatile internal var callOverloads: List<Method>? = null
 
     init {
         if (instancesVisible) collect()

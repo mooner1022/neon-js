@@ -289,7 +289,8 @@ class JSAdapterDelegate(private val bridge: HostBridge, private val impl: JSObje
         if (!Ops.isCallable(fn)) return@enter AdapterSupport.NOT_HANDLED
         val jsArgs = Array(args.size) { bridge.toJS(args[it]) }
         val r = (fn as JSObject).call(bridge.toJS(self), jsArgs)
-        if (m.returnType == Void.TYPE) null else bridge.toHost(r, m.returnType, m.genericReturnType)
+        val s = bridge.sig(m)
+        if (s.returnType == Void.TYPE) null else bridge.toHost(r, s.returnType, s.genericReturn())
     }
 }
 

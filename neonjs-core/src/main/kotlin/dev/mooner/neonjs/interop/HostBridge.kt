@@ -36,6 +36,36 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
 
     fun classInfo(c: Class<*>) = HostClassInfo.of(c, access)
 
+    /**
+     * What calls need of a method or constructor, computed once per context: reflection copies the parameter types on
+     * every call, and ART parses generic signatures again each time.
+     */
+    internal class Sig(private val e: Executable) {
+        @JvmField val params: Array<Class<*>> = e.parameterTypes
+        @JvmField val varArgs: Boolean = e.isVarArgs
+        @JvmField val returnType: Class<*> = (e as? Method)?.returnType ?: Void.TYPE
+        private var generics: Array<Type>? = null
+        private var genericReturn: Type? = null
+
+        /** The generic type of parameter [i] where conversions use it (element types of collections and futures). */
+        fun generic(i: Int): Type? {
+            if (!needsGeneric(params[i])) return null
+            val g = generics ?: e.genericParameterTypes.also { generics = it }
+            // a constructor of an inner class may leave the outer instance out of its generic signature
+            return if (g.size == params.size) g[i] else null
+        }
+
+        fun genericReturn(): Type? {
+            if (!needsGeneric(returnType)) return null
+            return genericReturn ?: (e as Method).genericReturnType.also { genericReturn = it }
+        }
+    }
+
+    /** Sigs by method or constructor. Equality, not identity: proxies may be handed a new Method for every call. */
+    private val sigs = HashMap<Executable, Sig>()
+
+    internal fun sig(e: Executable): Sig = sigs[e] ?: Sig(e).also { sigs[e] = it }
+
     // ------------------------------------------------------------------ host -> JS
 
     fun toJS(v: Any?): Any? = when (v) {
@@ -198,6 +228,9 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         const val MAX_ARRAY_LENGTH = 1 shl 26
         /** Number.MAX_SAFE_INTEGER: longs up to this magnitude are exact as numbers. */
         const val MAX_SAFE_LONG = 9007199254740991L
+
+        /** Whether converting to [t] uses its generic type: collection interfaces and futures (see [elementType]). */
+        private fun needsGeneric(t: Class<*>) = t.isInterface || t == CompletableFuture::class.java
 
         /** Widening primitive conversions (JLS 5.1.2): the types each primitive type converts to. */
         private val PRIMITIVE_WIDENING: Map<Class<*>, Set<Class<*>>> = run {
@@ -478,7 +511,8 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
                     }
                     (fn as JSObject).call(v, jsArgs)
                 }
-                if (method.returnType == Void.TYPE) null else toHost(r, method.returnType, method.genericReturnType)
+                val s = sig(method)
+                if (s.returnType == Void.TYPE) null else toHost(r, s.returnType, s.genericReturn())
             }
         }
     }
@@ -498,14 +532,21 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
     // ------------------------------------------------------------------ invocation
 
     /** Selects the best overload for [args]; returns null if none applies. */
-    fun <E : Executable> select(cands: List<E>, args: Array<Any?>): E? {
+    fun <E : Executable> select(cands: List<E>, args: Array<Any?>): E? = select(cands, sigs(cands), args)
+
+    internal fun sigs(cands: List<Executable>): Array<Sig> = Array(cands.size) { sig(cands[it]) }
+
+    /** [select] with the [sigs] of [cands] at hand. */
+    internal fun <E : Executable> select(cands: List<E>, sigs: Array<Sig>, args: Array<Any?>): E? {
         var best: E? = null
         var bestCost = IMPOSSIBLE
         var tied: ArrayList<E>? = null
-        for (c in cands) {
-            val pts = c.parameterTypes
+        for (index in cands.indices) {
+            val c = cands[index]
+            val s = sigs[index]
+            val pts = s.params
             var total = 0
-            if (c.isVarArgs) {
+            if (s.varArgs) {
                 if (args.size < pts.size - 1) continue
                 for (i in 0 until pts.size - 1) {
                     val k = cost(args[i], pts[i])
@@ -571,15 +612,16 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         else -> !t.isPrimitive && t.isAssignableFrom(s)
     }
 
-    fun convertArgs(e: Executable, args: Array<Any?>): Array<Any?> {
-        val pts = e.parameterTypes
-        val gts = e.genericParameterTypes
-        if (!e.isVarArgs) return Array(pts.size) { i -> toHost(args[i], pts[i], gts[i]) }
+    fun convertArgs(e: Executable, args: Array<Any?>): Array<Any?> = convertArgs(sig(e), args)
+
+    private fun convertArgs(s: Sig, args: Array<Any?>): Array<Any?> {
+        val pts = s.params
+        if (!s.varArgs) return Array(pts.size) { i -> toHost(args[i], pts[i], s.generic(i)) }
         val fixed = pts.size - 1
         val out = arrayOfNulls<Any?>(pts.size)
-        for (i in 0 until fixed) out[i] = toHost(args[i], pts[i], gts[i])
+        for (i in 0 until fixed) out[i] = toHost(args[i], pts[i], s.generic(i))
         if (args.size == pts.size && cost(args.last(), pts.last()) != IMPOSSIBLE) {
-            out[fixed] = toHost(args.last(), pts.last(), gts.last())
+            out[fixed] = toHost(args.last(), pts.last(), s.generic(fixed))
         } else {
             val ct = pts.last().componentType
             val arr = java.lang.reflect.Array.newInstance(ct, args.size - fixed)
@@ -591,7 +633,8 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
 
     /** Invokes a host method/constructor, mapping exceptions. */
     fun invoke(m: Method, target: Any?, args: Array<Any?>): Any? {
-        val conv = convertArgs(m, args)
+        val s = sig(m)
+        val conv = convertArgs(s, args)
         val r = try {
             m.invoke(target, *conv)
         } catch (e: InvocationTargetException) {
@@ -599,7 +642,7 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         } catch (e: IllegalAccessException) {
             throw JSException.typeError("Cannot access ${m.name}: ${e.message}")
         }
-        if (m.returnType == Void.TYPE) return Undefined
+        if (s.returnType == Void.TYPE) return Undefined
         return toJS(r)
     }
 
