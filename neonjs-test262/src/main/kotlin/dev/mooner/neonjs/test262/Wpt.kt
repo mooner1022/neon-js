@@ -208,7 +208,7 @@ class Wpt(val root: File, val timeoutMs: Long, val mode: ExecutionMode) {
     /** What WPT's worker wrapper defines, plus `location` (for variants) and a fetch of local fixtures only. */
     private fun prelude(t: TestFile): String = """
         globalThis.self = globalThis;
-        self.GLOBAL = { isWindow() { return false }, isWorker() { return false }, isShadowRealm() { return false } };
+        self.GLOBAL = { isWindow() { return false }, isWorker() { return true }, isShadowRealm() { return false } };
         self.location = { search: ${jsString(t.variant)}, href: ${jsString("http://web-platform.test/" + t.rel + t.variant)},
                           origin: "http://web-platform.test", protocol: "http:", host: "web-platform.test", hostname: "web-platform.test",
                           port: "", pathname: ${jsString("/" + t.rel)}, hash: "" };
@@ -244,9 +244,17 @@ class Wpt(val root: File, val timeoutMs: Long, val mode: ExecutionMode) {
         /** Paths WPT's server maps to other files. */
         private val ALIASES = mapOf("/resources/WebIDLParser.js" to "/resources/webidl2/lib/webidl2.js")
 
+        /**
+         * Registers the result callbacks, then makes the global object look like a dedicated worker's: the web
+         * globals are the APIs workers have (idlharness.js would otherwise take the global for a ShadowRealm's and
+         * expect every interface not exposed everywhere to be missing). testharness.js has already chosen its shell
+         * environment by then.
+         */
         private val REPORTER = """
             add_result_callback(t => __wptResult(t.name, t.status, t.message));
             add_completion_callback((tests, status) => __wptComplete(status.status, status.message));
+            self.DedicatedWorkerGlobalScope = function DedicatedWorkerGlobalScope() {};
+            Object.setPrototypeOf(self, DedicatedWorkerGlobalScope.prototype);
         """.trimIndent()
     }
 }

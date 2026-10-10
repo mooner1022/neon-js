@@ -473,12 +473,11 @@ encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported f
 encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: UTF-16LE
 encoding/textencoder-constructor-non-utf.any.js :: Encoding argument supported for decode: x-user-defined
 encoding/unsupported-encodings.any.js
-# dom, hr-time: the global object is no EventTarget (as in Node); AbortSignal.timeout and performance are present
-# although WebIDL exposes them to windows and workers only, and testharness.js sees a shell
-dom/events/EventTarget-removeEventListener.any.js :: removing a null event listener should succeed
-dom/idlharness.any.js :: AbortSignal interface: member timeout
-hr-time/idlharness.any.js :: Performance interface: existence and properties of interface object
-hr-time/idlharness.any.js :: Performance interface: performance must not have property "now"
-hr-time/idlharness.any.js :: Performance interface: performance must not have property "timeOrigin"
-hr-time/idlharness.any.js :: Performance interface: performance must not have property "toJSON"
-hr-time/idlharness.any.js :: Window interface: self must not have property "performance"
+#
+# dom: the global object is no EventTarget, as in Node.
+dom/events/EventTarget-removeEventListener.any.js
+#
+# hr-time: the global object looks like a dedicated worker's to the runner, but there is no WorkerGlobalScope
+# interface: performance is an own property of the global object.
+hr-time/idlharness.any.js :: WorkerGlobalScope interface: attribute performance
+hr-time/idlharness.any.js :: WorkerGlobalScope interface: self must inherit property "performance" with the proper type

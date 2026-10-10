@@ -28,7 +28,7 @@ scripts in Java/Kotlin applications:
 | Test262 `staging/` | 1,467 / 1,483 — the rest are SpiderMonkey extensions left out on purpose (`f.caller`/`f.arguments`, 12), two Annex B tests that contradict the main suite, and two engine-specific Date parsing heuristics |
 | Test262 `intl402/` (with `neonjs-intl`) | **3,363 / 3,365** in all modes — the two failures are ICU 78 data limits: one Chinese-calendar month boundary (2030) where ICU's astronomy differs from the official table Temporal uses, and islamic-civil eras that ICU does not distinguish |
 | Skipped Test262 features | `export-defer` (no stable semantics yet) |
-| web-platform-tests (web globals) | `encoding/`: 3,642 subtests pass, the rest need other encodings than UTF-8, streams or WebAssembly; `dom/events`, `dom/abort`, `hr-time`, `WebCryptoAPI` (getRandomValues, randomUUID) and their IDL tests: 355 / 362, the 7 are deliberate (`neonjs-test262/wpt-known-failures.txt`) |
+| web-platform-tests (web globals) | `encoding/`: 3,642 subtests pass, the rest need other encodings than UTF-8, streams or WebAssembly; `dom/events`, `dom/abort`, `hr-time`, `WebCryptoAPI` (getRandomValues, randomUUID) and their IDL tests: 370 / 373, the 3 are deliberate (`neonjs-test262/wpt-known-failures.txt`) |
 | JVM | Java 21+ (built with a JDK 25 toolchain, `jvmTarget` 21) |
 
 Implemented highlights: full ES2025 syntax and semantics (classes with private members, generators, async
@@ -439,7 +439,8 @@ java -Xss16m -cp "neonjs-test262/build/install/neonjs-test262/lib/*" dev.mooner.
 ```
 
 Results are per subtest; `--write-known FILE` writes the current failures in the format of the known list. Tests meant
-only for windows (`META: global=window`) are skipped.
+only for windows (`META: global=window`) are skipped, and to idlharness.js the global object looks like a dedicated
+worker's: the web globals are what workers (and Node) have, which WebIDL exposes to windows and workers.
 
 ### On Android devices and emulators
 
