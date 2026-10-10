@@ -48,6 +48,56 @@ internal class WebInterface private constructor(@JvmField val realm: Realm, @Jvm
         proto.defineAccessor(name, g, s, Attr.ENUMERABLE or Attr.CONFIGURABLE)
     }
 
+    /** An iterator of a pair iterable: the object iterated, the kind (0 keys, 1 values, 2 entries) and the next index. */
+    class PairIterator(proto: JSObject?, @JvmField val target: JSObject, @JvmField val kind: Int) : JSObject(proto) {
+        @JvmField var index = 0
+    }
+
+    /**
+     * A pair iterator declaration (`iterable<K, V>`): `entries`, `keys`, `values` and `forEach` on the prototype,
+     * `@@iterator` the same function as `entries`, and iterators inheriting from a "<Name> Iterator" prototype that
+     * inherits from %Iterator.prototype%. [pairs] gives the pairs of a receiver (an instance of [cls]) and is asked
+     * again at each step, so iteration sees changes made meanwhile.
+     */
+    fun <T : JSObject> pairIterable(cls: Class<T>, pairs: (T) -> List<Pair<Any?, Any?>>) {
+        fun self(t: Any?, member: String): T =
+            if (cls.isInstance(t)) cls.cast(t) else typeErr("$name.$member called on ${Ops.describe(t)}, which is not a $name")
+        val iface = name
+        val itProto = JSObject(realm.iteratorPrototype)
+        itProto.defineOwn("next", NativeFunction(realm, "next", 0, { f, t, _, _ ->
+            val it = t as? PairIterator
+            if (it == null || it.proto !== itProto) typeErr("$iface Iterator.next called on ${Ops.describe(t)}")
+            val list = pairs(cls.cast(it.target))
+            if (it.index >= list.size) return@NativeFunction dev.mooner.neonjs.vm.Iteration.createIterResult(f.realm, Undefined, true)
+            val (k, v) = list[it.index++]
+            val value = when (it.kind) {
+                0 -> k
+                1 -> v
+                else -> dev.mooner.neonjs.builtins.Builtins.arrayOf(f.realm, listOf(k, v))
+            }
+            dev.mooner.neonjs.vm.Iteration.createIterResult(f.realm, value, false)
+        }), Attr.ALL)
+        itProto.defineOwn(JSSymbol.toStringTag, "$iface Iterator", Attr.CONFIGURABLE)
+        fun iterator(kind: Int, member: String) = NativeImpl { _, t, _, _ -> PairIterator(itProto, self(t, member), kind) }
+        val entries = operation("entries", 0, iterator(2, "entries"))
+        operation("keys", 0, iterator(0, "keys"))
+        operation("values", 0, iterator(1, "values"))
+        operation("forEach", 1) { _, t, a, _ ->
+            val target = self(t, "forEach")
+            val cb = Idl.callback(a.arg(0), "$iface.forEach callback")
+            val thisArg = a.arg(1)
+            var i = 0
+            while (true) {
+                val list = pairs(target)
+                if (i >= list.size) break
+                val (k, v) = list[i++]
+                Ops.call(cb, thisArg, arrayOf(v, k, target))
+            }
+            Undefined
+        }
+        proto.defineOwn(JSSymbol.iterator, entries, Attr.WC)
+    }
+
     /** A constant: an enumerable, read-only, non-configurable property of the interface object and the prototype. */
     fun constant(name: String, value: Double) {
         ctor.defineOwn(name, value, Attr.ENUMERABLE)

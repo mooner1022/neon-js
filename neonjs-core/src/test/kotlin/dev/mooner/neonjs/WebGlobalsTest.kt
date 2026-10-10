@@ -170,14 +170,14 @@ class WebGlobalsTest {
     @Test
     fun offByDefaultAndAbsentFromShadowRealms() {
         val names = "[typeof setTimeout, typeof TextEncoder, typeof queueMicrotask, typeof EventTarget, typeof Event, typeof AbortController, " +
-            "typeof AbortSignal, typeof Performance, typeof Crypto, typeof QuotaExceededError, typeof Blob, typeof File, typeof performance, " +
-            "typeof crypto].join()"
+            "typeof AbortSignal, typeof Performance, typeof Crypto, typeof QuotaExceededError, typeof Blob, typeof File, typeof FormData, " +
+            "typeof performance, typeof crypto].join()"
         NeonEngine.builder().console(null).build().newContext().use { c ->
-            assertEquals(List(14) { "undefined" }.joinToString(","), c.eval(names).asString())
+            assertEquals(List(15) { "undefined" }.joinToString(","), c.eval(names).asString())
         }
         ctx().use { c ->
-            assertEquals(List(12) { "function" }.plus(listOf("object", "object")).joinToString(","), c.eval(names).asString())
-            assertEquals(List(14) { "undefined" }.joinToString(","), c.eval("new ShadowRealm().evaluate('$names')").asString())
+            assertEquals(List(13) { "function" }.plus(listOf("object", "object")).joinToString(","), c.eval(names).asString())
+            assertEquals(List(15) { "undefined" }.joinToString(","), c.eval("new ShadowRealm().evaluate('$names')").asString())
         }
     }
 
@@ -213,6 +213,17 @@ class WebGlobalsTest {
                     return [b.size, b.type, await b.slice(1, 3).text(), f.name, f.lastModified, clone instanceof File, await clone.text(), bad].join();
                 })()
             """).await(5_000).asString())
+        }
+        // FormData entries: strings, and blobs as Files
+        ctx().use { c ->
+            assertEquals("a=1,f=File:blob,f=File:x.txt,FormData Iterator", c.eval("""
+                const fd = new FormData();
+                fd.append('a', 1);
+                fd.append('f', new Blob(['z']));
+                fd.append('f', new Blob(['y']), 'x.txt');
+                [...fd].map(([k, v]) => k + '=' + (typeof v === 'string' ? v : v.constructor.name + ':' + v.name))
+                    .concat(Object.prototype.toString.call(fd.entries()).slice(8, -1)).join()
+            """).asString())
         }
         // the size of a blob is charged to the allocation budget before its bytes are allocated
         ctx(SandboxPolicy.builder().maxAllocatedBytes(16L shl 20).build()).use { c ->
