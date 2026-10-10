@@ -25,6 +25,8 @@ class RuntimeConfig {
     @JvmField var annexB = true
     /** Bytes the thread may allocate per top-level evaluation (0 = unlimited; HotSpot only). */
     @JvmField var maxAllocatedBytes = 0L
+    /** Whether the limits above restart for each task [Agent.runJobs] runs, and do not run while it waits for one. */
+    @JvmField var limitsPerTask = false
     /** Whether eval / Function constructors may compile code at runtime. */
     @JvmField var allowCodeGeneration = true
     /** dev.mooner.neonjs.ExecutionMode ordinal: 0 interpreter, 1 compiled, 2 adaptive. */
@@ -121,9 +123,14 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
     }
 
     fun startLimits() {
+        interruptRequested = false
+        restartLimits()
+    }
+
+    /** Gives what runs next the whole time, instruction and allocation budget, keeping a requested interrupt. */
+    fun restartLimits() {
         deadlineNanos = if (config.maxExecutionMillis > 0) System.nanoTime() + config.maxExecutionMillis * 1_000_000 else 0L
         statementsLeft = if (config.maxStatements > 0) config.maxStatements else Long.MAX_VALUE
-        interruptRequested = false
         if (config.maxAllocatedBytes > 0) allocationBase = threadAllocatedBytes()
     }
 
@@ -231,14 +238,15 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
     /**
      * Blocks the owner thread until an external job has been posted (true; [runJobs] runs it) or [timeoutMillis]
      * elapse (false). Waits in slices of at most 50 ms and checks [checkWaitLimits] between slices, so an interrupt or
-     * the execution deadline still terminates the wait; a Java interrupt of the thread ends it as an interrupted
-     * execution.
+     * the execution deadline still terminates the wait (with [RuntimeConfig.limitsPerTask], only an interrupt: the
+     * wait is no task's); a Java interrupt of the thread ends it as an interrupted execution.
      */
     fun awaitExternal(timeoutMillis: Long): Boolean {
         val end = System.nanoTime() + java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(maxOf(timeoutMillis, 0L))
         while (true) {
             if (externalCount > 0) return true
-            checkWaitLimits()
+            if (!config.limitsPerTask) checkWaitLimits()
+            else if (interruptRequested) throw InterruptedExecutionException("Execution interrupted")
             val remaining = end - System.nanoTime()
             if (remaining <= 0) return false
             if (waitForExternal(minOf(remaining, EXTERNAL_WAIT_SLICE_NANOS))) return true
@@ -292,14 +300,16 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
 
     /**
      * Runs what is ready, as turns of an event loop: the pending jobs (microtasks), then each posted external job as a
-     * task followed by the microtasks it queued, until neither is left. A job that throws ends the call, leaving the
-     * rest queued.
+     * task followed by the microtasks it queued, until neither is left. With [RuntimeConfig.limitsPerTask] each task
+     * starts with the whole budget of [restartLimits]. A job that throws ends the call, leaving the rest queued.
      */
     fun runJobs() {
         try {
             runMicrotasks()
             while (true) {
                 val task = pollExternal() ?: return
+                if (config.limitsPerTask) restartLimits()
+                if (interruptRequested) throw InterruptedExecutionException("Execution interrupted")
                 if (--callBudget < 0) {
                     callBudget = 1024
                     checkInterrupt()

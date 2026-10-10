@@ -77,6 +77,50 @@ class WebGlobalsTest {
     }
 
     @Test
+    fun limitsCanApplyToEachTask() {
+        val perTaskTime = SandboxPolicy.builder().maxExecutionTime(300).limitsPerTask(true).build()
+        ctx(perTaskTime).use { c ->
+            // 400 ms of ticks, the wait for a late timer and the late timer's 150 ms of work all fit: each task has its own 300 ms
+            c.eval("var ticks = 0, late = 0; var iv = setInterval(() => ticks++, 1); setTimeout(() => { clearInterval(iv); var end = Date.now() + 150; while (Date.now() < end) {} late++ }, 400)")
+            assertTrue(c.runEventLoop(5_000))
+            assertEquals(1, c.eval("late").asInt())
+            // a task running too long is still stopped
+            c.eval("setTimeout(() => { for (;;) {} }, 1)")
+            assertThrows<NeonTimeoutException> { c.runEventLoop(5_000) }
+        }
+        val steps = """var done = 0; for (var k = 0; k < 5; k++) setTimeout(() => { for (var i = 0; i < 300000; i++) {} done++ }, 1)"""
+        ctx(SandboxPolicy.builder().maxStatements(1_000_000).limitsPerTask(true).build()).use { c ->
+            // five tasks of 300,000 iterations each stay within 1,000,000 instructions per task
+            c.eval(steps)
+            assertTrue(c.runEventLoop(5_000))
+            assertEquals(5, c.eval("done").asInt())
+        }
+        // by default the same tasks share the budget of the runEventLoop call
+        ctx(SandboxPolicy.builder().maxStatements(1_000_000).build()).use { c ->
+            c.eval(steps)
+            assertThrows<NeonResourceLimitException> { c.runEventLoop(5_000) }
+        }
+        // a new task's budget keeps an interrupt (requested until the loop ends: one before the loop starts is cleared)
+        ctx(perTaskTime).use { c ->
+            c.eval("setInterval(() => {}, 1)")
+            val done = java.util.concurrent.atomic.AtomicBoolean()
+            val t = Thread {
+                while (!done.get()) {
+                    Thread.sleep(20)
+                    c.interrupt()
+                }
+            }
+            t.start()
+            try {
+                assertThrows<NeonInterruptedException> { c.runEventLoop(5_000) }
+            } finally {
+                done.set(true)
+                t.join()
+            }
+        }
+    }
+
+    @Test
     fun textCodecsAndBase64() {
         ctx().use { c ->
             assertEquals("aGVsbG8=,hello,hello,InvalidCharacterError,InvalidCharacterError", c.eval("""

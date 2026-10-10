@@ -30,6 +30,13 @@ class SandboxPolicy private constructor(b: Builder) {
     val timeZone: java.time.ZoneId? = b.timeZone ?: if (b.randomSeed != null) java.time.ZoneOffset.UTC else null
     /** Most timers (`setTimeout` / `setInterval`, see NeonEngine.Builder.webGlobals) a context may have pending. */
     val maxTimers: Int = b.maxTimers
+    /**
+     * Whether [maxExecutionMillis], [maxStatements] and [maxAllocatedBytes] apply to each task of the event loop (a
+     * timer callback or a host future's completion, with the microtasks it queues) rather than to the whole
+     * `runEventLoop` / `await` / `evalModule` call, and waiting for the next task counts against none of them. For
+     * scripts serving events for a long time; the call's timeout or `NeonContext.interrupt` then bounds the loop.
+     */
+    val limitsPerTask: Boolean = b.limitsPerTask
 
     class Builder {
         var maxExecutionMillis = 0L
@@ -44,6 +51,7 @@ class SandboxPolicy private constructor(b: Builder) {
         var timeZone: java.time.ZoneId? = null
         var defaultLocale: String? = null
         var maxTimers = 10_000
+        var limitsPerTask = false
 
         fun maxExecutionTime(millis: Long) = apply { maxExecutionMillis = millis }
         fun maxStatements(n: Long) = apply { maxStatements = n }
@@ -59,6 +67,8 @@ class SandboxPolicy private constructor(b: Builder) {
         fun defaultLocale(tag: String) = apply { defaultLocale = tag }
         /** Caps the pending timers of a context (RangeError beyond); default 10,000. */
         fun maxTimers(n: Int) = apply { require(n >= 0) { "maxTimers must be >= 0" }; maxTimers = n }
+        /** Applies the time, instruction and allocation limits to each task of the event loop (default: to each call). */
+        fun limitsPerTask(b: Boolean) = apply { limitsPerTask = b }
         fun build() = SandboxPolicy(this)
     }
 

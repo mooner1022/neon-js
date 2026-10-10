@@ -38,6 +38,7 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
         cfg.maxStatements = p.maxStatements
         cfg.maxStringLength = p.maxStringLength
         cfg.maxAllocatedBytes = p.maxAllocatedBytes
+        cfg.limitsPerTask = p.limitsPerTask
         cfg.allowCodeGeneration = p.allowEval
         cfg.timeZone = p.timeZone
         cfg.defaultLocale = p.defaultLocale
