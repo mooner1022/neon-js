@@ -32,7 +32,7 @@ interface ContextGate {
  * Converts values between JS and the host, selects overloads and creates host wrappers. One bridge per context.
  */
 class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate) {
-    private val wrapperCache = java.util.WeakHashMap<Any, java.lang.ref.WeakReference<HostObject>>()
+    private val wrappers = WrapperCache()
 
     /** Views of the `Java.extend` adapter classes of this context: kept here, so they go with the context. */
     private val adapterInfos = HashMap<Class<*>, HostClassInfo>()
@@ -196,14 +196,42 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
 
     private fun opaque(v: Any): HostObject = HostObject(this, v, HostClassInfo.of(Any::class.java, HostAccess.NONE))
 
-    /** Wraps a host object (identity preserving while the host object is alive). */
+    /** Wraps a host object: the same wrapper for the same object while JS holds the wrapper. */
     fun wrap(v: Any): HostObject {
-        val cached = wrapperCache[v]?.get()
-        if (cached != null && cached.target === v) return cached
+        wrappers[v]?.let { return it }
         val info = classInfo(v.javaClass)
         val w = if (info.instancesVisible || info.functionalMethod != null || v.javaClass.isArray || v is List<*> || v is Map<*, *> || v is Iterable<*>) HostObject(this, v, info) else opaque(v)
-        if (v !is Number && v !is String) wrapperCache[v] = java.lang.ref.WeakReference(w)
+        wrappers[v] = w
         return w
+    }
+
+    /**
+     * Host objects to their wrappers, by identity and weakly. Never by equality: an equal object (another list with
+     * the same elements) is another object, and the host's equals and hashCode may be slow (a large collection),
+     * recursive (a list containing itself) or throw.
+     */
+    private class WrapperCache {
+        private class Key(o: Any, queue: java.lang.ref.ReferenceQueue<Any>) : java.lang.ref.WeakReference<Any>(o, queue) {
+            private val hash = System.identityHashCode(o)
+            override fun hashCode() = hash
+            override fun equals(other: Any?) = other === this || other is Key && get().let { it != null && it === other.get() }
+        }
+
+        /** Looks up the [Key] of [o] without making one. */
+        private class Probe(private val o: Any) {
+            override fun hashCode() = System.identityHashCode(o)
+            override fun equals(other: Any?) = other is Key && other.get() === o
+        }
+
+        private val queue = java.lang.ref.ReferenceQueue<Any>()
+        private val map = HashMap<Any, java.lang.ref.WeakReference<HostObject>>()
+
+        operator fun get(o: Any): HostObject? = map[Probe(o)]?.get()
+
+        operator fun set(o: Any, w: HostObject) {
+            while (true) map.remove(queue.poll() ?: break)
+            map[Key(o, queue)] = java.lang.ref.WeakReference(w)
+        }
     }
 
     // ------------------------------------------------------------------ JS -> host

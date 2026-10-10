@@ -386,6 +386,24 @@ class InteropContractTest {
     }
 
     @Test
+    fun hostObjectsKeepTheirIdentity() {
+        ctx().use { c ->
+            val l1 = arrayListOf(1)
+            val l2 = arrayListOf(1)
+            c["a"] = l1
+            c["b"] = l2
+            c["a2"] = l1
+            // the same object is the same wrapper; an equal one is another object
+            assertEquals("true,false,1", c.eval("b.add(2); [a === a2, a === b, a.size()].join()").asString())
+            // a list containing itself: no equals or hashCode is called on it
+            val self = ArrayList<Any>()
+            self.add(self)
+            c["self"] = self
+            assertEquals("true,1", c.eval("[self.get(0) === self, self.size()].join()").asString())
+        }
+    }
+
+    @Test
     fun missingClassesLeaveOutOnlyTheirMembers() {
         // Sub's bad(Absent) and absent field name a class missing at run time, as an Android API of a later level would
         val loader = BytesLoader(javaClass.classLoader)
