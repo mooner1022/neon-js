@@ -52,6 +52,13 @@ class Overloads {
     fun id(x: Any?) = x
     fun sameList(l: List<Any?>) = l
     fun sameMap(m: Map<String, Any?>) = m
+    fun doubleAll(m: MutableMap<String, Any?>) {
+        for (e in m.entries) e.setValue((e.value as Number).toInt() * 2)
+    }
+    fun dropOdd(m: MutableMap<String, Any?>) {
+        val it = m.entries.iterator()
+        while (it.hasNext()) if ((it.next().value as Number).toInt() % 2 == 1) it.remove()
+    }
 
     companion object {
         @JvmStatic fun stat(x: Int) = "static int"
@@ -297,6 +304,8 @@ class InteropContractTest {
             // a JS array or object given as a List or Map comes back as itself
             c["o"] = Overloads()
             assertEquals("true,true,2", c.eval("var arr = [1, 2]; var obj = { k: 1 }; [o.sameList(arr) === arr, o.sameMap(obj) === obj, o.sameList(arr).length].join()").asString())
+            // and changes made through the Map's entries show in the JS object
+            assertEquals("{\"a\":2,\"b\":4,\"c\":6}|{\"b\":2}", c.eval("var m1 = { a: 1, b: 2, c: 3 }, m2 = { a: 1, b: 2, c: 3 }; o.doubleAll(m1); o.dropOdd(m2); JSON.stringify(m1) + '|' + JSON.stringify(m2)").asString())
             // in another context the proxy is a host object: a function only through a declared functional interface
             ctx().use { c2 ->
                 c2["keeper"] = keeper

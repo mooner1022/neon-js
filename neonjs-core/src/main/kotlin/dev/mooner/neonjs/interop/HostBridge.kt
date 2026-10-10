@@ -829,18 +829,46 @@ class JSListView(internal val bridge: HostBridge, internal val arr: JSObject, pr
 
 /** Live java.util.Map view of a JS object's own enumerable string-keyed properties. */
 class JSMapView(internal val bridge: HostBridge, internal val obj: JSObject, private val vt: Class<*>) : java.util.AbstractMap<String, Any?>() {
+    /**
+     * The entries as they are when asked for; an entry's setValue and the iterator's remove change the JS object, as
+     * they change a map.
+     */
     override val entries: MutableSet<MutableMap.MutableEntry<String, Any?>>
-        get() = bridge.gate.enter {
-            val set = LinkedHashSet<MutableMap.MutableEntry<String, Any?>>()
-            for (k in obj.ownPropertyKeys()) {
-                if (k is JSSymbol) continue
-                val d = obj.getOwnProperty(k) ?: continue
-                if (!d.enumerable) continue
-                val key = PK.toStringKey(k)
-                set.add(java.util.AbstractMap.SimpleEntry(key, bridge.toHost(obj.get(k, obj), vt)))
+        get() {
+            val snapshot = bridge.gate.enter {
+                val list = ArrayList<Entry>()
+                for (k in obj.ownPropertyKeys()) {
+                    if (k is JSSymbol) continue
+                    val d = obj.getOwnProperty(k) ?: continue
+                    if (!d.enumerable) continue
+                    list.add(Entry(PK.toStringKey(k), bridge.toHost(obj.get(k, obj), vt)))
+                }
+                list
             }
-            set
+            return object : java.util.AbstractSet<MutableMap.MutableEntry<String, Any?>>() {
+                override val size: Int get() = snapshot.size
+
+                override fun iterator(): MutableIterator<MutableMap.MutableEntry<String, Any?>> = object : MutableIterator<MutableMap.MutableEntry<String, Any?>> {
+                    private var next = 0
+                    override fun hasNext() = next < snapshot.size
+                    override fun next(): MutableMap.MutableEntry<String, Any?> {
+                        if (next >= snapshot.size) throw NoSuchElementException()
+                        return snapshot[next++]
+                    }
+                    override fun remove() {
+                        check(next > 0) { "next() not called" }
+                        this@JSMapView.remove(snapshot[next - 1].key)
+                    }
+                }
+            }
         }
+
+    private inner class Entry(key: String, value: Any?) : java.util.AbstractMap.SimpleEntry<String, Any?>(key, value) {
+        override fun setValue(value: Any?): Any? {
+            put(key, value)
+            return super.setValue(value)
+        }
+    }
 
     override fun get(key: String): Any? = bridge.gate.enter { bridge.toHost(obj.get(PK.fromString(key), obj), vt) }
     override fun containsKey(key: String): Boolean = bridge.gate.enter { obj.hasProperty(PK.fromString(key)) }
