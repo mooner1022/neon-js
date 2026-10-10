@@ -352,6 +352,8 @@ class AdapterClassObject(
             gen.newInstance(JSAdapterDelegate(bridge, impl, adapter), *conv)
         } catch (e: java.lang.reflect.InvocationTargetException) {
             throw bridge.hostError(e.targetException)
+        } catch (e: IllegalArgumentException) {
+            throw JSException.typeError("Cannot construct $displayName: ${e.message}")
         }
         return bridge.toJS(instance)
     }

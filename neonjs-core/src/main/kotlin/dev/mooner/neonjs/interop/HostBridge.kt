@@ -743,6 +743,9 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
             throw hostError(e.targetException)
         } catch (e: IllegalAccessException) {
             throw JSException.typeError("Cannot access ${m.name}: ${e.message}")
+        } catch (e: IllegalArgumentException) {
+            // a receiver or an argument reflection does not accept: the call's fault, not the method's
+            throw JSException.typeError("Cannot call ${m.name}: ${e.message}")
         }
         if (s.returnType == Void.TYPE) return Undefined
         return toJS(r)
@@ -756,6 +759,8 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
             throw hostError(e.targetException)
         } catch (e: IllegalAccessException) {
             throw JSException.typeError("Cannot access constructor: ${e.message}")
+        } catch (e: IllegalArgumentException) {
+            throw JSException.typeError("Cannot call constructor: ${e.message}")
         }
         return toJS(r)
     }

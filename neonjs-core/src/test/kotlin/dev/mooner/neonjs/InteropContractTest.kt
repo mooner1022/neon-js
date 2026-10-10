@@ -452,6 +452,18 @@ class InteropContractTest {
     }
 
     @Test
+    fun reflectionRejectionsAreTypeErrors() {
+        ctx().use { c ->
+            // a receiver reflection rejects (no JS code reaches this today: the bridge checks receivers and arguments)
+            val length = String::class.java.getMethod("length")
+            c.call {
+                val e = assertThrows(dev.mooner.neonjs.runtime.JSException::class.java) { c.bridge.invoke(length, StringBuilder("ab"), emptyArray()) }
+                assertTrue(e.describe().startsWith("TypeError"), e.describe())
+            }
+        }
+    }
+
+    @Test
     fun missingClassesLeaveOutOnlyTheirMembers() {
         // Sub's bad(Absent) and absent field name a class missing at run time, as an Android API of a later level would
         val loader = BytesLoader(javaClass.classLoader)

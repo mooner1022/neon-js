@@ -196,6 +196,8 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
                 true
             } catch (_: UnsupportedOperationException) {
                 false
+            } catch (e: IllegalArgumentException) {
+                throw JSException.typeError("Cannot store ${Ops.describe(value)} in a ${target.javaClass.componentType.name} array: ${e.message}")
             }
         }
         if (key is Int && isMap()) return mapPut(key.toString(), value)
@@ -208,6 +210,8 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
                 f.set(target, bridge.toField(value, f))
             } catch (_: IllegalAccessException) {
                 return false
+            } catch (e: IllegalArgumentException) {
+                throw JSException.typeError("Cannot set field $key: ${e.message}")
             }
             return true
         }
@@ -364,6 +368,8 @@ class HostClassObject(@JvmField val bridge: HostBridge, @JvmField val cls: Class
                 f.set(null, bridge.toField(value, f))
             } catch (_: IllegalAccessException) {
                 return false
+            } catch (e: IllegalArgumentException) {
+                throw JSException.typeError("Cannot set field $key: ${e.message}")
             }
             return true
         }
