@@ -51,6 +51,12 @@ class HostAccess private constructor(b: Builder) {
     val allowImplementations: Boolean = b.allowImplementations
 
     /**
+     * What JS sees of each class under this policy, shared by the engines using it and collected with it (classes
+     * generated per context, `Java.extend` adapters, are kept by their context instead).
+     */
+    internal val classInfos = java.util.concurrent.ConcurrentHashMap<Class<*>, dev.mooner.neonjs.interop.HostClassInfo>()
+
+    /**
      * Whether the class named [n] is on the deny list: denied by the embedder ([Builder.denyClass],
      * [Builder.denyPackage]), or on the built-in list and not lifted. [packages] also applies the package entries.
      */

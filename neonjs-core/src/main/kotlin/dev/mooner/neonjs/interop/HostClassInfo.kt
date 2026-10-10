@@ -3,7 +3,6 @@ package dev.mooner.neonjs.interop
 import dev.mooner.neonjs.HostAccess
 import dev.mooner.neonjs.HostName
 import java.lang.reflect.*
-import java.util.concurrent.ConcurrentHashMap
 
 /** Reflection metadata of a host class as seen from JS under a [HostAccess] policy. */
 class HostClassInfo private constructor(val cls: Class<*>, val access: HostAccess) {
@@ -192,10 +191,11 @@ class HostClassInfo private constructor(val cls: Class<*>, val access: HostAcces
     }
 
     companion object {
-        private val cache = ConcurrentHashMap<HostAccess, ConcurrentHashMap<Class<*>, HostClassInfo>>()
+        /** The (cached) view of [cls] under [access]. */
+        fun of(cls: Class<*>, access: HostAccess): HostClassInfo = access.classInfos.getOrPut(cls) { HostClassInfo(cls, access) }
 
-        fun of(cls: Class<*>, access: HostAccess): HostClassInfo =
-            cache.getOrPut(access) { ConcurrentHashMap() }.getOrPut(cls) { HostClassInfo(cls, access) }
+        /** A view of [cls] under [access] that nothing caches: for classes that live only as long as a context. */
+        internal fun uncached(cls: Class<*>, access: HostAccess) = HostClassInfo(cls, access)
 
         /** Finds a version of [m] declared in a public, exported type so it can be invoked reflectively. */
         fun publicVersion(m: Method): Method? {

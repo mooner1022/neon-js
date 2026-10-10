@@ -174,6 +174,9 @@ class InteropTest {
             assertEquals("true,true", c.eval("[sq instanceof Shape2D, sq instanceof Square].join()").asString())
             assertEquals("final", c.eval("sq.locked()").asString())
             assertEquals("undefined", c.eval($$"typeof sq.super$describe$0").asString(), "super bridges are not members")
+            // adapters belong to their context: the policy's shared cache does not keep them (or their class loaders)
+            assertTrue(lookupAll.classInfos.keys.none { it.name.startsWith("dev.mooner.neonjs.adapters.") }, "${lookupAll.classInfos.keys}")
+            assertTrue(lookupAll.classInfos.containsKey(Shapes::class.java))
 
             // interfaces with default methods
             assertEquals("hi x/hi x", c.eval("var G = Java.extend(Java.type('dev.mooner.neonjs.Greeter'), { greet: w => 'hi ' + w }); new G().twice('x')").asString())

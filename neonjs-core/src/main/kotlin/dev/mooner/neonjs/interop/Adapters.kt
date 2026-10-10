@@ -42,6 +42,11 @@ class AdapterClass(
  */
 object Adapters {
     private val counter = AtomicInteger()
+    /** The package of adapter classes: outside the engine's denied packages, their members are those of the types they extend. */
+    private const val PREFIX = "dev.mooner.neonjs.adapters."
+
+    /** Whether [c] is an adapter class (generated for one context). */
+    fun isAdapter(c: Class<*>) = c.name.startsWith(PREFIX)
     private const val DELEGATE_FIELD = "__neonDelegate"
     private val DELEGATE = Type.getInternalName(AdapterDelegate::class.java)
     private val SUPPORT = Type.getInternalName(AdapterSupport::class.java)
@@ -73,8 +78,7 @@ object Adapters {
         if (ctors.isEmpty()) throw JSException.typeError("Java.extend: ${base.name} has no accessible constructor")
 
         val methods = collectMethods(base, ifaces)
-        // outside the engine's denied packages: the adapter's members are those of the types it extends
-        val name = "dev.mooner.neonjs.adapters.NeonAdapter${counter.incrementAndGet()}"
+        val name = "${PREFIX}NeonAdapter${counter.incrementAndGet()}"
         val internal = name.replace('.', '/')
         val cw = object : ClassWriter(COMPUTE_FRAMES or COMPUTE_MAXS) {
             // the generated code never merges distinct reference types; avoid loading classes here

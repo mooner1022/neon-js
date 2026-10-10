@@ -34,7 +34,11 @@ interface ContextGate {
 class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate) {
     private val wrapperCache = java.util.WeakHashMap<Any, java.lang.ref.WeakReference<HostObject>>()
 
-    fun classInfo(c: Class<*>) = HostClassInfo.of(c, access)
+    /** Views of the `Java.extend` adapter classes of this context: kept here, so they go with the context. */
+    private val adapterInfos = HashMap<Class<*>, HostClassInfo>()
+
+    fun classInfo(c: Class<*>): HostClassInfo =
+        if (Adapters.isAdapter(c)) adapterInfos.getOrPut(c) { HostClassInfo.uncached(c, access) } else HostClassInfo.of(c, access)
 
     /**
      * What calls need of a method or constructor, computed once per context: reflection copies the parameter types on
