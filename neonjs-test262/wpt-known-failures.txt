@@ -585,3 +585,39 @@ FileAPI/reading-data-section/filereader_result.any.js
 FileAPI/url/url-format.any.js
 FileAPI/url/url-with-fetch.any.js
 FileAPI/url/url-with-xhr.any.js
+#
+# fetch/api/headers: no fetch, Request or Response yet (and no WPT server); script-made Headers pass.
+fetch/api/headers/header-setcookie.any.js :: Set-Cookie is a forbidden response header
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %01
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %02
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %03
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %04
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %05
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %06
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %07
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %08
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %09
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %0A
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %0D
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %0E
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %0F
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %10
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %11
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %12
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %13
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %14
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %15
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %16
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %17
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %18
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %19
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %1A
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %1B
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %1C
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %1D
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %1E
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %1F
+fetch/api/headers/header-values-normalize.any.js :: fetch() with value %20
+fetch/api/headers/header-values.any.js :: fetch() with all valid values
+fetch/api/headers/headers-forbidden-override.any.js
+fetch/api/headers/headers-no-cors.any.js

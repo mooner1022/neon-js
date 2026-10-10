@@ -253,6 +253,21 @@ internal object Idl {
 
     private fun truncate(x: Double) = if (x < 0) Math.ceil(x) else Math.floor(x)
 
+    /**
+     * A `record<K, V>` argument: for each own key of [o] (symbols included: their descriptors are asked for too), the
+     * enumerable ones converted by [key] (a TypeError for a symbol) and their values by [value], in order.
+     */
+    fun <K, V> record(o: JSObject, key: (Any?) -> K, value: (Any?) -> V): List<Pair<K, V>> {
+        val out = ArrayList<Pair<K, V>>()
+        for (k in o.ownPropertyKeys()) {
+            val d = o.getOwnProperty(k) ?: continue
+            if (!d.enumerable) continue
+            val typedKey = key(if (k is JSSymbol) k else PK.toStringKey(k))
+            out.add(typedKey to value(o.get(k, o)))
+        }
+        return out
+    }
+
     /** A `sequence<T>` argument: the values of an iterable object, each converted by [item]. */
     fun <T> sequence(realm: Realm, v: Any?, what: String, item: (Any?) -> T): List<T> {
         val m = if (v is JSObject) Ops.getMethod(v, JSSymbol.iterator) else Undefined

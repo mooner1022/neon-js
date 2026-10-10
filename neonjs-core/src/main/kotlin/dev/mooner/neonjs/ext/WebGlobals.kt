@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit
  * `setTimeout` / `setInterval` / `clearTimeout` / `clearInterval`, `structuredClone`, `DOMException`, `atob` /
  * `btoa`, UTF-8 `TextEncoder` / `TextDecoder`, `Event` / `CustomEvent` / `EventTarget` ([Events]) and
  * `AbortController` / `AbortSignal` ([Abort]), `performance` ([Performance]) and `crypto.getRandomValues` /
- * `randomUUID` ([Crypto]), `Blob` / `File` ([Blob]) and `FormData` ([FormData]).
+ * `randomUUID` ([Crypto]), `Blob` / `File` ([Blob]), `FormData` ([FormData]) and `Headers` ([Headers]).
  */
 object WebGlobals {
     fun install(realm: Realm, maxTimers: Int) {
@@ -44,6 +44,7 @@ object WebGlobals {
         Crypto.install(realm)
         Blob.install(realm)
         FormData.install(realm)
+        Headers.install(realm)
         installBase64(realm)
         installTextEncoder(realm)
         installTextDecoder(realm)

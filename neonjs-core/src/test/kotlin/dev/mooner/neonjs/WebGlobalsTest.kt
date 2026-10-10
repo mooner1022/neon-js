@@ -171,13 +171,13 @@ class WebGlobalsTest {
     fun offByDefaultAndAbsentFromShadowRealms() {
         val names = "[typeof setTimeout, typeof TextEncoder, typeof queueMicrotask, typeof EventTarget, typeof Event, typeof AbortController, " +
             "typeof AbortSignal, typeof Performance, typeof Crypto, typeof QuotaExceededError, typeof Blob, typeof File, typeof FormData, " +
-            "typeof performance, typeof crypto].join()"
+            "typeof Headers, typeof performance, typeof crypto].join()"
         NeonEngine.builder().console(null).build().newContext().use { c ->
-            assertEquals(List(15) { "undefined" }.joinToString(","), c.eval(names).asString())
+            assertEquals(List(16) { "undefined" }.joinToString(","), c.eval(names).asString())
         }
         ctx().use { c ->
-            assertEquals(List(13) { "function" }.plus(listOf("object", "object")).joinToString(","), c.eval(names).asString())
-            assertEquals(List(15) { "undefined" }.joinToString(","), c.eval("new ShadowRealm().evaluate('$names')").asString())
+            assertEquals(List(14) { "function" }.plus(listOf("object", "object")).joinToString(","), c.eval(names).asString())
+            assertEquals(List(16) { "undefined" }.joinToString(","), c.eval("new ShadowRealm().evaluate('$names')").asString())
         }
     }
 
@@ -223,6 +223,17 @@ class WebGlobalsTest {
                 fd.append('f', new Blob(['y']), 'x.txt');
                 [...fd].map(([k, v]) => k + '=' + (typeof v === 'string' ? v : v.constructor.name + ':' + v.name))
                     .concat(Object.prototype.toString.call(fd.entries()).slice(8, -1)).join()
+            """).asString())
+        }
+        // Headers: names compared without case, values combined in order but Set-Cookie's
+        ctx().use { c ->
+            assertEquals("a=1, 2|set-cookie=x|set-cookie=y|true|TypeError", c.eval("""
+                const h = new Headers([['A', '1'], ['Set-Cookie', 'x']]);
+                h.append('a', ' 2 ');
+                h.append('set-cookie', 'y');
+                let bad;
+                try { h.append('bad name', 'v') } catch (e) { bad = e.name }
+                [...h].map(([k, v]) => k + '=' + v).concat(h.has('SET-COOKIE'), bad).join('|')
             """).asString())
         }
         // the size of a blob is charged to the allocation budget before its bytes are allocated
