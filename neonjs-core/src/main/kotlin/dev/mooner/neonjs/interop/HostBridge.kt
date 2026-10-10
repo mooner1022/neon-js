@@ -59,6 +59,12 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
             if (!needsGeneric(returnType)) return null
             return genericReturn ?: (e as Method).genericReturnType.also { genericReturn = it }
         }
+
+        /** The fixed order of overloads that tie (see [mostSpecific]): array parameters last, then by type names. */
+        @JvmField val arrays: Int = params.count { it.isArray }
+        val names: String by lazy(LazyThreadSafetyMode.NONE) { params.joinToString(",") { it.name } }
+
+        fun comesBefore(o: Sig): Boolean = if (arrays != o.arrays) arrays < o.arrays else names < o.names
     }
 
     /** Sigs by method or constructor. Equality, not identity: proxies may be handed a new Method for every call. */
@@ -540,7 +546,10 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
     internal fun <E : Executable> select(cands: List<E>, sigs: Array<Sig>, args: Array<Any?>): E? {
         var best: E? = null
         var bestCost = IMPOSSIBLE
-        var tied: ArrayList<E>? = null
+        var bestIndex = -1
+        // indices of the candidates tied at bestCost (when tiedCount > 0)
+        var tied: IntArray? = null
+        var tiedCount = 0
         for (index in cands.indices) {
             val c = cands[index]
             val s = sigs[index]
@@ -574,13 +583,16 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
             }
             if (total < bestCost) {
                 best = c
+                bestIndex = index
                 bestCost = total
-                tied = null
+                tiedCount = 0
             } else if (total == bestCost) {
-                (tied ?: arrayListOf(best!!).also { tied = it }).add(c)
+                val t = tied ?: IntArray(cands.size).also { tied = it }
+                if (tiedCount == 0) t[tiedCount++] = bestIndex
+                t[tiedCount++] = index
             }
         }
-        return tied?.let { mostSpecific(it) } ?: best
+        return if (tiedCount > 0) cands[mostSpecific(sigs, tied!!, tiedCount)] else best
     }
 
     /**
@@ -588,18 +600,31 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
      * as every other's (Java's rule: `String` over `CharSequence` over `Object`, `int` over `long`), else the first
      * of the maximally specific ones in a fixed order (array parameters last, then by parameter type names). Never
      * the order reflection lists methods in, which differs between JVMs (HotSpot, ART) and so would make a call like
-     * `sb.append(null)` mean different things on different platforms.
+     * `sb.append(null)` mean different things on different platforms. The first [n] elements of [tied] are indices
+     * into [sigs]; so is the result.
      */
-    private fun <E : Executable> mostSpecific(tied: List<E>): E {
-        val sorted = tied.sortedWith(compareBy<E>({ e -> e.parameterTypes.count { it.isArray } }, { e -> e.parameterTypes.joinToString(",") { it.name } }))
-        for (a in sorted) if (sorted.all { b -> asSpecific(a, b) }) return a
-        return sorted.first { a -> sorted.none { b -> asSpecific(b, a) && !asSpecific(a, b) } }
+    private fun mostSpecific(sigs: Array<Sig>, tied: IntArray, n: Int): Int {
+        maximum@ for (i in 0 until n) {
+            val a = sigs[tied[i]]
+            for (j in 0 until n) if (!asSpecific(a, sigs[tied[j]])) continue@maximum
+            return tied[i]
+        }
+        var first = -1
+        maximal@ for (i in 0 until n) {
+            val a = sigs[tied[i]]
+            for (j in 0 until n) {
+                val b = sigs[tied[j]]
+                if (asSpecific(b, a) && !asSpecific(a, b)) continue@maximal
+            }
+            if (first < 0 || a.comesBefore(sigs[first])) first = tied[i]
+        }
+        return first
     }
 
     /** Whether each parameter type of [a] converts to the matching one of [b] (as specific or more). */
-    private fun asSpecific(a: Executable, b: Executable): Boolean {
-        val pa = a.parameterTypes
-        val pb = b.parameterTypes
+    private fun asSpecific(a: Sig, b: Sig): Boolean {
+        val pa = a.params
+        val pb = b.params
         if (pa.size != pb.size) return a === b
         for (i in pa.indices) if (!subtype(pa[i], pb[i])) return false
         return true
