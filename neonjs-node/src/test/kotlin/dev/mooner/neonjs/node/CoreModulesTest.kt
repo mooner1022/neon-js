@@ -170,8 +170,11 @@ class CoreModulesTest {
             assertEquals(listOf("Error: left"), host)
         }
         ctx().use { c ->
-            c.eval("setTimeout(() => { throw new Error('nobody') }, 1)")
-            assertThrows<NeonException> { c.runEventLoop(5_000) }
+            // the timer may already fire while the evaluation runs its jobs (on a slow machine)
+            assertThrows<NeonException> {
+                c.eval("setTimeout(() => { throw new Error('nobody') }, 1)")
+                c.runEventLoop(5_000)
+            }
         }
     }
 
