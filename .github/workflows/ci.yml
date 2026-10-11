@@ -15,8 +15,8 @@ env:
   TEST262_COMMIT: 5992dc3b60faf62a48fd6be8a40ae9d9a8c84d81
   # the web-platform-tests revision the web globals are tested against (third_party/wpt locally)
   WPT_COMMIT: d6713be63025929a1e8d8af45baaff0744b5e50d
-  # Node.js v22.12.0, whose own tests neonjs-node is tested against (third_party/node locally)
-  NODE_COMMIT: ccba1a1cc89fa57ef231ec74cf78baaf5e477621
+  # Node.js v26.11.1, whose own tests neonjs-node is tested against (third_party/node locally)
+  NODE_COMMIT: 364593d0631def13e3043dd84f77ebca2c767ce5
 
 jobs:
   jvm:

@@ -1,11 +1,10 @@
-# The tests of neonjs-test262/node-tests.txt that fail (NodeTestsKt --known): most need modules not there yet (node:test,
-# vm, child_process, fs, net and http servers, web streams, Brotli, domain...) or Node's legacy timers API. Written by
-# --write-known.
+# The tests of neonjs-test262/node-tests.txt that fail (NodeTestsKt --known), against Node v26.11.1's test/parallel:
+# most need modules not there yet (node:test, vm, child_process, fs, net and http servers, web streams, Brotli,
+# Zstandard, ZIP archives, domain...) or Node's legacy timers API. Written by --write-known.
 test-assert-async.js  # unhandled rejection: AssertionError: The input did not match the regular expression /rejects/. Input:
-test-assert-builtins-not-read-from-filesystem.js  # uncaught: Error: fs.rmSync is not available in NeonJS [at rmSync (/test/common/tmpdir.js:20:5) < at refresh (/test/common/tmpdir.js:35:3)]
-test-assert-calltracker-getCalls.js  # exit code 1: (neonjs) [DEP0173] DeprecationWarning: assert.CallTracker is deprecated. / not ok - assert.CallTracker.getCalls() > should retu
 test-assert-esm-cjs-message-verify.js  # exit code 1: not ok - ensure the assert.ok throwing similar error messages for esm and cjs files > should return code 1 for each command / E
 test-assert-first-line.js  # exit code 1: not ok - Verify that asserting in the very first line produces the expected result / AssertionError [ERR_ASSERTION]: Expected v
+test-assert-partial-deep-equal.js  # uncaught: Error: Cannot find module 'node:vm' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-assert-par
 test-assert.js  # uncaught: Error: Cannot find module 'vm' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-assert.js:28:12
 test-buffer-alloc.js  # uncaught: Error: Cannot find module 'vm' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-buffer-alloc.js
 test-buffer-bytelength.js  # uncaught: Error: Cannot find module 'vm' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-buffer-byteleng
@@ -16,78 +15,110 @@ test-buffer-constructor-outside-node-modules.js  # uncaught: Error: Cannot find 
 test-buffer-from.js  # uncaught: Error: Cannot find module 'vm' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-buffer-from.js:
 test-buffer-pool-untransferable.js  # uncaught: AssertionError: Values have same structure but are not reference-equal:
 test-buffer-resizable.js  # exit code 1: not ok - Using resizable ArrayBuffer with Buffer... > works as expected / AssertionError [ERR_ASSERTION]: Expected values to be
-test-buffer-tostring-range.js  # uncaught: RangeError: The value of "size" is out of range. It must be >= 0 && <= 2147483639. Received 4_294_967_315 [at <anonymous> (/test/p
+test-buffer-tostring-4gb.js  # uncaught: RangeError: The value of "size" is out of range. It must be >= 0 && <= 2147483639. Received 4_294_967_315 [at <anonymous> (/test/p
 test-event-emitter-no-error-provided-to-error-event.js  # uncaught: Error: Cannot find module 'domain' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-event-emitt
 test-http-status-code.js  # uncaught: Error: http.createServer is not available in NeonJS [at <anonymous> (/test/parallel/test-http-status-code.js:35:11)]
 test-next-tick-domain.js  # uncaught: Error: Cannot find module 'domain' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-next-tick-d
-test-os-homedir-no-envvar.js  # uncaught: Error: child_process.spawnSync is not available in NeonJS [at <anonymous> (/test/parallel/test-os-homedir-no-envvar.js:25:17)]
+test-os-homedir-no-envvar.js  # uncaught: Error: child_process.spawnSync is not available in NeonJS [at expectSyncExit (/test/common/child_process.js:70:17) < at <anonymous
 test-os-process-priority.js  # uncaught: AssertionError: Missing expected exception (SystemError). [at <anonymous> (/test/parallel/test-os-process-priority.js:113:3)]
 test-os-userinfo-handles-getter-errors.js  # uncaught: Error: child_process.execFile is not available in NeonJS [at <anonymous> (/test/parallel/test-os-userinfo-handles-getter-errors.js
-test-path-glob.js  # uncaught: Error: path.matchesGlob is not available in NeonJS [at <anonymous> (/test/parallel/test-path-glob.js:37:20)]
+test-path-glob.js  # uncaught: Error: path.matchesGlob is not available in NeonJS [at <anonymous> (/test/parallel/test-path-glob.js:35:20)]
 test-querystring.js  # uncaught: Error: Cannot find module 'vm' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-querystring.js:
-test-stream-base-typechecking.js  # uncaught: Error: net.createServer is not available in NeonJS [at <anonymous> (/test/parallel/test-stream-base-typechecking.js:6:16)]
-test-stream-consumers.js  # uncaught: Error: stream/web.TransformStream is not available in NeonJS [at <anonymous> (/test/parallel/test-stream-consumers.js:103:34)]
+test-stream-compose.js  # uncaught: TypeError: TransformStream is not a constructor [at <anonymous> (/test/parallel/test-stream-compose.js:551:14)]
+test-stream-consumers.js  # uncaught: Error: stream/web.TransformStream is not available in NeonJS [at <anonymous> (/test/parallel/test-stream-consumers.js:116:34)]
 test-stream-destroy.js  # uncaught: Error: http.createServer is not available in NeonJS [at <anonymous> (/test/parallel/test-stream-destroy.js:53:18)]
 test-stream-duplex-from.js  # uncaught: Error: stream/web.ReadableStream is not available in NeonJS [at makeATestReadableStream (/test/parallel/test-stream-duplex-from.js
 test-stream-duplex.js  # uncaught: Error: stream/web.ReadableStream is not available in NeonJS [at <anonymous> (/test/parallel/test-stream-duplex.js:63:20)]
-test-stream-finished.js  # uncaught: Error: fs.createReadStream is not available in NeonJS [at <anonymous> (/test/parallel/test-stream-finished.js:70:14)]
 test-stream-flatMap.js  # unhandled rejection: Error: fs.createReadStream is not available in NeonJS
+test-stream-iter-disabled.js  # unhandled rejection: Error: child processes is not available when running Node's tests on NeonJS
+test-stream-iter-readable-interop-disabled.js  # unhandled rejection: Error: child processes is not available when running Node's tests on NeonJS
 test-stream-pipeline-process.js  # uncaught: Error: child processes is not available when running Node's tests on NeonJS [at <anonymous> (/test/common/index.js:223:11) < at <a
-test-stream-pipeline.js  # uncaught: Error: http.createServer is not available in NeonJS [at <anonymous> (/test/parallel/test-stream-pipeline.js:149:18)]
+test-stream-pipeline.js  # uncaught: Error: fs.rmSync is not available in NeonJS [at rmSync (/test/common/tmpdir.js:31:5) < at refresh (/test/common/tmpdir.js:46:3)]
 test-stream-preprocess.js  # uncaught: Error: Cannot find module 'readline' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-stream-pr
 test-stream-promises.js  # unhandled rejection: Error: fs.createReadStream is not available in NeonJS; uncaught: Error: fs.createReadStream is not available in NeonJS 
 test-stream-readable-async-iterators.js  # unhandled rejection: Error: fs.createReadStream is not available in NeonJS; uncaught: Error: http.createServer is not available in NeonJS [a
 test-stream-readable-from-web-termination.js  # uncaught: Error: stream web adapters (newReadableStreamFromStreamReadable) is not available in NeonJS [at <anonymous> (/test/parallel/test-s
 test-stream-readable-strategy-option.js  # uncaught: ReferenceError: ByteLengthQueuingStrategy is not defined [at <anonymous> (/test/parallel/test-stream-readable-strategy-option.js:2
+test-stream-readable-to-web-byob.js  # uncaught: AssertionError: Expected values to be strictly deep-equal:
+test-stream-readable-to-web-termination-byob.js  # uncaught: Error: stream web adapters (newReadableStreamFromStreamReadable) is not available in NeonJS [at <anonymous> (/test/parallel/test-s
 test-stream-readable-to-web-termination.js  # uncaught: Error: stream web adapters (newReadableStreamFromStreamReadable) is not available in NeonJS [at <anonymous> (/test/parallel/test-s
 test-stream-readable-unpipe-resume.js  # uncaught: Error: fs.createReadStream is not available in NeonJS [at <anonymous> (/test/parallel/test-stream-readable-unpipe-resume.js:7:20)]
 test-stream-toWeb-allows-server-response.js  # uncaught: Error: http.createServer is not available in NeonJS [at <anonymous> (/test/parallel/test-stream-toWeb-allows-server-response.js:9:
 test-stream-writable-samecb-singletick.js  # uncaught: Error: Cannot find module 'console' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-stream-wri
 test-stream2-httpclient-response-end.js  # uncaught: Error: http.createServer is not available in NeonJS [at <anonymous> (/test/parallel/test-stream2-httpclient-response-end.js:6:16)]
-test-timers-active.js  # uncaught: TypeError: active is not a function [at <anonymous> (/test/parallel/test-timers-active.js:14:3) < at <anonymous> (/test/parallel/t
 test-timers-clearImmediate-als.js  # uncaught: Error: Cannot find module 'async_hooks' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-timers
-test-timers-enroll-invalid-msecs.js  # uncaught: AssertionError: Expected values to be strictly deep-equal:
-test-timers-enroll-second-time.js  # uncaught: TypeError: timers.enroll is not a function [at <anonymous> (/test/parallel/test-timers-enroll-second-time.js:12:1)]
 test-timers-immediate-queue-throw.js  # uncaught: Error: Cannot find module 'domain' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-timers-imme
 test-timers-immediate-unref-nested-once.js  # flaky: an unref'd immediate races the loop's end (immediates go through the timer thread)
 test-timers-immediate-unref-simple.js  # flaky: an unref'd immediate races the loop's end (immediates go through the timer thread)
 test-timers-immediate-unref.js  # flaky: an unref'd immediate races the loop's end (immediates go through the timer thread)
-test-timers-max-duration-warning.js  # uncaught: TypeError: timers.enroll is not a function [at <anonymous> (/test/parallel/test-timers-max-duration-warning.js:39:3)]
-test-timers-promises-scheduler.js  # uncaught: AssertionError: Missing expected exception. [at <anonymous> (/test/parallel/test-timers-promises-scheduler.js:53:1)]
+test-timers-nan-duration-warning.js  # uncaught: Error: child_process.spawnSync is not available in NeonJS [at <anonymous> (/test/parallel/test-timers-nan-duration-warning.js:25:2
+test-timers-negative-duration-warning.js  # uncaught: Error: child_process.spawnSync is not available in NeonJS [at <anonymous> (/test/parallel/test-timers-negative-duration-warning.js
+test-timers-promises-scheduler.js  # uncaught: AssertionError: Missing expected exception. [at <anonymous> (/test/parallel/test-timers-promises-scheduler.js:49:1)]
 test-timers-refresh-in-callback.js  # exit code 1: Mismatched <anonymous> function calls. Expected exactly 2, actual 1. /     at <anonymous> (/test/parallel/test-timers-refresh-i
 test-timers-reset-process-domain-on-throw.js  # uncaught: Error: Cannot find module 'domain' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-timers-rese
 test-timers-socket-timeout-removes-other-socket-unref-timer.js  # uncaught: Error: net.createServer is not available in NeonJS [at <anonymous> (/test/parallel/test-timers-socket-timeout-removes-other-socket
 test-timers-timeout-to-interval.js  # exit code 1: Mismatched <anonymous> function calls. Expected exactly 2, actual 1. /     at <anonymous> (/test/parallel/test-timers-timeout-t
-test-timers-unenroll-unref-interval.js  # uncaught: TypeError: timers.unenroll is not a function; uncaught: TypeError: timers.unenroll is not a function; uncaught: TypeError: Cannot 
-test-timers-unref-active.js  # uncaught: TypeError: timers.unenroll is not a function [at <anonymous> (/test/parallel/test-timers-unref-active.js:32:1)]
-test-timers-unref-remove-other-unref-timers-only-one-fires.js  # uncaught: TypeError: timers.enroll is not a function [at <anonymous> (/test/parallel/test-timers-unref-remove-other-unref-timers-only-one-fi
-test-timers-unref-remove-other-unref-timers.js  # uncaught: TypeError: timers.enroll is not a function [at <anonymous> (/test/parallel/test-timers-unref-remove-other-unref-timers.js:23:1)]
+test-timers-unenroll-unref-interval.js  # uncaught: TypeError: null is not a function
 test-timers-unrefed-in-beforeexit.js  # exit code 1: Mismatched <anonymous> function calls. Expected exactly 1, actual 0. /     at <anonymous> (/test/parallel/test-timers-unrefed-i
 test-timers-unrefed-in-callback.js  # uncaught: Error: net.createServer is not available in NeonJS [at Test1 (/test/parallel/test-timers-unrefed-in-callback.js:28:18) < at <anony
+test-url-parse-deprecation.js  # uncaught: Error: child processes is not available when running Node's tests on NeonJS [at <anonymous> (/test/common/index.js:223:11) < at <a
 test-url-parse-invalid-input.js  # uncaught: Error: child processes is not available when running Node's tests on NeonJS [at <anonymous> (/test/common/index.js:223:11) < at <a
 test-url-revokeobjecturl.js  # uncaught: AssertionError: Expected values to be strictly deep-equal:
-test-util-callbackify.js  # uncaught: Error: child_process.execFile is not available in NeonJS [at <anonymous> (/test/parallel/test-util-callbackify.js:218:3)]
+test-util-callbackify.js  # uncaught: Error: child_process.execFile is not available in NeonJS [at <anonymous> (/test/parallel/test-util-callbackify.js:220:3)]
 test-util-format.js  # uncaught: AssertionError: Expected values to be strictly equal:
-test-util-getcallsite.js  # uncaught: TypeError: getCallSite is not a function [at <anonymous> (/test/parallel/test-util-getcallsite.js:9:1)]
-test-util-getcallsites.js  # uncaught: TypeError: getCallSites is not a function [at <anonymous> (/test/parallel/test-util-getcallsites.js:13:21)]
-test-util-log.js  # uncaught: TypeError: util.log is not a function [at <anonymous> (/test/parallel/test-util-log.js:57:3)]
+test-util-getcallsites-sourcemap.js  # uncaught: Error: Cannot find module 'internal/source_map/source_map_cache' [at <anonymous> (/test/parallel/test-util-getcallsites-sourcemap.
 test-util-parse-env.js  # uncaught: Error: fs.readFileSync is not available in NeonJS [at <anonymous> (/test/parallel/test-util-parse-env.js:11:24)]
+test-util-styletext-hex.js  # uncaught: Error: Cannot find module 'node:tty' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-util-styl
 test-util-styletext.js  # uncaught: Error: Cannot find module 'node:tty' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-util-styl
+test-util-text-decoder.js  # exit code 1: not ok - TextDecoder correctly decodes windows-1252 encoded data / RangeError: TextDecoder: unsupported encoding 'windows-1252'
 test-zlib-brotli-16GB.js  # uncaught: Error: Brotli is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-brotli-16GB.js:15:17)]
+test-zlib-brotli-dictionary.js  # uncaught: Error: Brotli is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-brotli-dictionary.js:22:1)]
+test-zlib-brotli-flush-invalid-kind.js  # uncaught: Error: Brotli is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-brotli-flush-invalid-kind.js:51:22)]
 test-zlib-brotli-flush.js  # uncaught: Error: fs.readFileSync is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-brotli-flush.js:7:14)]
-test-zlib-brotli-from-brotli.js  # uncaught: Error: fs.rmSync is not available in NeonJS [at rmSync (/test/common/tmpdir.js:20:5) < at refresh (/test/common/tmpdir.js:35:3)]
+test-zlib-brotli-from-brotli.js  # uncaught: Error: fs.rmSync is not available in NeonJS [at rmSync (/test/common/tmpdir.js:31:5) < at refresh (/test/common/tmpdir.js:46:3)]
 test-zlib-brotli-from-string.js  # uncaught: Error: Brotli is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-brotli-from-string.js:27:1)]
 test-zlib-brotli-kmaxlength-rangeerror.js  # uncaught: Error: Brotli is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-brotli-kmaxlength-rangeerror.js:21:1)]
+test-zlib-brotli-reset.js  # exit code 1: not ok - BrotliCompress reset preserves its initial options / Error [ERR_UNAVAILABLE]: Brotli is not available in NeonJS /     
 test-zlib-brotli.js  # uncaught: Error: fs.readFileSync is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-brotli.js:10:22)]
-test-zlib-bytes-read.js  # uncaught: Error: Brotli is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-bytes-read.js:40:16)]
-test-zlib-convenience-methods.js  # uncaught: Error: Brotli is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-convenience-methods.js:58:5)]
+test-zlib-convenience-methods.js  # uncaught: Error: Brotli is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-convenience-methods.js:60:5)]
+test-zlib-decode-strings.js  # uncaught: Error: Brotli is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-decode-strings.js:21:20)]
 test-zlib-empty-buffer.js  # unhandled rejection: Error: Brotli is not available in NeonJS
 test-zlib-from-concatenated-gzip.js  # uncaught: Error: fs.readFileSync is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-from-concatenated-gzip.js:45:38)]
-test-zlib-from-gzip.js  # uncaught: Error: fs.rmSync is not available in NeonJS [at rmSync (/test/common/tmpdir.js:20:5) < at refresh (/test/common/tmpdir.js:35:3)]
+test-zlib-from-gzip.js  # uncaught: Error: fs.rmSync is not available in NeonJS [at rmSync (/test/common/tmpdir.js:31:5) < at refresh (/test/common/tmpdir.js:46:3)]
 test-zlib-invalid-input.js  # uncaught: Error: Brotli is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-invalid-input.js:42:3)]
 test-zlib-maxOutputLength.js  # uncaught: Error: Brotli is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-maxOutputLength.js:9:1)]
 test-zlib-params.js  # uncaught: Error: fs.readFileSync is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-params.js:7:14)]
 test-zlib-premature-end.js  # uncaught: Error: Brotli is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-premature-end.js:13:22)]
-test-zlib-write-after-flush.js  # exit code 1: not ok - zlib should accept writing after flush / Error [ERR_UNAVAILABLE]: Brotli is not available in NeonJS /     at unavailab
-test-zlib-zero-byte.js  # exit code 1: not ok - zlib should properly handle zero byte input / Error [ERR_UNAVAILABLE]: Brotli is not available in NeonJS /     at unav
-test-zlib.js  # uncaught: Error: fs.readFileSync is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib.js:81:17) < at <anonymous> (/test/comm
+test-zlib-reject-garbage-after-end.js  # exit code 1: not ok - rejectGarbageAfterEnd rejects trailing input for brotli / Error [ERR_UNAVAILABLE]: Brotli is not available in NeonJS /
+test-zlib-reset-during-write.js  # uncaught: Error: Brotli is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-reset-during-write.js:10:18)]
+test-zlib-truncated.js  # uncaught: Error: Zstandard is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-truncated.js:32:3) < at <anonymous> (/test/p
+test-zlib-type-error.js  # exit code 1: not ok - DecompressionStream deflate emits TypeError on trailing data / TypeError: new Blob(...).stream is not a function /    
+test-zlib-write-after-flush.js  # uncaught: Error: Brotli is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-write-after-flush.js:34:16)]
+test-zlib-zero-byte.js  # uncaught: Error: Brotli is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-zero-byte.js:36:14)]
+test-zlib-zip-coverage.js  # uncaught: Error: fs.rmSync is not available in NeonJS [at rmSync (/test/common/tmpdir.js:31:5) < at refresh (/test/common/tmpdir.js:46:3)]
+test-zlib-zip-edgecases.js  # exit code 1: (neonjs) ExperimentalWarning: The zlib ZIP archive API is an experimental feature and might change at any time / not ok - the c
+test-zlib-zip-encoding.js  # exit code 1: (neonjs) ExperimentalWarning: The zlib ZIP archive API is an experimental feature and might change at any time / not ok - a bit
+test-zlib-zip-experimental-warning.js  # exit code 1: not ok - importing node:zlib (ESM) does not emit the ZIP experimental warning / Error [ERR_UNAVAILABLE]: child_process.spawnSyn
+test-zlib-zip-file-lifecycle.js  # exit code 1: not ok - close() waits for an in-flight read instead of closing under it / Error [ERR_UNAVAILABLE]: fs.rmSync is not available 
+test-zlib-zip-files.js  # uncaught: Error: fs.rmSync is not available in NeonJS [at rmSync (/test/common/tmpdir.js:31:5) < at refresh (/test/common/tmpdir.js:46:3)]
+test-zlib-zip-fuzz.js  # exit code 1: (neonjs) ExperimentalWarning: The zlib ZIP archive API is an experimental feature and might change at any time / not ok - the p
+test-zlib-zip-hardening.js  # exit code 1: (neonjs) ExperimentalWarning: The zlib ZIP archive API is an experimental feature and might change at any time / not ok - an em
+test-zlib-zip-interop.js  # uncaught: Error: fs.rmSync is not available in NeonJS [at rmSync (/test/common/tmpdir.js:31:5) < at refresh (/test/common/tmpdir.js:46:3)]
+test-zlib-zip-metadata.js  # exit code 1: (neonjs) ExperimentalWarning: The zlib ZIP archive API is an experimental feature and might change at any time / not ok - modif
+test-zlib-zip-property.js  # uncaught: Error: fs.rmSync is not available in NeonJS [at rmSync (/test/common/tmpdir.js:31:5) < at refresh (/test/common/tmpdir.js:46:3)]
+test-zlib-zip-security-hardening.js  # exit code 1: (neonjs) ExperimentalWarning: The zlib ZIP archive API is an experimental feature and might change at any time / not ok - a loc
+test-zlib-zip-security.js  # uncaught: Error: fs.rmSync is not available in NeonJS [at rmSync (/test/common/tmpdir.js:31:5) < at refresh (/test/common/tmpdir.js:46:3)]
+test-zlib-zip-sync.js  # uncaught: Error: fs.rmSync is not available in NeonJS [at rmSync (/test/common/tmpdir.js:31:5) < at refresh (/test/common/tmpdir.js:46:3)]
+test-zlib-zip-writable.js  # uncaught: Error: fs.rmSync is not available in NeonJS [at rmSync (/test/common/tmpdir.js:31:5) < at refresh (/test/common/tmpdir.js:46:3)]
+test-zlib-zip-zip64.js  # exit code 1: (neonjs) ExperimentalWarning: The zlib ZIP archive API is an experimental feature and might change at any time / not ok - an en
+test-zlib-zip.js  # exit code 1: (neonjs) ExperimentalWarning: The zlib ZIP archive API is an experimental feature and might change at any time / not ok - round
+test-zlib-zstd-dictionary.js  # uncaught: Error: Zstandard is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-zstd-dictionary.js:21:1)]
+test-zlib-zstd-flush.js  # uncaught: Error: fs.readFileSync is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-zstd-flush.js:7:14)]
+test-zlib-zstd-from-string.js  # uncaught: Error: Zstandard is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-zstd-from-string.js:27:1)]
+test-zlib-zstd-from-zstd.js  # uncaught: Error: fs.rmSync is not available in NeonJS [at rmSync (/test/common/tmpdir.js:31:5) < at refresh (/test/common/tmpdir.js:46:3)]
+test-zlib-zstd-kmaxlength-rangeerror.js  # uncaught: Error: Zstandard is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-zstd-kmaxlength-rangeerror.js:22:1)]
+test-zlib-zstd-pledged-src-size.js  # unhandled rejection: AssertionError: Expected values to be strictly equal:
+test-zlib-zstd-reset-incomplete-frame.js  # exit code 1: not ok - ZstdCompress reset throws when an incomplete frame has emitted output / Error [ERR_UNAVAILABLE]: Zstandard is not avai
+test-zlib-zstd-reset.js  # exit code 1: not ok - ZstdCompress reset preserves its initial options / Error [ERR_UNAVAILABLE]: Zstandard is not available in NeonJS /    
+test-zlib-zstd.js  # uncaught: Error: fs.readFileSync is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-zstd.js:10:22)]
+test-zlib.js  # uncaught: Error: fs.readFileSync is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib.js:83:17) < at <anonymous> (/test/comm

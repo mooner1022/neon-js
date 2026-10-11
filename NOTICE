@@ -45,7 +45,7 @@ not be used in advertising or otherwise to promote the sale, use or other
 dealings in these Data Files or Software without prior written
 authorization of the copyright holder.
 
-This product includes software derived from Node.js (https://nodejs.org), release v22.12.0: the
+This product includes software derived from Node.js (https://nodejs.org), release v26.11.1: the
 JavaScript libraries of neonjs-node (dev/mooner/neonjs/node/lib) port parts of its lib sources,
 distributed under the following licenses.
 

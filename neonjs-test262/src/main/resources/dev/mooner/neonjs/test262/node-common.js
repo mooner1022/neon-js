@@ -1,5 +1,5 @@
 'use strict';
-// test/common for Node's tests run on NeonJS: Node's own helpers (after Node v22.12.0 test/common/index.js, MIT
+// test/common for Node's tests run on NeonJS: Node's own helpers (after Node v26.11.1 test/common/index.js, MIT
 // license) for what the tests use, and the platform facts of the sandbox (a Linux-like 64-bit build without crypto,
 // the inspector, child processes or a file system). common.skip ends the test as skipped.
 
@@ -192,8 +192,8 @@ function getArrayBufferViews(buf) {
   const { buffer, byteOffset, byteLength } = buf;
   const out = [];
   const arrayBufferViews = [
-    Int8Array, Uint8Array, Uint8ClampedArray, Int16Array, Uint16Array, Int32Array, Uint32Array, Float32Array,
-    Float64Array, BigInt64Array, BigUint64Array, DataView,
+    Int8Array, Uint8Array, Uint8ClampedArray, Int16Array, Uint16Array, Int32Array, Uint32Array, Float16Array,
+    Float32Array, Float64Array, BigInt64Array, BigUint64Array, DataView,
   ];
   for (const type of arrayBufferViews) {
     const { BYTES_PER_ELEMENT = 1 } = type;

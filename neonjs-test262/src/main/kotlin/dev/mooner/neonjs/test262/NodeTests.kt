@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.system.exitProcess
 
 /**
- * Runs Node.js's own tests (`test/parallel` of a Node checkout, v22.12.0) against neonjs-node, each in an engine of
+ * Runs Node.js's own tests (`test/parallel` of a Node checkout, v26.11.1) against neonjs-node, each in an engine of
  * its own: the test runs as a CommonJS module (with `process` in scope, as in Node, although NeonJS has no `process`
  * global) whose `require('../common')` is node-common.js; the event loop runs to its end, then `process` emits
  * 'exit' (common.mustCall's checks run there). A test passes when nothing was left uncaught and the exit code is 0;
