@@ -26,6 +26,9 @@ test-buffer-tostring-range.js  # uncaught: RangeError: The value of "size" is ou
 test-event-emitter-no-error-provided-to-error-event.js  # uncaught: Error: Cannot find module 'domain' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-event-emitt
 test-event-emitter-prepend.js  # uncaught: Error: Cannot find module 'stream' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-event-emitt
 test-next-tick-domain.js  # uncaught: Error: Cannot find module 'domain' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-next-tick-d
+test-path-glob.js  # path.matchesGlob needs minimatch
+test-path-makelong.js  # test/common/fixtures needs fs
+test-path-resolve.js  # test/common/fixtures needs fs
 test-timers-active.js  # uncaught: TypeError: active is not a function [at <anonymous> (/test/parallel/test-timers-active.js:14:3) < at <anonymous> (/test/parallel/t
 test-timers-clearImmediate-als.js  # uncaught: Error: Cannot find module 'async_hooks' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-timers
 test-timers-enroll-invalid-msecs.js  # uncaught: AssertionError: Expected values to be strictly deep-equal:

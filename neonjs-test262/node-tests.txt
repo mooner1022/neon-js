@@ -4,6 +4,7 @@ test-buffer-*.js
 test-event-emitter-*.js
 test-events-*.js
 test-next-tick*.js
+test-path*.js
 test-string-decoder*.js
 test-timers-*.js
 test-util-*.js

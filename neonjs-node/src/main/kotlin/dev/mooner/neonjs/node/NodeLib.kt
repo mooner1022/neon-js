@@ -21,8 +21,14 @@ internal object NodeLib {
 
     private val compiled = WeakHashMap<NeonEngine, ConcurrentHashMap<String, Lib>>()
 
-    /** The libraries `process` would be loaded for and that process.js itself needs. */
-    private val PROCESS_DEPENDENCIES = setOf("process", "events", "primordials")
+    /**
+     * The libraries node:process itself loads (process.js, events.js and what they require): never given `process`,
+     * which they would otherwise load while it loads.
+     */
+    private val PROCESS_DEPENDENCIES = setOf(
+        "process", "events", "primordials", "internal/errors", "internal/util", "internal/util/types", "internal/util/inspect",
+        "internal/validators", "internal/events/abort_listener", "internal/event_target", "internal/url",
+    )
     private val USES_PROCESS = Regex("""(?<![\w.$'"])process\.""")
 
     private fun source(name: String): String {

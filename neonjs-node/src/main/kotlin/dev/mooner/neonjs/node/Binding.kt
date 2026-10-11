@@ -64,6 +64,7 @@ internal class Binding(private val rt: NodeRuntime) {
         }
 
         // ---------------- process
+        b.defineOwn("platform", rt.options.platform, Attr.NONE)
         fn("processInfo", 0) { f, _, _, _ ->
             val o = JSObject(f.realm.objectPrototype)
             val opts = rt.options

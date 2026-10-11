@@ -150,7 +150,8 @@ internal class NodeRuntime(@JvmField val realm: Realm, @JvmField val options: No
         const val KEY = "%Node%"
         /** The built-in modules written in JS (resources lib/<name>.js). */
         private val JS_MODULES = listOf(
-            "assert", "assert/strict", "buffer", "events", "process", "string_decoder", "timers", "timers/promises", "util",
+            "assert", "assert/strict", "buffer", "events", "path", "path/posix", "path/win32", "process", "string_decoder",
+            "timers", "timers/promises", "util",
         )
         private val TIMER_GLOBALS = listOf("setTimeout", "clearTimeout", "setInterval", "clearInterval", "setImmediate", "clearImmediate")
 

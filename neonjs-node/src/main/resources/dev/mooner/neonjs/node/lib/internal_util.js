@@ -24,6 +24,33 @@ const kIsEncodingSymbol = Symbol('kIsEncodingSymbol');
 const encodingsMap = { __proto__: null };
 for (let i = 0; i < binding.stringDecoder.encodings.length; ++i) encodingsMap[binding.stringDecoder.encodings[i]] = i;
 
+// the platform NodeOptions names (process.platform)
+const isWindows = binding.platform === 'win32';
+const isMacOS = binding.platform === 'darwin';
+
+// a function that makes its value once, when first called
+function getLazy(initializer) {
+  let value;
+  let initialized = false;
+  return function () {
+    if (initialized === false) {
+      value = initializer();
+      initialized = true;
+    }
+    return value;
+  };
+}
+
+const experimentalWarnings = new Set();
+
+function emitExperimentalWarning(feature, messagePrefix, code, ctor) {
+  if (experimentalWarnings.has(feature)) return;
+  experimentalWarnings.add(feature);
+  let msg = `${feature} is an experimental feature and might change at any time`;
+  if (messagePrefix) msg = messagePrefix + msg;
+  require('process').emitWarning(msg, 'ExperimentalWarning', code, ctor);
+}
+
 // output joined by separator (Node's join)
 function join(output, separator) {
   let str = '';
@@ -126,9 +153,13 @@ module.exports = {
   customInspectSymbol,
   customPromisifyArgs,
   deprecate,
+  emitExperimentalWarning,
   encodingsMap,
   getDeprecationWarningEmitter,
+  getLazy,
   isError,
+  isMacOS,
+  isWindows,
   join,
   kEmptyObject,
   kEnumerableProperty,

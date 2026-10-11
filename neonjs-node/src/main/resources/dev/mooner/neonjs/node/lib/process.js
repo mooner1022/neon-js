@@ -48,9 +48,8 @@ process.cwd = function cwd_() {
 
 process.chdir = function chdir(directory) {
   if (typeof directory !== 'string') throw invalidArg('directory', 'of type string', directory);
-  // the working directory of the script only: relative paths resolve against it
-  // TODO: normalize with path.resolve once node:path is there ('..' is kept as is for now)
-  cwd = directory.startsWith('/') ? directory : (cwd.endsWith('/') ? cwd : cwd + '/') + directory;
+  // the working directory of the script only, resolved against the one it had
+  cwd = require('path').resolve(directory);
 };
 
 process.umask = function umask() {
