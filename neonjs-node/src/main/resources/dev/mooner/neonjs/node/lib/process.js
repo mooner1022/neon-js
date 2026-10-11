@@ -78,6 +78,8 @@ process.kill = function kill() {
 
 process.nextTick = function nextTick(callback, ...args) {
   if (typeof callback !== 'function') throw invalidArg('callback', 'of type function', callback);
+  // nothing runs once the process is exiting
+  if (process._exiting) return;
   binding.nextTick(callback, args);
 };
 

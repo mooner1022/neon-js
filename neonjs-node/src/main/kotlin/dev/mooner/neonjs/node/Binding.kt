@@ -116,8 +116,16 @@ internal class Binding(private val rt: NodeRuntime) {
             Undefined
         }
 
+        // ---------------- events: the web globals' EventTargets, as events.getEventListeners sees them
+        fn("isEventTarget", 1) { _, _, a, _ -> WebGlobals.isEventTarget(a.arg(0)) }
+        fn("eventListeners", 2) { f, _, a, _ ->
+            val list = WebGlobals.eventListeners(a.arg(0), Ops.toString(a.arg(1))) ?: return@fn Undefined
+            JSArray.of(f.realm.arrayPrototype, list.toTypedArray<Any?>())
+        }
+
         // ---------------- modules
         b.defineOwn("buffer", BufferBinding.create(realm), Attr.NONE)
+        b.defineOwn("stringDecoder", StringDecoderBinding.create(rt), Attr.NONE)
         b.defineOwn("types", Types.create(realm), Attr.NONE)
         // the libraries' own modules (lib/internal_<name>.js), which scripts cannot require
         fn("internal", 1) { _, _, a, _ -> rt.internal(Ops.toString(a.arg(0))) }

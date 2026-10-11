@@ -9,7 +9,20 @@ kEnumerableProperty.enumerable = true;
 Object.freeze(kEnumerableProperty);
 
 const customInspectSymbol = Symbol.for('nodejs.util.inspect.custom');
+const SymbolDispose = Symbol.dispose ?? Symbol.for('nodejs.dispose');
+const SymbolAsyncDispose = Symbol.asyncDispose ?? Symbol.for('nodejs.asyncDispose');
+
+// removes list[index], faster than splice for one element
+function spliceOne(list, index) {
+  for (; index + 1 < list.length; index++) list[index] = list[index + 1];
+  list.pop();
+}
 const customPromisifyArgs = Symbol('customPromisifyArgs');
+const kIsEncodingSymbol = Symbol('kIsEncodingSymbol');
+
+// the encodings by the number the native string decoder keeps them as
+const encodingsMap = { __proto__: null };
+for (let i = 0; i < binding.stringDecoder.encodings.length; ++i) encodingsMap[binding.stringDecoder.encodings[i]] = i;
 
 function isError(e) {
   // an Error of another realm is still a native error
@@ -40,14 +53,15 @@ function getDeprecationWarningEmitter(code, msg, deprecated) {
   return function emitDeprecationWarning() {
     if (!warned) {
       warned = true;
-      const process = require('process');
+      // node:process by require (not the libraries' process parameter): it needs this module to load
+      const proc = require('process');
       if (code !== undefined) {
         if (!codesWarned.has(code)) {
-          process.emitWarning(msg, 'DeprecationWarning', code, deprecated);
+          proc.emitWarning(msg, 'DeprecationWarning', code, deprecated);
           codesWarned.add(code);
         }
       } else {
-        process.emitWarning(msg, 'DeprecationWarning', deprecated);
+        proc.emitWarning(msg, 'DeprecationWarning', deprecated);
       }
     }
   };
@@ -92,10 +106,15 @@ module.exports = {
   customInspectSymbol,
   customPromisifyArgs,
   deprecate,
+  encodingsMap,
   getDeprecationWarningEmitter,
   isError,
   kEmptyObject,
   kEnumerableProperty,
+  kIsEncodingSymbol,
   normalizeEncoding,
   once,
+  spliceOne,
+  SymbolAsyncDispose,
+  SymbolDispose,
 };

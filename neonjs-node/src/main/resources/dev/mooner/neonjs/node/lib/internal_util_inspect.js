@@ -1465,5 +1465,6 @@ module.exports = {
   formatWithOptions,
   stripVTControlCharacters,
   getStringWidth,
+  identicalSequenceRange,
   stylizeWithColor,
 };

@@ -6,10 +6,11 @@
 const {
   codes: {
     ERR_INVALID_ARG_TYPE, ERR_INVALID_ARG_VALUE, ERR_OUT_OF_RANGE, ERR_UNKNOWN_ENCODING, ERR_BUFFER_OUT_OF_BOUNDS,
-    ERR_INVALID_BUFFER_SIZE,
+    ERR_INVALID_BUFFER_SIZE, ERR_STRING_TOO_LONG,
   },
+  makeError,
 } = require('internal/errors');
-const { validateNumber, validateInteger, validateString, validateArray } = require('internal/validators');
+const { validateNumber, validateInteger, validateString, validateArray, validateBuffer } = require('internal/validators');
 const native = binding.buffer;
 const types = binding.types;
 
@@ -244,6 +245,8 @@ Buffer.compare = function compare(buf1, buf2) {
 Buffer.isEncoding = function isEncoding(encoding) {
   return typeof encoding === 'string' && encoding.length !== 0 && encodingIndex(encoding) >= 0;
 };
+// the original, which string_decoder tells from a replaced Buffer.isEncoding
+Buffer[require('internal/util').kIsEncodingSymbol] = Buffer.isEncoding;
 
 Buffer.concat = function concat(list, length) {
   validateArray(list, 'list');
@@ -341,7 +344,7 @@ function _copyActual(source, target, targetStart, sourceStart, sourceEnd) {
 }
 
 function bidirectionalIndexOf(buffer, val, byteOffset, encoding, dir) {
-  if (!isUint8Array(buffer)) throw ERR_INVALID_ARG_TYPE('buffer', ['Buffer', 'Uint8Array'], buffer);
+  validateBuffer(buffer);
   if (typeof byteOffset === 'string') {
     encoding = byteOffset;
     byteOffset = undefined;
@@ -627,27 +630,67 @@ for (const name of Object.keys(methods)) {
   }
 }
 
-// asciiSlice, hexWrite...: the encodings' own methods
+// what Node's native code throws, with its own messages
+const indexOutOfRange = () => makeError(RangeError, 'ERR_OUT_OF_RANGE', 'Index out of range');
+
+// Node's ParseArrayIndex: undefined is the default; anything else an integer >= 0
+function parseArrayIndex(value, def) {
+  if (value === undefined) return def;
+  const n = Math.trunc(+value) || 0;
+  if (n < 0) throw indexOutOfRange();
+  return n;
+}
+
+// a string from [start, end) in the encoding, or ERR_STRING_TOO_LONG for one longer than strings can be
+function slice(buf, e, start, end) {
+  const n = end - start;
+  const chars = e === HEX ? n * 2 : e === UTF16LE ? n >>> 1 : e === BASE64 || e === BASE64URL ? Math.ceil(n / 3) * 4 : n;
+  if (chars > kStringMaxLength) throw new ERR_STRING_TOO_LONG(kStringMaxLength);
+  return native.toString(buf, e, start, end);
+}
+
+// asciiSlice, hexWrite...: the encodings' own methods, with the checks Node's native ones make
 for (let e = 0; e < ENCODING_NAMES.length; e++) {
   const name = ENCODING_NAMES[e] === 'utf16le' ? 'ucs2' : ENCODING_NAMES[e];
   Object.defineProperty(proto, `${name}Slice`, {
-    value: function slice(start, end) {
-      return native.toString(this, e, start === undefined ? 0 : start, end === undefined ? this.length : end);
+    value: function slice_(start, end) {
+      const len = TypedArrayPrototypeGetByteLength(this);
+      if (len === 0) return '';
+      start = parseArrayIndex(start, 0);
+      end = parseArrayIndex(end, len);
+      if (end < start) end = start;
+      if (end > len) throw indexOutOfRange();
+      return slice(this, e, start, end);
     },
     writable: true,
     configurable: true,
     enumerable: false,
   });
+  // ascii, latin1 and utf8 check their arguments in JS in Node; the others natively
+  const checkedInJS = e === ASCII || e === LATIN1 || e === UTF8;
   Object.defineProperty(proto, `${name}Write`, {
-    value: function write(string, offset = 0, length = this.length - offset) {
-      validateString(string, 'argument');
-      if (offset < 0 || offset > this.length) throw ERR_BUFFER_OUT_OF_BOUNDS('offset');
-      return native.write(this, string, e, offset, length);
+    value: checkedInJS ? function write(string, offset = 0, length = TypedArrayPrototypeGetByteLength(this)) {
+      if (offset < 0 || offset > TypedArrayPrototypeGetByteLength(this)) throw new ERR_BUFFER_OUT_OF_BOUNDS('offset');
+      if (length < 0) throw new ERR_BUFFER_OUT_OF_BOUNDS('length');
+      return nativeWrite(this, string, offset, length, e);
+    } : function write(string, offset, length) {
+      return nativeWrite(this, string, offset, length, e);
     },
     writable: true,
     configurable: true,
     enumerable: false,
   });
+}
+
+// Node's StringWrite
+function nativeWrite(buf, string, offset, length, e) {
+  if (typeof string !== 'string') throw makeError(TypeError, 'ERR_INVALID_ARG_TYPE', 'argument must be a string');
+  const len = TypedArrayPrototypeGetByteLength(buf);
+  offset = parseArrayIndex(offset, 0);
+  if (offset > len) throw makeError(RangeError, 'ERR_BUFFER_OUT_OF_BOUNDS', '"offset" is outside of buffer bounds');
+  const max = Math.min(len - offset, parseArrayIndex(length, len - offset));
+  if (max === 0) return 0;
+  return native.write(buf, string, e, offset, max);
 }
 
 // ---------------------------------------------------------------- the rest of the prototype
@@ -671,7 +714,7 @@ function defineMethods(target, obj) {
 
 defineMethods(proto, {
   toString(encoding, start, end) {
-    if (arguments.length === 0) return native.toString(this, UTF8, 0, this.length);
+    if (arguments.length === 0) return slice(this, UTF8, 0, this.length);
     const len = this.length;
     if (start <= 0) start = 0;
     else if (start >= len) return '';
@@ -679,10 +722,10 @@ defineMethods(proto, {
     if (end === undefined || end > len) end = len;
     else end = Math.trunc(end) || 0;
     if (end <= start) return '';
-    if (encoding === undefined) return native.toString(this, UTF8, start, end);
+    if (encoding === undefined) return slice(this, UTF8, start, end);
     const e = encodingIndex(encoding);
     if (e < 0) throw ERR_UNKNOWN_ENCODING(encoding);
-    return native.toString(this, e, start, end);
+    return slice(this, e, start, end);
   },
 
   equals(otherBuffer) {
@@ -733,15 +776,17 @@ defineMethods(proto, {
     return native.compare(this, sourceStart, sourceEnd, target, targetStart, targetEnd);
   },
 
-  indexOf(val, byteOffset, encoding) {
+  // functions, not methods, as Node's are (new Buffer.prototype.indexOf() is an invalid receiver, not a TypeError
+  // of its own)
+  indexOf: function indexOf(val, byteOffset, encoding) {
     return bidirectionalIndexOf(this, val, byteOffset, encoding, true);
   },
 
-  lastIndexOf(val, byteOffset, encoding) {
+  lastIndexOf: function lastIndexOf(val, byteOffset, encoding) {
     return bidirectionalIndexOf(this, val, byteOffset, encoding, false);
   },
 
-  includes(val, byteOffset, encoding) {
+  includes: function includes(val, byteOffset, encoding) {
     return this.indexOf(val, byteOffset, encoding) !== -1;
   },
 
@@ -850,15 +895,25 @@ function swap(b, n, m) {
 
 // ---------------------------------------------------------------- the module's other exports
 
+const ArrayBufferPrototypeGetDetached = Object.getOwnPropertyDescriptor(ArrayBuffer.prototype, 'detached')?.get;
+
+// the bytes of a TypedArray or ArrayBuffer to validate, as a Uint8Array (not of a detached buffer)
+function validationBytes(input) {
+  const ab = isTypedArray(input) ? TypedArrayPrototypeGetBuffer(input) : input;
+  if (ArrayBufferPrototypeGetDetached !== undefined && types.isArrayBuffer(ab) && ArrayBufferPrototypeGetDetached.call(ab)) {
+    throw makeError(Error, 'ERR_INVALID_STATE', 'Cannot validate on a detached buffer');
+  }
+  return isTypedArray(input) ?
+    new Uint8Array(ab, TypedArrayPrototypeGetByteOffset(input), TypedArrayPrototypeGetByteLength(input)) : new Uint8Array(input);
+}
+
 function isUtf8(input) {
-  if (isTypedArray(input)) return native.isUtf8(new Uint8Array(input.buffer, input.byteOffset, input.byteLength));
-  if (isAnyArrayBuffer(input)) return native.isUtf8(new Uint8Array(input));
+  if (isTypedArray(input) || isAnyArrayBuffer(input)) return native.isUtf8(validationBytes(input));
   throw ERR_INVALID_ARG_TYPE('input', ['ArrayBuffer', 'Buffer', 'TypedArray'], input);
 }
 
 function isAscii(input) {
-  if (isTypedArray(input)) return native.isAscii(new Uint8Array(input.buffer, input.byteOffset, input.byteLength));
-  if (isAnyArrayBuffer(input)) return native.isAscii(new Uint8Array(input));
+  if (isTypedArray(input) || isAnyArrayBuffer(input)) return native.isAscii(validationBytes(input));
   throw ERR_INVALID_ARG_TYPE('input', ['ArrayBuffer', 'Buffer', 'TypedArray'], input);
 }
 

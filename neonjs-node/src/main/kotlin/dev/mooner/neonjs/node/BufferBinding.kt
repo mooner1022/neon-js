@@ -30,13 +30,18 @@ internal object BufferBinding {
         return if (d.isNaN() || d <= 0) 0 else if (d >= len) len else d.toInt()
     }
 
+    /** V8's longest string (`buffer.constants.MAX_STRING_LENGTH` on 64-bit Node), or the engine's own if shorter. */
+    const val V8_STRING_MAX_LENGTH = 0x1fffffe8
+
+    fun stringMaxLength(realm: Realm): Int = minOf(realm.agent.config.maxStringLength, V8_STRING_MAX_LENGTH)
+
     /** The `binding.buffer` object. */
     fun create(realm: Realm): JSObject {
         val b = JSObject(null)
         fun fn(name: String, length: Int, impl: NativeImpl) = b.defineOwn(name, NativeFunction(realm, name, length, impl), Attr.NONE)
 
         b.defineOwn("kMaxLength", (Int.MAX_VALUE - 8).toDouble(), Attr.NONE)
-        b.defineOwn("kStringMaxLength", realm.agent.config.maxStringLength.toDouble(), Attr.NONE)
+        b.defineOwn("kStringMaxLength", stringMaxLength(realm).toDouble(), Attr.NONE)
 
         fn("byteLength", 2) { _, _, a, _ -> Codecs.byteLength(Ops.toString(a.arg(0)), enc(a.arg(1))).toDouble() }
 
@@ -95,11 +100,18 @@ internal object BufferBinding {
             val agent = f.realm.agent
             when (needleArg) {
                 is Double -> indexOf(agent, t, byteArrayOf(Ops.toUint32(needleArg).toByte()), 0, 1, offset, forward, false)
-                // a view's bytes are searched where they are (nothing runs during the search to change them)
-                is JSTypedArray -> indexOf(agent, t, needleArg.buffer.data, needleArg.byteOffset, length(needleArg), offset, forward, false)
+                // a view's bytes are searched where they are (nothing runs during the search to change them); in
+                // ucs2, whole code units of both, as Node does
+                is JSTypedArray -> {
+                    val ucs2 = e == Codecs.Enc.UTF16LE
+                    val n = length(needleArg)
+                    if (ucs2 && (length(t) < 2 || n < 2)) -1
+                    else indexOf(agent, t, needleArg.buffer.data, needleArg.byteOffset, if (ucs2) n and 1.inv() else n, offset, forward, ucs2)
+                }
                 else -> {
                     val needle = bytesOf(f.realm, needleArg, e)
-                    indexOf(agent, t, needle, 0, needle.size, offset, forward, e == Codecs.Enc.UTF16LE)
+                    if (e == Codecs.Enc.UTF16LE && length(t) < 2) -1
+                    else indexOf(agent, t, needle, 0, needle.size, offset, forward, e == Codecs.Enc.UTF16LE)
                 }
             }.toDouble()
         }
