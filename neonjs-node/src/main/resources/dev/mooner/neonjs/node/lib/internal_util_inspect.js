@@ -2458,3 +2458,5 @@ module.exports = {
   stripVTControlCharacters,
   isZeroWidthCodePoint,
 };
+
+require('internal/url').installInspect();

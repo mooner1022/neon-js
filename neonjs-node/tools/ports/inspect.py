@@ -1,5 +1,9 @@
 NOTE = ("what V8 tells Node natively comes from the engine (binding.types), a host (Java) object is one opaque line, "
         "string widths are the non-ICU ones, and process is loaded when first used")
+# URL and URLSearchParams (the web globals) are shown as Node shows its own
+APPEND = """
+require('internal/url').installInspect();
+"""
 REPLACEMENTS = [
     ("""const {
   constants: {

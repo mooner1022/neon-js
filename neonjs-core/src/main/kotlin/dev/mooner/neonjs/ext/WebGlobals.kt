@@ -157,6 +157,21 @@ object WebGlobals {
     /** The timers of [realm], or null without the web globals. For engine modules (neonjs-node's timers). */
     fun timersOf(realm: Realm): Timers? = realm.intrinsicsAny["%Timers%"] as Timers?
 
+    /**
+     * The URL Standard's "domain to ASCII" of [domain] (UTS #46, as `new URL` uses it), or null when it fails. For
+     * engine modules (neonjs-node's url.domainToASCII).
+     */
+    fun domainToAscii(domain: String): String? = dev.mooner.neonjs.unicode.Idna.domainToAscii(domain)
+
+    /** [domain] with its `xn--` labels decoded from Punycode (those that are no valid Punycode left as they are). */
+    fun domainToUnicode(domain: String): String = domain.split('.').joinToString(".") { label ->
+        if (label.length > 4 && label.regionMatches(0, "xn--", 0, 4, ignoreCase = true)) {
+            dev.mooner.neonjs.unicode.Punycode.decode(label.substring(4)) ?: label
+        } else {
+            label
+        }
+    }
+
     /** Whether [v] is an EventTarget (of any realm). For engine modules (neonjs-node's events). */
     fun isEventTarget(v: Any?): Boolean = v is Events.JSEventTarget
 

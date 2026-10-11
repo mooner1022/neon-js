@@ -128,6 +128,10 @@ internal class Binding(private val rt: NodeRuntime) {
         b.defineOwn("buffer", BufferBinding.create(realm), Attr.NONE)
         b.defineOwn("stringDecoder", StringDecoderBinding.create(rt), Attr.NONE)
         b.defineOwn("types", Types.create(realm), Attr.NONE)
+        // ---------------- url: the engine's IDNA
+        fn("toASCII", 1) { _, _, a, _ -> WebGlobals.domainToAscii(Ops.toString(a.arg(0))) ?: "" }
+        fn("domainToUnicode", 1) { _, _, a, _ -> WebGlobals.domainToUnicode(Ops.toString(a.arg(0))) }
+
         // whether node:[id] is a built-in module (inspect dims their frames)
         fn("builtinExists", 1) { f, _, a, _ -> dev.mooner.neonjs.vm.Modules.builtin(f.realm, "node:" + Ops.toString(a.arg(0))) != null }
         // the libraries' own modules (lib/internal_<name>.js), which scripts cannot require

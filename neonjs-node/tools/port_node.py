@@ -26,6 +26,9 @@ internal/events/abort_listener.js    internal_events_abort_listener.js    abort_
 internal/events/symbols.js           internal_events_symbols.js
 internal/fixed_queue.js              internal_fixed_queue.js
 internal/constants.js                internal_constants.js
+internal/querystring.js              internal_querystring.js
+querystring.js                       querystring.js
+url.js                               url.js                               url
 path.js                              path.js                              path
 assert.js                            assert.js
 assert/strict.js                     assert_strict.js
