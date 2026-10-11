@@ -11,6 +11,38 @@ class NodeTest {
     private fun ctx(options: NodeOptions = NodeOptions.DEFAULT): NeonContext =
         NeonEngine.builder().console(null).webGlobals(true).extension(NodeExtension(options)).build().newContext()
 
+    /**
+     * Every built-in module loads, each first in a fresh context (so that no other module has loaded what it needs
+     * before it), under each policy and engine setting that changes the globals the libraries take: a cycle between
+     * the libraries, or a builtin a setting leaves out, fails here for the module that hits it.
+     */
+    @Test
+    fun everyBuiltinModuleLoads() {
+        val names = ctx().use { c -> c.eval("require('module').builtinModules.join()").asString().split(',') }
+        assertTrue(names.size > 10, names.toString())
+        val setups = listOf<Pair<String, (NeonEngine.Builder) -> NeonEngine.Builder>>(
+            "unrestricted" to { b -> b },
+            "strict" to { b -> b.sandbox(dev.mooner.neonjs.SandboxPolicy.STRICT) },
+            "no intl, deterministic" to { b ->
+                b.intl(false).sandbox(dev.mooner.neonjs.SandboxPolicy.builder().deterministic(1, 0).build())
+            },
+            "compiled" to { b -> b.executionMode(dev.mooner.neonjs.ExecutionMode.COMPILED) },
+        )
+        for ((setup, configure) in setups) {
+            val engine = configure(NeonEngine.builder().console(null).webGlobals(true).extension(NodeExtension())).build()
+            for (name in names) {
+                engine.newContext().use { c ->
+                    val r = try {
+                        c.eval("typeof require(${'"'}node:$name${'"'})").asString()
+                    } catch (e: Exception) {
+                        fail("node:$name does not load ($setup): ${e.message}")
+                    }
+                    assertTrue(r == "object" || r == "function", "node:$name ($setup) is $r")
+                }
+            }
+        }
+    }
+
     @Test
     fun needsTheWebGlobals() {
         val e = assertThrows<IllegalStateException> { NeonEngine.builder().console(null).extension(NodeExtension()).build().newContext() }

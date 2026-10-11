@@ -94,9 +94,22 @@ class CoreModulesTest {
                 [process.env.TOKEN, String(process.env.HOME), process.argv[1], process.platform, process.version, process.versions.node,
                  typeof process.versions.neonjs === 'string', '/app', process.cwd(), Object.prototype.toString.call(process).slice(8, -1)].join()
             """).asString())
+            // path follows the platform
+            assertEquals("true,/app/sub/x", c.eval("[require('path') === require('path').posix, require('path').resolve('x')].join()").asString())
             // import gives the same object, and there is still no process global
             val ns = c.evalModule("import process, { nextTick } from 'node:process'; export const r = [process === require('process'), typeof nextTick, typeof globalThis.process]", "m.mjs")
             assertEquals("true,function,undefined", ns.getMember("r").toString())
+        }
+    }
+
+    @Test
+    fun theDefaultsShowNothingOfTheHost() {
+        ctx().use { c ->
+            // a POSIX platform (on the JVM; android on Android) whatever the host's OS, an empty env, a root cwd
+            assertEquals("linux,0,/,/", c.eval("""
+                const p = require('process');
+                [p.platform, Object.keys(p.env).length, p.cwd(), require('path').sep].join()
+            """).asString())
         }
     }
 

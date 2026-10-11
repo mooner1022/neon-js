@@ -13,8 +13,11 @@ class NodeOptions private constructor(b: Builder) {
     val argv: List<String> = b.argv.toList()
     /** `process.cwd()` and what relative paths resolve against (default: `/`). */
     val cwd: String = b.cwd
-    /** `process.platform` (default: `android` on Android, else that of the host's OS: `linux`, `win32`, `darwin`). */
-    val platform: String = b.platform ?: hostPlatform()
+    /**
+     * `process.platform`, which also makes node:path POSIX or Windows (default: `android` on Android, else `linux`:
+     * POSIX, as the default [cwd] is, and nothing of the host's OS shows).
+     */
+    val platform: String = b.platform ?: defaultPlatform()
     /** Called with the code of `process.exit(code)`; by default the context's evaluation is interrupted. */
     val onExit: IntConsumer? = b.onExit
 
@@ -38,14 +41,7 @@ class NodeOptions private constructor(b: Builder) {
 
         @JvmStatic fun builder() = Builder()
 
-        private fun hostPlatform(): String {
-            if (System.getProperty("java.vendor", "").contains("Android", ignoreCase = true)) return "android"
-            val os = System.getProperty("os.name", "").lowercase()
-            return when {
-                os.startsWith("windows") -> "win32"
-                os.startsWith("mac") || os.startsWith("darwin") -> "darwin"
-                else -> "linux"
-            }
-        }
+        private fun defaultPlatform(): String =
+            if (System.getProperty("java.vendor", "").contains("Android", ignoreCase = true)) "android" else "linux"
     }
 }
