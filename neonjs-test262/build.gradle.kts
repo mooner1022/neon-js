@@ -12,6 +12,8 @@ val d8Runtime: Configuration = configurations.create("d8Runtime")
 dependencies {
     implementation(project(":neonjs-core"))
     implementation(project(":neonjs-intl"))
+    // Node.js's own tests against neonjs-node (NodeTestsKt)
+    implementation(project(":neonjs-node"))
     // DexCheckingDefiner (-Dneonjs.codeDefiner=dev.mooner.neonjs.android.DexCheckingDefiner) and the device checks (AndroidCheck)
     implementation(project(":neonjs-android"))
     // class files with missing types for AndroidCheck (also a dependency of neonjs-core)

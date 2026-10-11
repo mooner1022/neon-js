@@ -1,0 +1,9 @@
+# The tests of Node.js (test/parallel of Node v22.12.0, third_party/node) NodeTestsKt runs: file name globs
+test-assert*.js
+test-buffer-*.js
+test-event-emitter-*.js
+test-events-*.js
+test-next-tick*.js
+test-string-decoder*.js
+test-timers-*.js
+test-util-*.js

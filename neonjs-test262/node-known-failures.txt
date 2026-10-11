@@ -1,0 +1,59 @@
+# The tests of neonjs-test262/node-tests.txt that fail (NodeTestsKt --known): most need modules not there yet (node:test,
+# vm, child_process, path, stream, domain...) or Node's legacy timers API. Written by --write-known.
+test-assert-async.js  # unhandled rejection: AssertionError: The input did not match the regular expression /rejects/. Input:
+test-assert-builtins-not-read-from-filesystem.js  # uncaught: Error: Cannot find module 'child_process' (require loads built-in and host modules only) [at <anonymous> (/test/common/tmpdir.js:3
+test-assert-calltracker-getCalls.js  # uncaught: Error: Cannot find module 'node:test' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-assert-c
+test-assert-checktag.js  # uncaught: Error: Cannot find module 'node:test' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-assert-c
+test-assert-deep-with-error.js  # uncaught: Error: Cannot find module 'node:test' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-assert-d
+test-assert-deep.js  # uncaught: Error: Cannot find module 'node:test' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-assert-d
+test-assert-esm-cjs-message-verify.js  # uncaught: Error: Cannot find module 'node:test' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-assert-e
+test-assert-fail-deprecation.js  # uncaught: Error: Cannot find module 'node:test' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-assert-f
+test-assert-fail.js  # uncaught: Error: Cannot find module 'node:test' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-assert-f
+test-assert-first-line.js  # uncaught: Error: Cannot find module 'node:test' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-assert-f
+test-assert-if-error.js  # uncaught: Error: Cannot find module 'node:test' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-assert-i
+test-assert-typedarray-deepequal.js  # uncaught: Error: Cannot find module 'node:test' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-assert-t
+test-assert.js  # uncaught: Error: Cannot find module 'node:test' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-assert.j
+test-buffer-alloc.js  # uncaught: Error: Cannot find module 'vm' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-buffer-alloc.js
+test-buffer-bytelength.js  # uncaught: Error: Cannot find module 'vm' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-buffer-byteleng
+test-buffer-constructor-deprecation-error.js  # exit code 1: Mismatched <anonymous> function calls. Expected exactly 1, actual 0. /     at expectWarning (/test/common/index.js:172:31) /   
+test-buffer-constructor-node-modules-paths.js  # uncaught: Error: Cannot find module 'child_process' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-buff
+test-buffer-constructor-node-modules.js  # uncaught: Error: Cannot find module 'path' (require loads built-in and host modules only) [at <anonymous> (/test/common/fixtures.js:3:14) < 
+test-buffer-constructor-outside-node-modules.js  # uncaught: Error: Cannot find module 'vm' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-buffer-construc
+test-buffer-from.js  # uncaught: Error: Cannot find module 'vm' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-buffer-from.js:
+test-buffer-pool-untransferable.js  # uncaught: Error: Cannot find module 'worker_threads' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-buf
+test-buffer-resizable.js  # uncaught: Error: Cannot find module 'node:test' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-buffer-r
+test-buffer-tostring-range.js  # uncaught: RangeError: The value of "size" is out of range. It must be >= 0 && <= 2147483639. Received 4_294_967_315 [at <anonymous> (/test/p
+test-event-emitter-no-error-provided-to-error-event.js  # uncaught: Error: Cannot find module 'domain' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-event-emitt
+test-event-emitter-prepend.js  # uncaught: Error: Cannot find module 'stream' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-event-emitt
+test-next-tick-domain.js  # uncaught: Error: Cannot find module 'domain' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-next-tick-d
+test-timers-active.js  # uncaught: TypeError: active is not a function [at <anonymous> (/test/parallel/test-timers-active.js:14:3) < at <anonymous> (/test/parallel/t
+test-timers-clearImmediate-als.js  # uncaught: Error: Cannot find module 'async_hooks' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-timers
+test-timers-enroll-invalid-msecs.js  # uncaught: AssertionError: Expected values to be strictly deep-equal:
+test-timers-enroll-second-time.js  # uncaught: TypeError: timers.enroll is not a function [at <anonymous> (/test/parallel/test-timers-enroll-second-time.js:12:1)]
+test-timers-immediate-queue-throw.js  # uncaught: Error: Cannot find module 'domain' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-timers-imme
+test-timers-immediate-unref-nested-once.js  # uncaught: AssertionError: function should not have been called at /test/parallel/test-timers-immediate-unref-nested-once.js:8
+test-timers-max-duration-warning.js  # uncaught: TypeError: timers.enroll is not a function [at <anonymous> (/test/parallel/test-timers-max-duration-warning.js:39:3)]
+test-timers-promises-scheduler.js  # uncaught: AssertionError: Missing expected exception. [at <anonymous> (/test/parallel/test-timers-promises-scheduler.js:53:1)]
+test-timers-promises.js  # uncaught: Error: Cannot find module 'node:test' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-timers-p
+test-timers-refresh-in-callback.js  # exit code 1: Mismatched <anonymous> function calls. Expected exactly 2, actual 1. /     at <anonymous> (/test/parallel/test-timers-refresh-i
+test-timers-reset-process-domain-on-throw.js  # uncaught: Error: Cannot find module 'domain' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-timers-rese
+test-timers-socket-timeout-removes-other-socket-unref-timer.js  # uncaught: Error: Cannot find module 'net' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-timers-socket-
+test-timers-timeout-to-interval.js  # exit code 1: Mismatched <anonymous> function calls. Expected exactly 2, actual 1. /     at <anonymous> (/test/parallel/test-timers-timeout-t
+test-timers-unenroll-unref-interval.js  # uncaught: TypeError: timers.unenroll is not a function; uncaught: TypeError: timers.unenroll is not a function; uncaught: TypeError: Cannot 
+test-timers-unref-active.js  # uncaught: TypeError: timers.unenroll is not a function [at <anonymous> (/test/parallel/test-timers-unref-active.js:32:1)]
+test-timers-unref-remove-other-unref-timers-only-one-fires.js  # uncaught: TypeError: timers.enroll is not a function [at <anonymous> (/test/parallel/test-timers-unref-remove-other-unref-timers-only-one-fi
+test-timers-unref-remove-other-unref-timers.js  # uncaught: TypeError: timers.enroll is not a function [at <anonymous> (/test/parallel/test-timers-unref-remove-other-unref-timers.js:23:1)]
+test-timers-unrefed-in-beforeexit.js  # exit code 1: Mismatched <anonymous> function calls. Expected exactly 1, actual 0. /     at <anonymous> (/test/parallel/test-timers-unrefed-i
+test-timers-unrefed-in-callback.js  # uncaught: Error: Cannot find module 'net' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-timers-unrefed
+test-timers-user-call.js  # uncaught: TypeError: this._onImmediate.apply is not a function; uncaught: TypeError: this._onImmediate.apply is not a function; uncaught: Ty
+test-util-callbackify.js  # uncaught: Error: Cannot find module 'child_process' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-util
+test-util-format.js  # uncaught: AssertionError: Expected values to be strictly equal:
+test-util-getcallsite.js  # uncaught: TypeError: getCallSite is not a function [at <anonymous> (/test/parallel/test-util-getcallsite.js:9:1)]
+test-util-getcallsites.js  # uncaught: Error: Cannot find module 'path' (require loads built-in and host modules only) [at <anonymous> (/test/common/fixtures.js:3:14) < 
+test-util-inspect-getters-accessing-this.js  # uncaught: AssertionError: Expected values to be strictly equal:
+test-util-inspect-long-running.js  # uncaught: Execution time limit exceeded
+test-util-log.js  # uncaught: TypeError: util.log is not a function [at <anonymous> (/test/parallel/test-util-log.js:57:3)]
+test-util-parse-env.js  # uncaught: Error: Cannot find module 'path' (require loads built-in and host modules only) [at <anonymous> (/test/common/fixtures.js:3:14) < 
+test-util-primordial-monkeypatching.js  # uncaught: Error: fhqwhgads [at <anonymous> (/test/parallel/test-util-primordial-monkeypatching.js:10:29) < at <anonymous> (/test/parallel/te
+test-util-stripvtcontrolcharacters.js  # uncaught: Error: Cannot find module 'node:test' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-util-str
+test-util-styletext.js  # uncaught: Error: Cannot find module 'node:tty' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-util-styl

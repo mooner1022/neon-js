@@ -15,6 +15,8 @@ env:
   TEST262_COMMIT: 5992dc3b60faf62a48fd6be8a40ae9d9a8c84d81
   # the web-platform-tests revision the web globals are tested against (third_party/wpt locally)
   WPT_COMMIT: d6713be63025929a1e8d8af45baaff0744b5e50d
+  # Node.js v22.12.0, whose own tests neonjs-node is tested against (third_party/node locally)
+  NODE_COMMIT: ccba1a1cc89fa57ef231ec74cf78baaf5e477621
 
 jobs:
   jvm:
@@ -63,3 +65,13 @@ jobs:
           --root third_party/wpt --known neonjs-test262/wpt-known-failures.txt
           --include-window url/IdnaTestV2.any.js --include-window url/IdnaTestV2-removed.any.js
           encoding dom/events dom/abort dom/idlharness.any.js hr-time WebCryptoAPI FileAPI xhr/formdata fetch/api/headers url
+      - name: Check out Node.js (lib, test/common and test/parallel)
+        run: |
+          git init -q third_party/node
+          git -C third_party/node sparse-checkout set lib test/common test/parallel
+          git -C third_party/node fetch -q --depth 1 --filter=blob:none https://github.com/nodejs/node.git "$NODE_COMMIT"
+          git -C third_party/node checkout -q FETCH_HEAD
+      - name: Node.js tests (neonjs-node)
+        run: >-
+          java -Xss16m -cp "neonjs-test262/build/install/neonjs-test262/lib/*" dev.mooner.neonjs.test262.NodeTestsKt
+          --root third_party/node --known neonjs-test262/node-known-failures.txt
