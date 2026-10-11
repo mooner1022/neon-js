@@ -22,6 +22,12 @@ class NodeExtension @JvmOverloads constructor(val options: NodeOptions = NodeOpt
 
 /** The Node.js side of one realm. */
 internal class NodeRuntime(@JvmField val realm: Realm, @JvmField val options: NodeOptions) {
+    /** The `binding` argument of the JS libraries. */
+    val binding: JSObject by lazy { Binding(this).create() }
+
+    /** The process object, once node:process was made: its listeners see what the script left uncaught. */
+    @JvmField var process: JSObject? = null
+
     /** `require`: the host's modules first (as for import), then the built-in modules; nothing else. */
     val require: NativeFunction = NativeFunction(realm, "require", 1, { _, _, a, _ ->
         if (a.isEmpty() || a[0] !is CharSequence) throw nodeError(ErrorKind.TYPE, "The \"id\" argument must be of type string", "ERR_INVALID_ARG_TYPE")
@@ -37,10 +43,32 @@ internal class NodeRuntime(@JvmField val realm: Realm, @JvmField val options: No
         }), Attr.WC)
         require.defineOwn("cache", JSObject(null), Attr.WC)
         defineModule("module") { moduleExports() }
+        for (name in JS_MODULES) defineModule(name) { NodeLib.load(this, name) }
         val g = realm.globalObject
         g.defineOwn("global", g, Attr.WC)
         g.defineOwn("require", require, Attr.WC)
         ErrorStack.install(realm)
+        // Node's timers are the global ones (Timeout objects rather than numbers), from the start
+        val timers = require("node:timers") as JSObject
+        for (n in TIMER_GLOBALS) g.defineOwn(n, timers.get(n, timers), Attr.ALL)
+        // process.on('uncaughtException' / 'unhandledRejection') first, then whatever was there (the host's handler
+        // comes after both)
+        val previous = realm.agent.uncaughtInterceptor
+        realm.agent.uncaughtInterceptor = { e, p -> uncaught(e, p) || previous?.invoke(e, p) == true }
+    }
+
+    /** Emits an uncaught exception or unhandled rejection on the process object; false when nothing listens. */
+    private fun uncaught(e: RuntimeException?, p: dev.mooner.neonjs.vm.JSPromise?): Boolean {
+        val proc = process ?: return false
+        val event = if (e != null) "uncaughtException" else "unhandledRejection"
+        if (Ops.toNumber(Ops.invoke(proc, "listenerCount", arrayOf(event))) == 0.0) return false
+        if (e != null) {
+            val value = if (e is JSException) e.value else realm.agent.hostExceptionToJS(e as dev.mooner.neonjs.vm.HostException, realm)
+            Ops.invoke(proc, "emit", arrayOf(event, value, "uncaughtException"))
+        } else {
+            Ops.invoke(proc, "emit", arrayOf(event, p!!.result, p))
+        }
+        return true
     }
 
     fun require(id: String): Any? {
@@ -82,6 +110,9 @@ internal class NodeRuntime(@JvmField val realm: Realm, @JvmField val options: No
 
     companion object {
         const val KEY = "%Node%"
+        /** The built-in modules written in JS (resources lib/<name>.js). */
+        private val JS_MODULES = listOf("events", "process", "timers", "timers/promises")
+        private val TIMER_GLOBALS = listOf("setTimeout", "clearTimeout", "setInterval", "clearInterval", "setImmediate", "clearImmediate")
 
         /** The Node.js side of [realm] (a realm the extension was installed in). */
         fun of(realm: Realm): NodeRuntime = realm.intrinsicsAny[KEY] as NodeRuntime
