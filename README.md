@@ -75,17 +75,39 @@ The jars are Java 21 class files. For Android, see [Android](#android).
 
 ```
 neonjs [--interpreter | --compiled | --adaptive] [--jit-threshold N] [--sync-jit] [--module] [--dis]
-       [-e CODE] [-f FILE ...] [file.js | file.mjs ...]
+       [--node] [--env NAME[=VALUE] ...] [--env-file FILE]
+       [--allow-host PATTERNS ...] [--allow-all-hosts] [--allow-address CIDRS ...] [--allow-insecure]
+       [-e CODE] [-f FILE ...] [file.js | file.mjs ...] [-- ARGS...]
 ```
 
 Local files run in the order given, either as plain arguments or with `-f FILE` / `--file FILE` / `--file=FILE`
 (use `-f` for a file name that starts with `-`); `-e` code runs first. A missing or unreadable file is reported and
 the remaining files still run (exit status 1); a bad option exits with status 2. Without files or `-e` it starts a
 REPL. The executable jar runs the same way: `java -jar neonjs-cli-<version>-all.jar [options] [files]` (it
-includes `neonjs-intl`, and needs no `-Xss` flag). `print(...)` and `console.*` write to stdout/stderr; `.mjs`
-files (or `--module`) are run as ES modules with relative imports resolved from the file system. `--jit-threshold N`
-(adaptive mode: compile a function on its Nth call) and `--sync-jit` (compile on the calling thread) make compiled
-code run at a fixed point, for tests and comparisons.
+includes `neonjs-intl`, `neonjs-net` and `neonjs-node`, and needs no `-Xss` flag). `print(...)` and `console.*` write
+to stdout/stderr; `.mjs` files (or `--module`) are run as ES modules with relative imports resolved from the file
+system. `--jit-threshold N` (adaptive mode: compile a function on its Nth call) and `--sync-jit` (compile on the
+calling thread) make compiled code run at a fixed point, for tests and comparisons.
+
+The CLI runs scripts the way a host with `neonjs-net` and `neonjs-node` does, which is enough for a bundled
+application (see [Libraries from npm](#libraries-from-npm-bundled)):
+
+- `--node` gives scripts the Node.js APIs (`require` and the `node:` modules, `Buffer`, Node's timers and console).
+  `process.env` holds only what `--env NAME=VALUE`, `--env NAME` (the host's value of `NAME`, which keeps it out of
+  the command line) and `--env-file FILE` (`NAME=VALUE` lines) give it; the arguments after `--` are the script's
+  (`process.argv` is `neonjs`, the first file's path, then those).
+- `fetch` and `WebSocket` reach nothing unless allowed: `--allow-host` takes host patterns (`example.com`,
+  `*.example.com` for its subdomains, `example.com:8443`; comma-separated or repeated), `--allow-all-hosts` any host.
+  Loopback and private addresses also need their range (`--allow-address 127.0.0.0/8,::1/128`), and `http:` / `ws:`
+  need `--allow-insecure`.
+- The process ends when nothing is pending (open sockets, timers, fetches; `unref()`'d timers do not count), with
+  `process.exit(code)`, or with Ctrl+C. Its exit status is that code, `process.exitCode` (after the `'exit'`
+  listeners), or 1 when something was left uncaught: an exception, or a promise rejected without a handler, both
+  reported on stderr after `process.on('uncaughtException' / 'unhandledRejection')` listeners had their turn.
+
+```bash
+java -jar neonjs-cli-<version>-all.jar --node --allow-host api.example.com --env API_TOKEN app.bundle.js -- --verbose
+```
 
 ## Embedding
 
@@ -427,6 +449,8 @@ engine.newContext().use { ctx ->
     ctx.runEventLoop()   // until nothing is pending (open sockets, timers, fetches), or interrupt()
 }
 ```
+
+Without a host of one's own, the CLI runs a bundle the same way (see [CLI](#cli)).
 
 ## Android
 

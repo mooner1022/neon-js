@@ -5,8 +5,18 @@ plugins {
 dependencies {
     implementation(project(":neonjs-core"))
     implementation(project(":neonjs-intl"))
+    // --node and the --allow options
+    implementation(project(":neonjs-node"))
+    implementation(project(":neonjs-net"))
     // on Android (the jar dexed with d8), compiled mode defines JIT code through dex; inactive on standard JVMs
     runtimeOnly(project(":neonjs-android"))
+    testImplementation("com.squareup.okhttp3:mockwebserver3:5.5.0")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.14.2")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 application {
@@ -28,6 +38,6 @@ tasks.register<Jar>("fatJar") {
     from({ configurations.runtimeClasspath.get().filter { it.name.endsWith(".jar") }.map { zipTree(it) } })
     // the dependencies' module descriptors would make the merged jar look like one of those modules
     exclude("module-info.class", "META-INF/versions/*/module-info.class")
-    // only neonjs-intl registers services (META-INF/services), so no file needs merging
+    // the services of neonjs-intl and neonjs-android (META-INF/services) have files of their own, so none needs merging
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
