@@ -17,6 +17,7 @@ object ConsoleBuiltins {
     const val MAX_MESSAGE = 1 shl 20
 
     private const val FORMATTER = "%ConsoleFormatter%"
+    private const val SINK = "%ConsoleSink%"
 
     /** How a realm's console turns its arguments into text, in place of the core's. */
     interface Formatter {
@@ -36,6 +37,10 @@ object ConsoleBuiltins {
         if (formatter == null) realm.intrinsicsAny.remove(FORMATTER) else realm.intrinsicsAny[FORMATTER] = formatter
     }
 
+    /** Where [realm]'s console writes, or null when it has none (for engine modules writing to the same place). */
+    @JvmStatic
+    fun sinkOf(realm: Realm): NeonConsole? = realm.intrinsicsAny[SINK] as NeonConsole?
+
     private class State(val sink: NeonConsole) {
         var indent = 0
         val counts = HashMap<String, Long>()
@@ -44,6 +49,7 @@ object ConsoleBuiltins {
 
     fun install(realm: Realm, sink: NeonConsole) {
         val st = State(sink)
+        realm.intrinsicsAny[SINK] = sink
         val console = JSObject(realm.objectPrototype)
         fun emit(level: Level, text: String) {
             val msg = if (text.length > MAX_MESSAGE) text.substring(0, MAX_MESSAGE) + "... <truncated>" else text

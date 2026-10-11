@@ -489,6 +489,9 @@ object Modules {
         private var state = 0
         private var value: Any? = null
 
+        /** Whether the module was made (a script required or imported it), without making it. */
+        val isLoaded: Boolean get() = state == 2
+
         fun exports(): Any? {
             when (state) {
                 2 -> return value
