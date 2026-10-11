@@ -3,6 +3,7 @@ package dev.mooner.neonjs.node
 import dev.mooner.neonjs.NeonContext
 import dev.mooner.neonjs.NeonEngine
 import dev.mooner.neonjs.NeonResourceLimitException
+import dev.mooner.neonjs.NeonTimeoutException
 import dev.mooner.neonjs.SandboxPolicy
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
@@ -97,6 +98,14 @@ class BufferTest {
             assertEquals("2,abab", c.str("const t = Buffer.from('xxxx'); [Buffer.from('ab').copy(t, 2), (Buffer.from('ab').copy(t), t.toString())].join()"))
             // overlapping copy within one buffer moves as memmove does
             assertEquals("aabcd", c.str("const m = Buffer.from('abcde'); m.copy(m, 1, 0, 4); m.toString()"))
+        }
+        // a search as slow as haystack times needle still stops at the time limit
+        ctx(SandboxPolicy.builder().maxExecutionTime(300).build()).use { c ->
+            val start = System.nanoTime()
+            assertThrows<NeonTimeoutException> {
+                c.eval("const hay = Buffer.alloc(4_000_000, 'a'), needle = Buffer.alloc(200_000, 'a'); needle[199_999] = 0x62; hay.indexOf(needle)")
+            }
+            assertTrue((System.nanoTime() - start) / 1_000_000 < 5_000)
         }
     }
 

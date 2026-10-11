@@ -22,9 +22,9 @@ internal object Codecs {
 
     // ---------------------------------------------------------------- encoding
 
-    fun byteLength(s: String, enc: Enc): Int = when (enc) {
+    fun byteLength(s: String, enc: Enc): Long = when (enc) {
         Enc.UTF8 -> {
-            var n = 0
+            var n = 0L
             var i = 0
             while (i < s.length) {
                 val c = s[i]
@@ -38,10 +38,18 @@ internal object Codecs {
             }
             n
         }
-        Enc.UTF16LE -> s.length * 2
-        Enc.LATIN1, Enc.ASCII -> s.length
-        Enc.HEX -> s.length ushr 1
-        Enc.BASE64, Enc.BASE64URL -> base64Decode(s).size
+        Enc.UTF16LE -> s.length * 2L
+        Enc.LATIN1, Enc.ASCII -> s.length.toLong()
+        Enc.HEX -> (s.length ushr 1).toLong()
+        Enc.BASE64, Enc.BASE64URL -> {
+            // the characters base64Write takes, six bits each
+            var n = 0L
+            for (c in s) {
+                if (c == '=') break
+                if (base64Value(c) >= 0) n++
+            }
+            n * 6 / 8
+        }
     }
 
     /** Writes [s] into [out] from [offset], at most [max] bytes (no partial character); returns the bytes written. */
@@ -102,9 +110,21 @@ internal object Codecs {
                 return n
             }
             Enc.BASE64, Enc.BASE64URL -> {
-                val bytes = base64Decode(s)
-                val n = minOf(bytes.size, max)
-                System.arraycopy(bytes, 0, out, offset, n)
+                // Node's lenient base64: both alphabets, other characters skipped, decoding ends at '='
+                var n = 0
+                var acc = 0
+                var bits = 0
+                for (c in s) {
+                    if (c == '=' || n >= max) break
+                    val v = base64Value(c)
+                    if (v < 0) continue
+                    acc = (acc shl 6) or v
+                    bits += 6
+                    if (bits >= 8) {
+                        bits -= 8
+                        out[offset + n++] = (acc shr bits).toByte()
+                    }
+                }
                 return n
             }
         }
@@ -117,25 +137,6 @@ internal object Codecs {
         '+', '-' -> 62
         '/', '_' -> 63
         else -> -1
-    }
-
-    /** Node's lenient base64: both alphabets, other characters skipped, decoding ends at '='. */
-    fun base64Decode(s: String): ByteArray {
-        val out = java.io.ByteArrayOutputStream(s.length * 3 / 4)
-        var acc = 0
-        var bits = 0
-        for (c in s) {
-            if (c == '=') break
-            val v = base64Value(c)
-            if (v < 0) continue
-            acc = (acc shl 6) or v
-            bits += 6
-            if (bits >= 8) {
-                bits -= 8
-                out.write((acc shr bits) and 0xFF)
-            }
-        }
-        return out.toByteArray()
     }
 
     // ---------------------------------------------------------------- decoding
