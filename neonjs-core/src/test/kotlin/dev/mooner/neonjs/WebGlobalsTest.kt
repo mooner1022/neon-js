@@ -333,4 +333,22 @@ class WebGlobalsTest {
             assertEquals("RangeError", c.eval("setTimeout(() => {}, 1000); AbortSignal.timeout(1000); try { AbortSignal.timeout(1000) } catch (e) { e.name }").asString())
         }
     }
+
+    @Test
+    fun messageCloseAndErrorEvents() {
+        ctx().use { c ->
+            assertEquals("d,o,7,,0,true,true,4001,r,true,0,false,m,f,3,4,boom,,TypeError,TypeError", c.eval("""
+                const out = [];
+                const m = new MessageEvent('message', { data: 'd', origin: 'o', lastEventId: 7 });
+                out.push(m.data, m.origin, m.lastEventId, m.source, m.ports.length, Object.isFrozen(m.ports), m.ports === m.ports);
+                const ce = new CloseEvent('close', { code: 4001, reason: 'r', wasClean: true });
+                out.push(ce.code, ce.reason, ce.wasClean, new CloseEvent('close').code, new CloseEvent('close').wasClean);
+                const ee = new ErrorEvent('error', { message: 'm', filename: 'f', lineno: 3, colno: 4, error: 'boom' });
+                out.push(ee.message, ee.filename, ee.lineno, ee.colno, ee.error, new ErrorEvent('error').error);
+                try { new MessageEvent('message', { ports: [{}] }) } catch (e) { out.push(e.name) }
+                try { new MessageEvent('message', { source: {} }) } catch (e) { out.push(e.name) }
+                out.join()
+            """).asString())
+        }
+    }
 }

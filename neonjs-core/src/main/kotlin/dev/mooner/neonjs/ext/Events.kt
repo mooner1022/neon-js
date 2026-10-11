@@ -5,7 +5,9 @@ import dev.mooner.neonjs.runtime.*
 
 /**
  * `Event`, `CustomEvent` and `EventTarget` of the DOM Standard, for targets outside any tree: an event is dispatched to
- * its target alone (capture listeners, then the others), so `bubbles` and `composed` only report what was asked.
+ * its target alone (capture listeners, then the others), so `bubbles` and `composed` only report what was asked. Also
+ * the event classes of other standards that the web globals fire: `MessageEvent` and `ErrorEvent` (HTML) and
+ * `CloseEvent` (WebSockets).
  */
 internal object Events {
     /** An event: the DOM Standard's internal state and flags. */
@@ -50,6 +52,31 @@ internal object Events {
         @JvmField var detail: Any? = Null
     }
 
+    class JSMessageEvent(proto: JSObject?) : JSEvent(proto) {
+        override val className: String get() = "MessageEvent"
+        @JvmField var data: Any? = Null
+        @JvmField var origin = ""
+        @JvmField var lastEventId = ""
+        /** `ports`: a frozen array, the same one at each get. */
+        @JvmField var ports: JSObject? = null
+    }
+
+    class JSCloseEvent(proto: JSObject?) : JSEvent(proto) {
+        override val className: String get() = "CloseEvent"
+        @JvmField var wasClean = false
+        @JvmField var code = 0
+        @JvmField var reason = ""
+    }
+
+    class JSErrorEvent(proto: JSObject?) : JSEvent(proto) {
+        override val className: String get() = "ErrorEvent"
+        @JvmField var message = ""
+        @JvmField var filename = ""
+        @JvmField var lineno = 0.0
+        @JvmField var colno = 0.0
+        @JvmField var error: Any? = Undefined
+    }
+
     /** An event listener: [callback] is null for a listener that has been removed. */
     class Listener(
         @JvmField val type: String, @JvmField var callback: JSObject?, @JvmField val capture: Boolean,
@@ -91,6 +118,9 @@ internal object Events {
         installEvent(realm)
         installCustomEvent(realm)
         installEventTarget(realm)
+        installMessageEvent(realm)
+        installCloseEvent(realm)
+        installErrorEvent(realm)
     }
 
     private fun installEvent(realm: Realm) {
@@ -195,6 +225,108 @@ internal object Events {
             }
             Undefined
         }
+    }
+
+    private fun emptyPorts(realm: Realm): JSObject =
+        dev.mooner.neonjs.builtins.Builtins.arrayOf(realm, emptyList()).also { dev.mooner.neonjs.builtins.Builtins.freeze(it) }
+
+    /** MessageEventInit's `ports`: a sequence of MessagePorts, which this realm has none of (so only an empty one). */
+    private fun ports(realm: Realm, v: Any?, what: String): JSObject {
+        if (v === Undefined) return emptyPorts(realm)
+        Idl.sequence(realm, v, "$what ports") { typeErr("$what: ${Ops.describe(it)} is not a MessagePort") }
+        return emptyPorts(realm)
+    }
+
+    /** MessageEventInit's `source`: a window, MessagePort or service worker, or null; there are none here. */
+    private fun checkSource(v: Any?, what: String) {
+        if (v !== Undefined && v !== Null) typeErr("$what: ${Ops.describe(v)} is not a MessageEventSource")
+    }
+
+    private fun installMessageEvent(realm: Realm) {
+        val i = WebInterface.define(realm, "MessageEvent", 1, parent = "Event") { a, proto ->
+            Idl.required(a, 1, "MessageEvent constructor")
+            val type = Idl.domString(a[0])
+            val init = Idl.dictionary(a.arg(1), "MessageEventInit")
+            val e = newEvent(realm, JSMessageEvent(proto), type, init)
+            // the MessageEventInit members in lexicographic order, after the inherited ones
+            Idl.member(init, "data").let { e.data = if (it === Undefined) Null else it }
+            Idl.member(init, "lastEventId").let { if (it !== Undefined) e.lastEventId = Idl.domString(it) }
+            Idl.member(init, "origin").let { if (it !== Undefined) e.origin = Idl.usvString(it) }
+            e.ports = ports(realm, Idl.member(init, "ports"), "MessageEventInit")
+            checkSource(Idl.member(init, "source"), "MessageEventInit")
+            e
+        }
+        fun me(t: Any?, m: String) = Idl.self<JSMessageEvent>(t, "MessageEvent", m)
+        i.attribute("data", { _, t, _, _ -> me(t, "data").data })
+        i.attribute("origin", { _, t, _, _ -> me(t, "origin").origin })
+        i.attribute("lastEventId", { _, t, _, _ -> me(t, "lastEventId").lastEventId })
+        i.attribute("source", { _, t, _, _ -> me(t, "source"); Null })
+        i.attribute("ports", { f, t, _, _ -> me(t, "ports").let { e -> e.ports ?: emptyPorts(f.realm).also { e.ports = it } } })
+        i.operation("initMessageEvent", 1) { f, t, a, _ ->
+            val e = me(t, "initMessageEvent")
+            Idl.required(a, 1, "MessageEvent.initMessageEvent")
+            val type = Idl.domString(a[0])
+            val bubbles = Ops.toBoolean(a.arg(1))
+            val cancelable = Ops.toBoolean(a.arg(2))
+            val data = if (a.size > 3) a[3] else Null
+            val origin = if (a.size > 4 && a[4] !== Undefined) Idl.usvString(a[4]) else ""
+            val lastEventId = if (a.size > 5 && a[5] !== Undefined) Idl.domString(a[5]) else ""
+            checkSource(a.arg(6), "MessageEvent.initMessageEvent")
+            val ports = ports(f.realm, a.arg(7), "MessageEvent.initMessageEvent")
+            if (!e.dispatching) {
+                e.initialize(type, bubbles, cancelable)
+                e.data = data
+                e.origin = origin
+                e.lastEventId = lastEventId
+                e.ports = ports
+            }
+            Undefined
+        }
+    }
+
+    private fun installCloseEvent(realm: Realm) {
+        val i = WebInterface.define(realm, "CloseEvent", 1, parent = "Event") { a, proto ->
+            Idl.required(a, 1, "CloseEvent constructor")
+            val type = Idl.domString(a[0])
+            val init = Idl.dictionary(a.arg(1), "CloseEventInit")
+            val e = newEvent(realm, JSCloseEvent(proto), type, init)
+            Idl.member(init, "code").let { if (it !== Undefined) e.code = Idl.integer(it, 16, signed = false, what = "CloseEventInit code").toInt() }
+            Idl.member(init, "reason").let { if (it !== Undefined) e.reason = Idl.usvString(it) }
+            e.wasClean = Ops.toBoolean(Idl.member(init, "wasClean"))
+            e
+        }
+        fun ce(t: Any?, m: String) = Idl.self<JSCloseEvent>(t, "CloseEvent", m)
+        i.attribute("wasClean", { _, t, _, _ -> ce(t, "wasClean").wasClean })
+        i.attribute("code", { _, t, _, _ -> ce(t, "code").code.toDouble() })
+        i.attribute("reason", { _, t, _, _ -> ce(t, "reason").reason })
+    }
+
+    private fun installErrorEvent(realm: Realm) {
+        val i = WebInterface.define(realm, "ErrorEvent", 1, parent = "Event") { a, proto ->
+            Idl.required(a, 1, "ErrorEvent constructor")
+            val type = Idl.domString(a[0])
+            val init = Idl.dictionary(a.arg(1), "ErrorEventInit")
+            val e = newEvent(realm, JSErrorEvent(proto), type, init)
+            Idl.member(init, "colno").let { if (it !== Undefined) e.colno = Idl.integer(it, 32, signed = false, what = "ErrorEventInit colno") }
+            e.error = Idl.member(init, "error")
+            Idl.member(init, "filename").let { if (it !== Undefined) e.filename = Idl.usvString(it) }
+            Idl.member(init, "lineno").let { if (it !== Undefined) e.lineno = Idl.integer(it, 32, signed = false, what = "ErrorEventInit lineno") }
+            Idl.member(init, "message").let { if (it !== Undefined) e.message = Idl.domString(it) }
+            e
+        }
+        fun ee(t: Any?, m: String) = Idl.self<JSErrorEvent>(t, "ErrorEvent", m)
+        i.attribute("message", { _, t, _, _ -> ee(t, "message").message })
+        i.attribute("filename", { _, t, _, _ -> ee(t, "filename").filename })
+        i.attribute("lineno", { _, t, _, _ -> ee(t, "lineno").lineno })
+        i.attribute("colno", { _, t, _, _ -> ee(t, "colno").colno })
+        i.attribute("error", { _, t, _, _ -> ee(t, "error").error })
+    }
+
+    /** [e] (made with its interface's prototype) initialized as a trusted event of [type] that the engine fires. */
+    fun <E : JSEvent> engineEvent(realm: Realm, e: E, type: String): E {
+        newEvent(realm, e, type, null)
+        e.isTrusted = true
+        return e
     }
 
     private fun installEventTarget(realm: Realm) {
