@@ -269,7 +269,8 @@ threat model.
 Contexts get a `console` object (`log`, `info`, `warn`, `error`, `debug`, `trace`, `dir`, `table`, `group`,
 `count`, `time`, `assert`, format specifiers) writing to a `NeonConsole` sink — stdout/stderr by default,
 `NeonEngine.builder().console(sink)` to redirect, `console(null)` to omit it. Formatting never runs guest code
-(getters, proxies and `toString` overrides are not invoked).
+(getters, proxies and `toString` overrides are not invoked) — unless `neonjs-node` is installed with
+`NodeOptions.consoleInspect` (below).
 
 ### Web globals
 
@@ -347,8 +348,9 @@ take their web paths (fetch, WebSocket).
 `path`, `url` and `os` their POSIX or Windows rules, as Node's does; `cwd` defaults to that platform's root (`C:\` or
 `/`), never the host's working directory. Not there: `vm`, `stream` (and so the stream forms of crypto and zlib), `async_hooks`,
 `node:test`, `Error.prepareStackTrace`, `path.matchesGlob` (Node's minimatch), and unref'd `setImmediate` timing
-exactly as Node's. `console.log` keeps the core's formatting, which never runs guest code; `util.inspect` runs it as
-Node does (`[util.inspect.custom]`, getters with `getters: true`). The module ports parts of Node's lib sources under
+exactly as Node's. `util.inspect` runs guest code as Node does (`[util.inspect.custom]`, getters with `getters: true`),
+and so does `console` by default, formatting with `util.format` and `util.inspect` as Node's console does;
+`NodeOptions.builder().consoleInspect(false)` keeps the core's formatting, which runs no guest code. The module ports parts of Node's lib sources under
 Node's MIT license (see `NOTICE`).
 
 ## Android

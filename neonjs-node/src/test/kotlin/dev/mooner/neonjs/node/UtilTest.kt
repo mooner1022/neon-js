@@ -205,4 +205,30 @@ class UtilTest {
             """))
         }
     }
+
+    @Test
+    fun theConsoleFormatsAsNodes() {
+        val code = """
+            class Token { constructor() { this.secret = 'x' } [Symbol.for('nodejs.util.inspect.custom')]() { return 'Token<hidden>' } }
+            console.log('%s and %o', 'text', [1]);
+            console.log(new Token(), new Map([['k', 1]]), 'str', 5n);
+            console.dir(new Token());
+            console.dir({ a: { b: { c: {} } } }, { depth: 0 });
+        """
+        fun run(options: NodeOptions): List<String> {
+            val out = ArrayList<String>()
+            NeonEngine.builder().console { _, m -> out.add(m) }.webGlobals(true).extension(NodeExtension(options)).build().newContext().use { it.eval(code) }
+            return out
+        }
+        // by default node:util's format and inspect, custom inspection included; console.dir without it, as in Node
+        assertEquals(listOf(
+            "text and [ 1, [length]: 1 ]",
+            "Token<hidden> Map(1) { 'k' => 1 } str 5n",
+            "Token { secret: 'x' }",
+            "{ a: [Object] }",
+        ), run(NodeOptions.DEFAULT))
+        // off: the core's formatting, which runs no guest code
+        val core = run(NodeOptions.builder().consoleInspect(false).build())
+        assertEquals("{ secret: 'x' } Map(1) { 'k' => 1 } str 5n", core[1])
+    }
 }

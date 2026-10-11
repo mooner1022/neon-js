@@ -1,6 +1,7 @@
 package dev.mooner.neonjs.node
 
 import dev.mooner.neonjs.NeonExtension
+import dev.mooner.neonjs.ext.ConsoleBuiltins
 import dev.mooner.neonjs.ext.WebGlobals
 import dev.mooner.neonjs.runtime.*
 import dev.mooner.neonjs.vm.Modules
@@ -65,6 +66,7 @@ internal class NodeRuntime(@JvmField val realm: Realm, @JvmField val options: No
         // Node's timers are the global ones (Timeout objects rather than numbers), from the start
         val timers = require("node:timers") as JSObject
         for (n in TIMER_GLOBALS) g.defineOwn(n, timers.get(n, timers), Attr.ALL)
+        if (options.consoleInspect) ConsoleBuiltins.setFormatter(realm, NodeConsoleFormatter(this))
         // process.on('uncaughtException' / 'unhandledRejection') first, then whatever was there (the host's handler
         // comes after both)
         val previous = realm.agent.uncaughtInterceptor
@@ -158,5 +160,29 @@ internal class NodeRuntime(@JvmField val realm: Realm, @JvmField val options: No
 
         /** The Node.js side of [realm] (a realm the extension was installed in). */
         fun of(realm: Realm): NodeRuntime = realm.intrinsicsAny[KEY] as NodeRuntime
+    }
+}
+
+/**
+ * The console's formatting as Node's console has it (NodeOptions.consoleInspect): node:util's format for the
+ * arguments, its inspect without custom inspection for console.dir. internal/util/inspect loads with the first
+ * message.
+ */
+internal class NodeConsoleFormatter(private val rt: NodeRuntime) : ConsoleBuiltins.Formatter {
+    private fun fn(name: String): Any? = (rt.internal("util/inspect") as JSObject).let { it.get(name, it) }
+
+    override fun format(args: Array<Any?>): String = Ops.toString(Ops.call(fn("format"), Undefined, args))
+
+    override fun inspect(value: Any?, options: Any?): String {
+        val opts = JSObject(rt.realm.objectPrototype)
+        opts.createDataProperty("customInspect", false)
+        // console.dir's own options come after, as in Node ({ customInspect: false, ...options })
+        if (options is JSObject) {
+            for (k in options.ownPropertyKeys()) {
+                val d = options.getOwnProperty(k) ?: continue
+                if (d.enumerable) opts.createDataProperty(k, options.get(k, options))
+            }
+        }
+        return Ops.toString(Ops.call(fn("inspect"), Undefined, arrayOf(value, opts)))
     }
 }

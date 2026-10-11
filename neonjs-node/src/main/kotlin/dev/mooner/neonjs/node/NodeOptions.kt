@@ -23,6 +23,12 @@ class NodeOptions private constructor(b: Builder) {
     val cwd: String = b.cwd ?: if (platform == "win32") "C:\\" else "/"
     /** Called with the code of `process.exit(code)`; by default the context's evaluation is interrupted. */
     val onExit: IntConsumer? = b.onExit
+    /**
+     * Whether `console` formats as Node's does, with node:util's format and inspect (default: true): objects show as
+     * their libraries mean them to (`[util.inspect.custom]`), which runs guest code while logging. When false, the
+     * console keeps the core's formatting, which never runs guest code.
+     */
+    val consoleInspect: Boolean = b.consoleInspect
 
     class Builder {
         internal val env = LinkedHashMap<String, String>()
@@ -30,12 +36,14 @@ class NodeOptions private constructor(b: Builder) {
         internal var cwd: String? = null
         internal var platform: String? = null
         internal var onExit: IntConsumer? = null
+        internal var consoleInspect = true
 
         fun env(vars: Map<String, String>) = apply { env.clear(); env.putAll(vars) }
         fun argv(args: List<String>) = apply { argv.clear(); argv.addAll(args) }
         fun cwd(path: String) = apply { cwd = path }
         fun platform(name: String) = apply { platform = name }
         fun onExit(callback: IntConsumer) = apply { onExit = callback }
+        fun consoleInspect(enabled: Boolean) = apply { consoleInspect = enabled }
         fun build() = NodeOptions(this)
     }
 

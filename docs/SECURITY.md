@@ -130,8 +130,9 @@ differences between the interpreter and compiled code. Classes used on error pat
   `Buffer` allocates through the engine's typed arrays (charged to the allocation budget); `Buffer#indexOf` (as slow
   as haystack times needle) and `zlib` decompression check the time limit as they go; decompressed output is
   charged before it is allocated and stops at `maxOutputLength`; strings stay within V8's 0x1fffffe8 characters.
-  `util.inspect`, unlike `console`, runs guest code as Node's does (custom inspection, getters when asked), but
-  never a proxy's traps.
+  `util.inspect` runs guest code as Node's does (custom inspection, getters when asked), but never a proxy's traps;
+  so does `console` under `neonjs-node` unless `NodeOptions.consoleInspect` is false (a script's code then runs
+  while it logs, within the same limits as the rest of it).
 - **Intl data.** `neonjs-intl` bundles ICU4J; all of its packages (`com.ibm.icu.*`) are on the deny list, so
   scripts reach locale data only through `Intl`. `Intl` resolves locales itself and passes ICU only available
   locales (or root), so the host's locale is never used implicitly, and it caps language tags (512 characters) and
