@@ -157,6 +157,18 @@ object WebGlobals {
     /** The timers of [realm], or null without the web globals. For engine modules (neonjs-node's timers). */
     fun timersOf(realm: Realm): Timers? = realm.intrinsicsAny["%Timers%"] as Timers?
 
+    /** Whether [v] is an EventTarget (of any realm). For engine modules (neonjs-node's events). */
+    fun isEventTarget(v: Any?): Boolean = v is Events.JSEventTarget
+
+    /**
+     * The callbacks of [target]'s listeners for [type], in the order they run, or null when [target] is not an
+     * EventTarget. Reads the list only: nothing runs. For engine modules (neonjs-node's events.getEventListeners).
+     */
+    fun eventListeners(target: Any?, type: String): List<JSObject>? {
+        val et = target as? Events.JSEventTarget ?: return null
+        return et.listeners.filter { !it.removed && it.type == type }.mapNotNull { it.callback }
+    }
+
     /** A pending timer; registered with the agent as an external source until it fires for the last time. */
     internal class Timer(@JvmField val id: Int, @JvmField val fn: Any?, @JvmField val args: Array<Any?>, @JvmField val interval: Long) :
         Agent.ExternalSource {
