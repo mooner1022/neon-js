@@ -71,9 +71,12 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
             if (p.exposeJavaGlobal) realm.enter { installJavaGlobal(realm, br) }
             engine.console?.let { c -> realm.enter { dev.mooner.neonjs.ext.ConsoleBuiltins.install(realm, c) } }
             if (engine.webGlobals) realm.enter { dev.mooner.neonjs.ext.WebGlobals.install(realm, p.maxTimers) }
+            for (e in engine.extensions) realm.enter { e.install(realm) }
         }
         realm = r!!
         bridge = br!!
+        // built-in modules an extension defined resolve without a loader of the host's
+        if (dev.mooner.neonjs.vm.Modules.hasBuiltins(realm)) installLoader()
     }
 
     // ------------------------------------------------------------------ entering
@@ -196,7 +199,8 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
 
     /**
      * Defines an ES module that scripts can import by [specifier] (e.g. `"host:fs"`), with the given named exports
-     * (converted to JS; use the key `"default"` for a default export). Host modules take precedence over the loader.
+     * (converted to JS; use the key `"default"` for a default export). Host modules take precedence over the built-in
+     * modules of extensions (so a host can replace `node:fs`) and over the loader.
      */
     fun defineModule(specifier: String, exports: Map<String, Any?>) = guarded {
         hostModules[specifier] = exports
@@ -207,6 +211,7 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
         dev.mooner.neonjs.vm.Modules.setLoader(realm, object : dev.mooner.neonjs.vm.ModuleLoader {
             override fun resolve(specifier: String, referrerKey: String?): String {
                 if (specifier in hostModules) return specifier
+                dev.mooner.neonjs.vm.Modules.builtin(realm, specifier)?.let { return it.name }
                 val l = userLoader ?: throw JSException.typeError("Cannot find module '$specifier'")
                 return loaderCall(specifier) { l.resolve(specifier, referrerKey) }
             }
@@ -217,6 +222,7 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
                     src.hostRealm = realm
                     return src
                 }
+                dev.mooner.neonjs.vm.Modules.builtin(realm, key)?.let { return dev.mooner.neonjs.vm.Modules.builtinSource(realm, it) }
                 if (request.type == "bytes") {
                     val bytes = loaderCall(request.specifier) { userLoader?.loadBytes(key) } ?: throw JSException.typeError("Cannot find module '${request.specifier}'")
                     return dev.mooner.neonjs.vm.ModuleSource(key, "").also { it.bytes = bytes }

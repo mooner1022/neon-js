@@ -240,7 +240,7 @@ class SecurityTest {
     fun theEngineItselfIsDenied() {
         // compiled classes of the engine's package and subpackages: a new one must be denied or declared harmless here
         val harmless = setOf(
-            "HostExport", "HostName", "HostFunction", "UncaughtErrorHandler", "NeonConsole", "NeonModuleLoader", "ExecutionMode", "NeonException",
+            "HostExport", "HostName", "HostFunction", "UncaughtErrorHandler", "NeonExtension", "NeonConsole", "NeonModuleLoader", "ExecutionMode", "NeonException",
             "NeonSyntaxException", "NeonTerminatedException", "NeonTimeoutException", "NeonResourceLimitException",
             "NeonInterruptedException",
         )

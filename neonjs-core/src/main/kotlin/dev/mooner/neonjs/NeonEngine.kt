@@ -66,6 +66,8 @@ class NeonEngine private constructor(b: Builder) : AutoCloseable {
     val intl: Boolean = b.intl
     /** Defines generated classes (JIT code, Java.extend adapters); null = dev.mooner.neonjs.jit.CodeDefiners.default. */
     val codeDefiner: dev.mooner.neonjs.jit.CodeDefiner? = b.codeDefiner
+    /** Engine modules installed into every context, in order ([Builder.extension]). */
+    val extensions: List<NeonExtension> = b.extensions.toList()
     @Volatile private var closed = false
 
     fun newContext(): NeonContext {
@@ -98,6 +100,7 @@ class NeonEngine private constructor(b: Builder) : AutoCloseable {
         var webGlobals = false
         var intl = true
         var codeDefiner: dev.mooner.neonjs.jit.CodeDefiner? = null
+        val extensions = ArrayList<NeonExtension>()
 
         fun executionMode(m: ExecutionMode) = apply { executionMode = m }
 
@@ -152,6 +155,12 @@ class NeonEngine private constructor(b: Builder) : AutoCloseable {
         fun sandbox(p: SandboxPolicy) = apply { sandbox = p }
         fun hostAccess(a: HostAccess) = apply { hostAccess = a }
         fun autoRunJobs(b: Boolean) = apply { autoRunJobs = b }
+
+        /**
+         * Installs an engine module into every context (e.g. neonjs-node's `NodeExtension`), after the built-ins, the
+         * console and the web globals. Extensions are never found on the class path: an application opts in here.
+         */
+        fun extension(e: NeonExtension) = apply { extensions.add(e) }
         fun build() = NeonEngine(this)
     }
 

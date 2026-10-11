@@ -211,6 +211,17 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
         jobs.addLast(job)
     }
 
+    /** Jobs that run before the pending jobs at each microtask checkpoint (Node's `process.nextTick`). */
+    private val ticks = ArrayDeque<Runnable>()
+
+    /**
+     * Queues [job] in the tick lane: at a microtask checkpoint the ticks run first, then the pending jobs, then the
+     * ticks those queued, and so on until both are empty (the order of Node's `process.nextTick`).
+     */
+    fun enqueueTick(job: Runnable) {
+        ticks.addLast(job)
+    }
+
     // ------------------------------------------------------------------ external jobs
     //
     // Jobs originating outside this agent's thread, e.g. an Atomics.waitAsync waiter resolved by Atomics.notify on
@@ -254,6 +265,28 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
             return false
         }
         return true
+    }
+
+    /**
+     * Makes a registered source keep an event loop waiting or not (Node's `ref()` / `unref()`); no effect on a source
+     * that is not registered. Thread-safe.
+     */
+    fun setKeepsAlive(s: ExternalSource, keepsAlive: Boolean) {
+        if (externalClosed) return
+        if (keepsAlive) {
+            if (idleSources.remove(s)) externalSources.add(s)
+            return
+        }
+        if (!externalSources.remove(s)) return
+        idleSources.add(s)
+        if (externalSources.isEmpty()) {
+            externalLock.lock()
+            try {
+                externalPosted.signalAll()
+            } finally {
+                externalLock.unlock()
+            }
+        }
     }
 
     /** Unregisters [s] (its job has run, or it was withdrawn). Thread-safe. */
@@ -391,12 +424,24 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
      */
     private fun runMicrotasks() {
         while (true) {
-            val j = jobs.removeFirstOrNull() ?: break
-            if (--callBudget < 0) {
-                callBudget = 1024
-                checkInterrupt()
+            while (true) {
+                val t = ticks.removeFirstOrNull() ?: break
+                if (--callBudget < 0) {
+                    callBudget = 1024
+                    checkInterrupt()
+                }
+                runJob(t)
             }
-            runJob(j)
+            if (jobs.isEmpty()) break
+            while (true) {
+                val j = jobs.removeFirstOrNull() ?: break
+                if (--callBudget < 0) {
+                    callBudget = 1024
+                    checkInterrupt()
+                }
+                runJob(j)
+            }
+            if (ticks.isEmpty()) break
         }
         keptAlive.clear()
         if (unhandledRejections.isNotEmpty()) reportRejections()
@@ -425,20 +470,36 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
     }
 
     /** Captures a JS stack trace string from the active interpreter frames. */
-    fun captureStack(): String {
+    fun captureStack(): String = captureStack(null, 50)
+
+    /**
+     * A JS stack trace of at most [limit] frames. With [skipThrough], the frames down to the call of that function are
+     * left out (V8's `Error.captureStackTrace(target, constructorOpt)`), and the trace is empty when it is not on the
+     * stack.
+     */
+    fun captureStack(skipThrough: JSObject?, limit: Int): String {
         val sb = StringBuilder()
+        var skipping = skipThrough != null
         var f = topFrame
         var n = 0
-        while (f != null && n < 50) {
+        while (f != null && n < limit) {
             // a call compiled code runs inlined in this frame is a frame of its own here
             val inl = f.inlineFn
             if (inl != null) {
-                appendFrame(sb, inl.debugName().ifEmpty { "<anonymous>" }, inl.code, f.inlinePc)
-                if (++n >= 50) break
+                if (skipping) {
+                    if (inl === skipThrough) skipping = false
+                } else {
+                    appendFrame(sb, inl.debugName().ifEmpty { "<anonymous>" }, inl.code, f.inlinePc)
+                    if (++n >= limit) break
+                }
             }
-            appendFrame(sb, f.fn?.debugName()?.ifEmpty { "<anonymous>" } ?: f.code.name, f.code, f.pc)
+            if (skipping) {
+                if (f.fn != null && f.fn === skipThrough) skipping = false
+            } else {
+                appendFrame(sb, f.fn?.debugName()?.ifEmpty { "<anonymous>" } ?: f.code.name, f.code, f.pc)
+                n++
+            }
             f = f.parent
-            n++
         }
         return sb.toString().trimEnd()
     }

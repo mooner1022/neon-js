@@ -98,7 +98,7 @@ internal object Abort {
             val signal = newSignal(f.realm)
             val r = f.realm
             // like Node's, the timer does not keep the event loop waiting
-            WebGlobals.timersOf(r).task(ms.toLong(), keepsAlive = false) {
+            WebGlobals.timersOf(r)!!.task(ms.toLong(), keepsAlive = false) {
                 signal.abort(r, newDOMError(r, "signal timed out", "TimeoutError"))
             }
             signal

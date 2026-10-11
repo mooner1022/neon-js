@@ -141,18 +141,21 @@ object WebGlobals {
     internal val scheduledTaskCount: Int get() = scheduler.queue.size
 
     /** A task scheduled with [Timers.task]; cancelling it (or closing the context) withdraws it. */
-    internal class ScheduledTask : Agent.ExternalSource {
+    class ScheduledTask internal constructor() : Agent.ExternalSource {
         @Volatile @JvmField var future: ScheduledFuture<*>? = null
         @Volatile @JvmField var cancelled = false
+        /** Whether the task ran or was withdrawn ([Timers.cancel]): its bookkeeping is done (owner thread). */
+        @JvmField internal var done = false
 
+        /** Withdrawal by closing the context (any thread): nothing else counts any more. */
         override fun cancel() {
             cancelled = true
             future?.cancel(false)
         }
     }
 
-    /** The timers of [realm] (installed with the web globals). */
-    internal fun timersOf(realm: Realm): Timers = realm.intrinsicsAny["%Timers%"] as Timers
+    /** The timers of [realm], or null without the web globals. For engine modules (neonjs-node's timers). */
+    fun timersOf(realm: Realm): Timers? = realm.intrinsicsAny["%Timers%"] as Timers?
 
     /** A pending timer; registered with the agent as an external source until it fires for the last time. */
     internal class Timer(@JvmField val id: Int, @JvmField val fn: Any?, @JvmField val args: Array<Any?>, @JvmField val interval: Long) :
@@ -170,9 +173,9 @@ object WebGlobals {
      * The timers of a realm: `setTimeout` / `setInterval`, and the tasks other APIs schedule ([task]), within one limit
      * of pending timers ([SandboxPolicy.maxTimers][dev.mooner.neonjs.SandboxPolicy.maxTimers]).
      */
-    internal class Timers(val realm: Realm, val max: Int) {
-        val active = HashMap<Int, Timer>()
-        var nextId = 1
+    class Timers internal constructor(@JvmField val realm: Realm, @JvmField val max: Int) {
+        internal val active = HashMap<Int, Timer>()
+        private var nextId = 1
         /** Pending tasks of [task]. */
         private var tasks = 0
 
@@ -188,16 +191,33 @@ object WebGlobals {
             tasks++
             t.future = scheduler.schedule({
                 agent.postExternalJob {
-                    tasks--
-                    agent.removeExternalSource(t)
-                    if (!t.cancelled) job.run()
+                    if (finish(t) && !t.cancelled) job.run()
                 }
             }, ms, TimeUnit.MILLISECONDS)
             if (t.cancelled) t.future?.cancel(false)
             return t
         }
 
-        fun start(name: String, fn: Any?, delay: Any?, args: Array<Any?>, repeat: Boolean): Any? {
+        /**
+         * Withdraws [t] (owner thread): it will not run, and it no longer keeps an event loop waiting nor counts
+         * against the limit. No effect on a task that ran or was withdrawn.
+         */
+        fun cancel(t: ScheduledTask) {
+            if (!finish(t)) return
+            t.cancelled = true
+            t.future?.cancel(false)
+        }
+
+        /** The task's bookkeeping, done once, by whichever of running and withdrawing comes first. */
+        private fun finish(t: ScheduledTask): Boolean {
+            if (t.done) return false
+            t.done = true
+            tasks--
+            realm.agent.removeExternalSource(t)
+            return true
+        }
+
+        internal fun start(name: String, fn: Any?, delay: Any?, args: Array<Any?>, repeat: Boolean): Any? {
             if (!Ops.isCallable(fn)) typeErr("$name requires a function (string callbacks are not supported)")
             val ms = delayOf(delay)
             if (active.size + tasks >= max) rangeErr("Too many active timers (limit $max)")
@@ -244,7 +264,7 @@ object WebGlobals {
             if (!t.cancelled) schedule(t, t.interval)
         }
 
-        fun clear(handle: Any?) {
+        internal fun clear(handle: Any?) {
             if (handle === Undefined || handle === Null) return
             val d = Ops.toNumber(handle)
             if (d.isNaN() || d < 1 || d > Int.MAX_VALUE) return

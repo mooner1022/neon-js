@@ -448,6 +448,80 @@ object Modules {
         return m
     }
 
+    // ------------------------------------------------------------------ built-in modules
+
+    /**
+     * A module that an engine module provides (`node:events`), under its canonical [name]: [create] makes its exports
+     * (what `require` returns) the first time the realm imports or requires it.
+     */
+    class Builtin(@JvmField val name: String, private val create: () -> Any?) {
+        private var state = 0
+        private var value: Any? = null
+
+        fun exports(): Any? {
+            when (state) {
+                2 -> return value
+                1 -> throw JSException.typeError("Module '$name' requires itself while it is being created")
+            }
+            state = 1
+            try {
+                value = create()
+                state = 2
+            } finally {
+                if (state == 1) state = 0
+            }
+            return value
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun builtins(realm: Realm): HashMap<String, Builtin> =
+        realm.intrinsicsAny.getOrPut("%Builtins%") { HashMap<String, Builtin>() } as HashMap<String, Builtin>
+
+    /** Registers [builtin] in [realm] under its name and [aliases] (`events` for `node:events`). */
+    @JvmStatic
+    fun defineBuiltin(realm: Realm, builtin: Builtin, vararg aliases: String) {
+        val map = builtins(realm)
+        map[builtin.name] = builtin
+        for (a in aliases) map[a] = builtin
+    }
+
+    /** The built-in module [specifier] names in [realm], or null. */
+    @JvmStatic
+    fun builtin(realm: Realm, specifier: String): Builtin? = (realm.intrinsicsAny["%Builtins%"] as HashMap<*, *>?)?.get(specifier) as Builtin?
+
+    @JvmStatic
+    fun hasBuiltins(realm: Realm): Boolean = (realm.intrinsicsAny["%Builtins%"] as HashMap<*, *>?)?.isNotEmpty() == true
+
+    /** The canonical names of the realm's built-in modules, sorted. */
+    @JvmStatic
+    fun builtinNames(realm: Realm): List<String> =
+        (realm.intrinsicsAny["%Builtins%"] as HashMap<*, *>?)?.values?.map { (it as Builtin).name }?.distinct()?.sorted() ?: emptyList()
+
+    /**
+     * The ES module face of [builtin]: `default` is its exports, and the exports' own enumerable string-keyed
+     * properties are named exports too (as Node's built-in modules have it). Bound to [realm].
+     */
+    @JvmStatic
+    fun builtinSource(realm: Realm, builtin: Builtin): ModuleSource {
+        val exports = builtin.exports()
+        val named = LinkedHashMap<String, Any?>()
+        named["default"] = exports
+        if (exports is JSObject) {
+            for (k in exports.ownPropertyKeys()) {
+                if (k is JSSymbol) continue
+                val key = PK.toStringKey(k)
+                if (key == "default") continue
+                val d = exports.getOwnProperty(k) ?: continue
+                if (d.enumerable) named[key] = exports.get(k, exports)
+            }
+        }
+        val src = ModuleSource(builtin.name, "")
+        src.hostExports = named
+        src.hostRealm = realm
+        return src
+    }
+
     @JvmStatic
     fun loaderOf(realm: Realm): ModuleLoader = realm.intrinsicsAny["%ModuleLoader%"] as ModuleLoader?
         ?: throw JSException.typeError("No module loader configured")
