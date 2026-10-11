@@ -127,6 +127,42 @@ class ExtensionTest {
     }
 
     @Test
+    fun anInterceptorSeesUncaughtErrorsBeforeTheHost() {
+        // the interceptor handles errors whose message starts with "mine", and lets the others through
+        val intercepted = ArrayList<String>()
+        val ext = NeonExtension { realm ->
+            realm.agent.uncaughtInterceptor = { e, p ->
+                val v = if (e is JSException) e.value else p?.result
+                val m = (v as? JSObject)?.get("message", v)?.toString() ?: ""
+                if (m.startsWith("mine")) {
+                    intercepted.add((if (e != null) "exception " else "rejection ") + m)
+                    true
+                } else false
+            }
+        }
+        val engine = NeonEngine.builder().console(null).webGlobals(true).extension(ext).build()
+        // no host handler: what the interceptor handles does not end the loop
+        engine.newContext().use { c ->
+            c.eval("setTimeout(() => { throw new Error('mine 1') }, 1); setTimeout(() => { globalThis.after = true }, 20); Promise.reject(new Error('mine 2'))")
+            assertTrue(c.runEventLoop(5_000))
+            assertTrue(c.eval("after").asBoolean())
+            assertEquals(listOf("rejection mine 2", "exception mine 1"), intercepted)
+            // and what it does not handle propagates, as without it
+            c.eval("setTimeout(() => { throw new Error('other') }, 1)")
+            assertThrows<NeonException> { c.runEventLoop(5_000) }
+        }
+        // with a host handler: the host gets what the interceptor did not handle
+        intercepted.clear()
+        engine.newContext().use { c ->
+            val host = ArrayList<String>()
+            c.setUncaughtErrorHandler { e, _ -> host.add(e.message ?: "") }
+            c.eval("Promise.reject(new Error('mine 3')); Promise.reject(new Error('yours'))")
+            assertEquals(listOf("rejection mine 3"), intercepted)
+            assertEquals(listOf("Error: yours"), host)
+        }
+    }
+
+    @Test
     fun extensionsAreInstalledInOrderAfterTheWebGlobals() {
         val seen = ArrayList<String>()
         NeonEngine.builder().console(null).webGlobals(true)

@@ -103,13 +103,20 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
      */
     @JvmField var uncaught: UncaughtSink? = null
 
-    /** Promises rejected without a handler during the current microtask checkpoint (with [uncaught] only). */
+    /**
+     * Consulted first, and even without [uncaught], for what jobs leave uncaught (an engine module's listeners, as
+     * Node's `process.on('uncaughtException')`): returns true when it handled it, else it goes on to [uncaught] (or
+     * propagates without one). Gets the exception, or null and the promise rejected without a handler.
+     */
+    @JvmField var uncaughtInterceptor: ((RuntimeException?, dev.mooner.neonjs.vm.JSPromise?) -> Boolean)? = null
+
+    /** Promises rejected without a handler during the current microtask checkpoint (with a sink or interceptor only). */
     private val unhandledRejections = LinkedHashSet<dev.mooner.neonjs.vm.JSPromise>()
 
     /** HostPromiseRejectionTracker: [handled] false when [p] is rejected with no handler, true when one is added later. */
     fun trackRejection(p: dev.mooner.neonjs.vm.JSPromise, handled: Boolean) {
         rejectionTracker?.invoke(p, handled)
-        if (uncaught == null) return
+        if (uncaught == null && uncaughtInterceptor == null) return
         if (handled) unhandledRejections.remove(p) else unhandledRejections.add(p)
     }
 
@@ -448,25 +455,33 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
     }
 
     private fun runJob(j: Runnable) {
-        val sink = uncaught
-        if (sink == null) {
+        if (uncaught == null && uncaughtInterceptor == null) {
             j.run()
             return
         }
         try {
             j.run()
         } catch (e: JSException) {
-            sink.exception(e)
+            uncaughtException(e)
         } catch (e: dev.mooner.neonjs.vm.HostException) {
-            sink.exception(e)
+            uncaughtException(e)
         }
+    }
+
+    private fun uncaughtException(e: RuntimeException) {
+        if (uncaughtInterceptor?.invoke(e, null) == true) return
+        val sink = uncaught ?: throw e
+        sink.exception(e)
     }
 
     private fun reportRejections() {
         val rejected = unhandledRejections.toList()
         unhandledRejections.clear()
-        val sink = uncaught ?: return
-        for (p in rejected) if (!p.isHandled) sink.rejection(p)
+        for (p in rejected) {
+            if (p.isHandled) continue
+            if (uncaughtInterceptor?.invoke(null, p) == true) continue
+            uncaught?.rejection(p)
+        }
     }
 
     /** Captures a JS stack trace string from the active interpreter frames. */
