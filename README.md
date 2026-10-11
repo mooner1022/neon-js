@@ -56,6 +56,7 @@ Releases are published to Maven Central as `dev.mooner.neonjs:<module>`
 dependencies {
     implementation("dev.mooner.neonjs:neonjs-core:…")
     implementation("dev.mooner.neonjs:neonjs-intl:…")   // optional: Intl and the non-ISO Temporal calendars (ICU4J)
+    implementation("dev.mooner.neonjs:neonjs-net:…")    // optional: fetch and WebSocket (OkHttp), within a network policy
     implementation("dev.mooner.neonjs:neonjs-node:…")   // optional: Node.js APIs (node: modules, require, Buffer)
 }
 ```
@@ -281,8 +282,11 @@ Contexts get a `console` object (`log`, `info`, `warn`, `error`, `debug`, `trace
 `AbortSignal.any` and `AbortSignal.timeout`, whose timer, like Node's, does not keep the event loop waiting),
 `performance` (`now()` in steps of 5 µs, `timeOrigin`), `crypto.getRandomValues` / `crypto.randomUUID` (no
 `crypto.subtle`), `QuotaExceededError`, and `Blob` / `File` (`slice`, `text()`, `arrayBuffer()`, `bytes()`; no
-`stream()` yet), which `structuredClone` copies, `FormData` (without form elements), `Headers`, and `URL` /
-`URLSearchParams` (the WHATWG URL Standard, with UTS #46 for international domain names; no blob URLs yet). They follow WebIDL (enumerable members, argument conversions, `new`
+`stream()` yet), which `structuredClone` copies, `FormData` (without form elements), `Headers`, `Request` /
+`Response` (whole bodies read by `text()`, `json()`, `arrayBuffer()`, `bytes()`, `blob()`, `formData()`, multipart
+included; no `body` stream yet), `MessageEvent` / `CloseEvent` / `ErrorEvent`, and `URL` /
+`URLSearchParams` (the WHATWG URL Standard, with UTS #46 for international domain names; no blob URLs yet).
+`fetch` and `WebSocket` come with [`neonjs-net`](#network-neonjs-net). They follow WebIDL (enumerable members, argument conversions, `new`
 required). The global object is no `EventTarget`, as in Node. Under `SandboxPolicy.deterministic`, `performance.now()`
 is 0 and the random values come from the seeded source. Timers fire on the context's thread while the host runs its event loop:
 
@@ -314,6 +318,36 @@ whichever thread runs jobs (any evaluation does). Timer callbacks must be functi
 `SandboxPolicy.maxTimers` caps pending timers per context (10,000 by default). `TextDecoder` supports only UTF-8
 (other labels are a `RangeError`). The CLI enables these globals and runs the event loop after each script.
 
+### Network (`neonjs-net`)
+
+The optional `neonjs-net` module gives scripts `fetch` and `WebSocket` over [OkHttp](https://square.github.io/okhttp/)
+(JVM and Android), within a network policy. Nothing is reachable by default: the host names what its scripts need.
+
+```kotlin
+val engine = NeonEngine.builder().webGlobals(true)
+    .extension(NetExtension(NetOptions.builder()
+        .allowHosts("discord.com", "*.discord.gg", "cdn.discordapp.com")   // *.x: the subdomains of x
+        .build()))
+    .build()
+```
+
+Whatever the hosts, a connection to a loopback, private, carrier-grade NAT, link-local, multicast or reserved address
+(IPv4 and IPv6, and IPv4 inside IPv6) is refused before it is made, however the name resolved, unless its range is
+allowed (`allowAddresses("127.0.0.1/32")` for a local test server); `http:` and `ws:` need `allowInsecure(true)`.
+Limits per context: fetches in flight (`maxConcurrentRequests`, 16) and open sockets (`maxWebSockets`, 8); per
+response or message: `maxResponseBytes` and `maxMessageBytes` (32 MiB each); timeouts for connecting, reading and
+writing (an open WebSocket has no read timeout) and optionally for whole fetches. `NetOptions.client(okHttpClient)`
+shares the host's connection pool, DNS and TLS settings; the policy applies to a client derived from it.
+
+`fetch` follows redirects itself (up to 20, each hop checked against the policy; credentials are not carried to
+another origin), sends no cookies and keeps no cache, decodes gzip, and rejects with `TypeError: fetch failed` and the
+reason as `cause`, as Node's does. Request headers that the transport decides (`Host`, `Content-Length`,
+`Connection`, `Transfer-Encoding`, `Accept-Encoding`, `Proxy-*`, `Sec-WebSocket-*`…) are left out; scripts may set
+`Cookie`, `Origin`, `User-Agent` as in Node and Deno. `WebSocket` offers no extensions (no permessage-deflate), fires
+an `ErrorEvent` on failure as Node and Deno do, and an open one keeps the event loop waiting. Scripts also get the
+modules `undici` (its web classes are the globals; dispatchers change nothing; `request` is unavailable) and `ws`
+(`WebSocket` is the global one, constructed by ws' name; no server), so libraries written for them load.
+
 ### Node.js APIs (`neonjs-node`)
 
 The optional `neonjs-node` module gives scripts the `node:` built-in modules of Node.js 22 that make sense in a
@@ -329,7 +363,7 @@ Scripts then have `require` (built-in and host-defined modules only; no file sys
 modules, `global`, `Buffer` (loaded on first use), Node's `setTimeout` family (Timeout objects with `ref`, `unref`,
 `refresh`) and V8's `Error.captureStackTrace` / `Error.stackTraceLimit`. There is **no `process` global**:
 `import process from 'node:process'` gives it, so libraries that tell Node from browsers by `globalThis.process`
-take their web paths (fetch, WebSocket).
+take their web paths (fetch and WebSocket, from `neonjs-net`).
 
 | Module | What it is |
 |---|---|
@@ -372,6 +406,7 @@ dependencies {
     implementation("dev.mooner.neonjs:neonjs-android:…")   // JIT on Android
     // implementation("dev.mooner.neonjs:neonjs-android-d8:…")  // optional: D8 instead of dx (see below)
     implementation("dev.mooner.neonjs:neonjs-intl:…")      // optional: Intl, Temporal calendars (bundles ICU4J)
+    implementation("dev.mooner.neonjs:neonjs-net:…")       // optional: fetch and WebSocket (OkHttp's Android artifact)
 }
 ```
 
@@ -437,6 +472,7 @@ their context).
 | `neonjs-intl` | ECMA-402 (`Intl`, locale-sensitive methods) on ICU4J, found through `ServiceLoader` when on the class path |
 | `neonjs-android` | `CodeDefiner` translating generated classes to dex (dx) for the JIT and `Java.extend` on Android |
 | `neonjs-android-d8` | optional `DexConverter` using D8 (r8 library) instead of dx |
+| `neonjs-net` | `fetch` and `WebSocket` over OkHttp: `NetExtension`, `NetOptions` (the policy), the `undici` and `ws` modules |
 | `neonjs-node` | Node.js APIs: `NodeExtension`, the `node:` modules (`lib/`: Node's own sources and NeonJS's), their Kotlin side |
 | `neonjs-cli` | command-line runner and REPL |
 | `neonjs-test262` | Test262, web-platform-tests and Node.js test runners |

@@ -119,6 +119,21 @@ differences between the interpreter and compiled code. Classes used on error pat
   reaches the context's uncaught error handler (or ends the call running jobs without one). A `Blob`'s size is
   charged to the allocation budget before its bytes are allocated (a blob of many copies of another is cheap to ask
   for), and the bytes of a blob are shared with its slices and clones, never written.
+- **Network** (`neonjs-net`). Without the module there is no `fetch` or `WebSocket`. With it, a request or
+  connection goes only to a host the options allow (none by default), over TLS unless cleartext is allowed, and never
+  to a loopback, private, carrier-grade NAT, link-local, multicast, unspecified or reserved address unless its range
+  is allowed: the check is made by the sockets themselves on the address they are about to connect to, before any
+  packet is sent, so a name resolving to such an address (DNS rebinding included), an IP literal, an IPv4 address
+  inside an IPv6 one and a redirect all meet it, and a refused address gives a script no timing of whether a port is
+  open there. Redirects are followed by the engine (each hop checked; credentials not carried to another origin);
+  OkHttp's are off, as are its cache, cookie jar and proxies, also on a client the host gives. A script cannot set
+  the headers that frame or route the request (`Host`, `Content-Length`, `Transfer-Encoding`, `Connection`...), so it
+  cannot reach another virtual host of an allowed server or smuggle requests. Each context has a limit of fetches in
+  flight and of open sockets; a response body (decoded, so a compressed one cannot expand past it) and a received
+  WebSocket message larger than their limits fail before they are read whole, and WebSocket offers no compression
+  extension, so nothing is inflated. The bytes of a response or message are read on OkHttp's and the module's
+  threads, at most a limit each, and are checked against the allocation budget when they reach the script. OkHttp's
+  and Okio's packages and the module's own are on the deny list.
 - **Node.js APIs** (`neonjs-node`). The `node:` modules are script code of the context's own realm (Node's
   libraries and NeonJS's), with no privilege a script lacks: their native side (`binding`) is a function argument
   only, never reachable from scripts, and its classes are on the deny list. `require` loads built-in and host-defined

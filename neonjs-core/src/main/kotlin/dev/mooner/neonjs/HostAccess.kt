@@ -273,10 +273,10 @@ class HostAccess private constructor(b: Builder) {
         val defaultDeniedPrefixes = listOf(
             "java.lang.reflect.", "java.lang.invoke.", "sun.", "com.sun.", "jdk.internal.", "java.security.",
             "javax.script.", "java.lang.instrument.", "java.lang.management.", "kotlin.reflect.", "kotlin.jvm.internal.",
-            "com.ibm.icu.",
+            "com.ibm.icu.", "okhttp3.", "okio.",
             // the engine's own packages
             "dev.mooner.neonjs.android.", "dev.mooner.neonjs.builtins.", "dev.mooner.neonjs.cli.", "dev.mooner.neonjs.compiler.",
-            "dev.mooner.neonjs.ext.", "dev.mooner.neonjs.interop.", "dev.mooner.neonjs.intl.", "dev.mooner.neonjs.jit.", "dev.mooner.neonjs.node.",
+            "dev.mooner.neonjs.ext.", "dev.mooner.neonjs.interop.", "dev.mooner.neonjs.intl.", "dev.mooner.neonjs.jit.", "dev.mooner.neonjs.net.", "dev.mooner.neonjs.node.",
             "dev.mooner.neonjs.parser.", "dev.mooner.neonjs.regexp.", "dev.mooner.neonjs.runtime.", "dev.mooner.neonjs.unicode.",
             "dev.mooner.neonjs.vm.",
         )
