@@ -31,6 +31,10 @@ import kotlin.system.exitProcess
  * Usage: `DiscordKt --bundle FILE [--mode interpreter|compiled|adaptive] [--runs N] [--timeout ms] [--cleartext] [-v]`;
  * `--cleartext` serves http and ws instead (MockWebServer's TLS fails on Android 8, whose TLS sessions give no server
  * names), `-v` prints the bot's console and discord.js's debug messages.
+ *
+ * `DiscordKt --serve --cleartext [--timeout ms] [-v]` only serves the mock, for the bot run by another process (the
+ * CLI: `neonjs --node --allow-host localhost --allow-address 127.0.0.0/8,::1/128 --allow-insecure --env
+ * DISCORD_TOKEN=… --env DISCORD_API=… bot.js`, with the values it prints), and checks the same once the bot quits.
  */
 fun main(args: Array<String>) {
     var bundle: File? = null
@@ -39,6 +43,7 @@ fun main(args: Array<String>) {
     var timeoutMs = 60_000L
     var verbose = false
     var tls = true
+    var serve = false
     var i = 0
     while (i < args.size) {
         when (val a = args[i]) {
@@ -47,10 +52,17 @@ fun main(args: Array<String>) {
             "--runs" -> runs = args[++i].toInt()
             "--timeout" -> timeoutMs = args[++i].toLong()
             "--cleartext" -> tls = false
+            "--serve" -> serve = true
             "-v" -> verbose = true
             else -> { System.err.println("unknown argument: $a"); exitProcess(2) }
         }
         i++
+    }
+    if (serve) {
+        val problems = MockDiscord(tls, verbose).use { it.serve(timeoutMs) }
+        for (p in problems) println("  FAIL: $p")
+        println(if (problems.isEmpty()) "discord.js end to end (served): passed" else "discord.js end to end (served): FAILED")
+        exitProcess(if (problems.isEmpty()) 0 else 1)
     }
     val source = (bundle ?: run { System.err.println("--bundle FILE is required"); exitProcess(2) }).readText()
     var failed = 0
@@ -86,6 +98,7 @@ private class MockDiscord(private val tls: Boolean, private val verbose: Boolean
     @Volatile private var pinged = false
     @Volatile private var gateway: WebSocket? = null
     @Volatile private var reply: String? = null
+    private val closed = java.util.concurrent.CountDownLatch(1)
 
     init {
         if (tls) server.useHttps(HandshakeCertificates.Builder().heldCertificate(cert).build().sslSocketFactory())
@@ -136,6 +149,19 @@ private class MockDiscord(private val tls: Boolean, private val verbose: Boolean
             }
         http.dispatcher.executorService.shutdown()
         http.connectionPool.evictAll()
+        return check("run $run ($mode): bot.js timings $timings")
+    }
+
+    /** Serves until the bot closes its gateway connection or [timeoutMs] pass, then checks as [run] does. */
+    fun serve(timeoutMs: Long): List<String> {
+        start = System.nanoTime()
+        println("serving a mock Discord: DISCORD_TOKEN=$TOKEN DISCORD_API=$https://$origin/api")
+        System.out.flush()
+        if (!closed.await(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)) problems.add("the gateway was still open after $timeoutMs ms")
+        return check("served")
+    }
+
+    private fun check(label: String): List<String> {
         if (heartbeats == 0) problems.add("no heartbeat")
         val expected = "pong from neon in #general of Neon Guild"
         if (reply != expected) problems.add("the reply was ${reply?.let { "\"$it\"" }}, not \"$expected\"")
@@ -145,7 +171,7 @@ private class MockDiscord(private val tls: Boolean, private val verbose: Boolean
         val m = synchronized(marks) { LinkedHashMap(marks) }
         val phases = m.entries.joinToString("; ") { "${it.key} ${it.value}" }
         val roundtrip = if ("ping" in m && "reply" in m) ", !ping to its reply ${m["reply"]!! - m["ping"]!!} ms" else ""
-        println("run $run ($mode): bot.js timings $timings; ms from the start: $phases$roundtrip")
+        println("$label; ms from the start: $phases$roundtrip")
         return problems
     }
 
@@ -237,6 +263,7 @@ private class MockDiscord(private val tls: Boolean, private val verbose: Boolean
 
         override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
             mark("closed $code")
+            closed.countDown()
             webSocket.close(if (code == 1005) 1000 else code, null)
         }
 
