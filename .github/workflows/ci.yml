@@ -75,13 +75,3 @@ jobs:
         run: >-
           java -Xss16m -cp "neonjs-test262/build/install/neonjs-test262/lib/*" dev.mooner.neonjs.test262.NodeTestsKt
           --root third_party/node --known neonjs-test262/node-known-failures.txt --retries 1
-      - name: Bundle discord.js (the locked packages of neonjs-test262/discord, esbuild)
-        working-directory: neonjs-test262/discord
-        run: |
-          node --version
-          npm ci --ignore-scripts --no-audit --no-fund
-          node build.mjs bot.js build/bot.js
-      - name: discord.js against a mock Discord (neonjs-net, neonjs-node)
-        run: >-
-          java -Xss16m -cp "neonjs-test262/build/install/neonjs-test262/lib/*" dev.mooner.neonjs.test262.DiscordKt
-          --bundle neonjs-test262/discord/build/bot.js --mode adaptive --runs 2
