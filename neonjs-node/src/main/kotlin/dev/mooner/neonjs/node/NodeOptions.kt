@@ -11,20 +11,23 @@ class NodeOptions private constructor(b: Builder) {
     val env: Map<String, String> = b.env.toMap()
     /** `process.argv` (default: `["neonjs"]`). */
     val argv: List<String> = b.argv.toList()
-    /** `process.cwd()` and what relative paths resolve against (default: `/`). */
-    val cwd: String = b.cwd
     /**
-     * `process.platform`, which also makes node:path POSIX or Windows (default: `android` on Android, else `linux`:
-     * POSIX, as the default [cwd] is, and nothing of the host's OS shows).
+     * `process.platform`, which also gives node:path, node:url and node:os their rules, POSIX or Windows (default: the
+     * host's: `android` on Android, else `win32`, `darwin` or `linux` by the host's OS).
      */
-    val platform: String = b.platform ?: defaultPlatform()
+    val platform: String = b.platform ?: hostPlatform()
+    /**
+     * `process.cwd()` and what relative paths resolve against (default: the root of [platform]: `C:\` on `win32`,
+     * else `/`; never the host's own working directory).
+     */
+    val cwd: String = b.cwd ?: if (platform == "win32") "C:\\" else "/"
     /** Called with the code of `process.exit(code)`; by default the context's evaluation is interrupted. */
     val onExit: IntConsumer? = b.onExit
 
     class Builder {
         internal val env = LinkedHashMap<String, String>()
         internal val argv = arrayListOf("neonjs")
-        internal var cwd = "/"
+        internal var cwd: String? = null
         internal var platform: String? = null
         internal var onExit: IntConsumer? = null
 
@@ -41,7 +44,14 @@ class NodeOptions private constructor(b: Builder) {
 
         @JvmStatic fun builder() = Builder()
 
-        private fun defaultPlatform(): String =
-            if (System.getProperty("java.vendor", "").contains("Android", ignoreCase = true)) "android" else "linux"
+        private fun hostPlatform(): String {
+            if (System.getProperty("java.vendor", "").contains("Android", ignoreCase = true)) return "android"
+            val os = System.getProperty("os.name", "").lowercase()
+            return when {
+                os.startsWith("windows") -> "win32"
+                os.startsWith("mac") || os.startsWith("darwin") -> "darwin"
+                else -> "linux"
+            }
+        }
     }
 }

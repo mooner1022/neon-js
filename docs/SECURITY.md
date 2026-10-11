@@ -123,7 +123,8 @@ differences between the interpreter and compiled code. Classes used on error pat
   libraries and NeonJS's), with no privilege a script lacks: their native side (`binding`) is a function argument
   only, never reachable from scripts, and its classes are on the deny list. `require` loads built-in and host-defined
   modules only. Nothing of the host shows unless `NodeOptions` gives it: `process.env` is empty, `argv`, `cwd` and
-  `platform` are the options' (the platform is `linux` or `android`, never the host's OS), `os` reports neutral
+  `platform` are the options' (by default the host's OS family and its root directory, never the host's working
+  directory), `os` reports neutral
   values and the engine's own memory. `process.exit` interrupts the evaluation (and calls `onExit`), never the host
   process. There is no file system, process, socket or DNS access: those modules load and throw `ERR_UNAVAILABLE`.
   `Buffer` allocates through the engine's typed arrays (charged to the allocation budget); `Buffer#indexOf` (as slow

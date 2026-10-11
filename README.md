@@ -343,8 +343,9 @@ take their web paths (fetch, WebSocket).
 | `fs`, `fs/promises`, `child_process`, `net` (`isIP`), `tls`, `dns`, `worker_threads` | load, so that a library importing them still loads; their functions say `ERR_UNAVAILABLE` when used (`fs.existsSync` finds nothing, `isMainThread` is true) |
 | `module` | `builtinModules`, `isBuiltin`, `createRequire` |
 
-`NodeOptions.platform` is `android` on Android and `linux` elsewhere unless the host names one; it also makes `path`
-POSIX or Windows. Not there: `vm`, `stream` (and so the stream forms of crypto and zlib), `async_hooks`,
+`NodeOptions.platform` is the host's (`android`, `win32`, `darwin`, `linux`) unless the host names one, and gives
+`path`, `url` and `os` their POSIX or Windows rules, as Node's does; `cwd` defaults to that platform's root (`C:\` or
+`/`), never the host's working directory. Not there: `vm`, `stream` (and so the stream forms of crypto and zlib), `async_hooks`,
 `node:test`, `Error.prepareStackTrace`, `path.matchesGlob` (Node's minimatch), and unref'd `setImmediate` timing
 exactly as Node's. `console.log` keeps the core's formatting, which never runs guest code; `util.inspect` runs it as
 Node does (`[util.inspect.custom]`, getters with `getters: true`). The module ports parts of Node's lib sources under

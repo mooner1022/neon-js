@@ -103,13 +103,21 @@ class CoreModulesTest {
     }
 
     @Test
-    fun theDefaultsShowNothingOfTheHost() {
+    fun theDefaultsFollowTheHostsPlatform() {
+        // the host's platform and its rules, with that platform's root as the cwd (not the host's own) and an empty env
+        val os = System.getProperty("os.name", "").lowercase()
+        val windows = os.startsWith("windows")
+        val platform = if (windows) "win32" else if (os.startsWith("mac")) "darwin" else "linux"
         ctx().use { c ->
-            // a POSIX platform (on the JVM; android on Android) whatever the host's OS, an empty env, a root cwd
-            assertEquals("linux,0,/,/", c.eval("""
-                const p = require('process');
-                [p.platform, Object.keys(p.env).length, p.cwd(), require('path').sep].join()
+            val expected = if (windows) "win32,0,C:\\,\\,C:\\config.json" else "$platform,0,/,/,/config.json"
+            assertEquals(expected, c.eval("""
+                const p = require('process'), path = require('path');
+                [p.platform, Object.keys(p.env).length, p.cwd(), path.sep, path.resolve('config.json')].join()
             """).asString())
+        }
+        // a platform named without a cwd gets that platform's root
+        ctx(NodeOptions.builder().platform("win32").build()).use { c ->
+            assertEquals("C:\\sub", c.eval("const p2 = require('process'); p2.chdir('sub'); p2.cwd()").asString())
         }
     }
 
