@@ -10,6 +10,7 @@ import okio.GzipSink
 import okio.buffer
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.util.concurrent.TimeUnit
@@ -166,5 +167,7 @@ class FetchTest {
         assertTrue(HostPattern.parse("0:0::1").matches("[::1]", 1))
         assertTrue(HostPattern.parse("127.0.0.1").matches("127.0.0.1", 9))
         assertTrue(HostPattern.parse("bücher.example").matches("xn--bcher-kva.example", 443))
+        // names that no URL's host can be
+        for (bad in listOf("a b", "a<b", "a|b.example", "*.a^b")) assertThrows<IllegalArgumentException>(bad) { HostPattern.parse(bad) }
     }
 }

@@ -59,6 +59,8 @@ class HostPattern private constructor(private val host: String, private val addr
             AddressRange.literal(p)?.let { if (!wildcard) return HostPattern(p, it, false, port) }
             // non-ASCII names compare in their ASCII form, as URLs give them
             val ascii = dev.mooner.neonjs.ext.WebGlobals.domainToAscii(p) ?: bad()
+            // a name no URL's host can be (the URL standard's forbidden domain code points) would match nothing
+            if (ascii.any { it <= ' ' || it == '\u007f' || it in "#%/:<>?@[\\]^|" }) bad()
             return HostPattern(ascii, null, wildcard, port)
         }
     }
