@@ -147,9 +147,12 @@ class ExtensionTest {
             assertTrue(c.runEventLoop(5_000))
             assertTrue(c.eval("after").asBoolean())
             assertEquals(listOf("rejection mine 2", "exception mine 1"), intercepted)
-            // and what it does not handle propagates, as without it
-            c.eval("setTimeout(() => { throw new Error('other') }, 1)")
-            assertThrows<NeonException> { c.runEventLoop(5_000) }
+            // and what it does not handle propagates, as without it (from the eval when the timer is already due as
+            // its jobs run, as on a slow machine, else from the loop)
+            assertThrows<NeonException> {
+                c.eval("setTimeout(() => { throw new Error('other') }, 1)")
+                c.runEventLoop(5_000)
+            }
         }
         // with a host handler: the host gets what the interceptor did not handle
         intercepted.clear()
