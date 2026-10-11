@@ -448,6 +448,37 @@ object Modules {
         return m
     }
 
+    // ------------------------------------------------------------------ host modules
+
+    @Suppress("UNCHECKED_CAST")
+    private fun hostModules(realm: Realm): HashMap<String, Map<String, Any?>> =
+        realm.intrinsicsAny.getOrPut("%HostModules%") { HashMap<String, Map<String, Any?>>() } as HashMap<String, Map<String, Any?>>
+
+    /** Defines a host module ([dev.mooner.neonjs.NeonContext.defineModule]): [exports] are JS values of [realm]. */
+    @JvmStatic
+    fun defineHostModule(realm: Realm, specifier: String, exports: Map<String, Any?>) {
+        hostModules(realm)[specifier] = exports
+        (realm.intrinsicsAny["%HostModuleObjects%"] as HashMap<*, *>?)?.remove(specifier)
+    }
+
+    /** The exports of the host module [specifier], or null. */
+    @JvmStatic
+    fun hostModule(realm: Realm, specifier: String): Map<String, Any?>? =
+        (realm.intrinsicsAny["%HostModules%"] as HashMap<*, *>?)?.get(specifier) as Map<String, Any?>?
+
+    /** What `require` gives for the host module [specifier]: an object with its exports as properties (made once), or null. */
+    @JvmStatic
+    fun hostModuleObject(realm: Realm, specifier: String): JSObject? {
+        val exports = hostModule(realm, specifier) ?: return null
+        @Suppress("UNCHECKED_CAST")
+        val cache = realm.intrinsicsAny.getOrPut("%HostModuleObjects%") { HashMap<String, JSObject>() } as HashMap<String, JSObject>
+        return cache.getOrPut(specifier) {
+            val o = JSObject(realm.objectPrototype)
+            for ((k, v) in exports) o.createDataProperty(PK.fromString(k), v)
+            o
+        }
+    }
+
     // ------------------------------------------------------------------ built-in modules
 
     /**

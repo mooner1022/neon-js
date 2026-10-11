@@ -18,6 +18,9 @@ class ExtensionTest {
             f.realm.agent.enqueueTick { Ops.call(fn, Undefined, EMPTY_ARGS) }
             Undefined
         }), Attr.WC)
+        realm.globalObject.defineOwn("hostReq", NativeFunction(realm, "hostReq", 1, { f, _, a, _ ->
+            Modules.hostModuleObject(f.realm, Ops.toString(a[0])) ?: Undefined
+        }), Attr.WC)
         realm.globalObject.defineOwn("stackAbove", NativeFunction(realm, "stackAbove", 1, { f, _, a, _ ->
             f.realm.agent.captureStack(a[0] as JSObject, 10)
         }), Attr.WC)
@@ -41,10 +44,11 @@ class ExtensionTest {
             // a ShadowRealm gets no built-in modules
             assertTrue(c.eval("new ShadowRealm().importValue('node:demo', 'answer').then(() => 'loaded', e => e.name)").await(5_000).asString() == "TypeError")
         }
-        // the host's own modules come first (defined before the first import: a loaded module stays)
+        // the host's own modules come first (defined before the first import: a loaded module stays), for require too
         ctx().use { c ->
             c.defineModule("node:demo", mapOf("answer" to 7))
             assertEquals(7, c.evalModule("import { answer } from 'node:demo'; export const a = answer", "other.mjs").getMember("a").asInt())
+            assertEquals("7,true", c.eval("[hostReq('node:demo').answer, hostReq('node:demo') === hostReq('node:demo')].join()").asString())
         }
     }
 

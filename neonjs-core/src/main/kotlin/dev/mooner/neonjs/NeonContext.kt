@@ -189,7 +189,6 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
     val global: NeonValue get() = NeonValue(this, realm.globalObject)
 
     private var userLoader: NeonModuleLoader? = null
-    private val hostModules = HashMap<String, Map<String, Any?>>()
 
     /** Installs the loader used for `import` declarations and `import()`. Without one, only host modules resolve. */
     fun setModuleLoader(loader: NeonModuleLoader) {
@@ -203,22 +202,22 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
      * modules of extensions (so a host can replace `node:fs`) and over the loader.
      */
     fun defineModule(specifier: String, exports: Map<String, Any?>) = guarded {
-        hostModules[specifier] = exports
+        dev.mooner.neonjs.vm.Modules.defineHostModule(realm, specifier, exports.mapValues { bridge.toJS(it.value) })
         installLoader()
     }
 
     private fun installLoader() {
         dev.mooner.neonjs.vm.Modules.setLoader(realm, object : dev.mooner.neonjs.vm.ModuleLoader {
             override fun resolve(specifier: String, referrerKey: String?): String {
-                if (specifier in hostModules) return specifier
+                if (dev.mooner.neonjs.vm.Modules.hostModule(realm, specifier) != null) return specifier
                 dev.mooner.neonjs.vm.Modules.builtin(realm, specifier)?.let { return it.name }
                 val l = userLoader ?: throw JSException.typeError("Cannot find module '$specifier'")
                 return loaderCall(specifier) { l.resolve(specifier, referrerKey) }
             }
             override fun load(key: String, request: dev.mooner.neonjs.compiler.ModuleRequest): dev.mooner.neonjs.vm.ModuleSource {
-                hostModules[key]?.let { ex ->
+                dev.mooner.neonjs.vm.Modules.hostModule(realm, key)?.let { ex ->
                     val src = dev.mooner.neonjs.vm.ModuleSource(key, "")
-                    src.hostExports = ex.mapValues { bridge.toJS(it.value) }
+                    src.hostExports = ex
                     src.hostRealm = realm
                     return src
                 }
