@@ -119,6 +119,18 @@ differences between the interpreter and compiled code. Classes used on error pat
   reaches the context's uncaught error handler (or ends the call running jobs without one). A `Blob`'s size is
   charged to the allocation budget before its bytes are allocated (a blob of many copies of another is cheap to ask
   for), and the bytes of a blob are shared with its slices and clones, never written.
+- **Node.js APIs** (`neonjs-node`). The `node:` modules are script code of the context's own realm (Node's
+  libraries and NeonJS's), with no privilege a script lacks: their native side (`binding`) is a function argument
+  only, never reachable from scripts, and its classes are on the deny list. `require` loads built-in and host-defined
+  modules only. Nothing of the host shows unless `NodeOptions` gives it: `process.env` is empty, `argv`, `cwd` and
+  `platform` are the options' (the platform is `linux` or `android`, never the host's OS), `os` reports neutral
+  values and the engine's own memory. `process.exit` interrupts the evaluation (and calls `onExit`), never the host
+  process. There is no file system, process, socket or DNS access: those modules load and throw `ERR_UNAVAILABLE`.
+  `Buffer` allocates through the engine's typed arrays (charged to the allocation budget); `Buffer#indexOf` (as slow
+  as haystack times needle) and `zlib` decompression check the time limit as they go; decompressed output is
+  charged before it is allocated and stops at `maxOutputLength`; strings stay within V8's 0x1fffffe8 characters.
+  `util.inspect`, unlike `console`, runs guest code as Node's does (custom inspection, getters when asked), but
+  never a proxy's traps.
 - **Intl data.** `neonjs-intl` bundles ICU4J; all of its packages (`com.ibm.icu.*`) are on the deny list, so
   scripts reach locale data only through `Intl`. `Intl` resolves locales itself and passes ICU only available
   locales (or root), so the host's locale is never used implicitly, and it caps language tags (512 characters) and

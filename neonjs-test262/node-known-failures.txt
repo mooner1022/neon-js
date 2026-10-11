@@ -30,8 +30,9 @@ test-timers-clearImmediate-als.js  # uncaught: Error: Cannot find module 'async_
 test-timers-enroll-invalid-msecs.js  # uncaught: AssertionError: Expected values to be strictly deep-equal:
 test-timers-enroll-second-time.js  # uncaught: TypeError: timers.enroll is not a function [at <anonymous> (/test/parallel/test-timers-enroll-second-time.js:12:1)]
 test-timers-immediate-queue-throw.js  # uncaught: Error: Cannot find module 'domain' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-timers-imme
-test-timers-immediate-unref-nested-once.js  # uncaught: AssertionError: function should not have been called at /test/parallel/test-timers-immediate-unref-nested-once.js:8
-test-timers-immediate-unref-simple.js  # uncaught: AssertionError: function should not have been called at /test/parallel/test-timers-immediate-unref-simple.js:12
+test-timers-immediate-unref-nested-once.js  # flaky: an unref'd immediate races the loop's end (immediates go through the timer thread)
+test-timers-immediate-unref-simple.js  # flaky: an unref'd immediate races the loop's end (immediates go through the timer thread)
+test-timers-immediate-unref.js  # flaky: an unref'd immediate races the loop's end (immediates go through the timer thread)
 test-timers-max-duration-warning.js  # uncaught: TypeError: timers.enroll is not a function [at <anonymous> (/test/parallel/test-timers-max-duration-warning.js:39:3)]
 test-timers-promises-scheduler.js  # uncaught: AssertionError: Missing expected exception. [at <anonymous> (/test/parallel/test-timers-promises-scheduler.js:53:1)]
 test-timers-refresh-in-callback.js  # exit code 1: Mismatched <anonymous> function calls. Expected exactly 2, actual 1. /     at <anonymous> (/test/parallel/test-timers-refresh-i

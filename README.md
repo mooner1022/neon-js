@@ -29,6 +29,7 @@ scripts in Java/Kotlin applications:
 | Test262 `intl402/` (with `neonjs-intl`) | **3,363 / 3,365** in all modes — the two failures are ICU 78 data limits: one Chinese-calendar month boundary (2030) where ICU's astronomy differs from the official table Temporal uses, and islamic-civil eras that ICU does not distinguish |
 | Skipped Test262 features | `export-defer` (no stable semantics yet) |
 | web-platform-tests (web globals) | `encoding/`: 3,642 subtests pass, the rest need other encodings than UTF-8, streams or WebAssembly; `dom/events`, `dom/abort`, `hr-time`, `WebCryptoAPI` (getRandomValues, randomUUID) and their IDL tests: 370 / 373, the 3 are deliberate; `FileAPI`: 367 subtests pass (Blob, File), the rest need streams, FileReader, blob URLs or a server; `xhr/formdata`: 40 / 40; `fetch/api/headers`: the 102 subtests that need no `fetch`, `Request` or `Response` pass; `url` (with the UTS #46 tests of `IdnaTestV2`): 4,842 / 4,919, the rest need `Request` / `Response` or Unicode data newer than 17.0 (`neonjs-test262/wpt-known-failures.txt`) |
+| Node.js's own tests (`neonjs-node`) | 166 of the 249 `test/parallel` tests of `neonjs-test262/node-tests.txt` (assert, buffer, events, path, url, util, timers…) pass; most of the rest need modules not there (`vm`, `child_process`, `stream`, `fs`) or Node's legacy timers API (`neonjs-test262/node-known-failures.txt`) |
 | JVM | Java 21+ (built with a JDK 25 toolchain, `jvmTarget` 21) |
 
 Implemented highlights: full ES2025 syntax and semantics (classes with private members, generators, async
@@ -55,6 +56,7 @@ Releases are published to Maven Central as `dev.mooner.neonjs:<module>`
 dependencies {
     implementation("dev.mooner.neonjs:neonjs-core:…")
     implementation("dev.mooner.neonjs:neonjs-intl:…")   // optional: Intl and the non-ISO Temporal calendars (ICU4J)
+    implementation("dev.mooner.neonjs:neonjs-node:…")   // optional: Node.js APIs (node: modules, require, Buffer)
 }
 ```
 
@@ -311,6 +313,43 @@ whichever thread runs jobs (any evaluation does). Timer callbacks must be functi
 `SandboxPolicy.maxTimers` caps pending timers per context (10,000 by default). `TextDecoder` supports only UTF-8
 (other labels are a `RangeError`). The CLI enables these globals and runs the event loop after each script.
 
+### Node.js APIs (`neonjs-node`)
+
+The optional `neonjs-node` module gives scripts the `node:` built-in modules of Node.js 22 that make sense in a
+sandbox, so that libraries written for Node (bundled, see below) run unchanged:
+
+```kotlin
+val engine = NeonEngine.builder().webGlobals(true)   // required: several node: modules are the web globals
+    .extension(NodeExtension(NodeOptions.builder().env(mapOf("TOKEN" to token)).argv(listOf("bot.js")).build()))
+    .build()
+```
+
+Scripts then have `require` (built-in and host-defined modules only; no file system), `import` of the same
+modules, `global`, `Buffer` (loaded on first use), Node's `setTimeout` family (Timeout objects with `ref`, `unref`,
+`refresh`) and V8's `Error.captureStackTrace` / `Error.stackTraceLimit`. There is **no `process` global**:
+`import process from 'node:process'` gives it, so libraries that tell Node from browsers by `globalThis.process`
+take their web paths (fetch, WebSocket).
+
+| Module | What it is |
+|---|---|
+| `assert`, `assert/strict`, `events`, `path` (`posix`, `win32`), `querystring`, `string_decoder`, `url`, `util` (`inspect`, `format`, `types`, `promisify`, `deprecate`, `isDeepStrictEqual`…) | Node 22.12's own JavaScript, ported with few changes (`tools/port_node.py`); what V8 or C++ gives Node comes from the engine (`util.types`, promise and proxy details, IDNA, the string decoder) |
+| `buffer` | Node's API and errors over the engine's typed arrays (`allocUnsafe` is zeroed) |
+| `process` | `env`, `argv`, `cwd`, `platform` from `NodeOptions` (nothing of the host's environment otherwise); `nextTick`; `exit` ends the evaluation (`NodeOptions.onExit`), never the host; `'uncaughtException'` / `'unhandledRejection'` / `'warning'` listeners; `stdout` / `stderr` to the console sink |
+| `timers`, `timers/promises` | over the web globals' timers (`maxTimers` applies) |
+| `crypto` | hashes and HMACs (`createHash`, `createHmac`, `hash`; not yet streams), `randomBytes` / `randomInt` / `randomUUID`, `timingSafeEqual`, `webcrypto`; ciphers, signatures and keys are not there |
+| `zlib` | the one-shot functions (`inflateSync`, `gunzip`…) and constants; output bounded by `maxOutputLength` and the allocation limit; no streams or Brotli yet |
+| `os` | the platform and architecture, `process.env`'s `HOME` / `TMPDIR`, the engine's memory; neutral values for the rest (never the host's) |
+| `http`, `https` | `STATUS_CODES`, `METHODS`, header checks; requests and servers load but are not available (fetch is the network) |
+| `fs`, `fs/promises`, `child_process`, `net` (`isIP`), `tls`, `dns`, `worker_threads` | load, so that a library importing them still loads; their functions say `ERR_UNAVAILABLE` when used (`fs.existsSync` finds nothing, `isMainThread` is true) |
+| `module` | `builtinModules`, `isBuiltin`, `createRequire` |
+
+`NodeOptions.platform` is `android` on Android and `linux` elsewhere unless the host names one; it also makes `path`
+POSIX or Windows. Not there: `vm`, `stream` (and so the stream forms of crypto and zlib), `async_hooks`,
+`node:test`, `Error.prepareStackTrace`, `path.matchesGlob` (Node's minimatch), and unref'd `setImmediate` timing
+exactly as Node's. `console.log` keeps the core's formatting, which never runs guest code; `util.inspect` runs it as
+Node does (`[util.inspect.custom]`, getters with `getters: true`). The module ports parts of Node's lib sources under
+Node's MIT license (see `NOTICE`).
+
 ## Android
 
 NeonJS is a JVM engine that also runs on Android: the jars (core, intl, Kotlin stdlib, ASM) are converted to dex by
@@ -395,8 +434,9 @@ their context).
 | `neonjs-intl` | ECMA-402 (`Intl`, locale-sensitive methods) on ICU4J, found through `ServiceLoader` when on the class path |
 | `neonjs-android` | `CodeDefiner` translating generated classes to dex (dx) for the JIT and `Java.extend` on Android |
 | `neonjs-android-d8` | optional `DexConverter` using D8 (r8 library) instead of dx |
+| `neonjs-node` | Node.js APIs: `NodeExtension`, the `node:` modules (`lib/`: Node's own sources and NeonJS's), their Kotlin side |
 | `neonjs-cli` | command-line runner and REPL |
-| `neonjs-test262` | Test262 and web-platform-tests runners |
+| `neonjs-test262` | Test262, web-platform-tests and Node.js test runners |
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the internals.
 
@@ -443,6 +483,18 @@ java -Xss16m -cp "neonjs-test262/build/install/neonjs-test262/lib/*" dev.mooner.
 Results are per subtest; `--write-known FILE` writes the current failures in the format of the known list. Tests meant
 only for windows (`META: global=window`) are skipped unless named with `--include-window`, and to idlharness.js the global object looks like a dedicated
 worker's: the web globals are what workers (and Node) have, which WebIDL exposes to windows and workers.
+
+`neonjs-node` is tested with Node.js's own tests (`test/parallel` of the release it follows, the files
+`neonjs-test262/node-tests.txt` names), each run as a CommonJS module with `process` in scope and NeonJS's own
+`test/common` and `node:test`; a test passes when nothing is left uncaught and its exit code is 0:
+
+```bash
+git init third_party/node && cd third_party/node
+git sparse-checkout set lib test/common test/parallel
+git fetch --depth 1 --filter=blob:none https://github.com/nodejs/node.git <commit>   # NODE_COMMIT in ci.yml
+git checkout FETCH_HEAD && cd ../..
+java -Xss16m -cp "neonjs-test262/build/install/neonjs-test262/lib/*" dev.mooner.neonjs.test262.NodeTestsKt --root third_party/node --known neonjs-test262/node-known-failures.txt --retries 1
+```
 
 ### On Android devices and emulators
 
