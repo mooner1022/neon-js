@@ -3,8 +3,7 @@
 // grouping, array grouping, circular references) and the same hooks (inspect.custom with depth, options and inspect;
 // options.stylize; inspect.colors / styles / defaultOptions). What JS cannot see (a promise's state, a proxy's target,
 // internal slots) comes from binding.types, which never runs script code; a proxy is shown as its target, without
-// asking its handler anything. Not here: iterator previews, WeakMap / WeakSet entries (showHidden), prototype
-// properties (showHidden).
+// asking its handler anything. Not here: prototype properties (showHidden).
 
 const { validateObject, validateString } = binding.internal('errors');
 const types = binding.types;
@@ -371,6 +370,14 @@ function formatRaw(ctx, value, recurseTimes, typedArray) {
       if (size === 0 && keys.length === 0 && !ctx.showHidden) return `${braces[0]}]`;
       formatter = (c, v, r) => formatTypedArray(value, size, c, v, r);
       extrasType = kArrayExtrasType;
+    } else if (types.isMapIterator(value)) {
+      keys = getKeys(value, ctx.showHidden);
+      braces = getIteratorBraces('Map', tag);
+      formatter = (c, v, r) => formatIterator(braces, c, v, r);
+    } else if (types.isSetIterator(value)) {
+      keys = getKeys(value, ctx.showHidden);
+      braces = getIteratorBraces('Set', tag);
+      formatter = (c, v, r) => formatIterator(braces, c, v, r);
     } else {
       noIterator = true;
     }
@@ -378,16 +385,16 @@ function formatRaw(ctx, value, recurseTimes, typedArray) {
   if (noIterator) {
     keys = getKeys(value, ctx.showHidden);
     braces = ['{', '}'];
-    if (typeof value === 'function') {
-      base = getFunctionBase(value, constructor, tag);
-      if (keys.length === 0) return ctx.stylize(base, 'special');
-    } else if (constructor === 'Object') {
+    if (constructor === 'Object') {
       if (types.isArgumentsObject(value)) {
         braces[0] = '[Arguments] {';
       } else if (tag !== '') {
         braces[0] = `${getPrefix(constructor, tag, 'Object')}{`;
       }
       if (keys.length === 0) return `${braces[0]}}`;
+    } else if (typeof value === 'function') {
+      base = getFunctionBase(value, constructor, tag);
+      if (keys.length === 0) return ctx.stylize(base, 'special');
     } else if (types.isRegExp(value)) {
       base = RegExpPrototypeToString(constructor !== null ? value : new RegExp(value));
       const prefix = getPrefix(constructor, tag, 'RegExp');
@@ -419,10 +426,10 @@ function formatRaw(ctx, value, recurseTimes, typedArray) {
       formatter = formatPromise;
     } else if (types.isWeakSet(value)) {
       braces[0] = `${getPrefix(constructor, tag, 'WeakSet')}{`;
-      formatter = formatWeakCollection;
+      formatter = ctx.showHidden ? formatWeakSet : formatWeakCollection;
     } else if (types.isWeakMap(value)) {
       braces[0] = `${getPrefix(constructor, tag, 'WeakMap')}{`;
-      formatter = formatWeakCollection;
+      formatter = ctx.showHidden ? formatWeakMap : formatWeakCollection;
     } else if (types.isModuleNamespaceObject(value)) {
       braces[0] = `${getPrefix(constructor, tag, 'Module')}{`;
       const namespaceKeys = keys;
@@ -430,14 +437,17 @@ function formatRaw(ctx, value, recurseTimes, typedArray) {
     } else if (types.isBoxedPrimitive(value)) {
       base = getBoxedBase(value, ctx, keys, constructor, tag);
       if (keys.length === 0) return base;
+    } else if (isURL(value) && !(recurseTimes > ctx.depth && ctx.depth !== null)) {
+      base = value.href;
+      if (keys.length === 0) return base;
     } else {
-      if (keys.length === 0) return `${getPrefix(constructor, tag, 'Object')}{}`;
-      braces[0] = `${getPrefix(constructor, tag, 'Object')}{`;
+      if (keys.length === 0) return `${getCtxStyle(value, constructor, tag)}{}`;
+      braces[0] = `${getCtxStyle(value, constructor, tag)}{`;
     }
   }
 
   if (recurseTimes > ctx.depth && ctx.depth !== null) {
-    let constructorName = getPrefix(constructor, tag, 'Object').slice(0, -1);
+    let constructorName = getCtxStyle(value, constructor, tag).slice(0, -1);
     if (constructor !== null) constructorName = `[${constructorName}]`;
     return ctx.stylize(constructorName, 'special');
   }
@@ -452,7 +462,7 @@ function formatRaw(ctx, value, recurseTimes, typedArray) {
       output.push(formatProperty(ctx, value, recurseTimes, keys[i], extrasType));
     }
   } catch (err) {
-    const constructorName = getPrefix(constructor, tag, 'Object').slice(0, -1);
+    const constructorName = getCtxStyle(value, constructor, tag).slice(0, -1);
     return handleMaxCallStackSize(ctx, err, constructorName, indentationLvl);
   }
   if (ctx.circular !== undefined) {
@@ -523,6 +533,29 @@ function getConstructorName(obj, ctx, recurseTimes) {
     return `${res} <${inspect(firstProto, { ...ctx, customInspect: false, depth: -1 })}>`;
   }
   return `${res} <${protoConstr}>`;
+}
+
+// a URL (when its own custom inspection is not used), shown as its href
+const URLConstructor = globalThis.URL;
+function isURL(value) {
+  return typeof value.href === 'string' && typeof URLConstructor === 'function' && value instanceof URLConstructor;
+}
+
+function getCtxStyle(value, constructor, tag) {
+  let fallback = '';
+  if (constructor === null) {
+    fallback = types.className(value);
+    if (fallback === tag) fallback = 'Object';
+  }
+  return getPrefix(constructor, tag, fallback);
+}
+
+function getIteratorBraces(type, tag) {
+  if (tag !== `${type} Iterator`) {
+    if (tag !== '') tag += '] [';
+    tag += `${type} Iterator`;
+  }
+  return [`[${tag}] {`, '}'];
 }
 
 function getPrefix(constructor, tag, fallback, size = '') {
@@ -671,16 +704,60 @@ function formatError(err, constructor, tag, ctx, keys) {
   if (stackStart === -1) {
     // no frames: the error in brackets
     stack = `[${stack}]`;
-  } else if (ctx.colors) {
-    // the frames dimmed, as Node shows its own
-    const lines = stack.slice(stackStart + 1).split('\n');
-    stack = `${stack.slice(0, stackStart)}\n${lines.map((line) => ctx.stylize(line, 'undefined')).join('\n')}`;
+  } else {
+    const lines = getStackFrames(ctx, err, stack.slice(stackStart + 1));
+    // in color, the frames of the node: libraries are dimmed, as Node dims its own
+    const shown = ctx.colors ? lines.map((line) => (coreModuleRegExp.exec(line) !== null ? ctx.stylize(line, 'undefined') : line)) : lines;
+    stack = `${stack.slice(0, stackStart)}\n${shown.join('\n')}`;
   }
   if (ctx.indentationLvl !== 0) {
     const indentation = ' '.repeat(ctx.indentationLvl);
     stack = stack.replace(/\n/g, `\n${indentation}`);
   }
   return stack;
+}
+
+const coreModuleRegExp = /^ {4}at (?:[^/\\(]+ \(|)node:(.+):\d+:\d+\)?$/;
+
+// the first run (over three) of b's frames found in a: where it starts in a and how long it is
+function identicalSequenceRange(a, b) {
+  for (let i = 0; i < a.length - 3; i++) {
+    const pos = b.indexOf(a[i]);
+    if (pos !== -1) {
+      const rest = b.length - pos;
+      if (rest > 3) {
+        let len = 1;
+        const maxLen = Math.min(a.length - i, rest);
+        while (maxLen > len && a[i + len] === b[pos + len]) len++;
+        if (len > 3) return { len, offset: i };
+      }
+    }
+  }
+  return { len: 0, offset: 0 };
+}
+
+// the frames of a stack, the ones it shares with its cause's collapsed into one line
+function getStackFrames(ctx, err, stack) {
+  const frames = stack.split('\n');
+  let cause;
+  try {
+    ({ cause } = err);
+  } catch {
+    // a cause getter that throws is left out
+  }
+  if (cause != null && isError(cause)) {
+    const causeStack = getStackString(cause);
+    const causeStackStart = causeStack.indexOf('\n    at');
+    if (causeStackStart !== -1) {
+      const causeFrames = causeStack.slice(causeStackStart + 1).split('\n');
+      const { len, offset } = identicalSequenceRange(frames, causeFrames);
+      if (len > 0) {
+        const skipped = len - 2;
+        frames.splice(offset + 1, skipped, ctx.stylize(`    ... ${skipped} lines matching cause stack trace ...`, 'undefined'));
+      }
+    }
+  }
+  return frames;
 }
 
 function handleMaxCallStackSize(ctx, err, constructorName, indentationLvl) {
@@ -927,6 +1004,69 @@ function formatPromise(ctx, value, recurseTimes) {
 
 function formatWeakCollection(ctx) {
   return [ctx.stylize('<items unknown>', 'special')];
+}
+
+const kWeak = 0;
+const kIterator = 1;
+const kMapEntries = 2;
+
+function formatSetIterInner(ctx, recurseTimes, entries, state) {
+  const maxArrayLength = Math.max(ctx.maxArrayLength, 0);
+  const maxLength = Math.min(maxArrayLength, entries.length);
+  const output = new Array(maxLength);
+  ctx.indentationLvl += 2;
+  for (let i = 0; i < maxLength; i++) output[i] = formatValue(ctx, entries[i], recurseTimes);
+  ctx.indentationLvl -= 2;
+  // weak entries come in no order: sorted, for an output halfway stable
+  if (state === kWeak && !ctx.sorted) output.sort();
+  const remaining = entries.length - maxLength;
+  if (remaining > 0) output.push(remainingText(remaining));
+  return output;
+}
+
+function formatMapIterInner(ctx, recurseTimes, entries, state) {
+  const maxArrayLength = Math.max(ctx.maxArrayLength, 0);
+  // [key1, val1, key2, val2, ...]
+  const len = entries.length / 2;
+  const remaining = len - maxArrayLength;
+  const maxLength = Math.min(maxArrayLength, len);
+  const output = new Array(maxLength);
+  let i = 0;
+  ctx.indentationLvl += 2;
+  if (state === kWeak) {
+    for (; i < maxLength; i++) {
+      const pos = i * 2;
+      output[i] = `${formatValue(ctx, entries[pos], recurseTimes)} => ${formatValue(ctx, entries[pos + 1], recurseTimes)}`;
+    }
+    if (!ctx.sorted) output.sort();
+  } else {
+    for (; i < maxLength; i++) {
+      const pos = i * 2;
+      const res = [formatValue(ctx, entries[pos], recurseTimes), formatValue(ctx, entries[pos + 1], recurseTimes)];
+      output[i] = reduceToSingleString(ctx, res, '', ['[', ']'], kArrayExtrasType, recurseTimes);
+    }
+  }
+  ctx.indentationLvl -= 2;
+  if (remaining > 0) output.push(remainingText(remaining));
+  return output;
+}
+
+function formatWeakSet(ctx, value, recurseTimes) {
+  return formatSetIterInner(ctx, recurseTimes, types.previewEntries(value), kWeak);
+}
+
+function formatWeakMap(ctx, value, recurseTimes) {
+  return formatMapIterInner(ctx, recurseTimes, types.previewEntries(value), kWeak);
+}
+
+function formatIterator(braces, ctx, value, recurseTimes) {
+  const { 0: entries, 1: isKeyValue } = types.previewEntries(value);
+  if (isKeyValue) {
+    // entries() iterators are shown as such
+    braces[0] = braces[0].replace(/ Iterator] {$/, ' Entries] {');
+    return formatMapIterInner(ctx, recurseTimes, entries, kMapEntries);
+  }
+  return formatSetIterInner(ctx, recurseTimes, entries, kIterator);
 }
 
 function formatNamespaceObject(keys, ctx, value, recurseTimes) {

@@ -86,6 +86,37 @@ internal object Types {
             val p = a.arg(0) as? ProxyObject ?: return@fn Undefined
             JSArray.of(f.realm.arrayPrototype, arrayOf(p.target ?: Null, p.handler ?: Null))
         }
+        // what a Map / Set iterator has left, without advancing it: [entries, isKeyValue] (key-value entries as
+        // [k1, v1, k2, v2...]); a WeakMap's [k1, v1...] or a WeakSet's values; undefined for anything else
+        fn("previewEntries", 1) { f, _, a, _ ->
+            val out = ArrayList<Any?>()
+            when (val o = a.arg(0)) {
+                is CollectionIterator -> {
+                    val c = o.cursor
+                    if (c != null) {
+                        // a cursor of its own (not registered with the table: nothing runs while it is used)
+                        val copy = TableCursor(c.table)
+                        copy.pos = c.pos
+                        while (c.table.advance(copy)) {
+                            when (o.kind) {
+                                0 -> out.add(copy.key)
+                                1 -> out.add(copy.value)
+                                else -> { out.add(copy.key); out.add(copy.value) }
+                            }
+                        }
+                    }
+                    JSArray.of(f.realm.arrayPrototype, arrayOf(JSArray.of(f.realm.arrayPrototype, out.toTypedArray()), o.kind == 2))
+                }
+                is JSWeakCollection -> {
+                    for ((k, v) in o.map.entries.toList()) {
+                        out.add(k)
+                        if (!o.isSet) out.add(v)
+                    }
+                    JSArray.of(f.realm.arrayPrototype, out.toTypedArray())
+                }
+                else -> Undefined
+            }
+        }
         fn("isClass", 1) { _, _, a, _ -> (a.arg(0) as? JSClosure)?.code?.isClassConstructor == true }
         // the engine's class name of an object, for what has no constructor to name it
         fn("className", 1) { _, _, a, _ -> (a.arg(0) as? JSObject)?.className ?: "Object" }

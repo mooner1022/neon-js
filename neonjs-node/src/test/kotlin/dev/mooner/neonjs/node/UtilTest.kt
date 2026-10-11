@@ -49,6 +49,23 @@ class UtilTest {
             assertEquals("'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\n' +\n  'yyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\\n' +\n  'z'",
                 c.str("inspect('x'.repeat(30) + '\\n' + 'y'.repeat(30) + '\\n' + 'z', { breakLength: 40 })"))
             assertEquals("[ [ 1, [ 2, [Array] ] ], { a: { b: [Object] } } ]", c.str("inspect([[1, [2, [3, [4]]]], { a: { b: { c: {} } } }])"))
+            // iterators show what they have left (without advancing), weak collections their entries with showHidden
+            assertEquals(
+                "[Map Entries] { [ 2, 'b' ] }|[Set Iterator] { 1, 2 }|[Map Iterator] { 1, 2 }|WeakMap { <items unknown> }|" +
+                    "WeakSet { { k: 1 } }|WeakMap { { k: 1 } => 'v' }|[ 1, [length]: 1 ]|[ 1, foo: 2 ]|1",
+                c.str("""
+                    const m = new Map([[1, 'a'], [2, 'b']]); const it = m.entries(); it.next();
+                    const k = { k: 1 }, ws = new WeakSet([k]), wm = new WeakMap([[k, 'v']]);
+                    [inspect(it), inspect(new Set([1, 2]).values()), inspect(m.keys()), inspect(new WeakMap()), inspect(ws, { showHidden: true }),
+                     inspect(wm, { showHidden: true }), inspect([1], { showHidden: true }), inspect(Object.assign([1], { foo: 2 })), it.next().value[0] - 1].join('|')
+                """))
+            // an error whose frames repeat its cause's has them folded
+            assertEquals("1", c.str("""
+                function inner() { return new Error('inner') }
+                function outer() { return new Error('outer', { cause: inner() }) }
+                function a() { return b() } function b() { return c2() } function c2() { return d() } function d() { return outer() }
+                String(inspect(a()).split('\n').filter((l) => l.includes('lines matching cause stack trace')).length)
+            """))
             assertTrue(c.str("inspect(Array.from({ length: 120 }, (_, i) => i))").endsWith("... 20 more items\n]"))
             // an object too long for one line goes one property a line
             assertEquals("{\n  alpha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',\n  beta: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',\n  gamma: 'cccccccccccccccccccccccccccccccccccccccc'\n}",
