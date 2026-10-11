@@ -196,8 +196,12 @@ internal class Binding(private val rt: NodeRuntime) {
             }
             Undefined
         }
-        // Node parses .env content natively; not here yet
-        fn("parseEnv", 1) { _, _, _, _ -> throw rt.nodeError(ErrorKind.ERROR, "util.parseEnv is not available in NeonJS", "ERR_UNAVAILABLE") }
+        // Node's .env parser (a string: util.parseEnv validated it), into an object without prototype as Node's
+        fn("parseEnv", 1) { _, _, a, _ ->
+            val o = JSObject(null)
+            for ((k, v) in DotEnv.parse(Ops.toString(a.arg(0)))) o.createDataProperty(k, v)
+            o
+        }
         return u
     }
 

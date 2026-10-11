@@ -46,8 +46,8 @@ dealings in these Data Files or Software without prior written
 authorization of the copyright holder.
 
 This product includes software derived from Node.js (https://nodejs.org), release v26.11.1: the
-JavaScript libraries of neonjs-node (dev/mooner/neonjs/node/lib) port parts of its lib sources,
-distributed under the following licenses.
+JavaScript libraries of neonjs-node (dev/mooner/neonjs/node/lib) port parts of its lib sources, and
+its DotEnv ports src/node_dotenv.cc, distributed under the following licenses.
 
 Copyright Node.js contributors. All rights reserved.
 

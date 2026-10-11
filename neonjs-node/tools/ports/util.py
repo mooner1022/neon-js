@@ -1,4 +1,4 @@
-NOTE = "call sites and promise handling come from the engine (binding.util); parseEnv is not here yet"
+NOTE = "call sites, promise handling and parseEnv come from the engine (binding.util)"
 REPLACEMENTS = [
     # `binding` is the libraries' argument here: Node's internalBinding('util') is its util part
     ("const binding = internalBinding('util');", "const utilBinding = binding.util;"),

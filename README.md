@@ -389,9 +389,9 @@ take their web paths (fetch and WebSocket, from `neonjs-net`).
 
 | Module | What it is |
 |---|---|
-| `assert`, `assert/strict`, `events`, `path` (`posix`, `win32`), `querystring`, `stream` (`promises`, `consumers`), `string_decoder`, `url`, `util` (`inspect`, `format`, `types`, `promisify`, `deprecate`, `parseArgs`, `MIMEType`, `diff`, `getCallSites`…) | Node 26.11's own JavaScript, ported with few changes (`tools/port_node.py`); what V8 or C++ gives Node comes from the engine (`util.types`, promise and proxy details, call sites, IDNA, the string decoder) |
+| `assert`, `assert/strict`, `events`, `path` (`posix`, `win32`), `querystring`, `stream` (`promises`, `consumers`), `string_decoder`, `url`, `util` (`inspect`, `format`, `types`, `promisify`, `deprecate`, `parseArgs`, `parseEnv`, `MIMEType`, `diff`, `getCallSites`…) | Node 26.11's own JavaScript, ported with few changes (`tools/port_node.py`); what V8 or C++ gives Node comes from the engine (`util.types`, promise and proxy details, call sites, IDNA, the string decoder, the `.env` parser) |
 | `buffer` | Node 26's API and errors over the engine's typed arrays (`allocUnsafe` is zeroed) |
-| `process` | `env`, `argv`, `cwd`, `platform` from `NodeOptions` (nothing of the host's environment otherwise); `nextTick`; `exit` ends the evaluation (`NodeOptions.onExit`), never the host; `'uncaughtException'` / `'unhandledRejection'` / `'warning'` listeners and the exception capture callbacks; `getBuiltinModule`, `finalization`, `ref` / `unref`; `stdout` / `stderr` to the console sink |
+| `process` | `env`, `argv`, `cwd`, `platform` from `NodeOptions` (nothing of the host's environment otherwise; `DotEnv.parse(text)` reads a `.env` file's text as Node does, for `NodeOptions.builder().env(...)`, since `process.loadEnvFile` has no file system to read); `nextTick`; `exit` ends the evaluation (`NodeOptions.onExit`), never the host; `'uncaughtException'` / `'unhandledRejection'` / `'warning'` listeners and the exception capture callbacks; `getBuiltinModule`, `finalization`, `ref` / `unref`; `stdout` / `stderr` to the console sink |
 | `timers`, `timers/promises` | over the web globals' timers (`maxTimers` applies) |
 | `crypto` | hashes and HMACs (`createHash`, `createHmac`, `hash`; also as Transform streams), `randomBytes` / `randomInt` / `randomUUID`, `timingSafeEqual`, `webcrypto`; ciphers, signatures and keys are not there |
 | `zlib` | Node's own `lib/zlib.js` over java.util.zip: the streams (`createGzip`, `createInflate`…), the one-shot functions (`inflateSync`, `gunzip`…) and constants; output bounded by `maxOutputLength` and the allocation limit; no Brotli, Zstandard or ZIP archives |
@@ -403,7 +403,7 @@ take their web paths (fetch and WebSocket, from `neonjs-net`).
 
 `NodeOptions.platform` is the host's (`android`, `win32`, `darwin`, `linux`) unless the host names one, and gives
 `path`, `url` and `os` their POSIX or Windows rules, as Node's does; `cwd` defaults to that platform's root (`C:\` or
-`/`), never the host's working directory. Not there: `vm`, Brotli, Zstandard, ZIP archives, the web's streams (`stream/web`, `Readable.toWeb`), `AsyncLocalStorage` and async hooks, `util.parseEnv`, source maps,
+`/`), never the host's working directory. Not there: `vm`, Brotli, Zstandard, ZIP archives, the web's streams (`stream/web`, `Readable.toWeb`), `AsyncLocalStorage` and async hooks, source maps,
 `node:test`, `Error.prepareStackTrace`, `path.matchesGlob` (Node's minimatch), and unref'd `setImmediate` timing
 exactly as Node's. `util.inspect` runs guest code as Node does (`[util.inspect.custom]`, getters with `getters: true`),
 and so does `console` by default, formatting with `util.format` and `util.inspect` as Node's console does;

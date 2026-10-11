@@ -1,4 +1,4 @@
-// Ported from Node.js v26.11.1 lib/util.js (MIT license, see NOTICE); call sites and promise handling come from the engine (binding.util); parseEnv is not here yet.
+// Ported from Node.js v26.11.1 lib/util.js (MIT license, see NOTICE); call sites, promise handling and parseEnv come from the engine (binding.util).
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a

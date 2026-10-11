@@ -247,4 +247,31 @@ class UtilTest {
             """))
         }
     }
+    // expectations checked against Node v26.11.1 (and DotEnv against its util.parseEnv on Node's own .env fixtures
+    // and 4,000 random texts)
+    @Test
+    fun parseEnv() {
+        ctx().use { c ->
+            assertEquals(
+                """["BACKTICK","BASIC","CRLF","DOUBLE","EMPTY","EXPORTED","INLINE","LAST","MULTI","SINGLE","SPACED","UNCLOSED"]""" +
+                    """{"BACKTICK":"keep\\n","BASIC":"basic","CRLF":"yes","DOUBLE":"expand\nnewlines","EMPTY":"","EXPORTED":"yes",""" +
+                    """"INLINE":"value","LAST":"end","MULTI":"line one\nline two","SINGLE":"quoted # not a comment",""" +
+                    """"SPACED":"inner  spaces","UNCLOSED":"\"rest of line"},true,ERR_INVALID_ARG_TYPE""",
+                c.str("""
+                    const { parseEnv } = require('util');
+                    const text = [
+                      '# comment', 'BASIC=basic', 'export EXPORTED = yes ', 'SPACED =   inner  spaces  ', 'INLINE=value # comment',
+                      'EMPTY=', "SINGLE='quoted # not a comment'", 'DOUBLE="expand\\nnewlines"', 'BACKTICK=`keep\\n`',
+                      'MULTI="line one', 'line two"', 'UNCLOSED="rest of line', 'NO_EQUALS_LINE', '=no key', 'CRLF=yes\r', 'LAST=end',
+                    ].join('\n');
+                    const r = parseEnv(text);
+                    let code;
+                    try { parseEnv(1) } catch (e) { code = e.code }
+                    JSON.stringify(Object.keys(r)) + JSON.stringify(r) + ',' + [Object.getPrototypeOf(r) === null, code].join()
+                """),
+            )
+        }
+        // names in code point order, as Node's (UTF-8) order: U+E000 before U+1F600
+        assertEquals(listOf("A", "B", "\uE000", "\uD83D\uDE00"), DotEnv.parse("\uD83D\uDE00=1\n\uE000=2\nB=3\nA=4").keys.toList())
+    }
 }
