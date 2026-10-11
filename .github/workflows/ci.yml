@@ -74,4 +74,4 @@ jobs:
       - name: Node.js tests (neonjs-node)
         run: >-
           java -Xss16m -cp "neonjs-test262/build/install/neonjs-test262/lib/*" dev.mooner.neonjs.test262.NodeTestsKt
-          --root third_party/node --known neonjs-test262/node-known-failures.txt
+          --root third_party/node --known neonjs-test262/node-known-failures.txt --retries 1

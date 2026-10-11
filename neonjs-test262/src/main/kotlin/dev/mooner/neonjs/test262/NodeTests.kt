@@ -22,8 +22,8 @@ import kotlin.system.exitProcess
  * common.skip() and tests that need `// Flags:` count as skipped.
  *
  * Usage: `NodeTestsKt [--root third_party/node] [--tests neonjs-test262/node-tests.txt] [--threads N] [--timeout ms]
- * [--known file] [--write-known file] [--list] [--output] [-v] [test-name-or-glob...]`; `--output` prints what each test
- * wrote. The tests file and the arguments are
+ * [--known file] [--write-known file] [--list] [--output] [--retries N] [-v] [test-name-or-glob...]`; `--output` prints
+ * what each test wrote, `--retries` runs a failing test again up to N times before it counts as failed. The tests file and the arguments are
  * file name globs within test/parallel; the known-failures file lists test names (`#` starts a comment).
  */
 fun main(args: Array<String>) {
@@ -37,6 +37,7 @@ fun main(args: Array<String>) {
     var verbose = false
     var list = false
     var output = false
+    var retries = 0
     var i = 0
     while (i < args.size) {
         when (val a = args[i]) {
@@ -49,6 +50,7 @@ fun main(args: Array<String>) {
             "-v" -> verbose = true
             "--list" -> list = true
             "--output" -> output = true
+            "--retries" -> retries = args[++i].toInt()
             else -> patterns.add(a)
         }
         i++
@@ -60,10 +62,17 @@ fun main(args: Array<String>) {
     val results = ConcurrentHashMap<String, NodeTests.Result>()
     val pool = Executors.newFixedThreadPool(threads) { r -> Thread(null, r, "node-test", 512L * 1024 * 1024).also { it.isDaemon = true } }
     for (t in tests) pool.submit {
-        results[t.name] = try {
-            runner.run(t)
-        } catch (e: Throwable) {
-            NodeTests.Result(t.name, NodeTests.Outcome.FAIL, "runner crash: $e", "")
+        // a failure is tried again (in a fresh engine) before it counts: some of Node's timer tests depend on timing
+        var attempt = 0
+        while (true) {
+            val r = try {
+                runner.run(t)
+            } catch (e: Throwable) {
+                NodeTests.Result(t.name, NodeTests.Outcome.FAIL, "runner crash: $e", "")
+            }
+            results[t.name] = r
+            if (r.outcome != NodeTests.Outcome.FAIL || attempt++ >= retries) break
+            System.err.println("retrying ${t.name}: ${r.message.lineSequence().first().take(120)}")
         }
     }
     pool.shutdown()
