@@ -9,11 +9,32 @@ import kotlin.math.floor
 
 /**
  * The `console` namespace object. All formatting is done by [Inspector], which never calls back into guest code,
- * so logging an object cannot trigger getters, proxies or toString overrides.
+ * so logging an object cannot trigger getters, proxies or toString overrides, unless an engine module gives the
+ * realm a [Formatter] of its own ([setFormatter]; neonjs-node's formats as Node's console does).
  */
 object ConsoleBuiltins {
     /** Upper bound for a single message, so a script cannot make the host buffer unbounded output in one call. */
     const val MAX_MESSAGE = 1 shl 20
+
+    private const val FORMATTER = "%ConsoleFormatter%"
+
+    /** How a realm's console turns its arguments into text, in place of the core's. */
+    interface Formatter {
+        /** The text of `console.log(...args)` and the other methods that format their arguments. */
+        fun format(args: Array<Any?>): String
+
+        /** The text of `console.dir(value, options)`. */
+        fun inspect(value: Any?, options: Any?): String
+    }
+
+    /**
+     * Makes [realm]'s console format with [formatter] (null: the core's again). For engine modules: a formatter that
+     * runs guest code (custom inspection, getters) takes away the console's guarantee that logging runs none.
+     */
+    @JvmStatic
+    fun setFormatter(realm: Realm, formatter: Formatter?) {
+        if (formatter == null) realm.intrinsicsAny.remove(FORMATTER) else realm.intrinsicsAny[FORMATTER] = formatter
+    }
 
     private class State(val sink: NeonConsole) {
         var indent = 0
@@ -36,6 +57,7 @@ object ConsoleBuiltins {
             console.defineOwn(name, NativeFunction(realm, name, length, { _, _, a, _ -> impl(a); Undefined }), Attr.ALL)
         }
         fun label(a: Array<Any?>): String = if (a.isEmpty() || a[0] === Undefined) "default" else Ops.toString(a[0])
+        fun format(args: Array<Any?>): String = (realm.intrinsicsAny[FORMATTER] as Formatter?)?.format(args) ?: ConsoleBuiltins.format(args)
 
         def("log", 0) { emit(Level.LOG, format(it)) }
         def("info", 0) { emit(Level.INFO, format(it)) }
@@ -46,7 +68,10 @@ object ConsoleBuiltins {
             val head = if (it.isEmpty()) "Trace" else "Trace: " + format(it)
             emit(Level.ERROR, head + "\n" + realm.agent.captureStack().trimEnd())
         }
-        def("dir", 0) { emit(Level.LOG, Inspector.inspect(it.arg(0))) }
+        def("dir", 0) {
+            val f = realm.intrinsicsAny[FORMATTER] as Formatter?
+            emit(Level.LOG, f?.inspect(it.arg(0), it.arg(1)) ?: Inspector.inspect(it.arg(0)))
+        }
         def("assert", 0) {
             if (!Ops.toBoolean(it.arg(0))) {
                 val rest = it.copyOfRange(minOf(1, it.size), it.size)

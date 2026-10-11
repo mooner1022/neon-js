@@ -335,8 +335,8 @@ parses generic signatures and compares Methods in native code:
   `ServiceLoader`); the provider is installed last in `Builtins.install`, so it can replace the locale-sensitive
   methods of Date, Number, BigInt, String, Array and %TypedArray%. ICU is loaded lazily on first use; non-thread-safe
   ICU objects belong to one Intl object, and shared caches hold immutable values only.
-- **`ext/`**: the console (`ConsoleBuiltins`, formatting by `Inspector`, which never runs guest code) and the opt-in
-  web globals. `WebGlobals` installs them per realm: timers (`Timers`, on one shared daemon scheduler that only posts
+- **`ext/`**: the console (`ConsoleBuiltins`, formatting by `Inspector`, which never runs guest code, unless an
+  engine module sets a realm `Formatter`, as neonjs-node does with Node's util) and the opt-in web globals. `WebGlobals` installs them per realm: timers (`Timers`, on one shared daemon scheduler that only posts
   external jobs; other APIs schedule tasks through it within the same `maxTimers` limit), `structuredClone`,
   `DOMException` and `QuotaExceededError`, base64, text codecs, and one file per API family: `Events` (Event,
   EventTarget, event handler attributes), `Abort`, `Performance`, `Crypto`, `Blob` (Blob, File), `FormData`,
