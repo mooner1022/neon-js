@@ -240,6 +240,7 @@ const common = {
   getBufferSources,
   getCallSites,
   getTTYfd: () => -1,
+  // node:crypto has hashes, HMACs and random numbers but not the keys, ciphers and streams Node's tests of it use
   hasCrypto: false,
   hasIntl: typeof Intl === 'object',
   hasIPv6: false,

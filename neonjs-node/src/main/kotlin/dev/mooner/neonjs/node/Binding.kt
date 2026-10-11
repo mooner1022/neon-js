@@ -127,6 +127,7 @@ internal class Binding(private val rt: NodeRuntime) {
         // ---------------- modules
         b.defineOwn("buffer", BufferBinding.create(realm), Attr.NONE)
         b.defineOwn("stringDecoder", StringDecoderBinding.create(rt), Attr.NONE)
+        b.defineOwn("crypto", CryptoBinding.create(realm), Attr.NONE)
         b.defineOwn("types", Types.create(realm), Attr.NONE)
         // ---------------- url: the engine's IDNA
         fn("toASCII", 1) { _, _, a, _ -> WebGlobals.domainToAscii(Ops.toString(a.arg(0))) ?: "" }

@@ -286,6 +286,9 @@ E('ERR_ACCESS_DENIED',
   },
   Error);
 E('ERR_AMBIGUOUS_ARGUMENT', 'The "%s" argument is ambiguous. %s', TypeError);
+E('ERR_CRYPTO_HASH_FINALIZED', 'Digest already called', Error);
+E('ERR_CRYPTO_HASH_UPDATE_FAILED', 'Hash update failed', Error);
+E('ERR_CRYPTO_INVALID_DIGEST', 'Invalid digest: %s', TypeError);
 E('ERR_ARG_NOT_ITERABLE', '%s must be iterable', TypeError);
 E('ERR_ASSERTION', '%s', Error);
 E('ERR_BUFFER_OUT_OF_BOUNDS',
@@ -552,6 +555,7 @@ E('ERR_USE_AFTER_CLOSE', '%s was closed', Error);
 // the codes Node defines in C++ (src/node_errors.h)
 E('ERR_STRING_TOO_LONG', (max) => `Cannot create a string longer than 0x${NumberPrototypeToString(max, 16)} characters`, Error);
 E('ERR_ZLIB_INITIALIZATION_FAILED', 'Initialization failed', Error);
+E('ERR_CRYPTO_TIMING_SAFE_EQUAL_LENGTH', 'Input buffers must have the same byte length', RangeError);
 
 // NeonJS's own: what the sandbox does not provide
 E('ERR_UNAVAILABLE', (what) => `${what} is not available in NeonJS`, Error);
