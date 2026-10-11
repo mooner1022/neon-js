@@ -24,6 +24,26 @@ const kIsEncodingSymbol = Symbol('kIsEncodingSymbol');
 const encodingsMap = { __proto__: null };
 for (let i = 0; i < binding.stringDecoder.encodings.length; ++i) encodingsMap[binding.stringDecoder.encodings[i]] = i;
 
+// output joined by separator (Node's join)
+function join(output, separator) {
+  let str = '';
+  if (output.length !== 0) {
+    const lastIndex = output.length - 1;
+    for (let i = 0; i < lastIndex; i++) {
+      str += output[i];
+      str += separator;
+    }
+    str += output[lastIndex];
+  }
+  return str;
+}
+
+const colorRegExp = /\u001b\[\d\d?m/g;
+
+function removeColors(str) {
+  return String.prototype.replace.call(str, colorRegExp, '');
+}
+
 function isError(e) {
   // an Error of another realm is still a native error
   return isNativeError(e) || e instanceof Error;
@@ -109,11 +129,13 @@ module.exports = {
   encodingsMap,
   getDeprecationWarningEmitter,
   isError,
+  join,
   kEmptyObject,
   kEnumerableProperty,
   kIsEncodingSymbol,
   normalizeEncoding,
   once,
+  removeColors,
   spliceOne,
   SymbolAsyncDispose,
   SymbolDispose,

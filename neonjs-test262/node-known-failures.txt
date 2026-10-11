@@ -32,6 +32,8 @@ test-timers-enroll-invalid-msecs.js  # uncaught: AssertionError: Expected values
 test-timers-enroll-second-time.js  # uncaught: TypeError: timers.enroll is not a function [at <anonymous> (/test/parallel/test-timers-enroll-second-time.js:12:1)]
 test-timers-immediate-queue-throw.js  # uncaught: Error: Cannot find module 'domain' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-timers-imme
 test-timers-immediate-unref-nested-once.js  # uncaught: AssertionError: function should not have been called at /test/parallel/test-timers-immediate-unref-nested-once.js:8
+test-timers-immediate-unref-simple.js  # flaky: an unref'd immediate races the loop's end (immediates go through the timer thread)
+test-timers-immediate-unref.js  # flaky: an unref'd immediate races the loop's end (immediates go through the timer thread)
 test-timers-max-duration-warning.js  # uncaught: TypeError: timers.enroll is not a function [at <anonymous> (/test/parallel/test-timers-max-duration-warning.js:39:3)]
 test-timers-promises-scheduler.js  # uncaught: AssertionError: Missing expected exception. [at <anonymous> (/test/parallel/test-timers-promises-scheduler.js:53:1)]
 test-timers-promises.js  # uncaught: Error: Cannot find module 'node:test' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-timers-p
@@ -50,10 +52,7 @@ test-util-callbackify.js  # uncaught: Error: Cannot find module 'child_process' 
 test-util-format.js  # uncaught: AssertionError: Expected values to be strictly equal:
 test-util-getcallsite.js  # uncaught: TypeError: getCallSite is not a function [at <anonymous> (/test/parallel/test-util-getcallsite.js:9:1)]
 test-util-getcallsites.js  # uncaught: Error: Cannot find module 'path' (require loads built-in and host modules only) [at <anonymous> (/test/common/fixtures.js:3:14) < 
-test-util-inspect-getters-accessing-this.js  # uncaught: AssertionError: Expected values to be strictly equal:
-test-util-inspect-long-running.js  # uncaught: Execution time limit exceeded
 test-util-log.js  # uncaught: TypeError: util.log is not a function [at <anonymous> (/test/parallel/test-util-log.js:57:3)]
 test-util-parse-env.js  # uncaught: Error: Cannot find module 'path' (require loads built-in and host modules only) [at <anonymous> (/test/common/fixtures.js:3:14) < 
-test-util-primordial-monkeypatching.js  # uncaught: Error: fhqwhgads [at <anonymous> (/test/parallel/test-util-primordial-monkeypatching.js:10:29) < at <anonymous> (/test/parallel/te
 test-util-stripvtcontrolcharacters.js  # uncaught: Error: Cannot find module 'node:test' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-util-str
 test-util-styletext.js  # uncaught: Error: Cannot find module 'node:tty' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-util-styl

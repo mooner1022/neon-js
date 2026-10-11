@@ -17,6 +17,7 @@ internal/per_context/primordials.js  primordials.js                       primor
 internal/validators.js               internal_validators.js               validators
 internal/util/colors.js              internal_util_colors.js              colors
 internal/util/comparisons.js         internal_util_comparisons.js         comparisons
+internal/util/inspect.js             internal_util_inspect.js             inspect
 internal/assert.js                   internal_assert.js
 internal/assert/assertion_error.js   internal_assert_assertion_error.js
 internal/assert/myers_diff.js        internal_assert_myers_diff.js

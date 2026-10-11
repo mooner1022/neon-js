@@ -127,6 +127,8 @@ internal class Binding(private val rt: NodeRuntime) {
         b.defineOwn("buffer", BufferBinding.create(realm), Attr.NONE)
         b.defineOwn("stringDecoder", StringDecoderBinding.create(rt), Attr.NONE)
         b.defineOwn("types", Types.create(realm), Attr.NONE)
+        // whether node:[id] is a built-in module (inspect dims their frames)
+        fn("builtinExists", 1) { f, _, a, _ -> dev.mooner.neonjs.vm.Modules.builtin(f.realm, "node:" + Ops.toString(a.arg(0))) != null }
         // the libraries' own modules (lib/internal_<name>.js), which scripts cannot require
         fn("internal", 1) { _, _, a, _ -> rt.internal(Ops.toString(a.arg(0))) }
         return b

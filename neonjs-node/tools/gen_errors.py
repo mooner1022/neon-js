@@ -211,6 +211,22 @@ const genericNodeError = hideStackFrames(function genericNodeError(message, erro
 
 const kEnhanceStackBeforeInspector = Symbol('kEnhanceStackBeforeInspector');
 
+// whether err is the engine's "Maximum call stack size exceeded" (found out once, by overflowing the stack)
+let maxStack_ErrorName;
+let maxStack_ErrorMessage;
+function isStackOverflowError(err) {{
+  if (maxStack_ErrorMessage === undefined) {{
+    try {{
+      function overflowStack() {{ overflowStack(); }}
+      overflowStack();
+    }} catch (err) {{
+      maxStack_ErrorMessage = err.message;
+      maxStack_ErrorName = err.name;
+    }}
+  }}
+  return err && err.name === maxStack_ErrorName && err.message === maxStack_ErrorMessage;
+}}
+
 // a coded error with a message of its own, as Node's native code throws them ("Index out of range")
 function makeError(Base, code, message) {{
   const err = new Base(message);
@@ -247,6 +263,7 @@ module.exports = {{
   genericNodeError,
   hideStackFrames,
   isErrorStackTraceLimitWritable,
+  isStackOverflowError,
   kEnhanceStackBeforeInspector,
   kIsNodeError,
   makeError,
