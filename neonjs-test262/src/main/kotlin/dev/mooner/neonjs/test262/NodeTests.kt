@@ -185,11 +185,14 @@ class NodeTests(val root: File, val timeoutMs: Long) {
             f.readText()
         }
         val body = if (src.startsWith("#!")) "//" + src else src
-        return c.eval("(function (exports, require, module, __filename, __dirname, process) { $body\n})", "/$path")
+        // a test that declares its own process (const process = require('process')) gets no parameter of that name
+        val params = if (OWN_PROCESS.containsMatchIn(src)) "exports, require, module, __filename, __dirname" else "exports, require, module, __filename, __dirname, process"
+        return c.eval("(function ($params) { $body\n})", "/$path")
     }
 
     companion object {
         private val FLAGS = Regex("""^// Flags:(.*)$""", RegexOption.MULTILINE)
+        private val OWN_PROCESS = Regex("""^(const|let) process\b""", RegexOption.MULTILINE)
 
         /** Flags that change nothing the tests check here. */
         private val HARMLESS_FLAGS = setOf("--no-warnings", "--no-deprecation")
