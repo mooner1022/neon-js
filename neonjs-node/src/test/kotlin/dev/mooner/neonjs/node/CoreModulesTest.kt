@@ -256,4 +256,28 @@ class CoreModulesTest {
             assertEquals("exit", c.eval("fin.join()").asString())
         }
     }
+    // expectations checked against Node v26.11.1
+    @Test
+    fun asyncHooksWithoutTracking() {
+        ctx().use { c ->
+            // every module of node:events, as an ES module: EventEmitterAsyncResource is node:async_hooks' AsyncResource
+            val ns = c.evalModule("""
+                import * as events from 'node:events';
+                import { AsyncResource, AsyncLocalStorage, createHook } from 'node:async_hooks';
+                const r = new AsyncResource('X');
+                const bound = AsyncResource.bind(function f(a, b) { return [this.k, a, b].join('-') });
+                const ee = new events.EventEmitterAsyncResource({ name: 'E' });
+                const codes = [];
+                for (const f of [() => new AsyncResource(1), () => r.bind(1), () => new AsyncResource('X', { triggerAsyncId: -2 }),
+                                 () => new AsyncLocalStorage(), () => createHook({})]) {
+                    try { f() } catch (e) { codes.push(e.code) }
+                }
+                export const out = [typeof events.EventEmitter, typeof r.asyncId(), r.emitDestroy() === r, bound.length, bound.name,
+                    bound.call({ k: 1 }, 2, 3), r.runInAsyncScope(function (x) { return this.v + x }, { v: 9 }, 8),
+                    typeof ee.asyncId, ee.asyncResource.constructor.name, codes.join(' ')].join();
+            """, "m.mjs")
+            assertEquals("function,number,true,2,bound,1-2-3,17,number,EventEmitterReferencingAsyncResource," +
+                "ERR_INVALID_ARG_TYPE ERR_INVALID_ARG_TYPE ERR_INVALID_ASYNC_ID ERR_UNAVAILABLE ERR_UNAVAILABLE", ns.getMember("out").toString())
+        }
+    }
 }

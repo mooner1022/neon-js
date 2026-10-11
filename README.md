@@ -376,11 +376,12 @@ take their web paths (fetch and WebSocket, from `neonjs-net`).
 | `os` | the platform and architecture, `process.env`'s `HOME` / `TMPDIR`, the engine's memory; neutral values for the rest (never the host's) |
 | `http`, `https` | `STATUS_CODES`, `METHODS`, header checks; requests and servers load but are not available (fetch is the network) |
 | `fs`, `fs/promises`, `child_process`, `net` (`isIP`), `tls`, `dns`, `worker_threads` | load, so that a library importing them still loads; their functions say `ERR_UNAVAILABLE` when used (`fs.existsSync` finds nothing, `isMainThread` is true) |
+| `async_hooks` | `AsyncResource` (and `events`' `EventEmitterAsyncResource`) as with no hook enabled; no asynchronous resources are tracked, so `AsyncLocalStorage`, `createHook` and the current ids say `ERR_UNAVAILABLE` |
 | `module` | `builtinModules`, `isBuiltin`, `createRequire` |
 
 `NodeOptions.platform` is the host's (`android`, `win32`, `darwin`, `linux`) unless the host names one, and gives
 `path`, `url` and `os` their POSIX or Windows rules, as Node's does; `cwd` defaults to that platform's root (`C:\` or
-`/`), never the host's working directory. Not there: `vm`, Brotli, Zstandard, ZIP archives, the web's streams (`stream/web`, `Readable.toWeb`), `async_hooks`, `util.parseEnv`, source maps,
+`/`), never the host's working directory. Not there: `vm`, Brotli, Zstandard, ZIP archives, the web's streams (`stream/web`, `Readable.toWeb`), `AsyncLocalStorage` and async hooks, `util.parseEnv`, source maps,
 `node:test`, `Error.prepareStackTrace`, `path.matchesGlob` (Node's minimatch), and unref'd `setImmediate` timing
 exactly as Node's. `util.inspect` runs guest code as Node does (`[util.inspect.custom]`, getters with `getters: true`),
 and so does `console` by default, formatting with `util.format` and `util.inspect` as Node's console does;

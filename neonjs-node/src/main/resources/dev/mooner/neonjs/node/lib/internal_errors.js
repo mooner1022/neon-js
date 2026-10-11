@@ -607,6 +607,7 @@ E('ERR_INVALID_ARG_VALUE', (name, value, reason = 'is invalid') => {
   const type = StringPrototypeIncludes(name, '.') ? 'property' : 'argument';
   return `The ${type} '${name}' ${reason}. Received ${inspected}`;
 }, TypeError, RangeError, HideStackFramesError);
+E('ERR_INVALID_ASYNC_ID', 'Invalid %s value: %s', RangeError);
 E('ERR_INVALID_BUFFER_SIZE',
   'Buffer size must be a multiple of %s', RangeError);
 E('ERR_INVALID_CHAR',

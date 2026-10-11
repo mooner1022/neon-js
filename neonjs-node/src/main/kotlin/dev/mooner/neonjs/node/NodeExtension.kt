@@ -169,7 +169,7 @@ internal class NodeRuntime(@JvmField val realm: Realm, @JvmField val options: No
         const val KEY = "%Node%"
         /** The built-in modules written in JS (resources lib/<name>.js). */
         private val JS_MODULES = listOf(
-            "assert", "assert/strict", "buffer", "child_process", "crypto", "dns", "dns/promises", "events", "fs", "fs/promises", "http",
+            "assert", "assert/strict", "async_hooks", "buffer", "child_process", "crypto", "dns", "dns/promises", "events", "fs", "fs/promises", "http",
             "https", "net", "os", "path", "path/posix", "path/win32", "process", "querystring", "stream", "stream/consumers",
             "stream/promises", "stream/web", "string_decoder", "timers", "timers/promises", "tls", "url", "util",
             "worker_threads", "zlib",
