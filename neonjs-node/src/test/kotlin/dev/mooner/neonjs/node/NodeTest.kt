@@ -43,6 +43,33 @@ class NodeTest {
         }
     }
 
+    /**
+     * The native objects the libraries keep where a script can reach them (a Timeout's task, a Hash's digest, a
+     * StringDecoder's state is a Buffer) are opaque: no properties, no prototype, nothing to call.
+     */
+    @Test
+    fun nativeHandlesAreOpaque() {
+        ctx().use { c ->
+            assertEquals("ok", c.eval("""
+                const handles = [];
+                const t = setTimeout(() => {}, 1000);
+                handles.push(t._handle);
+                clearTimeout(t);
+                const h = require('crypto').createHash('sha256');
+                for (const s of Object.getOwnPropertySymbols(h)) if (typeof h[s] === 'object' && h[s] !== null) handles.push(h[s]);
+                const hm = require('crypto').createHmac('sha1', 'k');
+                for (const s of Object.getOwnPropertySymbols(hm)) if (typeof hm[s] === 'object' && hm[s] !== null) handles.push(hm[s]);
+                if (handles.length < 3) throw new Error('found ' + handles.length);
+                for (const x of handles) {
+                    if (typeof x !== 'object' || Object.getPrototypeOf(x) !== null || Reflect.ownKeys(x).length !== 0) {
+                        throw new Error('not opaque: ' + Object.prototype.toString.call(x));
+                    }
+                }
+                'ok'
+            """).asString())
+        }
+    }
+
     @Test
     fun needsTheWebGlobals() {
         val e = assertThrows<IllegalStateException> { NeonEngine.builder().console(null).extension(NodeExtension()).build().newContext() }

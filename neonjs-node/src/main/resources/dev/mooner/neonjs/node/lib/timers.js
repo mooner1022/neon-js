@@ -2,6 +2,7 @@
 // node:timers, which are also the global setTimeout family when the module is installed: Timeout and Immediate
 // objects (ref, unref, hasRef, refresh, a number as their primitive) over the realm's timers, within maxTimers.
 
+const ReflectApply = Reflect.apply;
 const TIMEOUT_MAX = 2 ** 31 - 1;
 const kRefed = Symbol('refed');
 const byId = new Map();
@@ -50,7 +51,8 @@ class Timeout {
       byId.delete(this._id);
     }
     try {
-      this._onTimeout.apply(this, this._timerArgs);
+      // Reflect.apply: the callback's own call and apply may be anything
+      ReflectApply(this._onTimeout, this, this._timerArgs);
     } finally {
       // an interval goes on after an exception in its callback, as in Node
       if (this._repeat !== null && !this._destroyed) {
@@ -113,7 +115,7 @@ class Immediate {
     if (this._destroyed) return;
     this._destroyed = true;
     this._handle = undefined;
-    this._onImmediate.apply(this, this._argv);
+    ReflectApply(this._onImmediate, this, this._argv);
   }
 
   ref() {

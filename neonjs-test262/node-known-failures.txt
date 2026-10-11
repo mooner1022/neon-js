@@ -45,7 +45,6 @@ test-timers-unref-remove-other-unref-timers-only-one-fires.js  # uncaught: TypeE
 test-timers-unref-remove-other-unref-timers.js  # uncaught: TypeError: timers.enroll is not a function [at <anonymous> (/test/parallel/test-timers-unref-remove-other-unref-timers.js:23:1)]
 test-timers-unrefed-in-beforeexit.js  # exit code 1: Mismatched <anonymous> function calls. Expected exactly 1, actual 0. /     at <anonymous> (/test/parallel/test-timers-unrefed-i
 test-timers-unrefed-in-callback.js  # uncaught: Error: net.createServer is not available in NeonJS [at Test1 (/test/parallel/test-timers-unrefed-in-callback.js:28:18) < at <anony
-test-timers-user-call.js  # uncaught: TypeError: this._onImmediate.apply is not a function; uncaught: TypeError: this._onImmediate.apply is not a function; uncaught: Ty
 test-url-parse-invalid-input.js  # uncaught: Error: child processes is not available when running Node's tests on NeonJS [at <anonymous> (/test/common/index.js:223:11) < at <a
 test-url-revokeobjecturl.js  # uncaught: AssertionError: Expected values to be strictly deep-equal:
 test-util-callbackify.js  # uncaught: Error: child_process.execFile is not available in NeonJS [at <anonymous> (/test/parallel/test-util-callbackify.js:218:3)]

@@ -14,6 +14,8 @@ const { isDeepStrictEqual } = require('internal/util/comparisons');
 const { deprecate } = require('internal/util');
 const typeChecks = require('internal/util/types');
 
+const FunctionPrototypeBind = Function.prototype.call.bind(Function.prototype.bind);
+
 let processModule;
 function lazyProcess() {
   if (processModule === undefined) processModule = require('process');
@@ -78,7 +80,8 @@ function callbackify(original) {
   function callbackified(...args) {
     const maybeCb = args.pop();
     validateFunction(maybeCb, 'last argument');
-    const cb = maybeCb.bind(this);
+    // the builtin bind: the callback's own may be anything
+    const cb = FunctionPrototypeBind(maybeCb, this);
     const process = lazyProcess();
     Reflect.apply(original, this, args).then(
       (ret) => process.nextTick(cb, null, ret),
