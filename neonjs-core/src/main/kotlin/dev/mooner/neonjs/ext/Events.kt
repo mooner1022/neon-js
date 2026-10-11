@@ -83,6 +83,8 @@ internal object Events {
         @JvmField val passive: Boolean, @JvmField val once: Boolean,
     ) {
         @JvmField var removed = false
+        /** Called even after stopImmediatePropagation (Node's kResistStopPropagation, for its own abort listeners). */
+        @JvmField var resistStopPropagation = false
         /** For the listener of an event handler attribute: the target and the attribute's name. */
         @JvmField var handlerOf: Pair<JSEventTarget, String>? = null
     }
@@ -342,6 +344,7 @@ internal object Events {
             var once = false
             var passive = false
             var signal: Any? = Undefined
+            var resist = false
             if (o is JSObject) {
                 // AddEventListenerOptions: the inherited capture, then once, passive, signal
                 capture = Ops.toBoolean(o.get("capture", o))
@@ -350,11 +353,13 @@ internal object Events {
                 passive = p !== Undefined && Ops.toBoolean(p)
                 signal = o.get("signal", o)
                 if (signal !== Undefined) signal = Abort.signalOf(signal)
+                resist = Ops.toBoolean(o.get(realm.agent.symbolRegistry.getOrPut(RESIST_STOP_PROPAGATION) { JSSymbol(RESIST_STOP_PROPAGATION, RESIST_STOP_PROPAGATION) }, o))
             } else capture = Ops.toBoolean(o)
             if (callback == null) return@operation Undefined
             val s = signal as? Abort.JSAbortSignal
             if (s != null && s.aborted) return@operation Undefined
             val l = Listener(type, callback, capture, passive, once)
+            l.resistStopPropagation = resist
             et.addListener(l)
             s?.addAlgorithm { et.removeListener(l) }
             Undefined
@@ -411,10 +416,18 @@ internal object Events {
         return !e.canceled
     }
 
+    /**
+     * The registered symbol (`Symbol.for`) of the listener option that keeps a listener called after
+     * stopImmediatePropagation: Node's own listeners (`events.once`'s abort listener) are, on Node's EventTarget.
+     */
+    const val RESIST_STOP_PROPAGATION = "nodejs.event_target.resistStopPropagation"
+
     /** Runs the listeners of one phase; true if one stopped immediate propagation. */
     private fun invoke(realm: Realm, et: JSEventTarget, e: JSEvent, listeners: Array<Listener>, capture: Boolean): Boolean {
         for (l in listeners) {
             if (l.removed || l.type != e.type || l.capture != capture) continue
+            // after stopImmediatePropagation only the listeners that resist it
+            if (e.stopImmediatePropagation && !l.resistStopPropagation) continue
             if (l.once) et.removeListener(l)
             if (l.passive) e.inPassiveListener = true
             try {
@@ -425,9 +438,8 @@ internal object Events {
             } finally {
                 e.inPassiveListener = false
             }
-            if (e.stopImmediatePropagation) return true
         }
-        return false
+        return e.stopImmediatePropagation
     }
 
     private fun callListener(l: Listener, e: JSEvent, self: JSObject) {
