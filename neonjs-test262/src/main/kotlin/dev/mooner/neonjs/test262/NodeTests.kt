@@ -165,9 +165,12 @@ class NodeTests(val root: File, val timeoutMs: Long) {
         ""
     }
 
-    /** A test or test/common file as a module function, or null when there is none (test/common/index.js is ours). */
+    /**
+     * A test or test/common file as a module function, or null when there is none (test/common/index.js and node:test
+     * are the harness's own).
+     */
     private fun compile(c: NeonContext, path: String): Any? {
-        val src = if (path == "test/common/index.js") COMMON else {
+        val src = if (path == "test/common/index.js") COMMON else if (path == "neonjs/node-test.js") TEST_MODULE else {
             val f = File(root, path).canonicalFile
             if (!f.path.startsWith(root.canonicalPath) || !f.isFile) return null
             f.readText()
@@ -187,5 +190,6 @@ class NodeTests(val root: File, val timeoutMs: Long) {
 
         private val RUNNER = resource("node-runner.js")
         private val COMMON = resource("node-common.js")
+        private val TEST_MODULE = resource("node-test.js")
     }
 }

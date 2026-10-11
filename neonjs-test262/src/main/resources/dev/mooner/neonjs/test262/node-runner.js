@@ -29,6 +29,8 @@
       if (typeof id === 'string' && (id.startsWith('./') || id.startsWith('../') || id === '.' || id === '..')) {
         return load(resolve(dir, id));
       }
+      // node:test is the harness's own (node-test.js)
+      if (id === 'node:test') return load('neonjs/node-test.js');
       return globalThis.require(id);
     };
     req.resolve = (id) => (id.startsWith('.') ? `/${resolve(dir, id)}` : globalThis.require.resolve(id));
