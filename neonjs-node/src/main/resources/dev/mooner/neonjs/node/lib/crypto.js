@@ -248,6 +248,27 @@ function randomUUID(options) {
   return webcrypto.randomUUID();
 }
 
+// a version 7 UUID: the time in milliseconds (48 bits), then random bits, with the version and variant set
+function randomUUIDv7(options) {
+  if (options !== undefined) validateObject(options, 'options');
+  const { disableEntropyCache = false } = options || {};
+  validateBoolean(disableEntropyCache, 'options.disableEntropyCache');
+  const b = new Uint8Array(16);
+  webcrypto.getRandomValues(b);
+  const now = Date.now();
+  const msb = now / (2 ** 32);
+  b[0] = msb >>> 8;
+  b[1] = msb;
+  b[2] = now >>> 24;
+  b[3] = now >>> 16;
+  b[4] = now >>> 8;
+  b[5] = now;
+  b[6] = (b[6] & 0x0f) | 0x70;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const hex = Array.prototype.map.call(b, (x) => (x < 16 ? '0' : '') + x.toString(16)).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 function getRandomValues(data) {
   return webcrypto.getRandomValues(data);
 }
@@ -272,7 +293,8 @@ function timingSafeEqual(buf1, buf2) {
 
 const unavailable = unavailableModule('crypto', {
   functions: [
-    'checkPrime', 'checkPrimeSync', 'createCipheriv', 'createDecipheriv', 'createDiffieHellman',
+    'argon2', 'argon2Sync', 'checkPrime', 'checkPrimeSync', 'createCipheriv', 'createMac', 'decapsulate', 'encapsulate',
+    'getCipherInfo', 'getDiffieHellman', 'parsePKCS12', 'createDecipheriv', 'createDiffieHellman',
     'createDiffieHellmanGroup', 'createECDH', 'createPrivateKey', 'createPublicKey', 'createSecretKey', 'createSign',
     'createVerify', 'diffieHellman', 'generateKey', 'generateKeyPair', 'generateKeyPairSync', 'generateKeySync',
     'generatePrime', 'generatePrimeSync', 'hkdf', 'hkdfSync', 'pbkdf2', 'pbkdf2Sync', 'privateDecrypt',
@@ -294,6 +316,7 @@ module.exports = {
   getCurves: () => [],
   getFips: () => 0,
   getHashes,
+  getMacs: () => [],
   getRandomValues,
   hash,
   randomBytes,
@@ -301,11 +324,9 @@ module.exports = {
   randomFillSync,
   randomInt,
   randomUUID,
+  randomUUIDv7,
   setFips: () => {},
   subtle: webcrypto?.subtle,
   timingSafeEqual,
   webcrypto,
-  pseudoRandomBytes: randomBytes,
-  prng: randomBytes,
-  rng: randomBytes,
 };

@@ -1,9 +1,10 @@
-// Ported from Node.js v22.12.0 lib/internal/net.js (MIT license, see NOTICE); there is no file system: makeSyncWrite's writes are unavailable.
+// Ported from Node.js v26.11.1 lib/internal/net.js (MIT license, see NOTICE); there is no file system: makeSyncWrite's writes are unavailable.
 'use strict';
 
 const {
   RegExp,
   RegExpPrototypeTest,
+  StringPrototypeIndexOf,
   Symbol,
 } = primordials;
 
@@ -33,6 +34,10 @@ const IPv6Reg = new RegExp('^(?:' +
   `(?::(?:(?::${v6Seg}){0,5}:${v4Str}|(?::${v6Seg}){1,7}|:))` +
 ')(?:%[0-9a-zA-Z-.:]{1,})?$');
 
+/**
+ * @param {string} s
+ * @returns {boolean}
+ */
 function isIPv4(s) {
   // TODO(aduh95): Replace RegExpPrototypeTest with RegExpPrototypeExec when it
   // no longer creates a perf regression in the dns benchmark.
@@ -40,13 +45,26 @@ function isIPv4(s) {
   return RegExpPrototypeTest(IPv4Reg, s);
 }
 
+/**
+ * @param {string} s
+ * @returns {boolean}
+ */
 function isIPv6(s) {
+  if (typeof s === 'string') {
+    // IPv6 always contains ':'. Skip the regex for IPv4 and hostnames.
+    if (s.length < 2 || StringPrototypeIndexOf(s, ':') === -1)
+      return false;
+  }
   // TODO(aduh95): Replace RegExpPrototypeTest with RegExpPrototypeExec when it
   // no longer creates a perf regression in the dns benchmark.
   // eslint-disable-next-line node-core/avoid-prototype-pollution
   return RegExpPrototypeTest(IPv6Reg, s);
 }
 
+/**
+ * @param {string} s
+ * @returns {4|6|0}
+ */
 function isIP(s) {
   if (isIPv4(s)) return 4;
   if (isIPv6(s)) return 6;
@@ -71,11 +89,37 @@ function makeSyncWrite(fd) {
   };
 }
 
+/**
+ * https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xhtml
+ * https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml
+ * https://www.iana.org/assignments/special-use-domain-names/special-use-domain-names.xhtml
+ * @param {string} host
+ * @returns {boolean}
+ */
+function isLoopback(host) {
+  const hostLower = host.toLowerCase();
+
+  return (
+    hostLower === 'localhost' ||
+    hostLower.startsWith('127.') ||
+    hostLower === '[::1]' ||
+    hostLower === '::1' ||
+    hostLower === '[0:0:0:0:0:0:0:1]' ||
+    hostLower === '0:0:0:0:0:0:0:1'
+  );
+}
+
 module.exports = {
   kReinitializeHandle: Symbol('kReinitializeHandle'),
+  kSetNoDelay: Symbol('kSetNoDelay'),
+  kSetKeepAlive: Symbol('kSetKeepAlive'),
+  kSetKeepAliveInitialDelay: Symbol('kSetKeepAliveInitialDelay'),
+  kSetKeepAliveInterval: Symbol('kSetKeepAliveInterval'),
+  kSetKeepAliveCount: Symbol('kSetKeepAliveCount'),
   isIP,
   isIPv4,
   isIPv6,
   makeSyncWrite,
   normalizedArgsSymbol: Symbol('normalizedArgs'),
+  isLoopback,
 };

@@ -1,9 +1,9 @@
-// Ported from Node.js v22.12.0 lib/internal/streams/add-abort-signal.js (MIT license, see NOTICE).
+// Ported from Node.js v26.11.1 lib/internal/streams/add-abort-signal.js (MIT license, see NOTICE).
 'use strict';
 
 const {
   SymbolDispose,
-} = require('internal/util');
+} = primordials;
 
 const {
   AbortError,
@@ -18,7 +18,7 @@ const {
   kControllerErrorFunction,
 } = require('internal/streams/utils');
 
-const eos = require('internal/streams/end-of-stream');
+const { eos } = require('internal/streams/end-of-stream');
 let addAbortListener;
 
 // This method is inlined here for readable-stream

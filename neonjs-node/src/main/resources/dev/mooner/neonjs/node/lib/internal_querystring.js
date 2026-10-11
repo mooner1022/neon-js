@@ -1,4 +1,4 @@
-// Ported from Node.js v22.12.0 lib/internal/querystring.js (MIT license, see NOTICE).
+// Ported from Node.js v26.11.1 lib/internal/querystring.js (MIT license, see NOTICE).
 'use strict';
 
 const {

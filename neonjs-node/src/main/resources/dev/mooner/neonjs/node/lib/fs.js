@@ -11,9 +11,9 @@ const names = [
   'statfs', 'symlink', 'truncate', 'unlink', 'utimes', 'write', 'writeFile', 'writev',
 ];
 const fs = unavailableModule('fs', {
-  functions: [...names.map((n) => `${n}Sync`), 'createReadStream', 'createWriteStream', 'openAsBlob', 'watch',
-    'watchFile', 'unwatchFile'],
-  classes: ['Dir', 'Dirent', 'Stats', 'ReadStream', 'WriteStream', 'FileReadStream', 'FileWriteStream'],
+  functions: [...names.map((n) => `${n}Sync`), '_toUnixTimestamp', 'createReadStream', 'createWriteStream',
+    'mkdtempDisposableSync', 'openAsBlob', 'openAsBlobSync', 'watch', 'watchFile', 'unwatchFile'],
+  classes: ['Dir', 'Dirent', 'Stats', 'ReadStream', 'Utf8Stream', 'WriteStream', 'FileReadStream', 'FileWriteStream'],
 });
 for (const n of names) fs[n] = unavailableCallback(`fs.${n}`);
 fs.realpath.native = unavailableCallback('fs.realpath.native');
@@ -38,10 +38,6 @@ fs.constants = Object.freeze({
   UV_FS_COPYFILE_EXCL: 1, COPYFILE_EXCL: 1, UV_FS_COPYFILE_FICLONE: 2, COPYFILE_FICLONE: 2,
   UV_FS_COPYFILE_FICLONE_FORCE: 4, COPYFILE_FICLONE_FORCE: 4,
 });
-fs.F_OK = 0;
-fs.R_OK = 4;
-fs.W_OK = 2;
-fs.X_OK = 1;
 Object.defineProperty(fs, 'promises', {
   configurable: true,
   enumerable: true,

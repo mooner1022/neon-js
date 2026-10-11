@@ -1,5 +1,5 @@
 'use strict';
-// node:http without a network of its own: Node's constants and header checks (after Node v22.12.0 lib/_http_server.js,
+// node:http without a network of its own: Node's constants and header checks (after Node v26.11.1 lib/_http_server.js,
 // lib/_http_common.js and lib/_http_outgoing.js, MIT license, see NOTICE). Requests and servers are not here (fetch
 // is the network); they load, and say so when used.
 
@@ -7,6 +7,8 @@ const {
   codes: { ERR_HTTP_INVALID_HEADER_VALUE, ERR_INVALID_CHAR, ERR_INVALID_HTTP_TOKEN },
   hideStackFrames,
 } = require('internal/errors');
+const { validateObject, validateOneOf } = require('internal/validators');
+const { assignFunctionName } = require('internal/util');
 const { unavailableClass, unavailableFunction } = require('internal/unavailable');
 
 const STATUS_CODES = {
@@ -93,37 +95,61 @@ function checkIsHttpToken(val) {
   return tokenRegExp.test(val);
 }
 
-const headerCharRegex = /[^\t\x20-\x7e\x80-\xff]/;
-/**
- * True if val contains an invalid field-vchar
- *  field-value    = *( field-content / obs-fold )
- *  field-content  = field-vchar [ 1*( SP / HTAB ) field-vchar ]
- *  field-vchar    = VCHAR / obs-text
- */
-function checkInvalidHeaderChar(val) {
-  return headerCharRegex.test(val);
+// RFC 7230's field-value (the default), and the Fetch Standard's laxer header value (no NUL, CR or LF; bytes only)
+const strictHeaderCharRegex = /[^\t\x20-\x7e\x80-\xff]/;
+// eslint-disable-next-line no-control-regex
+const lenientHeaderCharRegex = /[\x00\x0a\x0d]|[^\x00-\xff]/;
+
+/** True if val contains an invalid header value character. */
+function checkInvalidHeaderChar(val, lenient = false) {
+  const regex = lenient ? lenientHeaderCharRegex : strictHeaderCharRegex;
+  return regex.test(val);
 }
 
-const validateHeaderName = hideStackFrames((name, label) => {
-  if (typeof name !== 'string' || !name || !checkIsHttpToken(name)) {
+/** Non-throwing counterpart of validateHeaderName(). */
+function isValidHeaderName(name) {
+  return typeof name === 'string' && checkIsHttpToken(name);
+}
+
+const validateHeaderName = assignFunctionName('validateHeaderName', hideStackFrames((name, label) => {
+  if (!isValidHeaderName(name)) {
     throw new ERR_INVALID_HTTP_TOKEN.HideStackFramesError(label || 'Header name', name);
   }
-});
+}));
 
-const validateHeaderValue = hideStackFrames((name, value) => {
+const kHttpValidationValues = ['strict', 'relaxed'];
+
+/** Non-throwing counterpart of validateHeaderValue(). */
+function isValidHeaderValue(value, options) {
+  let lenient = false;
+  if (options !== undefined) {
+    validateObject(options, 'options');
+    const { httpValidation } = options;
+    if (httpValidation === 'relaxed') {
+      lenient = true;
+    } else if (httpValidation !== undefined && httpValidation !== 'strict') {
+      validateOneOf(httpValidation, 'options.httpValidation', kHttpValidationValues);
+    }
+  }
+  if (value === undefined || typeof value === 'symbol') {
+    return false;
+  }
+  return !checkInvalidHeaderChar(value, lenient);
+}
+
+const validateHeaderValue = assignFunctionName('validateHeaderValue', hideStackFrames((name, value, lenient) => {
   if (value === undefined) {
     throw new ERR_HTTP_INVALID_HEADER_VALUE.HideStackFramesError(value, name);
   }
-  if (checkInvalidHeaderChar(value)) {
+  if (checkInvalidHeaderChar(value, lenient)) {
     throw new ERR_INVALID_CHAR.HideStackFramesError('header content', name);
   }
-});
+}));
 
 const maxHeaderSize = 16 * 1024;
 
 module.exports = {
-  _checkInvalidHeaderChar: checkInvalidHeaderChar,
-  _checkIsHttpToken: checkIsHttpToken,
+  _connectionListener: unavailableFunction('http._connectionListener'),
   METHODS: METHODS.toSorted(),
   STATUS_CODES,
   Agent: unavailableClass('http.Agent'),
@@ -135,10 +161,21 @@ module.exports = {
   createServer: unavailableFunction('http.createServer'),
   get: unavailableFunction('http.get'),
   request: unavailableFunction('http.request'),
+  setGlobalProxyFromEnv: unavailableFunction('http.setGlobalProxyFromEnv'),
   setMaxIdleHTTPParsers: () => {},
+  isValidHeaderName,
+  isValidHeaderValue,
   validateHeaderName,
   validateHeaderValue,
 };
+// the web's, as in Node (with neonjs-net; undefined without it)
+for (const name of ['WebSocket', 'CloseEvent', 'MessageEvent']) {
+  Object.defineProperty(module.exports, name, {
+    configurable: true,
+    enumerable: true,
+    get() { return globalThis[name]; },
+  });
+}
 Object.defineProperty(module.exports, 'maxHeaderSize', {
   configurable: true,
   enumerable: true,

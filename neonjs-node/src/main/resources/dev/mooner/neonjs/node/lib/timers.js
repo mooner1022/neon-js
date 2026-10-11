@@ -14,11 +14,22 @@ function checkCallback(callback) {
   }
 }
 
+// a negative or NaN duration warns once per process (Node 26), a too long one each time
+let warnedNegativeNumber = false;
+let warnedNotNumber = false;
+
 function delayOf(after) {
-  after = Number(after);
+  if (after === undefined) return 1;
+  after *= 1; // Coalesce to number or NaN
   if (!(after >= 1 && after <= TIMEOUT_MAX)) {
     if (after > TIMEOUT_MAX) {
       require('process').emitWarning(`${after} does not fit into a 32-bit signed integer.\nTimeout duration was set to 1.`, 'TimeoutOverflowWarning');
+    } else if (after < 0 && !warnedNegativeNumber) {
+      warnedNegativeNumber = true;
+      require('process').emitWarning(`${after} is a negative number.\nTimeout duration was set to 1.`, 'TimeoutNegativeWarning');
+    } else if (Number.isNaN(after) && !warnedNotNumber) {
+      warnedNotNumber = true;
+      require('process').emitWarning(`${after} is not a number.\nTimeout duration was set to 1.`, 'TimeoutNaNWarning');
     }
     after = 1;
   }

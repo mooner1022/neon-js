@@ -1,4 +1,4 @@
-// Ported from Node.js v22.12.0 lib/url.js (MIT license, see NOTICE); IDNA comes from the engine, and the WHATWG URL format (url.format of a URL) is written over the web URL (Node's is native).
+// Ported from Node.js v26.11.1 lib/url.js (MIT license, see NOTICE); IDNA comes from the engine, and the WHATWG URL format (url.format of a URL) is written over the web URL (Node's is native).
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -23,14 +23,21 @@
 'use strict';
 
 const {
+  ArrayPrototypeJoin,
   Boolean,
   Int8Array,
   ObjectAssign,
   ObjectKeys,
+  StringPrototypeAt,
   StringPrototypeCharCodeAt,
+  StringPrototypeIndexOf,
+  StringPrototypeReplaceAll,
+  StringPrototypeSlice,
   decodeURIComponent,
 } = primordials;
 
+// URLPattern is native in Node, and not here yet
+const URLPattern = require('internal/unavailable').unavailableClass('url.URLPattern');
 // UTS #46 ToASCII from the engine ('' when it fails)
 const toASCII = (hostname) => binding.toASCII(hostname);
 const { encodeStr, hexTable } = require('internal/querystring');
@@ -39,6 +46,7 @@ const querystring = require('querystring');
 const {
   ERR_INVALID_ARG_TYPE,
   ERR_INVALID_URL,
+  ERR_INVALID_ARG_VALUE,
 } = require('internal/errors').codes;
 const {
   validateString,
@@ -48,6 +56,8 @@ const {
 // This ensures setURLConstructor() is called before the native
 // URL::ToObject() method is used.
 const { spliceOne } = require('internal/util');
+// no node_modules here (bundles are one file): url.parse warns once, as in an application's own code
+const isInsideNodeModules = () => false;
 
 // WHATWG URL implementation provided by internal/url
 const {
@@ -56,6 +66,7 @@ const {
   domainToASCII,
   domainToUnicode,
   fileURLToPath,
+  fileURLToPathBuffer,
   pathToFileURL: _pathToFileURL,
   urlToHttpOptions,
   unsafeProtocol,
@@ -85,9 +96,6 @@ function formatWhatwgURL(href, hash, unicode, search, auth) {
   return out;
 }
 const bindingUrl = { format: formatWhatwgURL };
-
-// no command line here: --pending-deprecation is off
-const getOptionValue = () => false;
 
 // Original url.parse() API
 
@@ -149,7 +157,7 @@ const {
 let urlParseWarned = false;
 
 function urlParse(url, parseQueryString, slashesDenoteHost) {
-  if (!urlParseWarned && getOptionValue('--pending-deprecation')) {
+  if (!urlParseWarned && !isInsideNodeModules(4)) {
     urlParseWarned = true;
     process.emitWarning(
       '`url.parse()` behavior is not standardized and prone to ' +
@@ -522,7 +530,6 @@ Url.prototype.parse = function parse(url, parseQueryString, slashesDenoteHost) {
   return this;
 };
 
-let warnInvalidPort = true;
 function getHostname(self, rest, hostname, url) {
   for (let i = 0; i < hostname.length; ++i) {
     const code = hostname.charCodeAt(i);
@@ -534,12 +541,8 @@ function getHostname(self, rest, hostname, url) {
 
     if (!isValid) {
       // If leftover starts with :, then it represents an invalid port.
-      // But url.parse() is lenient about it for now.
-      // Issue a warning and continue.
-      if (warnInvalidPort && code === CHAR_COLON) {
-        const detail = `The URL ${url} is invalid. Future versions of Node.js will throw an error.`;
-        process.emitWarning(detail, 'DeprecationWarning', 'DEP0170');
-        warnInvalidPort = false;
+      if (code === CHAR_COLON) {
+        throw new ERR_INVALID_ARG_VALUE('url', 'Invalid port in url', url);
       }
       self.hostname = hostname.slice(0, i);
       return `/${hostname.slice(i)}${rest}`;
@@ -661,6 +664,10 @@ Url.prototype.format = function format() {
   }
 
   let protocol = this.protocol || '';
+  if (protocol && StringPrototypeCharCodeAt(protocol, protocol.length - 1) !== 58 /* : */) {
+    protocol += ':';
+  }
+
   let pathname = this.pathname || '';
   let hash = this.hash || '';
   let host = '';
@@ -670,7 +677,7 @@ Url.prototype.format = function format() {
     host = auth + this.host;
   } else if (this.hostname) {
     host = auth + (
-      this.hostname.includes(':') && !isIpv6Hostname(this.hostname) ?
+      StringPrototypeIndexOf(this.hostname, ':') !== -1 && !isIpv6Hostname(this.hostname) ?
         '[' + this.hostname + ']' :
         this.hostname
     );
@@ -682,59 +689,55 @@ Url.prototype.format = function format() {
   if (this.query !== null && typeof this.query === 'object') {
     query = querystring.stringify(this.query);
   }
-
   let search = this.search || (query && ('?' + query)) || '';
 
-  if (protocol && protocol.charCodeAt(protocol.length - 1) !== 58/* : */)
-    protocol += ':';
-
-  let newPathname = '';
-  let lastPos = 0;
-  for (let i = 0; i < pathname.length; ++i) {
-    switch (pathname.charCodeAt(i)) {
-      case CHAR_HASH:
-        if (i - lastPos > 0)
-          newPathname += pathname.slice(lastPos, i);
-        newPathname += '%23';
+  if (StringPrototypeIndexOf(pathname, '#') !== -1 || StringPrototypeIndexOf(pathname, '?') !== -1) {
+    let newPathname = '';
+    let lastPos = 0;
+    const len = pathname.length;
+    for (let i = 0; i < len; i++) {
+      const code = StringPrototypeCharCodeAt(pathname, i);
+      if (code === CHAR_HASH || code === CHAR_QUESTION_MARK) {
+        if (i > lastPos) {
+          newPathname += StringPrototypeSlice(pathname, lastPos, i);
+        }
+        newPathname += (code === CHAR_HASH ? '%23' : '%3F');
         lastPos = i + 1;
-        break;
-      case CHAR_QUESTION_MARK:
-        if (i - lastPos > 0)
-          newPathname += pathname.slice(lastPos, i);
-        newPathname += '%3F';
-        lastPos = i + 1;
-        break;
+      }
     }
-  }
-  if (lastPos > 0) {
-    if (lastPos !== pathname.length)
-      pathname = newPathname + pathname.slice(lastPos);
-    else
-      pathname = newPathname;
+    if (lastPos < len) {
+      newPathname += StringPrototypeSlice(pathname, lastPos);
+    }
+    pathname = newPathname;
   }
 
   // Only the slashedProtocols get the //.  Not mailto:, xmpp:, etc.
   // unless they had them to begin with.
   if (this.slashes || slashedProtocol.has(protocol)) {
     if (this.slashes || host) {
-      if (pathname && pathname.charCodeAt(0) !== CHAR_FORWARD_SLASH)
+      if (pathname && StringPrototypeCharCodeAt(pathname, 0) !== CHAR_FORWARD_SLASH)
         pathname = '/' + pathname;
       host = '//' + host;
     } else if (protocol.length >= 4 &&
-               protocol.charCodeAt(0) === 102/* f */ &&
-               protocol.charCodeAt(1) === 105/* i */ &&
-               protocol.charCodeAt(2) === 108/* l */ &&
-               protocol.charCodeAt(3) === 101/* e */) {
+               StringPrototypeCharCodeAt(protocol, 0) === 102/* f */ &&
+               StringPrototypeCharCodeAt(protocol, 1) === 105/* i */ &&
+               StringPrototypeCharCodeAt(protocol, 2) === 108/* l */ &&
+               StringPrototypeCharCodeAt(protocol, 3) === 101/* e */) {
       host = '//';
     }
   }
 
-  search = search.replace(/#/g, '%23');
+  // Escape '#' in search.
+  if (StringPrototypeIndexOf(search, '#') !== -1) {
+    search = StringPrototypeReplaceAll(search, '#', '%23');
+  }
 
-  if (hash && hash.charCodeAt(0) !== CHAR_HASH)
+  if (hash && StringPrototypeCharCodeAt(hash, 0) !== CHAR_HASH) {
     hash = '#' + hash;
-  if (search && search.charCodeAt(0) !== CHAR_QUESTION_MARK)
+  }
+  if (search && StringPrototypeCharCodeAt(search, 0) !== CHAR_QUESTION_MARK) {
     search = '?' + search;
+  }
 
   return protocol + host + pathname + search + hash;
 };
@@ -943,7 +946,7 @@ Url.prototype.resolveObject = function resolveObject(relative) {
   // If a url ENDs in . or .., then it must get a trailing slash.
   // however, if it ends in anything else non-slashy,
   // then it must NOT get a trailing slash.
-  let last = srcPath.slice(-1)[0];
+  let last = srcPath[srcPath.length - 1];
   const hasTrailingSlash = (
     ((result.host || relative.host || srcPath.length > 1) &&
     (last === '.' || last === '..')) || last === '');
@@ -976,7 +979,7 @@ Url.prototype.resolveObject = function resolveObject(relative) {
     srcPath.unshift('');
   }
 
-  if (hasTrailingSlash && (srcPath.join('/').slice(-1) !== '/')) {
+  if (hasTrailingSlash && StringPrototypeAt(ArrayPrototypeJoin(srcPath, '/'), -1) !== '/') {
     srcPath.push('');
   }
 
@@ -1054,6 +1057,7 @@ module.exports = {
 
   // WHATWG API
   URL,
+  URLPattern,
   URLSearchParams,
   domainToASCII,
   domainToUnicode,
@@ -1061,5 +1065,6 @@ module.exports = {
   // Utilities
   pathToFileURL,
   fileURLToPath,
+  fileURLToPathBuffer,
   urlToHttpOptions,
 };

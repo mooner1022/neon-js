@@ -1,4 +1,4 @@
-// Ported from Node.js v22.12.0 lib/internal/streams/duplex.js (MIT license, see NOTICE).
+// Ported from Node.js v26.11.1 lib/internal/streams/duplex.js (MIT license, see NOTICE).
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -192,8 +192,8 @@ Duplex.fromWeb = function(pair, options) {
     options);
 };
 
-Duplex.toWeb = function(duplex) {
-  return lazyWebStreams().newReadableWritablePairFromDuplex(duplex);
+Duplex.toWeb = function(duplex, options) {
+  return lazyWebStreams().newReadableWritablePairFromDuplex(duplex, options);
 };
 
 let duplexify;

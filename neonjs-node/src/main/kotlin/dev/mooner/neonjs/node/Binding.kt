@@ -79,8 +79,10 @@ internal class Binding(private val rt: NodeRuntime) {
             o.createDataProperty("env", env)
             o
         }
-        fn("setProcess", 1) { _, _, a, _ ->
+        // (process, capture): capture(err) is true when an uncaught exception capture callback took err
+        fn("setProcess", 2) { _, _, a, _ ->
             rt.process = a.arg(0) as? JSObject
+            rt.uncaughtCapture = a.arg(1)
             Undefined
         }
         fn("exit", 1) { f, _, a, _ ->
@@ -99,6 +101,11 @@ internal class Binding(private val rt: NodeRuntime) {
             BigInteger.valueOf(if (f.realm.agent.clock != null) 0L else System.nanoTime() - startNanos)
         }
         fn("uptime", 0) { f, _, _, _ -> if (f.realm.agent.clock != null) 0.0 else (System.nanoTime() - startNanos) / 1e9 }
+        // what the heap may still grow by
+        fn("availableMemory", 0) { _, _, _, _ ->
+            val r = Runtime.getRuntime()
+            (r.maxMemory() - (r.totalMemory() - r.freeMemory())).toDouble()
+        }
         fn("memoryUsage", 0) { f, _, _, _ ->
             val r = Runtime.getRuntime()
             val o = JSObject(f.realm.objectPrototype)
@@ -130,15 +137,68 @@ internal class Binding(private val rt: NodeRuntime) {
         b.defineOwn("crypto", CryptoBinding.create(realm), Attr.NONE)
         b.defineOwn("zlib", ZlibBinding.create(rt), Attr.NONE)
         b.defineOwn("types", Types.create(realm), Attr.NONE)
+        b.defineOwn("util", utilBinding(), Attr.NONE)
         // ---------------- url: the engine's IDNA
         fn("toASCII", 1) { _, _, a, _ -> WebGlobals.domainToAscii(Ops.toString(a.arg(0))) ?: "" }
         fn("domainToUnicode", 1) { _, _, a, _ -> WebGlobals.domainToUnicode(Ops.toString(a.arg(0))) }
 
+        // the exports of the built-in module node:[id], or undefined (never a host's module)
+        fn("builtinModule", 1) { f, _, a, _ ->
+            dev.mooner.neonjs.vm.Modules.builtin(f.realm, "node:" + Ops.toString(a.arg(0)))?.let { rt.require("node:" + Ops.toString(a.arg(0))) } ?: Undefined
+        }
         // whether node:[id] is a built-in module (inspect dims their frames)
         fn("builtinExists", 1) { f, _, a, _ -> dev.mooner.neonjs.vm.Modules.builtin(f.realm, "node:" + Ops.toString(a.arg(0))) != null }
         // the libraries' own modules (lib/internal_<name>.js), which scripts cannot require
         fn("internal", 1) { _, _, a, _ -> rt.internal(Ops.toString(a.arg(0))) }
         return b
+    }
+
+    /** What node:util takes from Node's internalBinding('util'): call sites, promise handling. */
+    private fun utilBinding(): JSObject {
+        val u = JSObject(null)
+        fun fn(name: String, length: Int, impl: NativeImpl) = u.defineOwn(name, NativeFunction(realm, name, length, impl), Attr.NONE)
+        // the frames below util.getCallSites (the caller's first), at most frameCount of them
+        fn("getCallSites", 1) { f, _, a, _ ->
+            val max = Ops.toInt32(a.arg(0)).coerceIn(0, 200)
+            val sites = ArrayList<Any?>()
+            var skip = 1
+            var frame = f.realm.agent.topFrame
+            fun add(name: String, code: dev.mooner.neonjs.compiler.CodeBlock, pc: Int) {
+                if (skip > 0) {
+                    skip--
+                    return
+                }
+                val src = code.source
+                val pos = code.positionAt(pc)
+                val (line, col) = if (src != null && pos >= 0) src.lineCol(pos) else 0 to 0
+                val o = JSObject(f.realm.objectPrototype)
+                o.createDataProperty("functionName", name)
+                o.createDataProperty("scriptId", (if (src == null) 0 else System.identityHashCode(src)).toString())
+                o.createDataProperty("scriptName", src?.name ?: "")
+                o.createDataProperty("lineNumber", line.toDouble())
+                o.createDataProperty("columnNumber", col.toDouble())
+                o.createDataProperty("column", col.toDouble())
+                sites.add(o)
+            }
+            while (frame != null && sites.size < max) {
+                frame.inlineFn?.let { add(it.debugName(), it.code, frame.inlinePc) }
+                if (sites.size < max) add(frame.fn?.debugName() ?: "", frame.code, frame.pc)
+                frame = frame.parent
+            }
+            JSArray.of(f.realm.arrayPrototype, sites.toTypedArray())
+        }
+        // a promise whose rejection is taken care of: no unhandled rejection for it
+        fn("markPromiseAsHandled", 1) { f, _, a, _ ->
+            val p = a.arg(0) as? dev.mooner.neonjs.vm.JSPromise
+            if (p != null) {
+                if (p.state == dev.mooner.neonjs.vm.JSPromise.REJECTED && !p.isHandled) f.realm.agent.trackRejection(p, true)
+                p.isHandled = true
+            }
+            Undefined
+        }
+        // Node parses .env content natively; not here yet
+        fn("parseEnv", 1) { _, _, _, _ -> throw rt.nodeError(ErrorKind.ERROR, "util.parseEnv is not available in NeonJS", "ERR_UNAVAILABLE") }
+        return u
     }
 
     private fun write(stream: Int, text: String) {
@@ -161,7 +221,7 @@ internal class Binding(private val rt: NodeRuntime) {
 
     companion object {
         /** The Node.js release line whose APIs the module follows (`process.version`). */
-        const val NODE_VERSION = "v22.12.0"
+        const val NODE_VERSION = "v26.11.1"
 
         fun engineVersion(): String = NeonEngine::class.java.`package`?.implementationVersion ?: "dev"
 

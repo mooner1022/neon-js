@@ -51,9 +51,14 @@ internal object ZlibBinding {
         var inflater: Inflater? = null
         var closed = false
         var error: ZError? = null
+        /** Gunzip: input after a member is not read as another one (node:zlib then says ERR_TRAILING_JUNK_AFTER_STREAM_END). */
+        var rejectGarbage = false
 
         // compressing
         var finished = false
+        /** Gzip: whether output of a member not yet complete went out (it cannot be reset then, as in Node 26). */
+        var outputEmitted = false
+        var streamComplete = true
         /** Bytes to write before (a gzip header) or after (a gzip trailer) the deflater's. */
         var pending = ByteArray(0)
         var pendingAt = 0
@@ -89,13 +94,14 @@ internal object ZlibBinding {
             if (mode !in DEFLATE..UNZIP) throw JSException.typeError("Bad argument")
             Stream(mode)
         }
-        // (handle, level, strategy, dictionary): what zlib's deflateInit2 / inflateInit2 take (windowBits and memLevel
-        // are checked by node:zlib; java.util.zip uses zlib's defaults)
-        fn("init", 4) { _, _, a, _ ->
+        // (handle, level, strategy, dictionary, rejectGarbageAfterEnd): what zlib's deflateInit2 / inflateInit2 take
+        // (windowBits and memLevel are checked by node:zlib; java.util.zip uses zlib's defaults)
+        fn("init", 5) { _, _, a, _ ->
             val s = stream(a.arg(0))
             s.level = Ops.toInt32(a.arg(1))
             s.strategy = Ops.toInt32(a.arg(2))
             s.dictionary = a.arg(3).let { if (it is JSTypedArray || it is JSDataView) bytesOf(it).let { (d, o, n) -> d.copyOfRange(o, o + n) } else null }
+            s.rejectGarbage = Ops.toBoolean(a.arg(4))
             start(s)
             Undefined
         }
@@ -109,8 +115,15 @@ internal object ZlibBinding {
             }
             Undefined
         }
-        fn("reset", 1) { _, _, a, _ ->
+        // undefined, or [message, errno, code] when the stream cannot be reset
+        fn("reset", 1) { f, _, a, _ ->
             val s = stream(a.arg(0))
+            if (s.kind == GZIP && !s.streamComplete && s.outputEmitted) {
+                return@fn dev.mooner.neonjs.builtins.Builtins.arrayOf(f.realm, listOf(
+                    "Cannot reset a gzip stream with an incomplete member; end the stream or start a new gzip compressor",
+                    -2.0, "ERR_ZLIB_INCOMPLETE_FRAME",
+                ))
+            }
             if (!s.closed) {
                 s.deflater?.end()
                 s.inflater?.end()
@@ -178,6 +191,8 @@ internal object ZlibBinding {
     private fun start(s: Stream) {
         s.mode = s.kind
         s.finished = false
+        s.outputEmitted = false
+        s.streamComplete = true
         s.pending = ByteArray(0)
         s.pendingAt = 0
         s.headerWritten = false
@@ -210,6 +225,18 @@ internal object ZlibBinding {
     }
 
     private fun compress(s: Stream, flush: Int, io: IO, agent: Agent) {
+        val outBefore = io.o
+        doCompress(s, flush, io, agent)
+        if (io.o > outBefore) s.outputEmitted = true
+        if (s.finished) {
+            s.streamComplete = true
+            s.outputEmitted = false
+        } else {
+            s.streamComplete = false
+        }
+    }
+
+    private fun doCompress(s: Stream, flush: Int, io: IO, agent: Agent) {
         val d = s.deflater!!
         if (s.mode == GZIP && !s.headerWritten) {
             // as zlib writes it: no name, no time, the extra flags for the level, OS 3 (Unix)
@@ -341,8 +368,9 @@ internal object ZlibBinding {
                     s.ended = true
                 }
                 Gz.END -> {
-                    // another member follows, unless the rest is padding (zeros, left unread) or not there yet
-                    if (io.i >= io.inEnd || io.inData[io.i] == 0.toByte()) return
+                    // another member follows, unless the rest is padding (zeros, left unread), not there yet, or not
+                    // to be read (rejectGarbageAfterEnd)
+                    if (io.i >= io.inEnd || io.inData[io.i] == 0.toByte() || s.rejectGarbage) return
                     s.inflater!!.reset()
                     s.gz = Gz.HEADER
                     s.headerState = 0

@@ -1,4 +1,4 @@
-// Ported from Node.js v22.12.0 lib/internal/streams/destroy.js (MIT license, see NOTICE).
+// Ported from Node.js v26.11.1 lib/internal/streams/destroy.js (MIT license, see NOTICE).
 'use strict';
 
 const {
@@ -183,6 +183,7 @@ function undestroy() {
     r.errored = null;
     r.errorEmitted = false;
     r.reading = false;
+    r.fastChunk = null;
     r.ended = r.readable === false;
     r.endEmitted = r.readable === false;
   }

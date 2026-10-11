@@ -48,10 +48,10 @@ const getExternalValue = () => 0;"""),
     ("if (internalBinding('config').hasIntl) {", "// (no ICU here: the widths below)\nif (false) {"),
     ("  const icu = internalBinding('icu');", "  const icu = undefined;"),
     # a host (Java) object: its class name only, never walked
-    ("""    value = proxy;
+    ("""    } while (proxy !== undefined);
   }
 
-  // Provide a hook for user-specified inspect functions.""", """    value = proxy;
+  // Provide a hook for user-specified inspect functions.""", """    } while (proxy !== undefined);
   }
 
   // a host (Java) object is one opaque line: its members are not walked

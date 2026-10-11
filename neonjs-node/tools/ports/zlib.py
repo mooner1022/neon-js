@@ -1,4 +1,4 @@
-NOTE = 'its native handle is internal/zlib (java.util.zip), without Brotli'
+NOTE = 'its native handle is internal/zlib (java.util.zip), without Brotli, Zstandard or ZIP archives'
 REPLACEMENTS = [
     # the handle class, crc32 and constants come from internal/zlib (`binding` is the libraries' argument here)
     ("const binding = internalBinding('zlib');\nconst { crc32: crc32Native } = binding;",
@@ -13,4 +13,6 @@ REPLACEMENTS = [
      "new zlibBinding.BrotliDecoder(mode) : new zlibBinding.BrotliEncoder(mode);"),
     ("ObjectDefineProperty(binding.Zlib.prototype, 'jsref', {",
      "ObjectDefineProperty(zlibBinding.Zlib.prototype, 'jsref', {"),
+    ("new binding.ZstdCompress() : new binding.ZstdDecompress();",
+     "new zlibBinding.ZstdCompress() : new zlibBinding.ZstdDecompress();"),
 ]

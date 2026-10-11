@@ -1,4 +1,4 @@
-// Ported from Node.js v22.12.0 lib/assert.js (MIT license, see NOTICE).
+// Ported from Node.js v26.11.1 lib/assert.js (MIT license, see NOTICE).
 // Originally from narwhal.js (http://narwhaljs.org)
 // Copyright (c) 2009 Thomas Robinson <280north.com>
 //
@@ -22,27 +22,31 @@
 'use strict';
 
 const {
+  ArrayPrototypeForEach,
   ArrayPrototypeIndexOf,
   ArrayPrototypeJoin,
   ArrayPrototypePush,
   ArrayPrototypeSlice,
   Error,
+  FunctionPrototypeCall,
   NumberIsNaN,
   ObjectAssign,
+  ObjectDefineProperty,
   ObjectIs,
   ObjectKeys,
   ObjectPrototypeIsPrototypeOf,
-  ReflectApply,
   RegExpPrototypeExec,
   String,
   StringPrototypeIndexOf,
   StringPrototypeSlice,
   StringPrototypeSplit,
+  Symbol,
 } = primordials;
 
 const {
   codes: {
     ERR_AMBIGUOUS_ARGUMENT,
+    ERR_CONSTRUCT_CALL_REQUIRED,
     ERR_INVALID_ARG_TYPE,
     ERR_INVALID_ARG_VALUE,
     ERR_INVALID_RETURN_VALUE,
@@ -51,33 +55,82 @@ const {
 } = require('internal/errors');
 const AssertionError = require('internal/assert/assertion_error');
 const { inspect } = require('internal/util/inspect');
-const { isPromise, isRegExp } = require('internal/util/types');
-const { isError, deprecate } = require('internal/util');
-const { innerOk } = require('internal/assert/utils');
+const {
+  isPromise,
+  isRegExp,
+} = require('internal/util/types');
+const { isError, setOwnProperty } = require('internal/util');
+const { innerOk, innerFail } = require('internal/assert/utils');
 
-const CallTracker = require('internal/assert/calltracker');
 const {
   validateFunction,
+  validateOneOf,
 } = require('internal/validators');
+
+const kOptions = Symbol('options');
 
 let isDeepEqual;
 let isDeepStrictEqual;
+let isPartialStrictEqual;
 
 function lazyLoadComparison() {
   const comparison = require('internal/util/comparisons');
   isDeepEqual = comparison.isDeepEqual;
   isDeepStrictEqual = comparison.isDeepStrictEqual;
+  isPartialStrictEqual = comparison.isPartialStrictEqual;
 }
-
-let warned = false;
 
 // The assert module provides functions that throw
 // AssertionError's when particular conditions are not met. The
 // assert module must conform to the following interface.
 
-const assert = module.exports = ok;
+module.exports = assert;
 
 const NO_EXCEPTION_SENTINEL = {};
+
+/**
+ * Assert options.
+ * @typedef {object} AssertOptions
+ * @property {'full'|'simple'} [diff='simple'] - If set to 'full', shows the full diff in assertion errors.
+ * @property {boolean} [strict=true] - If set to true, non-strict methods behave like their corresponding
+ *   strict methods.
+ * @property {boolean} [skipPrototype=false] - If set to true, skips comparing prototypes
+ *   in deep equality checks.
+ */
+
+/**
+ * @class Assert
+ * @param {AssertOptions} [options] - Optional configuration for assertions.
+ * @throws {ERR_CONSTRUCT_CALL_REQUIRED} If not called with `new`.
+ */
+function Assert(options) {
+  if (!new.target) {
+    throw new ERR_CONSTRUCT_CALL_REQUIRED('Assert');
+  }
+
+  options = ObjectAssign({ __proto__: null, strict: true, skipPrototype: false }, options);
+
+  const allowedDiffs = ['simple', 'full'];
+  if (options.diff !== undefined) {
+    validateOneOf(options.diff, 'options.diff', allowedDiffs);
+  }
+
+  this.AssertionError = AssertionError;
+  ObjectDefineProperty(this, kOptions, {
+    __proto__: null,
+    value: options,
+    enumerable: false,
+    configurable: false,
+    writable: false,
+  });
+
+  if (options.strict) {
+    this.equal = this.strictEqual;
+    this.deepEqual = this.deepStrictEqual;
+    this.notEqual = this.notStrictEqual;
+    this.notDeepEqual = this.notDeepStrictEqual;
+  }
+}
 
 // All of the following functions must throw an AssertionError
 // when a corresponding condition is not met, with a message that
@@ -85,60 +138,41 @@ const NO_EXCEPTION_SENTINEL = {};
 // both the actual and expected values to the assertion error for
 // display purposes.
 
-function innerFail(obj) {
-  if (obj.message instanceof Error) throw obj.message;
-
-  throw new AssertionError(obj);
-}
+// DESTRUCTURING WARNING: All Assert.prototype methods use optional chaining
+// (this?.[kOptions]) to safely access instance configuration. When methods are
+// destructured from an Assert instance (e.g., const {strictEqual} = myAssert),
+// they lose their `this` context and will use default behavior instead of the
+// instance's custom options.
 
 /**
- * @param {any} actual
- * @param {any} expected
- * @param {string | Error} [message]
- * @param {string} [operator]
- * @param {Function} [stackStartFn]
+ * Throws an AssertionError with the given message.
+ * @param {any | Error} [message]
  */
-function fail(actual, expected, message, operator, stackStartFn) {
-  const argsLen = arguments.length;
+Assert.prototype.fail = function fail(message) {
+  if (isError(message)) throw message;
 
   let internalMessage = false;
-  if (actual == null && argsLen <= 1) {
-    internalMessage = true;
+  if (message === undefined) {
     message = 'Failed';
-  } else if (argsLen === 1) {
-    message = actual;
-    actual = undefined;
-  } else {
-    if (warned === false) {
-      warned = true;
-      process.emitWarning(
-        'assert.fail() with more than one argument is deprecated. ' +
-          'Please use assert.strictEqual() instead or only pass a message.',
-        'DeprecationWarning',
-        'DEP0094',
-      );
-    }
-    if (argsLen === 2)
-      operator = '!=';
+    internalMessage = true;
   }
 
-  if (message instanceof Error) throw message;
-
+  // IMPORTANT: When adding new references to `this`, ensure they use optional chaining
+  // (this?.[kOptions]?.diff) to handle cases where the method is destructured from an
+  // Assert instance and loses its context. Destructured methods will fall back
+  // to default behavior when `this` is undefined.
   const errArgs = {
-    actual,
-    expected,
-    operator: operator === undefined ? 'fail' : operator,
-    stackStartFn: stackStartFn || fail,
+    operator: 'fail',
+    stackStartFn: fail,
     message,
+    diff: this?.[kOptions]?.diff,
   };
   const err = new AssertionError(errArgs);
   if (internalMessage) {
     err.generatedMessage = true;
   }
   throw err;
-}
-
-assert.fail = fail;
+};
 
 // The AssertionError is defined in internal/error.
 assert.AssertionError = AssertionError;
@@ -149,20 +183,29 @@ assert.AssertionError = AssertionError;
  * @param {...any} args
  * @returns {void}
  */
-function ok(...args) {
-  innerOk(ok, args.length, ...args);
+function assert(...args) {
+  innerOk(assert, ...args);
 }
-assert.ok = ok;
+
+/**
+ * Pure assertion tests whether a value is truthy, as determined
+ * by !!value.
+ * Duplicated as the other `ok` function is supercharged and exposed as default export.
+ * @param {...any} args
+ * @returns {void}
+ */
+Assert.prototype.ok = function ok(...args) {
+  innerOk(ok, ...args);
+};
 
 /**
  * The equality assertion tests shallow, coercive equality with ==.
  * @param {any} actual
  * @param {any} expected
- * @param {string | Error} [message]
+ * @param {string | Error | MessageFactory} [message]
  * @returns {void}
  */
-/* eslint-disable no-restricted-properties */
-assert.equal = function equal(actual, expected, message) {
+Assert.prototype.equal = function equal(actual, expected, ...message) {
   if (arguments.length < 2) {
     throw new ERR_MISSING_ARGS('actual', 'expected');
   }
@@ -174,6 +217,7 @@ assert.equal = function equal(actual, expected, message) {
       message,
       operator: '==',
       stackStartFn: equal,
+      diff: this?.[kOptions]?.diff,
     });
   }
 };
@@ -183,10 +227,10 @@ assert.equal = function equal(actual, expected, message) {
  * equal with !=.
  * @param {any} actual
  * @param {any} expected
- * @param {string | Error} [message]
+ * @param {string | Error | MessageFactory} [message]
  * @returns {void}
  */
-assert.notEqual = function notEqual(actual, expected, message) {
+Assert.prototype.notEqual = function notEqual(actual, expected, ...message) {
   if (arguments.length < 2) {
     throw new ERR_MISSING_ARGS('actual', 'expected');
   }
@@ -198,6 +242,7 @@ assert.notEqual = function notEqual(actual, expected, message) {
       message,
       operator: '!=',
       stackStartFn: notEqual,
+      diff: this?.[kOptions]?.diff,
     });
   }
 };
@@ -206,10 +251,10 @@ assert.notEqual = function notEqual(actual, expected, message) {
  * The deep equivalence assertion tests a deep equality relation.
  * @param {any} actual
  * @param {any} expected
- * @param {string | Error} [message]
+ * @param {string | Error | MessageFactory} [message]
  * @returns {void}
  */
-assert.deepEqual = function deepEqual(actual, expected, message) {
+Assert.prototype.deepEqual = function deepEqual(actual, expected, ...message) {
   if (arguments.length < 2) {
     throw new ERR_MISSING_ARGS('actual', 'expected');
   }
@@ -221,6 +266,7 @@ assert.deepEqual = function deepEqual(actual, expected, message) {
       message,
       operator: 'deepEqual',
       stackStartFn: deepEqual,
+      diff: this?.[kOptions]?.diff,
     });
   }
 };
@@ -229,10 +275,10 @@ assert.deepEqual = function deepEqual(actual, expected, message) {
  * The deep non-equivalence assertion tests for any deep inequality.
  * @param {any} actual
  * @param {any} expected
- * @param {string | Error} [message]
+ * @param {string | Error | MessageFactory} [message]
  * @returns {void}
  */
-assert.notDeepEqual = function notDeepEqual(actual, expected, message) {
+Assert.prototype.notDeepEqual = function notDeepEqual(actual, expected, ...message) {
   if (arguments.length < 2) {
     throw new ERR_MISSING_ARGS('actual', 'expected');
   }
@@ -244,31 +290,32 @@ assert.notDeepEqual = function notDeepEqual(actual, expected, message) {
       message,
       operator: 'notDeepEqual',
       stackStartFn: notDeepEqual,
+      diff: this?.[kOptions]?.diff,
     });
   }
 };
-/* eslint-enable */
 
 /**
  * The deep strict equivalence assertion tests a deep strict equality
  * relation.
  * @param {any} actual
  * @param {any} expected
- * @param {string | Error} [message]
+ * @param {string | Error | MessageFactory} [message]
  * @returns {void}
  */
-assert.deepStrictEqual = function deepStrictEqual(actual, expected, message) {
+Assert.prototype.deepStrictEqual = function deepStrictEqual(actual, expected, ...message) {
   if (arguments.length < 2) {
     throw new ERR_MISSING_ARGS('actual', 'expected');
   }
   if (isDeepEqual === undefined) lazyLoadComparison();
-  if (!isDeepStrictEqual(actual, expected)) {
+  if (!isDeepStrictEqual(actual, expected, this?.[kOptions]?.skipPrototype)) {
     innerFail({
       actual,
       expected,
       message,
       operator: 'deepStrictEqual',
       stackStartFn: deepStrictEqual,
+      diff: this?.[kOptions]?.diff,
     });
   }
 };
@@ -278,22 +325,23 @@ assert.deepStrictEqual = function deepStrictEqual(actual, expected, message) {
  * inequality.
  * @param {any} actual
  * @param {any} expected
- * @param {string | Error} [message]
+ * @param {string | Error | MessageFactory} [message]
  * @returns {void}
  */
-assert.notDeepStrictEqual = notDeepStrictEqual;
-function notDeepStrictEqual(actual, expected, message) {
+Assert.prototype.notDeepStrictEqual = notDeepStrictEqual;
+function notDeepStrictEqual(actual, expected, ...message) {
   if (arguments.length < 2) {
     throw new ERR_MISSING_ARGS('actual', 'expected');
   }
   if (isDeepEqual === undefined) lazyLoadComparison();
-  if (isDeepStrictEqual(actual, expected)) {
+  if (isDeepStrictEqual(actual, expected, this?.[kOptions]?.skipPrototype)) {
     innerFail({
       actual,
       expected,
       message,
       operator: 'notDeepStrictEqual',
       stackStartFn: notDeepStrictEqual,
+      diff: this?.[kOptions]?.diff,
     });
   }
 }
@@ -302,10 +350,10 @@ function notDeepStrictEqual(actual, expected, message) {
  * The strict equivalence assertion tests a strict equality relation.
  * @param {any} actual
  * @param {any} expected
- * @param {string | Error} [message]
+ * @param {string | Error | MessageFactory} [message]
  * @returns {void}
  */
-assert.strictEqual = function strictEqual(actual, expected, message) {
+Assert.prototype.strictEqual = function strictEqual(actual, expected, ...message) {
   if (arguments.length < 2) {
     throw new ERR_MISSING_ARGS('actual', 'expected');
   }
@@ -316,6 +364,7 @@ assert.strictEqual = function strictEqual(actual, expected, message) {
       message,
       operator: 'strictEqual',
       stackStartFn: strictEqual,
+      diff: this?.[kOptions]?.diff,
     });
   }
 };
@@ -324,10 +373,10 @@ assert.strictEqual = function strictEqual(actual, expected, message) {
  * The strict non-equivalence assertion tests for any strict inequality.
  * @param {any} actual
  * @param {any} expected
- * @param {string | Error} [message]
+ * @param {string | Error | MessageFactory} [message]
  * @returns {void}
  */
-assert.notStrictEqual = function notStrictEqual(actual, expected, message) {
+Assert.prototype.notStrictEqual = function notStrictEqual(actual, expected, ...message) {
   if (arguments.length < 2) {
     throw new ERR_MISSING_ARGS('actual', 'expected');
   }
@@ -338,6 +387,35 @@ assert.notStrictEqual = function notStrictEqual(actual, expected, message) {
       message,
       operator: 'notStrictEqual',
       stackStartFn: notStrictEqual,
+      diff: this?.[kOptions]?.diff,
+    });
+  }
+};
+
+/**
+ * The strict equivalence assertion test between two objects
+ * @param {any} actual
+ * @param {any} expected
+ * @param {string | Error | MessageFactory} [message]
+ * @returns {void}
+ */
+Assert.prototype.partialDeepStrictEqual = function partialDeepStrictEqual(
+  actual,
+  expected,
+  ...message
+) {
+  if (arguments.length < 2) {
+    throw new ERR_MISSING_ARGS('actual', 'expected');
+  }
+  if (isDeepEqual === undefined) lazyLoadComparison();
+  if (!isPartialStrictEqual(actual, expected)) {
+    innerFail({
+      actual,
+      expected,
+      message,
+      operator: 'partialDeepStrictEqual',
+      stackStartFn: partialDeepStrictEqual,
+      diff: this?.[kOptions]?.diff,
     });
   }
 };
@@ -371,6 +449,7 @@ function compareExceptionKey(actual, expected, key, message, keys, fn) {
         expected: b,
         operator: 'deepStrictEqual',
         stackStartFn: fn,
+        diff: this?.[kOptions]?.diff,
       });
       err.actual = actual;
       err.expected = expected;
@@ -380,9 +459,10 @@ function compareExceptionKey(actual, expected, key, message, keys, fn) {
     innerFail({
       actual,
       expected,
-      message,
+      message: [message],
       operator: fn.name,
       stackStartFn: fn,
+      diff: this?.[kOptions]?.diff,
     });
   }
 }
@@ -412,6 +492,7 @@ function expectedException(actual, expected, message, fn) {
         message,
         operator: 'deepStrictEqual',
         stackStartFn: fn,
+        diff: this?.[kOptions]?.diff,
       });
       err.operator = fn.name;
       throw err;
@@ -464,7 +545,7 @@ function expectedException(actual, expected, message, fn) {
     throwError = true;
   } else {
     // Check validation functions return value.
-    const res = ReflectApply(expected, {}, [actual]);
+    const res = FunctionPrototypeCall(expected, {}, actual);
     if (res !== true) {
       if (!message) {
         generatedMessage = true;
@@ -487,6 +568,7 @@ function expectedException(actual, expected, message, fn) {
       message,
       operator: fn.name,
       stackStartFn: fn,
+      diff: this?.[kOptions]?.diff,
     });
     err.generatedMessage = generatedMessage;
     throw err;
@@ -574,20 +656,21 @@ function expectsError(stackStartFn, actual, error, message) {
       details += ` (${error.name})`;
     }
     details += message ? `: ${message}` : '.';
-    const fnType = stackStartFn === assert.rejects ? 'rejection' : 'exception';
+    const fnType = stackStartFn === Assert.prototype.rejects ? 'rejection' : 'exception';
     innerFail({
       actual: undefined,
       expected: error,
       operator: stackStartFn.name,
-      message: `Missing expected ${fnType}${details}`,
+      message: [`Missing expected ${fnType}${details}`],
       stackStartFn,
+      diff: this?.[kOptions]?.diff,
     });
   }
 
   if (!error)
     return;
 
-  expectedException(actual, error, message, stackStartFn);
+  expectedException.call(this, actual, error, message, stackStartFn);
 }
 
 function hasMatchingError(actual, expected) {
@@ -607,7 +690,7 @@ function hasMatchingError(actual, expected) {
   if (ObjectPrototypeIsPrototypeOf(Error, expected)) {
     return false;
   }
-  return ReflectApply(expected, {}, [actual]) === true;
+  return FunctionPrototypeCall(expected, {}, actual) === true;
 }
 
 function expectsNoError(stackStartFn, actual, error, message) {
@@ -621,15 +704,16 @@ function expectsNoError(stackStartFn, actual, error, message) {
 
   if (!error || hasMatchingError(actual, error)) {
     const details = message ? `: ${message}` : '.';
-    const fnType = stackStartFn === assert.doesNotReject ?
+    const fnType = stackStartFn === Assert.prototype.doesNotReject ?
       'rejection' : 'exception';
     innerFail({
       actual,
       expected: error,
       operator: stackStartFn.name,
-      message: `Got unwanted ${fnType}${details}\n` +
-               `Actual message: "${actual?.message}"`,
+      message: [`Got unwanted ${fnType}${details}\n` +
+               `Actual message: "${actual?.message}"`],
       stackStartFn,
+      diff: this?.[kOptions]?.diff,
     });
   }
   throw actual;
@@ -641,7 +725,7 @@ function expectsNoError(stackStartFn, actual, error, message) {
  * @param {...any} [args]
  * @returns {void}
  */
-assert.throws = function throws(promiseFn, ...args) {
+Assert.prototype.throws = function throws(promiseFn, ...args) {
   expectsError(throws, getActual(promiseFn), ...args);
 };
 
@@ -651,7 +735,7 @@ assert.throws = function throws(promiseFn, ...args) {
  * @param {...any} [args]
  * @returns {Promise<void>}
  */
-assert.rejects = async function rejects(promiseFn, ...args) {
+Assert.prototype.rejects = async function rejects(promiseFn, ...args) {
   expectsError(rejects, await waitForActual(promiseFn), ...args);
 };
 
@@ -661,7 +745,7 @@ assert.rejects = async function rejects(promiseFn, ...args) {
  * @param {...any} [args]
  * @returns {void}
  */
-assert.doesNotThrow = function doesNotThrow(fn, ...args) {
+Assert.prototype.doesNotThrow = function doesNotThrow(fn, ...args) {
   expectsNoError(doesNotThrow, getActual(fn), ...args);
 };
 
@@ -671,16 +755,16 @@ assert.doesNotThrow = function doesNotThrow(fn, ...args) {
  * @param {...any} [args]
  * @returns {Promise<void>}
  */
-assert.doesNotReject = async function doesNotReject(fn, ...args) {
+Assert.prototype.doesNotReject = async function doesNotReject(fn, ...args) {
   expectsNoError(doesNotReject, await waitForActual(fn), ...args);
 };
 
 /**
- * Throws `value` if the value is not `null` or `undefined`.
+ * Throws `AssertionError` if the value is not `null` or `undefined`.
  * @param {any} err
  * @returns {void}
  */
-assert.ifError = function ifError(err) {
+Assert.prototype.ifError = function ifError(err) {
   if (err !== null && err !== undefined) {
     let message = 'ifError got unwanted exception: ';
     if (typeof err === 'object' && typeof err.message === 'string') {
@@ -699,6 +783,7 @@ assert.ifError = function ifError(err) {
       operator: 'ifError',
       message,
       stackStartFn: ifError,
+      diff: this?.[kOptions]?.diff,
     });
 
     // Make sure we actually have a stack trace!
@@ -741,32 +826,29 @@ function internalMatch(string, regexp, message, fn) {
       'regexp', 'RegExp', regexp,
     );
   }
-  const match = fn === assert.match;
+  const match = fn === Assert.prototype.match;
   if (typeof string !== 'string' ||
       RegExpPrototypeExec(regexp, string) !== null !== match) {
-    if (message instanceof Error) {
-      throw message;
-    }
 
-    const generatedMessage = !message;
+    const generatedMessage = message.length === 0;
 
     // 'The input was expected to not match the regular expression ' +
-    message ||= (typeof string !== 'string' ?
+    message[0] ||= (typeof string !== 'string' ?
       'The "string" argument must be of type string. Received type ' +
         `${typeof string} (${inspect(string)})` :
       (match ?
         'The input did not match the regular expression ' :
         'The input was expected to not match the regular expression ') +
           `${inspect(regexp)}. Input:\n\n${inspect(string)}\n`);
-    const err = new AssertionError({
+    innerFail({
       actual: string,
       expected: regexp,
       message,
       operator: fn.name,
       stackStartFn: fn,
+      diff: this?.[kOptions]?.diff,
+      generatedMessage: generatedMessage,
     });
-    err.generatedMessage = generatedMessage;
-    throw err;
   }
 }
 
@@ -774,10 +856,10 @@ function internalMatch(string, regexp, message, fn) {
  * Expects the `string` input to match the regular expression.
  * @param {string} string
  * @param {RegExp} regexp
- * @param {string | Error} [message]
+ * @param {string | Error | MessageFactory} [message]
  * @returns {void}
  */
-assert.match = function match(string, regexp, message) {
+Assert.prototype.match = function match(string, regexp, ...message) {
   internalMatch(string, regexp, message, match);
 };
 
@@ -785,14 +867,12 @@ assert.match = function match(string, regexp, message) {
  * Expects the `string` input not to match the regular expression.
  * @param {string} string
  * @param {RegExp} regexp
- * @param {string | Error} [message]
+ * @param {string | Error | MessageFactory} [message]
  * @returns {void}
  */
-assert.doesNotMatch = function doesNotMatch(string, regexp, message) {
+Assert.prototype.doesNotMatch = function doesNotMatch(string, regexp, ...message) {
   internalMatch(string, regexp, message, doesNotMatch);
 };
-
-assert.CallTracker = deprecate(CallTracker, 'assert.CallTracker is deprecated.', 'DEP0173');
 
 /**
  * Expose a strict only variant of assert.
@@ -800,8 +880,17 @@ assert.CallTracker = deprecate(CallTracker, 'assert.CallTracker is deprecated.',
  * @returns {void}
  */
 function strict(...args) {
-  innerOk(strict, args.length, ...args);
+  innerOk(strict, ...args);
 }
+
+ArrayPrototypeForEach([
+  'ok', 'fail', 'equal', 'notEqual', 'deepEqual', 'notDeepEqual',
+  'deepStrictEqual', 'notDeepStrictEqual', 'strictEqual',
+  'notStrictEqual', 'partialDeepStrictEqual', 'match', 'doesNotMatch',
+  'throws', 'rejects', 'doesNotThrow', 'doesNotReject', 'ifError',
+], (name) => {
+  setOwnProperty(assert, name, Assert.prototype[name]);
+});
 
 assert.strict = ObjectAssign(strict, assert, {
   equal: assert.strictEqual,
@@ -810,4 +899,7 @@ assert.strict = ObjectAssign(strict, assert, {
   notDeepEqual: assert.notDeepStrictEqual,
 });
 
+assert.strict.Assert = Assert;
 assert.strict.strict = assert.strict;
+
+assert.Assert = Assert;

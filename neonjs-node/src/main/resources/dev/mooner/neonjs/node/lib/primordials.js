@@ -1,4 +1,4 @@
-// Ported from Node.js v22.12.0 lib/internal/per_context/primordials.js (MIT license, see NOTICE); the object is made here and exported rather than filled in as a global.
+// Ported from Node.js v26.11.1 lib/internal/per_context/primordials.js (MIT license, see NOTICE); the object is made here and exported rather than filled in as a global.
 'use strict';
 
 /* eslint-disable node-core/prefer-primordials */
@@ -199,12 +199,14 @@ function copyPrototype(src, dest, prefix) {
   'Error',
   'EvalError',
   'FinalizationRegistry',
+  'Float16Array',
   'Float32Array',
   'Float64Array',
   'Function',
   'Int16Array',
   'Int32Array',
   'Int8Array',
+  'Iterator',
   'Map',
   'Number',
   'Object',
@@ -233,10 +235,10 @@ function copyPrototype(src, dest, prefix) {
 });
 
 
-// Create copies of intrinsic objects that require a valid `this` to call
-// static methods.
-// Refs: https://www.ecma-international.org/ecma-262/#sec-promise.all
+// Create copies of intrinsic objects whose static methods require the
+// constructor to be passed as the receiver.
 [
+  // Refs: https://tc39.es/ecma-262/#sec-promise.all
   'Promise',
 ].forEach((name) => {
   // eslint-disable-next-line no-restricted-globals
@@ -247,25 +249,68 @@ function copyPrototype(src, dest, prefix) {
 });
 
 // Create copies of abstract intrinsic objects that are not directly exposed
-// on the global object.
-// Refs: https://tc39.es/ecma262/#sec-%typedarray%-intrinsic-object
+// on the global object, and whose static methods require a valid subclass
+// constructor to be passed as the receiver.
 [
+  // Refs: https://tc39.es/ecma262/#sec-%typedarray%-intrinsic-object
   { name: 'TypedArray', original: Reflect.getPrototypeOf(Uint8Array) },
-  { name: 'ArrayIterator', original: {
-    prototype: Reflect.getPrototypeOf(Array.prototype[Symbol.iterator]()),
-  } },
-  { name: 'StringIterator', original: {
-    prototype: Reflect.getPrototypeOf(String.prototype[Symbol.iterator]()),
-  } },
 ].forEach(({ name, original }) => {
   primordials[name] = original;
-  // The static %TypedArray% methods require a valid `this`, but can't be bound,
-  // as they need a subclass constructor as the receiver:
   copyPrototype(original, primordials, name);
   copyPrototype(original.prototype, primordials, `${name}Prototype`);
 });
 
-primordials.IteratorPrototype = Reflect.getPrototypeOf(primordials.ArrayIteratorPrototype);
+// Create copies of abstract intrinsic prototypes that are not directly exposed
+// on the global object and which do not have corresponding constructors.
+[
+  {
+    name: 'ArrayIteratorPrototype',
+    original: Reflect.getPrototypeOf(Array.prototype[Symbol.iterator]()),
+  },
+  {
+    name: 'AsyncFunctionPrototype',
+    original: Reflect.getPrototypeOf(async function() {}),
+  },
+  {
+    name: 'AsyncGeneratorFunctionPrototype',
+    original: Reflect.getPrototypeOf(async function*() {}),
+  },
+  {
+    name: 'AsyncIteratorPrototype',
+    original: Reflect.getPrototypeOf(Reflect.getPrototypeOf(async function*() {}).prototype),
+  },
+  {
+    name: 'GeneratorFunctionPrototype',
+    original: Reflect.getPrototypeOf(function*() {}),
+  },
+  {
+    name: 'IteratorHelperPrototype',
+    original: Reflect.getPrototypeOf(primordials.IteratorPrototypeDrop({ __proto__: null }, null)),
+  },
+  {
+    name: 'MapIteratorPrototype',
+    original: Reflect.getPrototypeOf(new primordials.Map()[Symbol.iterator]()),
+  },
+  {
+    name: 'RegExpStringIteratorPrototype',
+    original: Reflect.getPrototypeOf(primordials.RegExp.prototype[Symbol.matchAll]()),
+  },
+  {
+    name: 'SetIteratorPrototype',
+    original: Reflect.getPrototypeOf(new primordials.Set()[Symbol.iterator]()),
+  },
+  {
+    name: 'StringIteratorPrototype',
+    original: Reflect.getPrototypeOf(String.prototype[Symbol.iterator]()),
+  },
+  {
+    name: 'WrapForValidIteratorPrototype',
+    original: Reflect.getPrototypeOf(primordials.IteratorFrom({ __proto__: null })),
+  },
+].forEach(({ name, original }) => {
+  primordials[name] = original;
+  copyPrototype(original, primordials, name);
+});
 
 /* eslint-enable node-core/prefer-primordials */
 
@@ -273,6 +318,8 @@ const {
   Array: ArrayConstructor,
   ArrayPrototypeForEach,
   ArrayPrototypeMap,
+  ArrayPrototypePushApply,
+  ArrayPrototypeSlice,
   FinalizationRegistry,
   FunctionPrototypeCall,
   Map,
@@ -367,21 +414,18 @@ const copyProps = (src, dest) => {
 /**
  * @type {typeof primordials.makeSafe}
  */
-const makeSafe = (unsafe, safe) => {
-  if (SymbolIterator in unsafe.prototype) {
+const makeSafe = (unsafe, safe, next) => {
+  if (next) {
     const dummy = new unsafe();
-    let next; // We can reuse the same `next` method.
-
     ArrayPrototypeForEach(ReflectOwnKeys(unsafe.prototype), (key) => {
       if (!ReflectGetOwnPropertyDescriptor(safe.prototype, key)) {
         const desc = ReflectGetOwnPropertyDescriptor(unsafe.prototype, key);
         if (
           typeof desc.value === 'function' &&
           desc.value.length === 0 &&
-          SymbolIterator in (FunctionPrototypeCall(desc.value, dummy) ?? {})
+          FunctionPrototypeCall(desc.value, dummy)?.next === next
         ) {
           const createIterator = uncurryThis(desc.value);
-          next ??= uncurryThis(createIterator(dummy).next);
           const SafeIterator = createSafeIterator(createIterator, next);
           desc.value = function() {
             return new SafeIterator(this);
@@ -404,55 +448,38 @@ primordials.makeSafe = makeSafe;
 
 // Subclass the constructors because we need to use their prototype
 // methods later.
-// Defining the `constructor` is necessary here to avoid the default
-// constructor which uses the user-mutable `%ArrayIteratorPrototype%.next`.
 primordials.SafeMap = makeSafe(
   Map,
-  class SafeMap extends Map {
-    constructor(i) { super(i); } // eslint-disable-line no-useless-constructor
-  },
+  class SafeMap extends Map {},
+  primordials.MapIteratorPrototypeNext,
 );
 primordials.SafeWeakMap = makeSafe(
   WeakMap,
-  class SafeWeakMap extends WeakMap {
-    constructor(i) { super(i); } // eslint-disable-line no-useless-constructor
-  },
+  class SafeWeakMap extends WeakMap {},
 );
 
 primordials.SafeSet = makeSafe(
   Set,
-  class SafeSet extends Set {
-    constructor(i) { super(i); } // eslint-disable-line no-useless-constructor
-  },
+  class SafeSet extends Set {},
+  primordials.SetIteratorPrototypeNext,
 );
 primordials.SafeWeakSet = makeSafe(
   WeakSet,
-  class SafeWeakSet extends WeakSet {
-    constructor(i) { super(i); } // eslint-disable-line no-useless-constructor
-  },
+  class SafeWeakSet extends WeakSet {},
 );
 
 primordials.SafeFinalizationRegistry = makeSafe(
   FinalizationRegistry,
-  class SafeFinalizationRegistry extends FinalizationRegistry {
-    // eslint-disable-next-line no-useless-constructor
-    constructor(cleanupCallback) { super(cleanupCallback); }
-  },
+  class SafeFinalizationRegistry extends FinalizationRegistry {},
 );
 primordials.SafeWeakRef = makeSafe(
   WeakRef,
-  class SafeWeakRef extends WeakRef {
-    // eslint-disable-next-line no-useless-constructor
-    constructor(target) { super(target); }
-  },
+  class SafeWeakRef extends WeakRef {},
 );
 
 const SafePromise = makeSafe(
   Promise,
-  class SafePromise extends Promise {
-    // eslint-disable-next-line no-useless-constructor
-    constructor(executor) { super(executor); }
-  },
+  class SafePromise extends Promise {},
 );
 
 /**
@@ -461,7 +488,7 @@ const SafePromise = makeSafe(
  * Prefer using async functions when possible.
  * @param {Promise<any>} thisPromise
  * @param {(() => void) | undefined | null} onFinally The callback to execute
- *        when the Promise is settled (fulfilled or rejected).
+ *   when the Promise is settled (fulfilled or rejected).
  * @returns {Promise} A Promise for the completion of the callback.
  */
 primordials.SafePromisePrototypeFinally = (thisPromise, onFinally) =>
@@ -472,11 +499,6 @@ primordials.SafePromisePrototypeFinally = (thisPromise, onFinally) =>
       .finally(onFinally)
       .then(a, b),
   );
-
-primordials.AsyncIteratorPrototype =
-  primordials.ReflectGetPrototypeOf(
-    primordials.ReflectGetPrototypeOf(
-      async function* () {}).prototype);
 
 const arrayToSafePromiseIterable = (promises, mapFn) =>
   new primordials.SafeArrayIterator(
@@ -740,6 +762,27 @@ primordials.SafeStringPrototypeSearch = (str, regexp) => {
   regexp.lastIndex = 0;
   const match = RegExpPrototypeExec(regexp, str);
   return match ? match.index : -1;
+};
+
+/**
+ * Variadic functions with lots of arguments will cause stack overflow errors.
+ * Use this function when `items` can be arbitrarily large, this function splits
+ * it into chunks of size 2**16 making stack overflow less likely.
+ * @param {Array<unknown>} arr
+ * @param {Parameters<typeof Array.prototype.push>} items
+ * @returns {ReturnType<typeof Array.prototype.push>}
+ */
+primordials.SafeArrayPrototypePushApply = (arr, items) => {
+  let end = 0x10000;
+  if (end < items.length) {
+    let start = 0;
+    do {
+      ArrayPrototypePushApply(arr, ArrayPrototypeSlice(items, start, start = end));
+      end += 0x10000;
+    } while (end < items.length);
+    items = ArrayPrototypeSlice(items, start);
+  }
+  return ArrayPrototypePushApply(arr, items);
 };
 
 ObjectSetPrototypeOf(primordials, null);

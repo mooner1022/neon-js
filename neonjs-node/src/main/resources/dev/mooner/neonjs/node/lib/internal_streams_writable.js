@@ -1,4 +1,4 @@
-// Ported from Node.js v22.12.0 lib/internal/streams/writable.js (MIT license, see NOTICE).
+// Ported from Node.js v26.11.1 lib/internal/streams/writable.js (MIT license, see NOTICE).
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -36,6 +36,7 @@ const {
   Promise,
   StringPrototypeToLowerCase,
   Symbol,
+  SymbolAsyncDispose,
   SymbolHasInstance,
 } = primordials;
 
@@ -46,11 +47,7 @@ const EE = require('events');
 const Stream = require('internal/streams/legacy').Stream;
 const { Buffer } = require('buffer');
 const destroyImpl = require('internal/streams/destroy');
-const eos = require('internal/streams/end-of-stream');
-const {
-  SymbolAsyncDispose,
-} = require('internal/util');
-
+const { eos } = require('internal/streams/end-of-stream');
 const {
   addAbortSignal,
 } = require('internal/streams/add-abort-signal');
@@ -87,6 +84,8 @@ const {
   kConstructed,
   kOnConstructed,
 } = require('internal/streams/utils');
+
+const { assignFunctionName } = require('internal/util');
 
 const { errorOrDestroy } = destroyImpl;
 
@@ -350,7 +349,7 @@ function WritableState(options, stream, isDuplex) {
   this.corked = 0;
 
   // The callback that's passed to _write(chunk, cb).
-  this.onwrite = onwrite.bind(undefined, stream);
+  this.onwrite = (er) => onwrite(stream, er);
 
   // The amount that is being written when _write is called.
   this.writelen = 0;
@@ -438,12 +437,12 @@ function Writable(options) {
 
 ObjectDefineProperty(Writable, SymbolHasInstance, {
   __proto__: null,
-  value: function(object) {
-    if (FunctionPrototypeSymbolHasInstance(this, object)) return true;
+  value: assignFunctionName(SymbolHasInstance, function(instance) {
+    if (FunctionPrototypeSymbolHasInstance(this, instance)) return true;
     if (this !== Writable) return false;
 
-    return object && object._writableState instanceof WritableState;
-  },
+    return instance && instance._writableState instanceof WritableState;
+  }),
 });
 
 // Otherwise people can pipe Writable streams, which is just wrong.
@@ -470,6 +469,9 @@ function _write(stream, chunk, encoding, cb) {
     }
 
     if (typeof chunk === 'string') {
+      if (encoding === 'buffer') {
+        throw new ERR_UNKNOWN_ENCODING(encoding);
+      }
       if ((state[kState] & kDecodeStrings) !== 0) {
         chunk = Buffer.from(chunk, encoding);
         encoding = 'buffer';
@@ -584,6 +586,43 @@ function writeOrBuffer(stream, state, chunk, encoding, callback) {
   // any synchronous while(stream.write(data)) loops.
   return ret && (state[kState] & (kDestroyed | kErrored)) === 0;
 }
+
+// Steady state of a flowing pipe into a byte-mode Writable: one Buffer,
+// nothing queued, and no user write callback. Returns undefined when the
+// caller must use write() instead. Otherwise the same boolean as write().
+const kWriteFlowBlock = kObjectMode | kDestroyed | kErrored | kSync |
+  kEnding | kFinished | kWriting | kCorked | kBuffered | kEnded |
+  kNeedDrain | kWriteCb | kExpectWriteCb | kBufferProcessing |
+  kFinalCalled | kPrefinished | kOnFinished | kErrorEmitted;
+
+function writeKnownBuffer(stream, chunk) {
+  const state = stream._writableState;
+  if (state == null || state.length !== 0 || !(chunk instanceof Buffer))
+    return undefined;
+
+  const bits = state[kState];
+  if ((bits & kConstructed) === 0 || (bits & kWriteFlowBlock) !== 0)
+    return undefined;
+
+  const len = chunk.length;
+  state.pendingcb++;
+  state.length = len;
+  state.writelen = len;
+  state[kState] = bits | kWriting | kSync | kExpectWriteCb;
+  stream._write(chunk, 'buffer', state.onwrite);
+  state[kState] &= ~kSync;
+
+  const ret = state.length < state.highWaterMark || state.length === 0;
+  if (!ret)
+    state[kState] |= kNeedDrain;
+  return ret && (state[kState] & (kDestroyed | kErrored)) === 0;
+}
+
+ObjectDefineProperty(Writable, 'writeKnownBuffer', {
+  __proto__: null,
+  value: writeKnownBuffer,
+  enumerable: false,
+});
 
 function doWrite(stream, state, writev, len, chunk, encoding, cb) {
   state.writelen = len;
@@ -786,7 +825,7 @@ function clearBuffer(stream, state) {
 
     if (i === buffered.length) {
       resetBuffer(state);
-    } else if (i > 256) {
+    } else if (i > 256 && i * 2 >= buffered.length) {
       buffered.splice(0, i);
       state.bufferedIndex = 0;
     } else {
@@ -1152,13 +1191,13 @@ Writable.toWeb = function(streamWritable) {
   return lazyWebStreams().newWritableStreamFromStreamWritable(streamWritable);
 };
 
-Writable.prototype[SymbolAsyncDispose] = function() {
+Writable.prototype[SymbolAsyncDispose] = async function() {
   let error;
   if (!this.destroyed) {
     error = this.writableFinished ? null : new AbortError();
     this.destroy(error);
   }
-  return new Promise((resolve, reject) =>
+  await new Promise((resolve, reject) =>
     eos(this, (err) => (err && err.name !== 'AbortError' ? reject(err) : resolve(null))),
   );
 };

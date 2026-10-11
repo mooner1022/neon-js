@@ -1,4 +1,4 @@
-// Ported from Node.js v22.12.0 lib/internal/streams/legacy.js (MIT license, see NOTICE).
+// Ported from Node.js v26.11.1 lib/internal/streams/legacy.js (MIT license, see NOTICE).
 'use strict';
 
 const {
@@ -60,7 +60,8 @@ Stream.prototype.pipe = function(dest, options) {
   // Don't leave dangling pipes when there are errors.
   function onerror(er) {
     cleanup();
-    if (EE.listenerCount(this, 'error') === 0) {
+    // If we removed the last error handler, trigger an unhandled error event.
+    if (this.listenerCount?.('error') === 0) {
       this.emit('error', er);
     }
   }

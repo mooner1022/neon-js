@@ -1,4 +1,4 @@
-// Ported from Node.js v22.12.0 lib/path.js (MIT license, see NOTICE); path.matchesGlob needs Node's minimatch, which is not here.
+// Ported from Node.js v26.11.1 lib/path.js (MIT license, see NOTICE); path.matchesGlob needs Node's minimatch, which is not here.
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -23,10 +23,13 @@
 'use strict';
 
 const {
+  ArrayPrototypeIncludes,
   ArrayPrototypeJoin,
+  ArrayPrototypePush,
   ArrayPrototypeSlice,
   FunctionPrototypeBind,
   StringPrototypeCharCodeAt,
+  StringPrototypeIncludes,
   StringPrototypeIndexOf,
   StringPrototypeLastIndexOf,
   StringPrototypeRepeat,
@@ -34,6 +37,7 @@ const {
   StringPrototypeSlice,
   StringPrototypeSplit,
   StringPrototypeToLowerCase,
+  StringPrototypeToUpperCase,
 } = primordials;
 
 const {
@@ -53,13 +57,11 @@ const {
 } = require('internal/validators');
 
 const {
-  getLazy,
-  emitExperimentalWarning,
   isWindows,
-  isMacOS,
+  getLazy,
 } = require('internal/util');
 
-const lazyMinimatch = getLazy(() => {
+const lazyMatchGlobPattern = getLazy(() => {
   throw new (require('internal/errors').codes.ERR_UNAVAILABLE)('path.matchesGlob');
 });
 
@@ -69,6 +71,19 @@ function isPathSeparator(code) {
 
 function isPosixPathSeparator(code) {
   return code === CHAR_FORWARD_SLASH;
+}
+
+const WINDOWS_RESERVED_NAMES = [
+  'CON', 'PRN', 'AUX', 'NUL',
+  'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
+  'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9',
+  'COM\xb9', 'COM\xb2', 'COM\xb3',
+  'LPT\xb9', 'LPT\xb2', 'LPT\xb3',
+];
+
+function isWindowsReservedName(path, colonIndex) {
+  const devicePart = StringPrototypeToUpperCase(StringPrototypeSlice(path, 0, colonIndex));
+  return ArrayPrototypeIncludes(WINDOWS_RESERVED_NAMES, devicePart);
 }
 
 function isWindowsDeviceRoot(code) {
@@ -99,7 +114,7 @@ function normalizeString(path, allowAboveRoot, separator, isPathSeparator) {
             StringPrototypeCharCodeAt(res, res.length - 1) !== CHAR_DOT ||
             StringPrototypeCharCodeAt(res, res.length - 2) !== CHAR_DOT) {
           if (res.length > 2) {
-            const lastSlashIndex = StringPrototypeLastIndexOf(res, separator);
+            const lastSlashIndex = res.length - lastSegmentLength - 1;
             if (lastSlashIndex === -1) {
               res = '';
               lastSegmentLength = 0;
@@ -167,21 +182,7 @@ function _format(sep, pathObject) {
   return dir === pathObject.root ? `${dir}${base}` : `${dir}${sep}${base}`;
 }
 
-function glob(path, pattern, windows) {
-  emitExperimentalWarning('glob');
-  validateString(path, 'path');
-  validateString(pattern, 'pattern');
-  return lazyMinimatch().minimatch(path, pattern, {
-    __proto__: null,
-    nocase: isMacOS || isWindows,
-    windowsPathsNoEscape: true,
-    nonegate: true,
-    nocomment: true,
-    optimizationLevel: 2,
-    platform: windows ? 'win32' : 'posix',
-    nocaseMagicOnly: true,
-  });
-}
+const forwardSlashRegExp = /\//g;
 
 const win32 = {
   /**
@@ -206,6 +207,14 @@ const win32 = {
         }
       } else if (resolvedDevice.length === 0) {
         path = process.cwd();
+        // Fast path for current directory
+        if (args.length === 0 || ((args.length === 1 && (args[0] === '' || args[0] === '.')) &&
+            isPathSeparator(StringPrototypeCharCodeAt(path, 0)))) {
+          if (!isWindows) {
+            path = StringPrototypeReplace(path, forwardSlashRegExp, '\\');
+          }
+          return path;
+        }
       } else {
         // Windows has the concept of drive-specific current working
         // directories. If we've resolved a drive letter but not yet an
@@ -271,10 +280,16 @@ const win32 = {
                 j++;
               }
               if (j === len || j !== last) {
-                // We matched a UNC root
-                device =
-                  `\\\\${firstPart}\\${StringPrototypeSlice(path, last, j)}`;
-                rootEnd = j;
+                if (firstPart !== '.' && firstPart !== '?') {
+                  // We matched a UNC root
+                  device =
+                    `\\\\${firstPart}\\${StringPrototypeSlice(path, last, j)}`;
+                  rootEnd = j;
+                } else {
+                  // We matched a device root (e.g. \\\\.\\PHYSICALDRIVE0)
+                  device = `\\\\${firstPart}`;
+                  rootEnd = 4;
+                }
               }
             }
           }
@@ -384,33 +399,50 @@ const win32 = {
                    !isPathSeparator(StringPrototypeCharCodeAt(path, j))) {
               j++;
             }
-            if (j === len) {
-              // We matched a UNC root only
-              // Return the normalized version of the UNC root since there
-              // is nothing left to process
-              return `\\\\${firstPart}\\${StringPrototypeSlice(path, last)}\\`;
-            }
-            if (j !== last) {
-              // We matched a UNC root with leftovers
-              device =
-                `\\\\${firstPart}\\${StringPrototypeSlice(path, last, j)}`;
-              rootEnd = j;
+            if (j === len || j !== last) {
+              if (firstPart === '.' || firstPart === '?') {
+                // We matched a device root (e.g. \\\\.\\PHYSICALDRIVE0)
+                device = `\\\\${firstPart}`;
+                rootEnd = 4;
+                const colonIndex = StringPrototypeIndexOf(path, ':');
+                // Special case: handle \\?\COM1: or similar reserved device paths
+                const possibleDevice = StringPrototypeSlice(path, 4, colonIndex + 1);
+                if (isWindowsReservedName(possibleDevice, possibleDevice.length - 1)) {
+                  device = `\\\\?\\${possibleDevice}`;
+                  rootEnd = 4 + possibleDevice.length;
+                }
+              } else if (j === len) {
+                // We matched a UNC root only
+                // Return the normalized version of the UNC root since there
+                // is nothing left to process
+                return `\\\\${firstPart}\\${StringPrototypeSlice(path, last)}\\`;
+              } else {
+                // We matched a UNC root with leftovers
+                device =
+                  `\\\\${firstPart}\\${StringPrototypeSlice(path, last, j)}`;
+                rootEnd = j;
+              }
             }
           }
         }
       } else {
         rootEnd = 1;
       }
-    } else if (isWindowsDeviceRoot(code) &&
-               StringPrototypeCharCodeAt(path, 1) === CHAR_COLON) {
-      // Possible device root
-      device = StringPrototypeSlice(path, 0, 2);
-      rootEnd = 2;
-      if (len > 2 && isPathSeparator(StringPrototypeCharCodeAt(path, 2))) {
-        // Treat separator following drive name as an absolute path
-        // indicator
-        isAbsolute = true;
-        rootEnd = 3;
+    } else {
+      const colonIndex = StringPrototypeIndexOf(path, ':');
+      if (colonIndex > 0) {
+        if (isWindowsDeviceRoot(code) && colonIndex === 1) {
+          device = StringPrototypeSlice(path, 0, 2);
+          rootEnd = 2;
+          if (len > 2 && isPathSeparator(StringPrototypeCharCodeAt(path, 2))) {
+            isAbsolute = true;
+            rootEnd = 3;
+          }
+        } else if (isWindowsReservedName(path, colonIndex)) {
+          device = StringPrototypeSlice(path, 0, colonIndex + 1);
+          rootEnd = colonIndex + 1;
+
+        }
       }
     }
 
@@ -423,6 +455,28 @@ const win32 = {
     if (tail.length > 0 &&
         isPathSeparator(StringPrototypeCharCodeAt(path, len - 1)))
       tail += '\\';
+    if (!isAbsolute && device === undefined && StringPrototypeIncludes(path, ':')) {
+      // If the original path was not absolute and if we have not been able to
+      // resolve it relative to a particular device, we need to ensure that the
+      // `tail` has not become something that Windows might interpret as an
+      // absolute path. See CVE-2024-36139.
+      if (tail.length >= 2 &&
+          isWindowsDeviceRoot(StringPrototypeCharCodeAt(tail, 0)) &&
+          StringPrototypeCharCodeAt(tail, 1) === CHAR_COLON) {
+        return `.\\${tail}`;
+      }
+      let index = StringPrototypeIndexOf(path, ':');
+
+      do {
+        if (index === len - 1 || isPathSeparator(StringPrototypeCharCodeAt(path, index + 1))) {
+          return `.\\${tail}`;
+        }
+      } while ((index = StringPrototypeIndexOf(path, ':', index + 1)) !== -1);
+    }
+    const colonIndex = StringPrototypeIndexOf(path, ':');
+    if (isWindowsReservedName(path, colonIndex)) {
+      return `.\\${device ?? ''}${tail}`;
+    }
     if (device === undefined) {
       return isAbsolute ? `\\${tail}` : tail;
     }
@@ -456,21 +510,20 @@ const win32 = {
     if (args.length === 0)
       return '.';
 
-    let joined;
-    let firstPart;
+    const path = [];
     for (let i = 0; i < args.length; ++i) {
       const arg = args[i];
       validateString(arg, 'path');
       if (arg.length > 0) {
-        if (joined === undefined)
-          joined = firstPart = arg;
-        else
-          joined += `\\${arg}`;
+        ArrayPrototypePush(path, arg);
       }
     }
 
-    if (joined === undefined)
+    if (path.length === 0)
       return '.';
+
+    const firstPart = path[0];
+    let joined = ArrayPrototypeJoin(path, '\\');
 
     // Make sure that the joined path doesn't start with two slashes, because
     // normalize() will mistake it for a UNC path then.
@@ -513,6 +566,36 @@ const win32 = {
       // Replace the slashes if needed
       if (slashCount >= 2)
         joined = `\\${StringPrototypeSlice(joined, slashCount)}`;
+    }
+
+    // Skip normalization when reserved device names are present
+    const parts = [];
+    let part = '';
+
+    for (let i = 0; i < joined.length; i++) {
+      if (joined[i] === '\\') {
+        if (part) parts.push(part);
+        part = '';
+        // Skip consecutive backslashes
+        while (i + 1 < joined.length && joined[i + 1] === '\\') i++;
+      } else {
+        part += joined[i];
+      }
+    }
+    // Add the final part if any
+    if (part) parts.push(part);
+
+    // Check if any part has a Windows reserved name
+    if (parts.some((p) => {
+      const colonIndex = StringPrototypeIndexOf(p, ':');
+      return colonIndex !== -1 && isWindowsReservedName(p, colonIndex);
+    })) {
+      // Replace forward slashes with backslashes
+      let result = '';
+      for (let i = 0; i < joined.length; i++) {
+        result += joined[i] === '/' ? '\\' : joined[i];
+      }
+      return result;
     }
 
     return win32.normalize(joined);
@@ -1132,7 +1215,7 @@ const win32 = {
   },
 
   matchesGlob(path, pattern) {
-    return glob(path, pattern, true);
+    return lazyMatchGlobPattern()(path, pattern, true);
   },
 
   sep: '\\',
@@ -1163,6 +1246,12 @@ const posix = {
    * @returns {string}
    */
   resolve(...args) {
+    if (args.length === 0 || (args.length === 1 && (args[0] === '' || args[0] === '.'))) {
+      const cwd = posixCwd();
+      if (StringPrototypeCharCodeAt(cwd, 0) === CHAR_FORWARD_SLASH) {
+        return cwd;
+      }
+    }
     let resolvedPath = '';
     let resolvedAbsolute = false;
 
@@ -1176,8 +1265,7 @@ const posix = {
       }
 
       resolvedPath = `${path}/${resolvedPath}`;
-      resolvedAbsolute =
-        StringPrototypeCharCodeAt(path, 0) === CHAR_FORWARD_SLASH;
+      resolvedAbsolute = path[0] === '/';
     }
 
     if (!resolvedAbsolute) {
@@ -1210,10 +1298,8 @@ const posix = {
     if (path.length === 0)
       return '.';
 
-    const isAbsolute =
-      StringPrototypeCharCodeAt(path, 0) === CHAR_FORWARD_SLASH;
-    const trailingSeparator =
-      StringPrototypeCharCodeAt(path, path.length - 1) === CHAR_FORWARD_SLASH;
+    const isAbsolute = path[0] === '/';
+    const trailingSeparator = path[path.length - 1] === '/';
 
     // Normalize the path
     path = normalizeString(path, !isAbsolute, '/', isPosixPathSeparator);
@@ -1553,8 +1639,8 @@ const posix = {
 
     // Get non-dir info
     for (; i >= start; --i) {
-      const code = StringPrototypeCharCodeAt(path, i);
-      if (code === CHAR_FORWARD_SLASH) {
+      const char = path[i];
+      if (char === '/') {
         // If we reached a path separator that was not part of a set of path
         // separators at the end of the string, stop now
         if (!matchedSlash) {
@@ -1569,7 +1655,7 @@ const posix = {
         matchedSlash = false;
         end = i + 1;
       }
-      if (code === CHAR_DOT) {
+      if (char === '.') {
         // If this is our first dot, mark it as the start of our extension
         if (startDot === -1)
           startDot = i;
@@ -1608,7 +1694,7 @@ const posix = {
   },
 
   matchesGlob(path, pattern) {
-    return glob(path, pattern, false);
+    return lazyMatchGlobPattern()(path, pattern, false);
   },
 
   sep: '/',

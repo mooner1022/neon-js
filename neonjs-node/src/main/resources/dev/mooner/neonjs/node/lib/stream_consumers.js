@@ -1,8 +1,9 @@
-// Ported from Node.js v22.12.0 lib/stream/consumers.js (MIT license, see NOTICE).
+// Ported from Node.js v26.11.1 lib/stream/consumers.js (MIT license, see NOTICE).
 'use strict';
 
 const {
   JSONParse,
+  Uint8Array,
 } = primordials;
 
 const {
@@ -53,6 +54,14 @@ async function buffer(stream) {
 
 /**
  * @param {AsyncIterable|ReadableStream|Readable} stream
+ * @returns {Promise<Uint8Array>}
+ */
+async function bytes(stream) {
+  return new Uint8Array(await arrayBuffer(stream));
+}
+
+/**
+ * @param {AsyncIterable|ReadableStream|Readable} stream
  * @returns {Promise<string>}
  */
 async function text(stream) {
@@ -83,6 +92,7 @@ module.exports = {
   arrayBuffer,
   blob,
   buffer,
+  bytes,
   text,
   json,
 };

@@ -1,5 +1,5 @@
 'use strict';
-// What the libraries take from Node's lib/internal/url.js (after Node v22.12.0, MIT license, see NOTICE): URL and
+// What the libraries take from Node's lib/internal/url.js (after Node v26.11.1, MIT license, see NOTICE): URL and
 // URLSearchParams are the web globals (shown by util.inspect as Node shows its own), and the domain conversions come
 // from the engine's IDNA.
 
@@ -101,6 +101,8 @@ function domainToUnicode(domain) {
  * @returns {Record<string, unknown>}
  */
 function urlToHttpOptions(url) {
+  const { validateObject, kValidateObjectAllowObjects } = require('internal/validators');
+  validateObject(url, 'url', kValidateObjectAllowObjects);
   const { hostname, pathname, port, username, password, search } = url;
   const options = {
     __proto__: null,
@@ -132,12 +134,12 @@ function getPathFromURLWin32(url) {
       const third = StringPrototypeCodePointAt(pathname, n + 2) | 0x20;
       if ((pathname[n + 1] === '2' && third === 102) || // 2f 2F /
           (pathname[n + 1] === '5' && third === 99)) {  // 5c 5C \
-        throw new ERR_INVALID_FILE_URL_PATH('must not include encoded \\ or / characters');
+        throw new ERR_INVALID_FILE_URL_PATH('must not include encoded \\ or / characters', url);
       }
     }
   }
   pathname = RegExpPrototypeSymbolReplace(FORWARD_SLASH, pathname, '\\');
-  pathname = decodeURIComponent(pathname);
+  if (pathname.includes('%')) pathname = decodeURIComponent(pathname);
   if (hostname !== '') {
     // If hostname is set, then we have a UNC path
     // Pass the hostname through domainToUnicode just in case
@@ -152,9 +154,50 @@ function getPathFromURLWin32(url) {
   const sep = StringPrototypeCharAt(pathname, 2);
   if (letter < CHAR_LOWERCASE_A || letter > CHAR_LOWERCASE_Z ||   // a..z A..Z
       (sep !== ':')) {
-    throw new ERR_INVALID_FILE_URL_PATH('must be absolute');
+    throw new ERR_INVALID_FILE_URL_PATH('must be absolute', url);
   }
   return StringPrototypeSlice(pathname, 1);
+}
+
+// the bytes of a URL's path: percent-encodings decoded as bytes (an invalid one stays as it is), nothing else checked
+function percentDecodeBytes(pathname) {
+  const { Buffer } = require('buffer');
+  const input = Buffer.from(pathname, 'utf8');
+  const out = Buffer.allocUnsafe(input.length);
+  let n = 0;
+  const hex = (c) => (c >= 0x30 && c <= 0x39 ? c - 0x30 : (c | 0x20) >= 0x61 && (c | 0x20) <= 0x66 ? (c | 0x20) - 0x57 : -1);
+  for (let i = 0; i < input.length; i++) {
+    const c = input[i];
+    if (c === 0x25 && i + 2 < input.length && hex(input[i + 1]) >= 0 && hex(input[i + 2]) >= 0) {
+      out[n++] = hex(input[i + 1]) * 16 + hex(input[i + 2]);
+      i += 2;
+    } else {
+      out[n++] = c;
+    }
+  }
+  return out.subarray(0, n);
+}
+
+function getPathBufferFromURLWin32(url) {
+  const { Buffer } = require('buffer');
+  const hostname = url.hostname;
+  // the encoded slashes are not looked for: the bytes are taken as they are
+  const decoded = percentDecodeBytes(RegExpPrototypeSymbolReplace(FORWARD_SLASH, url.pathname, '\\'));
+  if (hostname !== '') {
+    return Buffer.concat([Buffer.from('\\\\', 'ascii'), Buffer.from(domainToUnicode(hostname), 'utf8'), decoded]);
+  }
+  const letter = decoded[1] | 0x20;
+  if (letter < CHAR_LOWERCASE_A || letter > CHAR_LOWERCASE_Z || decoded[2] !== 58) {
+    throw new ERR_INVALID_FILE_URL_PATH('must be absolute', url);
+  }
+  return decoded.subarray(1);
+}
+
+function getPathBufferFromURLPosix(url) {
+  if (url.hostname !== '') {
+    throw new ERR_INVALID_FILE_URL_HOST(binding.platform);
+  }
+  return percentDecodeBytes(url.pathname);
 }
 
 function getPathFromURLPosix(url) {
@@ -166,11 +209,11 @@ function getPathFromURLPosix(url) {
     if (pathname[n] === '%') {
       const third = StringPrototypeCodePointAt(pathname, n + 2) | 0x20;
       if (pathname[n + 1] === '2' && third === 102) {
-        throw new ERR_INVALID_FILE_URL_PATH('must not include encoded / characters');
+        throw new ERR_INVALID_FILE_URL_PATH('must not include encoded / characters', url);
       }
     }
   }
-  return decodeURIComponent(pathname);
+  return pathname.includes('%') ? decodeURIComponent(pathname) : pathname;
 }
 
 function fileURLToPath(path, options = kEmptyObject) {
@@ -182,6 +225,18 @@ function fileURLToPath(path, options = kEmptyObject) {
   if (path.protocol !== 'file:')
     throw new ERR_INVALID_URL_SCHEME('file');
   return (windows ?? isWindows) ? getPathFromURLWin32(path) : getPathFromURLPosix(path);
+}
+
+// fileURLToPath giving the path's bytes, for paths that are no UTF-8
+function fileURLToPathBuffer(path, options = kEmptyObject) {
+  const windows = options?.windows;
+  if (typeof path === 'string')
+    path = new URL(path);
+  else if (!isURL(path))
+    throw new ERR_INVALID_ARG_TYPE('path', ['string', 'URL'], path);
+  if (path.protocol !== 'file:')
+    throw new ERR_INVALID_URL_SCHEME('file');
+  return (windows ?? isWindows) ? getPathBufferFromURLWin32(path) : getPathBufferFromURLPosix(path);
 }
 
 // A path as a URL path, as Node's native conversion makes it: ASCII letters, digits and !$&'()*+,-./:;=@_ stay;
@@ -208,26 +263,35 @@ const backslashRegEx = /\\/g;
 function pathToFileURL(filepath, options = kEmptyObject) {
   const windows = options?.windows ?? isWindows;
   const path = require('path');
-  if (windows && filepath.startsWith('\\\\')) {
+  // a local extended path (\\?\C:\...) is the path after the prefix, as Node's native conversion has it
+  if (windows && filepath.startsWith('\\\\?\\') && !filepath.startsWith('\\\\?\\UNC\\')) filepath = filepath.slice(4);
+  // a UNC path as given, else resolved (which may make it one)
+  const isUNC = windows && filepath.startsWith('\\\\');
+  let resolved = isUNC ? filepath : (windows ? path.win32.resolve(filepath) : path.posix.resolve(filepath));
+  if (isUNC || (windows && resolved.startsWith('\\\\'))) {
     // UNC path format: \\server\share\resource
     // Handle extended UNC path and standard UNC path
     // "\\?\UNC\" path prefix should be ignored.
     // Ref: https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation
-    const isExtendedUNC = filepath.startsWith('\\\\?\\UNC\\');
+    const isExtendedUNC = resolved.startsWith('\\\\?\\UNC\\');
     const prefixLength = isExtendedUNC ? 8 : 2;
-    const hostnameEndIndex = StringPrototypeIndexOf(filepath, '\\', prefixLength);
+    const hostnameEndIndex = StringPrototypeIndexOf(resolved, '\\', prefixLength);
     const { ERR_INVALID_ARG_VALUE } = require('internal/errors').codes;
     if (hostnameEndIndex === -1) {
-      throw new ERR_INVALID_ARG_VALUE('path', filepath, 'Missing UNC resource path');
+      throw new ERR_INVALID_ARG_VALUE('path', resolved, 'Missing UNC resource path');
     }
     if (hostnameEndIndex === 2) {
-      throw new ERR_INVALID_ARG_VALUE('path', filepath, 'Empty UNC servername');
+      throw new ERR_INVALID_ARG_VALUE('path', resolved, 'Empty UNC servername');
     }
-    const hostname = StringPrototypeSlice(filepath, prefixLength, hostnameEndIndex);
-    const pathname = RegExpPrototypeSymbolReplace(backslashRegEx, StringPrototypeSlice(filepath, hostnameEndIndex), '/');
-    return new URL(`file://${domainToASCII(hostname)}${encodePathForURL(pathname)}`);
+    const hostname = StringPrototypeSlice(resolved, prefixLength, hostnameEndIndex);
+    const pathname = RegExpPrototypeSymbolReplace(backslashRegEx, StringPrototypeSlice(resolved, hostnameEndIndex), '/');
+    // the server name as a URL's host parser takes it (up to /, ? or #, without tabs and newlines): one that is no
+    // valid host is an invalid URL, as Node's native parser finds it
+    const parsed = new URL('file://');
+    parsed.hostname = hostname;
+    if (parsed.hostname === '') throw new (require('internal/errors').codes.ERR_INVALID_URL)(`file://${hostname}${pathname}`);
+    return new URL(`file://${parsed.host}${encodePathForURL(pathname)}`);
   }
-  let resolved = windows ? path.win32.resolve(filepath) : path.posix.resolve(filepath);
   // path.resolve strips trailing slashes so we must add them back
   const filePathLast = filepath.charCodeAt(filepath.length - 1);
   if ((filePathLast === CHAR_FORWARD_SLASH ||
@@ -312,6 +376,7 @@ function installInspect() {
 
 module.exports = {
   fileURLToPath,
+  fileURLToPathBuffer,
   pathToFileURL,
   toPathIfFileURL,
   URL,

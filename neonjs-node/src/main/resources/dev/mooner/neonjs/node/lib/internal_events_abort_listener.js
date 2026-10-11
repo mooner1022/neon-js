@@ -1,9 +1,10 @@
-// Ported from Node.js v22.12.0 lib/internal/events/abort_listener.js (MIT license, see NOTICE); queueMicrotask is the global one.
+// Ported from Node.js v26.11.1 lib/internal/events/abort_listener.js (MIT license, see NOTICE); queueMicrotask is the global one.
 'use strict';
 
 const {
+  ObjectFreeze,
   SymbolDispose,
-} = require('internal/util');
+} = primordials;
 const {
   validateAbortSignal,
   validateFunction,
@@ -16,6 +17,8 @@ const {
 
 let queueMicrotask;
 let kResistStopPropagation;
+let abortListenerOptions;
+let eventTarget;
 
 /**
  * @param {AbortSignal} signal
@@ -32,11 +35,25 @@ function addAbortListener(signal, listener) {
   let removeEventListener;
   if (signal.aborted) {
     queueMicrotask ??= globalThis.queueMicrotask;
-    queueMicrotask(() => listener());
+    eventTarget ??= require('internal/event_target');
+    let disposed = false;
+    queueMicrotask(() => {
+      if (disposed) return;
+      const { Event, kIsBeingDispatched, kTarget, kTrustEvent } = eventTarget;
+      const event = new Event('abort', { [kTrustEvent]: true });
+      event[kTarget] = signal;
+      event[kIsBeingDispatched] = true;
+      listener(event);
+      event[kIsBeingDispatched] = false;
+    });
+    removeEventListener = () => {
+      disposed = true;
+    };
   } else {
     kResistStopPropagation ??= require('internal/event_target').kResistStopPropagation;
+    abortListenerOptions ??= ObjectFreeze({ __proto__: null, once: true, [kResistStopPropagation]: true });
     // TODO(atlowChemi) add { subscription: true } and return directly
-    signal.addEventListener('abort', listener, { __proto__: null, once: true, [kResistStopPropagation]: true });
+    signal.addEventListener('abort', listener, abortListenerOptions);
     removeEventListener = () => {
       signal.removeEventListener('abort', listener);
     };

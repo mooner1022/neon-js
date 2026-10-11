@@ -70,9 +70,9 @@ class UtilTest {
             // an object too long for one line goes one property a line
             assertEquals("{\n  alpha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',\n  beta: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',\n  gamma: 'cccccccccccccccccccccccccccccccccccccccc'\n}",
                 c.str("inspect({ alpha: 'a'.repeat(40), beta: 'b'.repeat(40), gamma: 'c'.repeat(40) })"))
-            assertEquals("Uint8Array(3) [ 1, 2, 3 ],ArrayBuffer { [Uint8Contents]: <01 02>, byteLength: 2 }", c.str(
+            assertEquals("Uint8Array(3) [ 1, 2, 3 ],ArrayBuffer { [Uint8Contents]: <01 02>, [byteLength]: 2 }", c.str(
                 "[inspect(new Uint8Array([1, 2, 3])), inspect(new Uint8Array([1, 2]).buffer)].join()"))
-            assertEquals("{ a: [Getter], b: [Getter/Setter], [Symbol(k)]: 1 }", c.str("inspect({ get a() { return 1 }, get b() { return 1 }, set b(v) {}, [Symbol('k')]: 1 })"))
+            assertEquals("{ a: [Getter], b: [Getter/Setter], Symbol(k): 1 }", c.str("inspect({ get a() { return 1 }, get b() { return 1 }, set b(v) {}, [Symbol('k')]: 1 })"))
             assertEquals("\u001b[33m1\u001b[39m", c.str("inspect(1, { colors: true })"))
         }
     }
@@ -85,8 +85,8 @@ class UtilTest {
             assertTrue(err.startsWith("TypeError: bad\n    at "), err)
             assertTrue(err.endsWith("{\n  code: 'E_BAD'\n}"), err)
             assertEquals("[Error: no frames]", c.str("const nf = new Error('no frames'); nf.stack = 'Error: no frames'; inspect(nf)"))
-            // a proxy shows its target; its traps are never run
-            assertEquals("{ t: 1 },0", c.str("""
+            // a proxy shows its target (marked, as Node 26 does); its traps are never run
+            assertEquals("Proxy({ t: 1 }),0", c.str("""
                 var trapped = 0;
                 const handler = { get() { trapped++ }, ownKeys() { trapped++; return [] }, getOwnPropertyDescriptor() { trapped++ } };
                 [inspect(new Proxy({ t: 1 }, handler)), trapped].join()
@@ -230,5 +230,21 @@ class UtilTest {
         // off: the core's formatting, which runs no guest code
         val core = run(NodeOptions.builder().consoleInspect(false).build())
         assertEquals("{ secret: 'x' } Map(1) { 'k' => 1 } str 5n", core[1])
+    }
+
+    @Test
+    fun node26Util() {
+        // on a fresh context, before anything else loads
+        ctx().use { c -> assertEquals("ENOENT", c.str("require('util').getSystemErrorName(-2)")) }
+        ctx().use { c ->
+            assertEquals("true,v,text/plain,charset=utf-8,f,function,function,130,false", c.str("""
+                const util = require('util');
+                const { values, positionals } = util.parseArgs({ args: ['-v', 'file'], options: { verbose: { type: 'boolean', short: 'v' } }, allowPositionals: true });
+                const mime = new util.MIMEType('text/plain;charset=utf-8');
+                function f() { return util.getCallSites(1)[0].functionName }
+                [values.verbose, 'v', mime.essence, mime.params.toString(), f(), typeof util.debounce, typeof util.throttle,
+                 util.convertProcessSignalToExitCode('SIGINT'), 'isBoolean' in util].join()
+            """))
+        }
     }
 }

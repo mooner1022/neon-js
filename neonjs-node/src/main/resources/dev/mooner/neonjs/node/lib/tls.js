@@ -5,7 +5,8 @@
 const { unavailableModule } = require('internal/unavailable');
 
 module.exports = unavailableModule('tls', {
-  functions: ['checkServerIdentity', 'connect', 'createSecureContext', 'createServer', 'createSecurePair'],
+  functions: ['checkServerIdentity', 'connect', 'convertALPNProtocols', 'createSecureContext', 'createServer',
+    'getCACertificates', 'getCertificateCompressionAlgorithms', 'setDefaultCACertificates'],
   classes: ['SecureContext', 'Server', 'TLSSocket'],
   values: {
     CLIENT_RENEG_LIMIT: 3,

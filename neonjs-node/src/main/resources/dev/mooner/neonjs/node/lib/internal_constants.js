@@ -1,4 +1,4 @@
-// Ported from Node.js v22.12.0 lib/internal/constants.js (MIT license, see NOTICE).
+// Ported from Node.js v26.11.1 lib/internal/constants.js (MIT license, see NOTICE).
 'use strict';
 
 const isWindows = process.platform === 'win32';
@@ -10,7 +10,9 @@ module.exports = {
   CHAR_UPPERCASE_Z: 90, /* Z */
   CHAR_LOWERCASE_Z: 122, /* z */
   CHAR_UPPERCASE_C: 67, /* C */
+  CHAR_UPPERCASE_B: 66, /* B */
   CHAR_LOWERCASE_B: 98, /* b */
+  CHAR_UPPERCASE_E: 69, /* E */
   CHAR_LOWERCASE_E: 101, /* e */
   CHAR_LOWERCASE_N: 110, /* n */
 

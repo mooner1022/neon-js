@@ -1,7 +1,7 @@
 'use strict';
-// The helpers of Node's lib/internal/util.js the libraries use (after it; MIT license, see NOTICE).
+// The helpers of Node's lib/internal/util.js the libraries use (after Node v26.11.1; MIT license, see NOTICE).
 
-const { isNativeError } = require('internal/util/types');
+const { isNativeError, isPromise } = require('internal/util/types');
 
 const kEmptyObject = Object.freeze({ __proto__: null });
 const kEnumerableProperty = { __proto__: null };
@@ -95,14 +95,16 @@ function normalizeEncoding(enc) {
 const codesWarned = new Set();
 let validateString;
 
-function getDeprecationWarningEmitter(code, msg, deprecated) {
+function getDeprecationWarningEmitter(code, msg, deprecated, useEmitSync, shouldEmitWarning = () => true) {
   let warned = false;
-  return function emitDeprecationWarning() {
-    if (!warned) {
+  return function emitDeprecationWarning(arg) {
+    if (!warned && shouldEmitWarning(arg)) {
       warned = true;
       // node:process by require (not the libraries' process parameter): it needs this module to load
       const proc = require('process');
-      if (code !== undefined) {
+      if (code === 'ExperimentalWarning') {
+        proc.emitWarning(msg, code, deprecated);
+      } else if (code !== undefined) {
         if (!codesWarned.has(code)) {
           proc.emitWarning(msg, 'DeprecationWarning', code, deprecated);
           codesWarned.add(code);
@@ -114,18 +116,21 @@ function getDeprecationWarningEmitter(code, msg, deprecated) {
   };
 }
 
-function deprecate(fn, msg, code) {
+function deprecate(fn, msg, code, useEmitSync, modifyPrototype = true) {
   if (validateString === undefined) ({ validateString } = require('internal/validators'));
   if (code !== undefined) validateString(code, 'code');
-  const emitDeprecationWarning = getDeprecationWarningEmitter(code, msg, deprecated);
+  const emitDeprecationWarning = getDeprecationWarningEmitter(code, msg, deprecated, useEmitSync);
   function deprecated(...args) {
     if (!require('process').noDeprecation) emitDeprecationWarning();
     if (new.target) return Reflect.construct(fn, args, new.target);
     return Reflect.apply(fn, this, args);
   }
-  // the wrapper keeps fn's prototype chain, and instances of fn are instances of it
-  Object.setPrototypeOf(deprecated, fn);
-  if (fn.prototype) deprecated.prototype = fn.prototype;
+  if (modifyPrototype) {
+    // the wrapper keeps fn's prototype chain, and instances of fn are instances of it
+    Object.setPrototypeOf(deprecated, fn);
+    if (fn.prototype) deprecated.prototype = fn.prototype;
+    Object.defineProperty(deprecated, 'length', { __proto__: null, ...Object.getOwnPropertyDescriptor(fn, 'length') });
+  }
   return deprecated;
 }
 
@@ -139,11 +144,130 @@ function createDeferredPromise() {
   return { promise, resolve, reject };
 }
 
-// node:util's promisify (loaded when called), with its symbol
-function promisify(original) {
-  return require('util').promisify(original);
+// a data property as an assignment would make it, whatever the prototype chain has
+function setOwnProperty(obj, key, value) {
+  Object.defineProperty(obj, key, { __proto__: null, configurable: true, enumerable: true, value, writable: true });
+  return value;
 }
-promisify.custom = Symbol.for('nodejs.util.promisify.custom');
+
+// names fn ([description] for a symbol), keeping the rest of its name's descriptor unless given
+function assignFunctionName(name, fn, descriptor = kEmptyObject) {
+  if (typeof name !== 'string') {
+    const description = name.description;
+    if (description === undefined) throw new Error('Attempted to name function after descriptionless Symbol');
+    name = `[${description}]`;
+  }
+  return Object.defineProperty(fn, 'name', {
+    __proto__: null,
+    writable: false,
+    enumerable: false,
+    configurable: true,
+    ...Object.getOwnPropertyDescriptor(fn, 'name'),
+    ...descriptor,
+    value: name,
+  });
+}
+
+// a constructor called without new: deprecated (code), then constructed
+function deprecateInstantiation(target, code, ...args) {
+  getDeprecationWarningEmitter(code, `Instantiating ${target.name} without the 'new' keyword has been deprecated.`, target)();
+  return Reflect.construct(target, args);
+}
+
+const kCustomPromisifiedSymbol = Symbol.for('nodejs.util.promisify.custom');
+let validateFunction;
+
+// a callback-taking function as one returning a promise (util.promisify)
+function promisify(original) {
+  if (validateFunction === undefined) ({ validateFunction } = require('internal/validators'));
+  validateFunction(original, 'original');
+  if (original[kCustomPromisifiedSymbol]) {
+    const fn = original[kCustomPromisifiedSymbol];
+    validateFunction(fn, 'util.promisify.custom');
+    return Object.defineProperty(fn, kCustomPromisifiedSymbol, {
+      __proto__: null, value: fn, enumerable: false, writable: false, configurable: true,
+    });
+  }
+  // names for the values of a callback given several, e.g. ['bytesRead', 'buffer']
+  const argumentNames = original[customPromisifyArgs];
+  function fn(...args) {
+    return new Promise((resolve, reject) => {
+      args[args.length] = (err, ...values) => {
+        if (err) return reject(err);
+        if (argumentNames !== undefined && values.length > 1) {
+          const obj = {};
+          for (let i = 0; i < argumentNames.length; i++) obj[argumentNames[i]] = values[i];
+          resolve(obj);
+        } else {
+          resolve(values[0]);
+        }
+      };
+      if (isPromise(Reflect.apply(original, this, args))) {
+        require('process').emitWarning('Calling promisify on a function that returns a Promise is likely a mistake.',
+          'DeprecationWarning', 'DEP0174');
+      }
+    });
+  }
+  Object.setPrototypeOf(fn, Object.getPrototypeOf(original));
+  Object.defineProperty(fn, kCustomPromisifiedSymbol, {
+    __proto__: null, value: fn, enumerable: false, writable: false, configurable: true,
+  });
+  const descriptors = Object.getOwnPropertyDescriptors(original);
+  const values = Object.values(descriptors);
+  // null-prototype descriptors: Object.prototype may have been changed
+  for (let i = 0; i < values.length; i++) Object.setPrototypeOf(values[i], null);
+  return Object.defineProperties(fn, descriptors);
+}
+promisify.custom = kCustomPromisifiedSymbol;
+
+// properties of target that load the module id when first read (Node's native defineLazyProperties)
+function defineLazyProperties(target, id, keys, enumerable = true) {
+  const descriptors = { __proto__: null };
+  let mod;
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    let lazyLoadedValue;
+    function set(value) {
+      Object.defineProperty(target, key, { __proto__: null, writable: true, value });
+    }
+    Object.defineProperty(set, 'name', { __proto__: null, value: `set ${key}` });
+    function get() {
+      mod ??= require(id);
+      if (lazyLoadedValue === undefined) {
+        lazyLoadedValue = mod[key];
+        set(lazyLoadedValue);
+      }
+      return lazyLoadedValue;
+    }
+    Object.defineProperty(get, 'name', { __proto__: null, value: `get ${key}` });
+    descriptors[key] = { __proto__: null, configurable: true, enumerable, get, set };
+  }
+  Object.defineProperties(target, descriptors);
+}
+
+// libuv's names and messages of errors (internal/uv_errmap)
+function getSystemErrorMap() {
+  return require('internal/uv_errmap').getErrorMap();
+}
+
+function getSystemErrorName(err) {
+  const entry = require('internal/errors').uvErrmapGet(err);
+  return entry ? entry[0] : `Unknown system error ${err}`;
+}
+
+function getSystemErrorMessage(err) {
+  return require('internal/uv_errmap').getErrorMessage(err);
+}
+
+let validateOneOf;
+
+// the exit code of a process ended by the signal (POSIX: 128 + its number)
+function convertProcessSignalToExitCode(signalCode) {
+  if (validateOneOf === undefined) ({ validateOneOf } = require('internal/validators'));
+  const { signals } = require('os').constants;
+  validateOneOf(signalCode, 'signalCode', Object.keys(signals));
+  return 128 + signals[signalCode];
+}
 
 function once(callback) {
   let called = false;
@@ -155,14 +279,21 @@ function once(callback) {
 }
 
 module.exports = {
+  assignFunctionName,
+  convertProcessSignalToExitCode,
   createDeferredPromise,
   customInspectSymbol,
   customPromisifyArgs,
   deprecate,
+  defineLazyProperties,
+  deprecateInstantiation,
   emitExperimentalWarning,
   encodingsMap,
   getDeprecationWarningEmitter,
   getLazy,
+  getSystemErrorMap,
+  getSystemErrorMessage,
+  getSystemErrorName,
   isError,
   isMacOS,
   isWindows,
@@ -174,6 +305,7 @@ module.exports = {
   once,
   promisify,
   removeColors,
+  setOwnProperty,
   spliceOne,
   SymbolAsyncDispose,
   SymbolDispose,

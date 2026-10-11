@@ -1,5 +1,5 @@
 'use strict';
-// Node's coded errors (ERR_*), generated from Node.js v22.12.0 lib/internal/errors.js (MIT license, see NOTICE): the
+// Node's coded errors (ERR_*), generated from Node.js v26.11.1 lib/internal/errors.js (MIT license, see NOTICE): the
 // definitions of the codes the libraries use, with Node's messages. codes.X makes the error with or without new, with
 // its .TypeError / .RangeError variants and .HideStackFramesError; hideStackFrames hides a validator's own frames from
 // the errors it throws. Libraries only: scripts cannot require this. Made by neonjs-node/tools/gen_errors.py.
@@ -15,6 +15,7 @@ const {
   ArrayPrototypeSplice,
   ErrorCaptureStackTrace,
   JSONStringify,
+  MapPrototypeGet,
   MathAbs,
   NumberIsInteger,
   NumberPrototypeToString,
@@ -23,6 +24,7 @@ const {
   ObjectDefineProperty,
   ObjectGetOwnPropertyDescriptor,
   ObjectIsExtensible,
+  ObjectKeys,
   ObjectPrototypeHasOwnProperty,
   ReflectApply,
   RegExpPrototypeExec,
@@ -278,11 +280,16 @@ function determineSpecificType(value) {
       return `type symbol (${String(value)})`;
     case 'function':
       return `function ${value.name}`;
-    case 'object':
-      if (value.constructor && 'name' in value.constructor) {
-        return `an instance of ${value.constructor.name}`;
+    case 'object': {
+      // `constructor` may be user-controlled: it need not be an object, and
+      // its `name` need not be a non-empty string. Reading either can invoke
+      // an accessor, so read each one once.
+      const name = value.constructor?.name;
+      if (typeof name === 'string' && name !== '') {
+        return `an instance of ${name}`;
       }
       return `${lazyInternalUtilInspect().inspect(value, { depth: -1 })}`;
+    }
     case 'string':
       value.length > 28 && (value = `${StringPrototypeSlice(value, 0, 25)}...`);
       if (StringPrototypeIndexOf(value, "'") === -1) {
@@ -307,6 +314,164 @@ function formatList(array, type = 'and') {
     case 3: return `${array[0]}, ${array[1]}, ${type} ${array[2]}`;
     default:
       return `${ArrayPrototypeJoin(ArrayPrototypeSlice(array, 0, -1), ', ')}, ${type} ${array[array.length - 1]}`;
+  }
+}
+
+// libuv's error map, from internal/uv_errmap (loaded when first needed)
+let uvErrmap;
+const uvUnmappedError = ['UNKNOWN', 'unknown error'];
+function uvErrmapGet(name) {
+  uvErrmap ??= require('internal/uv_errmap').getErrorMap();
+  return MapPrototypeGet(uvErrmap, name);
+}
+
+// node:util, for getSystemErrorName (loaded when first needed)
+let util;
+
+// there is no permission model here
+const isPermissionModelError = () => false;
+
+class UVException extends Error {
+  /**
+   * @param {object} ctx
+   */
+  constructor(ctx) {
+    const { 0: code, 1: uvmsg } = uvErrmapGet(ctx.errno) || uvUnmappedError;
+    let message = `${code}: ${ctx.message || uvmsg}, ${ctx.syscall}`;
+
+    let path;
+    let dest;
+    if (ctx.path) {
+      path = ctx.path.toString();
+      message += ` '${path}'`;
+    }
+    if (ctx.dest) {
+      dest = ctx.dest.toString();
+      message += ` -> '${dest}'`;
+    }
+
+    super(message);
+
+    for (const prop of ObjectKeys(ctx)) {
+      if (prop === 'message' || prop === 'path' || prop === 'dest') {
+        continue;
+      }
+      this[prop] = ctx[prop];
+    }
+
+    this.code = code;
+    if (path) {
+      this.path = path;
+    }
+    if (dest) {
+      this.dest = dest;
+    }
+  }
+
+  get ['constructor']() {
+    return Error;
+  }
+}
+
+class UVExceptionWithHostPort extends Error {
+  /**
+   * @param {number} err - A libuv error number
+   * @param {string} syscall
+   * @param {string} address
+   * @param {number} [port]
+   */
+  constructor(err, syscall, address, port) {
+    const { 0: code, 1: uvmsg } = uvErrmapGet(err) || uvUnmappedError;
+    const message = `${syscall} ${code}: ${uvmsg}`;
+    let details = '';
+
+    if (port && port > 0) {
+      details = ` ${address}:${port}`;
+    } else if (address) {
+      details = ` ${address}`;
+    }
+
+    super(`${message}${details}`);
+
+    this.code = code;
+    this.errno = err;
+    this.syscall = syscall;
+    this.address = address;
+    if (port) {
+      this.port = port;
+    }
+  }
+
+  get ['constructor']() {
+    return Error;
+  }
+}
+
+class ErrnoException extends Error {
+  /**
+   * @param {number} err - A libuv error number
+   * @param {string} syscall
+   * @param {string} [original] err
+   */
+  constructor(err, syscall, original) {
+    // TODO(joyeecheung): We have to use the type-checked
+    // getSystemErrorName(err) to guard against invalid arguments from users.
+    // This can be replaced with [ code ] = errmap.get(err) when this method
+    // is no longer exposed to user land.
+    util ??= require('util');
+    const code = util.getSystemErrorName(err);
+    const message = original ?
+      `${syscall} ${code} ${original}` : `${syscall} ${code}`;
+
+    super(message);
+
+    this.errno = err;
+    this.code = code;
+    this.syscall = syscall;
+  }
+
+  get ['constructor']() {
+    return Error;
+  }
+}
+
+class ExceptionWithHostPort extends Error {
+  constructor(err, syscall, address, port, additional) {
+    // TODO(joyeecheung): We have to use the type-checked
+    // getSystemErrorName(err) to guard against invalid arguments from users.
+    // This can be replaced with [ code ] = errmap.get(err) when this method
+    // is no longer exposed to user land.
+    util ??= require('util');
+    let code;
+    let details = '';
+    // True when permission model is enabled
+    if (isPermissionModelError(err)) {
+      code = err.code;
+      details = ` ${err.message}`;
+    } else {
+      code = util.getSystemErrorName(err);
+      if (port && port > 0) {
+        details = ` ${address}:${port}`;
+      } else if (address) {
+        details = ` ${address}`;
+      }
+      if (additional) {
+        details += ` - Local (${additional})`;
+      }
+    }
+    super(`${syscall} ${code}${details}`);
+
+    this.errno = err;
+    this.code = code;
+    this.syscall = syscall;
+    this.address = address;
+    if (port) {
+      this.port = port;
+    }
+  }
+
+  get ['constructor']() {
+    return Error;
   }
 }
 
@@ -456,7 +621,10 @@ E('ERR_INVALID_CHAR',
   }, TypeError, HideStackFramesError);
 E('ERR_INVALID_FILE_URL_HOST',
   'File URL host must be "localhost" or empty on %s', TypeError);
-E('ERR_INVALID_FILE_URL_PATH', 'File URL path %s', TypeError);
+E('ERR_INVALID_FILE_URL_PATH', function(reason, input) {
+  this.input = input;
+  return `File URL path ${reason}`;
+}, TypeError);
 E('ERR_INVALID_HTTP_TOKEN', '%s must be a valid HTTP token ["%s"]', TypeError, HideStackFramesError);
 E('ERR_INVALID_MIME_SYNTAX', (production, str, invalidIndex) => {
   const msg = invalidIndex !== -1 ? ` at ${invalidIndex}` : '';
@@ -477,7 +645,7 @@ E('ERR_INVALID_RETURN_VALUE', (input, name, value) => {
          ` function but got ${type}.`;
 }, TypeError, RangeError);
 E('ERR_INVALID_STATE', 'Invalid state: %s', Error, TypeError, RangeError);
-E('ERR_INVALID_THIS', 'Value of "this" must be of type %s', TypeError);
+E('ERR_INVALID_THIS', 'Value of "this" must be of type %s', TypeError, HideStackFramesError);
 E('ERR_INVALID_TUPLE', '%s must be an iterable %s tuple', TypeError);
 E('ERR_INVALID_URI', 'URI malformed', URIError);
 E('ERR_INVALID_URL', function(input, base = null) {
@@ -583,6 +751,15 @@ E('ERR_UNKNOWN_SIGNAL', 'Unknown signal: %s', TypeError, HideStackFramesError);
 E('ERR_USE_AFTER_CLOSE', '%s was closed', Error);
 
 // This should probably be a `TypeError`.
+E('ERR_BROTLI_INVALID_PARAM', '%s is not a valid Brotli parameter', RangeError);
+E('ERR_CONSTRUCT_CALL_REQUIRED', 'Class constructor %s cannot be invoked without `new`', TypeError);
+E('ERR_STREAM_ITER_MISSING_FLAG',
+  'The stream/iter API requires the --experimental-stream-iter flag', TypeError);
+E('ERR_STREAM_UNABLE_TO_PIPE', 'Cannot pipe to a closed or destroyed stream', Error);
+E('ERR_TRAILING_JUNK_AFTER_STREAM_END', 'Trailing junk found after the end of the compressed stream', TypeError);
+
+// This should probably be a `RangeError`.
+E('ERR_ZSTD_INVALID_PARAM', '%s is not a valid zstd parameter', RangeError);
 
 // the codes Node defines in C++ (src/node_errors.h)
 E('ERR_STRING_TOO_LONG', (max) => `Cannot create a string longer than 0x${NumberPrototypeToString(max, 16)} characters`, Error);
@@ -598,6 +775,8 @@ module.exports = {
   aggregateTwoErrors,
   codes,
   determineSpecificType,
+  ErrnoException,
+  ExceptionWithHostPort,
   formatList,
   genericNodeError,
   hideStackFrames,
@@ -606,4 +785,7 @@ module.exports = {
   kEnhanceStackBeforeInspector,
   kIsNodeError,
   makeError,
+  UVException,
+  UVExceptionWithHostPort,
+  uvErrmapGet,
 };

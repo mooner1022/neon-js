@@ -88,7 +88,7 @@ class CoreModulesTest {
     fun processShowsOnlyWhatTheHostGives() {
         val options = NodeOptions.builder().env(mapOf("TOKEN" to "t")).argv(listOf("neonjs", "bot.js")).cwd("/app").platform("android").build()
         ctx(options).use { c ->
-            assertEquals("t,undefined,bot.js,android,v22.12.0,22.12.0,true,/app,/app/sub,process", c.eval("""
+            assertEquals("t,undefined,bot.js,android,v26.11.1,26.11.1,true,/app,/app/sub,process", c.eval("""
                 const process = require('node:process');
                 process.chdir('sub');
                 [process.env.TOKEN, String(process.env.HOME), process.argv[1], process.platform, process.version, process.versions.node,
@@ -226,6 +226,34 @@ class CoreModulesTest {
                 })()
             """).await(5_000).asString()
             assertEquals("slept,now,AbortError:ABORT_ERR,3", r)
+        }
+    }
+
+    @Test
+    fun node26Process() {
+        ctx().use { c ->
+            assertEquals("true,,,function,object", c.eval("""
+                const process = require('process');
+                [process.getBuiltinModule('node:fs') === require('fs'), process.getBuiltinModule('left-pad'),
+                 process.noDeprecation, typeof process.availableMemory, typeof process.finalization].join()
+            """).asString())
+            // a capture callback takes what is left uncaught before 'uncaughtException' listeners do
+            c.eval("""
+                var captured = [];
+                const p = require('process');
+                p.setUncaughtExceptionCaptureCallback((err) => captured.push(err.message));
+                p.on('uncaughtException', () => captured.push('listener'));
+                setTimeout(() => { throw new Error('caught first') }, 1);
+            """)
+            assertTrue(c.runEventLoop(5_000))
+            assertEquals("caught first,true", c.eval("[captured.join(), p.hasUncaughtExceptionCaptureCallback()].join()").asString())
+        }
+        // finalization callbacks run at exit for what is still alive
+        var code = -1
+        ctx(NodeOptions.builder().onExit { code = it }.build()).use { c ->
+            c.eval("var fin = []; const keep = {}; require('process').finalization.register(keep, (obj, event) => fin.push(event))")
+            assertThrows<NeonInterruptedException> { c.eval("require('process').exit(0)") }
+            assertEquals("exit", c.eval("fin.join()").asString())
         }
     }
 }

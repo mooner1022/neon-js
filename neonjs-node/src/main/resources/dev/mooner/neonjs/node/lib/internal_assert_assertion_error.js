@@ -1,4 +1,4 @@
-// Ported from Node.js v22.12.0 lib/internal/assert/assertion_error.js (MIT license, see NOTICE).
+// Ported from Node.js v26.11.1 lib/internal/assert/assertion_error.js (MIT license, see NOTICE).
 'use strict';
 
 const {
@@ -11,6 +11,7 @@ const {
   ObjectDefineProperty,
   ObjectGetPrototypeOf,
   ObjectPrototypeHasOwnProperty,
+  SafeSet,
   String,
   StringPrototypeRepeat,
   StringPrototypeSlice,
@@ -27,6 +28,7 @@ const { myersDiff, printMyersDiff, printSimpleMyersDiff } = require('internal/as
 
 const kReadableOperator = {
   deepStrictEqual: 'Expected values to be strictly deep-equal:',
+  partialDeepStrictEqual: 'Expected values to be partially and strictly deep-equal:',
   strictEqual: 'Expected values to be strictly equal:',
   strictEqualObject: 'Expected "actual" to be reference-equal to "expected":',
   deepEqual: 'Expected values to be loosely deep-equal:',
@@ -41,6 +43,11 @@ const kReadableOperator = {
 
 const kMaxShortStringLength = 12;
 const kMaxLongStringLength = 512;
+
+const kMethodsWithCustomMessageDiff = new SafeSet()
+  .add('deepStrictEqual')
+  .add('strictEqual')
+  .add('partialDeepStrictEqual');
 
 function copyError(source) {
   const target = ObjectAssign(
@@ -176,7 +183,7 @@ function isSimpleDiff(actual, inspectedActual, expected, inspectedExpected) {
   return typeof actual !== 'object' || actual === null || typeof expected !== 'object' || expected === null;
 }
 
-function createErrDiff(actual, expected, operator, customMessage) {
+function createErrDiff(actual, expected, operator, customMessage, diffType = 'simple') {
   operator = checkOperator(actual, expected, operator);
 
   let skipped = false;
@@ -200,7 +207,7 @@ function createErrDiff(actual, expected, operator, customMessage) {
   } else if (inspectedActual === inspectedExpected) {
     // Handles the case where the objects are structurally the same but different references
     operator = 'notIdentical';
-    if (inspectedSplitActual.length > 50) {
+    if (inspectedSplitActual.length > 50 && diffType !== 'full') {
       message = `${ArrayPrototypeJoin(ArrayPrototypeSlice(inspectedSplitActual, 0, 50), '\n')}\n...}`;
       skipped = true;
     } else {
@@ -211,8 +218,12 @@ function createErrDiff(actual, expected, operator, customMessage) {
     const checkCommaDisparity = actual != null && typeof actual === 'object';
     const diff = myersDiff(inspectedSplitActual, inspectedSplitExpected, checkCommaDisparity);
 
-    const myersDiffMessage = printMyersDiff(diff);
+    const myersDiffMessage = printMyersDiff(diff, operator);
     message = myersDiffMessage.message;
+
+    if (operator === 'partialDeepStrictEqual') {
+      header = `${colors.gray}${colors.hasColors ? '' : '+ '}actual${colors.white} ${colors.red}- expected${colors.white}`;
+    }
 
     if (myersDiffMessage.skipped) {
       skipped = true;
@@ -246,6 +257,7 @@ class AssertionError extends Error {
       details,
       // Compatibility with older versions.
       stackStartFunction,
+      diff = 'simple',
     } = options;
     let {
       actual,
@@ -256,8 +268,8 @@ class AssertionError extends Error {
     if (isErrorStackTraceLimitWritable()) Error.stackTraceLimit = 0;
 
     if (message != null) {
-      if (operator === 'deepStrictEqual' || operator === 'strictEqual') {
-        super(createErrDiff(actual, expected, operator, message));
+      if (kMethodsWithCustomMessageDiff.has(operator)) {
+        super(createErrDiff(actual, expected, operator, message, diff));
       } else {
         super(String(message));
       }
@@ -276,8 +288,8 @@ class AssertionError extends Error {
         expected = copyError(expected);
       }
 
-      if (operator === 'deepStrictEqual' || operator === 'strictEqual') {
-        super(createErrDiff(actual, expected, operator, message));
+      if (kMethodsWithCustomMessageDiff.has(operator)) {
+        super(createErrDiff(actual, expected, operator, message, diff));
       } else if (operator === 'notDeepStrictEqual' ||
         operator === 'notStrictEqual') {
         // In case the objects are equal but the operator requires unequal, show
@@ -294,8 +306,7 @@ class AssertionError extends Error {
         }
 
         // Only remove lines in case it makes sense to collapse those.
-        // TODO: Accept env to always show the full error.
-        if (res.length > 50) {
+        if (res.length > 50 && diff !== 'full') {
           res[46] = `${colors.blue}...${colors.white}`;
           while (res.length > 47) {
             ArrayPrototypePop(res);
@@ -314,15 +325,15 @@ class AssertionError extends Error {
         const knownOperator = kReadableOperator[operator];
         if (operator === 'notDeepEqual' && res === other) {
           res = `${knownOperator}\n\n${res}`;
-          if (res.length > 1024) {
+          if (res.length > 1024 && diff !== 'full') {
             res = `${StringPrototypeSlice(res, 0, 1021)}...`;
           }
           super(res);
         } else {
-          if (res.length > kMaxLongStringLength) {
+          if (res.length > kMaxLongStringLength && diff !== 'full') {
             res = `${StringPrototypeSlice(res, 0, 509)}...`;
           }
-          if (other.length > kMaxLongStringLength) {
+          if (other.length > kMaxLongStringLength && diff !== 'full') {
             other = `${StringPrototypeSlice(other, 0, 509)}...`;
           }
           if (operator === 'deepEqual') {
@@ -372,6 +383,7 @@ class AssertionError extends Error {
     this.stack; // eslint-disable-line no-unused-expressions
     // Reset the name.
     this.name = 'AssertionError';
+    this.diff = diff;
   }
 
   toString() {

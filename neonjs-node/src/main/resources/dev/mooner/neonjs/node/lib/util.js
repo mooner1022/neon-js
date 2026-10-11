@@ -1,294 +1,698 @@
+// Ported from Node.js v26.11.1 lib/util.js (MIT license, see NOTICE); call sites and promise handling come from the engine (binding.util); parseEnv is not here yet.
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 'use strict';
-// node:util. inspect and format are internal/inspect's; types are the engine's own checks (binding.types);
-// TextEncoder and TextDecoder are the web globals. Not here yet: parseArgs, parseEnv, MIMEType, getCallSites.
 
 const {
-  codes: { ERR_INVALID_ARG_TYPE, ERR_INVALID_ARG_VALUE, ERR_FALSY_VALUE_REJECTION, ERR_OUT_OF_RANGE },
+  ArrayIsArray,
+  ArrayPrototypePop,
+  ArrayPrototypePush,
+  Error,
+  ErrorCaptureStackTrace,
+  FunctionPrototypeBind,
+  NumberIsSafeInteger,
+  ObjectDefineProperties,
+  ObjectDefineProperty,
+  ObjectGetOwnPropertyDescriptors,
+  ObjectGetOwnPropertyNames,
+  ObjectKeys,
+  ObjectSetPrototypeOf,
+  ObjectValues,
+  ReflectApply,
+  RegExpPrototypeExec,
+  SafeMap,
+  StringPrototypeSlice,
+  StringPrototypeToWellFormed,
+} = primordials;
+
+const {
+  ErrnoException,
+  ExceptionWithHostPort,
+  codes: {
+    ERR_FALSY_VALUE_REJECTION,
+    ERR_INVALID_ARG_TYPE,
+    ERR_INVALID_ARG_VALUE,
+    ERR_OUT_OF_RANGE,
+  },
+  isErrorStackTraceLimitWritable,
 } = require('internal/errors');
+const { Buffer } = require('buffer');
 const {
-  validateFunction, validateString, validateObject, validateAbortSignal, validateNumber, validateBoolean,
-  kValidateObjectAllowObjects,
+  format,
+  formatWithOptions,
+  inspect,
+  stripVTControlCharacters,
+} = require('internal/util/inspect');
+const { debuglog } = require('internal/util/debuglog');
+const {
+  validateBoolean,
+  validateFunction,
+  validateNumber,
+  validateString,
+  validateOneOf,
+  validateObject,
+  validateInteger,
 } = require('internal/validators');
-const { inspect, format, formatWithOptions, stripVTControlCharacters, getStringWidth } = require('internal/util/inspect');
-const { isDeepStrictEqual } = require('internal/util/comparisons');
-const { deprecate } = require('internal/util');
-const typeChecks = require('internal/util/types');
+const {
+  isReadableStream,
+  isWritableStream,
+  isNodeStream,
+} = require('internal/streams/utils');
+const types = require('internal/util/types');
 
-const FunctionPrototypeBind = Function.prototype.call.bind(Function.prototype.bind);
+let utilColors;
+function lazyUtilColors() {
+  utilColors ??= require('internal/util/colors');
+  return utilColors;
+}
+const { getOptionValue } = require('internal/options');
 
-let processModule;
-function lazyProcess() {
-  if (processModule === undefined) processModule = require('process');
-  return processModule;
+const utilBinding = binding.util;
+
+const {
+  convertProcessSignalToExitCode,
+  deprecate: internalDeprecate,
+  getLazy,
+  getSystemErrorMap,
+  getSystemErrorName: internalErrorName,
+  getSystemErrorMessage: internalErrorMessage,
+  promisify,
+  defineLazyProperties,
+  kEmptyObject,
+} = require('internal/util');
+
+let abortController;
+
+function lazyAbortController() {
+  abortController ??= require('internal/abort_controller');
+  return abortController;
 }
 
-// util.types
-const types = Object.freeze({ ...typeChecks });
+let internalDeepEqual;
+let internalPartialDeepEqual;
 
-// ---------------------------------------------------------------- promisify / callbackify
+// Pre-computed ANSI escape code constants
+const kEscape = '\u001b[';
+const kEscapeEnd = 'm';
 
-const kCustomPromisifiedSymbol = Symbol.for('nodejs.util.promisify.custom');
-const kCustomPromisifyArgsSymbol = Symbol('customPromisifyArgs');
+// Codes for dim (2) and bold (1) - these share close code 22
+const kDimCode = 2;
+const kBoldCode = 1;
 
-function promisify(original) {
-  validateFunction(original, 'original');
-  if (original[kCustomPromisifiedSymbol]) {
-    const fn = original[kCustomPromisifiedSymbol];
-    validateFunction(fn, 'util.promisify.custom');
-    return Object.defineProperty(fn, kCustomPromisifiedSymbol, { value: fn, enumerable: false, writable: false, configurable: true });
-  }
-  // names for the values of a callback given several, e.g. ['bytesRead', 'buffer']
-  const argumentNames = original[kCustomPromisifyArgsSymbol];
-  function fn(...args) {
-    return new Promise((resolve, reject) => {
-      args.push((err, ...values) => {
-        if (err) return reject(err);
-        if (argumentNames !== undefined && values.length > 1) {
-          const obj = {};
-          for (let i = 0; i < argumentNames.length; i++) obj[argumentNames[i]] = values[i];
-          resolve(obj);
-        } else {
-          resolve(values[0]);
-        }
-      });
-      if (typeChecks.isPromise(Reflect.apply(original, this, args))) {
-        lazyProcess().emitWarning('Calling promisify on a function that returns a Promise is likely a mistake.',
-          'DeprecationWarning', 'DEP0174');
+// Close sequence for 24-bit foreground colors (reset to default foreground)
+const kHexCloseSeq = kEscape + '39' + kEscapeEnd;
+
+let styleCache;
+
+const kHexStyleCacheMax = 256;
+
+let hexStyleCache;
+
+function getHexStyleCache() {
+  hexStyleCache ??= new SafeMap();
+  return hexStyleCache;
+}
+
+function codesToStyle(codes) {
+  const openNum = codes[0];
+  return {
+    __proto__: null,
+    openSeq: kEscape + openNum + kEscapeEnd,
+    closeSeq: kEscape + codes[1] + kEscapeEnd,
+    keepClose: openNum === kDimCode || openNum === kBoldCode,
+  };
+}
+
+function getStyleCache() {
+  if (styleCache === undefined) {
+    styleCache = { __proto__: null };
+    const colors = inspect.colors;
+    for (const key of ObjectGetOwnPropertyNames(colors)) {
+      const codes = colors[key];
+      if (codes) {
+        styleCache[key] = codesToStyle(codes);
       }
-    });
-  }
-  Object.setPrototypeOf(fn, Object.getPrototypeOf(original));
-  Object.defineProperty(fn, kCustomPromisifiedSymbol, { value: fn, enumerable: false, writable: false, configurable: true });
-  const descriptors = Object.getOwnPropertyDescriptors(original);
-  for (const d of Object.values(descriptors)) Object.setPrototypeOf(d, null);
-  return Object.defineProperties(fn, descriptors);
-}
-promisify.custom = kCustomPromisifiedSymbol;
-
-function callbackifyOnRejected(reason, cb) {
-  // a falsy rejection is wrapped, so the callback can tell it from success
-  if (!reason) {
-    const err = ERR_FALSY_VALUE_REJECTION();
-    err.reason = reason;
-    reason = err;
-  }
-  return cb(reason);
-}
-
-function callbackify(original) {
-  validateFunction(original, 'original');
-  function callbackified(...args) {
-    const maybeCb = args.pop();
-    validateFunction(maybeCb, 'last argument');
-    // the builtin bind: the callback's own may be anything
-    const cb = FunctionPrototypeBind(maybeCb, this);
-    const process = lazyProcess();
-    Reflect.apply(original, this, args).then(
-      (ret) => process.nextTick(cb, null, ret),
-      (rej) => process.nextTick(callbackifyOnRejected, rej, cb),
-    );
-  }
-  const descriptors = Object.getOwnPropertyDescriptors(original);
-  if (typeof descriptors.length.value === 'number') descriptors.length.value++;
-  if (typeof descriptors.name.value === 'string') descriptors.name.value += 'Callbackified';
-  for (const d of Object.values(descriptors)) Object.setPrototypeOf(d, null);
-  Object.defineProperties(callbackified, descriptors);
-  return callbackified;
-}
-
-// ---------------------------------------------------------------- deprecate, debuglog
-
-let debugImpls;
-let testEnabled;
-function initializeDebugEnv() {
-  debugImpls = { __proto__: null };
-  let debugEnv = lazyProcess().env.NODE_DEBUG;
-  if (debugEnv) {
-    debugEnv = debugEnv.replace(/[|\\{}()[\]^$+?.]/g, '\\$&').replaceAll('*', '.*').replaceAll(',', '$|^');
-    const debugEnvRegex = new RegExp(`^${debugEnv}$`, 'i');
-    testEnabled = (str) => debugEnvRegex.exec(str) !== null;
-  } else {
-    testEnabled = () => false;
-  }
-}
-
-function debuglogImpl(enabled, set) {
-  if (debugImpls[set] === undefined) {
-    if (enabled) {
-      const process = lazyProcess();
-      debugImpls[set] = function debug(...args) {
-        process.stderr.write(format('%s %s: %s\n', set, process.pid, formatWithOptions({}, ...args)));
-      };
-    } else {
-      debugImpls[set] = function debug() {};
     }
   }
-  return debugImpls[set];
+  return styleCache;
 }
 
-// a logger that writes to stderr when NODE_DEBUG (in NodeOptions.env) names its section
-function debuglog(set, cb) {
-  if (debugImpls === undefined) initializeDebugEnv();
-  let enabled;
-  function init() {
-    set = set.toUpperCase();
-    enabled = testEnabled(set);
+/**
+ * Returns the cached ANSI escape sequences for a hex color.
+ * Computes and caches on first use to avoid repeated Buffer allocations.
+ * @param {string} hex A valid hex color string (#RGB or #RRGGBB)
+ * @returns {{openSeq: string, closeSeq: string}}
+ */
+function getHexStyle(hex) {
+  const cache = getHexStyleCache();
+  const cached = cache.get(hex);
+  if (cached !== undefined) return cached;
+  const { 0: r, 1: g, 2: b } = hexToRgb(hex);
+  const style = {
+    __proto__: null,
+    openSeq: kEscape + rgbToAnsi24Bit(r, g, b) + kEscapeEnd,
+    closeSeq: kHexCloseSeq,
+  };
+  if (cache.size >= kHexStyleCacheMax)
+    cache.delete(cache.keys().next().value);
+  cache.set(hex, style);
+  return style;
+}
+
+function replaceCloseCode(str, closeSeq, openSeq, keepClose) {
+  const closeLen = closeSeq.length;
+  let index = str.indexOf(closeSeq);
+  if (index === -1) return str;
+
+  let result = '';
+  let lastIndex = 0;
+  const replacement = keepClose ? closeSeq + openSeq : openSeq;
+
+  do {
+    const afterClose = index + closeLen;
+    if (afterClose < str.length) {
+      result += str.slice(lastIndex, index) + replacement;
+      lastIndex = afterClose;
+    } else {
+      break;
+    }
+    index = str.indexOf(closeSeq, lastIndex);
+  } while (index !== -1);
+
+  return result + str.slice(lastIndex);
+}
+
+// Matches #RGB or #RRGGBB
+const hexColorRegExp = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
+/**
+ * Parses a hex color string into RGB components.
+ * Supports both 3-digit (#RGB) and 6-digit (#RRGGBB) formats.
+ * @param {string} hex A valid hex color string
+ * @returns {Buffer} The RGB components
+ */
+function hexToRgb(hex) {
+  // Normalize to 6 digits
+  let hexStr;
+  if (hex.length === 4) {
+    // Expand #RGB to #RRGGBB
+    hexStr = hex[1] + hex[1] + hex[2] + hex[2] + hex[3] + hex[3];
+  } else if (hex.length === 7) {
+    hexStr = StringPrototypeSlice(hex, 1);
+  } else {
+    throw new ERR_OUT_OF_RANGE('hex', '#RGB or #RRGGBB', hex);
   }
-  let debug = (...args) => {
-    init();
-    debug = debuglogImpl(enabled, set);
-    if (typeof cb === 'function') cb(debug);
-    debug(...args);
-  };
-  let test = () => {
-    init();
-    test = () => enabled;
-    return enabled;
-  };
-  const logger = (...args) => debug(...args);
-  Object.defineProperty(logger, 'enabled', {
-    get() {
-      return test();
-    },
-    configurable: true,
-    enumerable: true,
-  });
-  return logger;
+
+  // TODO(araujogui): use Uint8Array.fromHex
+  return Buffer.from(hexStr, 'hex');
 }
 
-// ---------------------------------------------------------------- the rest
+/**
+ * Generates the ANSI TrueColor (24-bit) escape sequence for a foreground color.
+ * @param {number} r Red component (0-255)
+ * @param {number} g Green component (0-255)
+ * @param {number} b Blue component (0-255)
+ * @returns {string} The ANSI escape sequence
+ */
+function rgbToAnsi24Bit(r, g, b) {
+  return `38;2;${r};${g};${b}`;
+}
 
+/**
+ * @param {string | string[]} format
+ * @param {string} text
+ * @param {object} [options]
+ * @param {boolean} [options.validateStream] - Whether to validate the stream.
+ * @param {Stream} [options.stream] - The stream used for validation.
+ * @returns {string}
+ */
+function styleText(format, text, options) {
+  const validateStream = options?.validateStream ?? true;
+
+  // Fast path: single format string with validateStream=false
+  if (!validateStream && typeof format === 'string' && typeof text === 'string') {
+    const cache = getStyleCache();
+    if (format === 'none') return text;
+    const style = cache[format];
+    if (style !== undefined) {
+      const processed = replaceCloseCode(text, style.closeSeq, style.openSeq, style.keepClose);
+      return style.openSeq + processed + style.closeSeq;
+    }
+
+    if (format[0] === '#') {
+      let hexStyle = getHexStyleCache().get(format);
+      if (hexStyle === undefined && RegExpPrototypeExec(hexColorRegExp, format) !== null) {
+        hexStyle = getHexStyle(format);
+      }
+      if (hexStyle !== undefined) {
+        const processed = replaceCloseCode(text, hexStyle.closeSeq, hexStyle.openSeq, false);
+        return hexStyle.openSeq + processed + hexStyle.closeSeq;
+      }
+    }
+  }
+
+  validateString(text, 'text');
+  if (options !== undefined) {
+    validateObject(options, 'options');
+  }
+  validateBoolean(validateStream, 'options.validateStream');
+
+  let skipColorize;
+  if (validateStream) {
+    const stream = options?.stream ?? process.stdout;
+    if (
+      !isReadableStream(stream) &&
+      !isWritableStream(stream) &&
+      !isNodeStream(stream)
+    ) {
+      throw new ERR_INVALID_ARG_TYPE('stream', ['ReadableStream', 'WritableStream', 'Stream'], stream);
+    }
+    skipColorize = !lazyUtilColors().shouldColorize(stream);
+  }
+
+  const formatArray = ArrayIsArray(format) ? format : [format];
+  const colors = inspect.colors;
+
+  let openCodes = '';
+  let closeCodes = '';
+  let processedText = text;
+
+  for (const key of formatArray) {
+    if (key === 'none') continue;
+
+    if (typeof key === 'string' && key[0] === '#') {
+      if (RegExpPrototypeExec(hexColorRegExp, key) === null) {
+        throw new ERR_INVALID_ARG_VALUE('format', key,
+                                        'must be a valid hex color (#RGB or #RRGGBB)');
+      }
+      if (skipColorize) continue;
+      const { 0: r, 1: g, 2: b } = hexToRgb(key);
+      const hexOpenSeq = kEscape + rgbToAnsi24Bit(r, g, b) + kEscapeEnd;
+      openCodes += hexOpenSeq;
+      closeCodes = kHexCloseSeq + closeCodes;
+      processedText = replaceCloseCode(processedText, kHexCloseSeq, hexOpenSeq, false);
+      continue;
+    }
+
+    const codes = colors[key];
+    if (!codes) {
+      validateOneOf(key, 'format', ObjectGetOwnPropertyNames(inspect.colors));
+    }
+    const { openSeq, closeSeq, keepClose } = codesToStyle(codes);
+    openCodes += openSeq;
+    closeCodes = closeSeq + closeCodes;
+    processedText = replaceCloseCode(processedText, closeSeq, openSeq, keepClose);
+  }
+
+  if (skipColorize) return text;
+
+  return `${openCodes}${processedText}${closeCodes}`;
+}
+
+/**
+ * Inherit the prototype methods from one constructor into another.
+ *
+ * The Function.prototype.inherits from lang.js rewritten as a standalone
+ * function (not on Function.prototype). NOTE: If this file is to be loaded
+ * during bootstrapping this function needs to be rewritten using some native
+ * functions as prototype setup using normal JavaScript does not work as
+ * expected during bootstrapping (see mirror.js in r114903).
+ * @param {Function} ctor Constructor function which needs to inherit the
+ *   prototype.
+ * @param {Function} superCtor Constructor function to inherit prototype from.
+ * @throws {TypeError} Will error if either constructor is null, or if
+ * the super constructor lacks a prototype.
+ */
 function inherits(ctor, superCtor) {
-  if (ctor === undefined || ctor === null) throw ERR_INVALID_ARG_TYPE('ctor', 'Function', ctor);
-  if (superCtor === undefined || superCtor === null) throw ERR_INVALID_ARG_TYPE('superCtor', 'Function', superCtor);
-  if (superCtor.prototype === undefined) throw ERR_INVALID_ARG_TYPE('superCtor.prototype', 'Object', superCtor.prototype);
-  Object.defineProperty(ctor, 'super_', { value: superCtor, writable: true, configurable: true });
-  Object.setPrototypeOf(ctor.prototype, superCtor.prototype);
+
+  if (ctor === undefined || ctor === null)
+    throw new ERR_INVALID_ARG_TYPE('ctor', 'Function', ctor);
+
+  if (superCtor === undefined || superCtor === null)
+    throw new ERR_INVALID_ARG_TYPE('superCtor', 'Function', superCtor);
+
+  if (superCtor.prototype === undefined) {
+    throw new ERR_INVALID_ARG_TYPE('superCtor.prototype',
+                                   'Object', superCtor.prototype);
+  }
+  ObjectDefineProperty(ctor, 'super_', {
+    __proto__: null,
+    value: superCtor,
+    writable: true,
+    configurable: true,
+  });
+  ObjectSetPrototypeOf(ctor.prototype, superCtor.prototype);
 }
 
+/**
+ * @deprecated since v6.0.0
+ * @template T
+ * @template S
+ * @param {T} target
+ * @param {S} source
+ * @returns {(T & S) | null}
+ */
 function _extend(target, source) {
+  // Don't do anything if source isn't an object
   if (source === null || typeof source !== 'object') return target;
-  const keys = Object.keys(source);
+
+  const keys = ObjectKeys(source);
   let i = keys.length;
-  while (i--) target[keys[i]] = source[keys[i]];
+  while (i--) {
+    target[keys[i]] = source[keys[i]];
+  }
   return target;
 }
 
-function toUSVString(input) {
-  return `${input}`.toWellFormed();
-}
-
-function styleText(format, text, { validateStream = true, stream } = {}) {
-  validateString(text, 'text');
-  validateBoolean(validateStream, 'options.validateStream');
-  let skipColorize = false;
-  if (validateStream) {
-    // a stream that is no terminal gets the text as it is (unless FORCE_COLOR is set), as in Node
-    const process = lazyProcess();
-    const s = stream === undefined ? process.stdout : stream;
-    const force = process.env.FORCE_COLOR;
-    skipColorize = force !== undefined ? force === '0' || force === 'false' : !(s && s.isTTY);
+const callbackifyOnRejected = (reason, cb) => {
+  // `!reason` guard inspired by bluebird (Ref: https://goo.gl/t5IS6M).
+  // Because `null` is a special error value in callbacks which means "no error
+  // occurred", we error-wrap so the callback consumer can distinguish between
+  // "the promise rejected with null" or "the promise fulfilled with undefined".
+  if (!reason) {
+    reason = new ERR_FALSY_VALUE_REJECTION.HideStackFramesError(reason);
+    ErrorCaptureStackTrace(reason, callbackifyOnRejected);
   }
-  const formats = Array.isArray(format) ? format : [format];
-  let left = '';
-  let right = '';
-  for (const key of formats) {
-    const code = inspect.colors[key];
-    if (code == null) {
-      const allowed = Object.keys(inspect.colors).map((v) => `'${v}'`).join(', ');
-      throw ERR_INVALID_ARG_VALUE('format', key, `must be one of: ${allowed}`);
-    }
-    if (skipColorize) continue;
-    left += `\u001b[${code[0]}m`;
-    right = `\u001b[${code[1]}m${right}`;
+  return cb(reason);
+};
+
+/**
+ * Converts a Promise-returning function to callback style
+ * @param {Function} original
+ * @returns {Function}
+ */
+function callbackify(original) {
+  validateFunction(original, 'original');
+
+  // We DO NOT return the promise as it gives the user a false sense that
+  // the promise is actually somehow related to the callback's execution
+  // and that the callback throwing will reject the promise.
+  function callbackified(...args) {
+    const maybeCb = ArrayPrototypePop(args);
+    validateFunction(maybeCb, 'last argument');
+    const cb = FunctionPrototypeBind(maybeCb, this);
+    // In true node style we process the callback on `nextTick` with all the
+    // implications (stack, `uncaughtException`, `async_hooks`)
+    ReflectApply(original, this, args)
+      .then((ret) => process.nextTick(cb, null, ret),
+            (rej) => process.nextTick(callbackifyOnRejected, rej, cb));
   }
-  return skipColorize ? text : `${left}${text}${right}`;
-}
 
-function aborted(signal, resource) {
-  if (signal === undefined) return Promise.reject(ERR_INVALID_ARG_TYPE('signal', 'AbortSignal', signal));
-  try {
-    validateAbortSignal(signal, 'signal');
-    validateObject(resource, 'resource', kValidateObjectAllowObjects);
-  } catch (e) {
-    return Promise.reject(e);
+  const descriptors = ObjectGetOwnPropertyDescriptors(original);
+  // It is possible to manipulate a functions `length` or `name` property. This
+  // guards against the manipulation.
+  if (typeof descriptors.length.value === 'number') {
+    descriptors.length.value++;
   }
-  if (signal.aborted) return Promise.resolve();
-  return new Promise((resolve) => signal.addEventListener('abort', () => resolve(), { once: true }));
+  if (typeof descriptors.name.value === 'string') {
+    descriptors.name.value += 'Callbackified';
+  }
+  const propertiesValues = ObjectValues(descriptors);
+  for (let i = 0; i < propertiesValues.length; i++) {
+  // We want to use null-prototype objects to not rely on globally mutable
+  // %Object.prototype%.
+    ObjectSetPrototypeOf(propertiesValues[i], null);
+  }
+  ObjectDefineProperties(callbackified, descriptors);
+  return callbackified;
 }
 
-// the errno names of libuv (Linux numbering), for getSystemErrorName / getSystemErrorMap
-const ERRNO = [
-  [-1, 'EPERM', 'operation not permitted'], [-2, 'ENOENT', 'no such file or directory'],
-  [-4, 'EINTR', 'interrupted system call'], [-5, 'EIO', 'i/o error'], [-9, 'EBADF', 'bad file descriptor'],
-  [-11, 'EAGAIN', 'resource temporarily unavailable'], [-12, 'ENOMEM', 'not enough memory'],
-  [-13, 'EACCES', 'permission denied'], [-16, 'EBUSY', 'resource busy or locked'], [-17, 'EEXIST', 'file already exists'],
-  [-20, 'ENOTDIR', 'not a directory'], [-21, 'EISDIR', 'illegal operation on a directory'],
-  [-22, 'EINVAL', 'invalid argument'], [-24, 'EMFILE', 'too many open files'], [-28, 'ENOSPC', 'no space left on device'],
-  [-32, 'EPIPE', 'broken pipe'], [-38, 'ENOSYS', 'function not implemented'], [-39, 'ENOTEMPTY', 'directory not empty'],
-  [-98, 'EADDRINUSE', 'address already in use'], [-99, 'EADDRNOTAVAIL', 'address not available'],
-  [-101, 'ENETUNREACH', 'network is unreachable'], [-103, 'ECONNABORTED', 'software caused connection abort'],
-  [-104, 'ECONNRESET', 'connection reset by peer'], [-107, 'ENOTCONN', 'socket is not connected'],
-  [-110, 'ETIMEDOUT', 'connection timed out'], [-111, 'ECONNREFUSED', 'connection refused'],
-  [-113, 'EHOSTUNREACH', 'host is unreachable'], [-125, 'ECANCELED', 'operation canceled'],
-  [-3008, 'ENOTFOUND', 'getaddrinfo ENOTFOUND'], [-4095, 'EOF', 'end of file'],
-];
-
-function getSystemErrorMap() {
-  return new Map(ERRNO.map(([errno, name, message]) => [errno, [name, message]]));
-}
-
-function getSystemErrorName(err) {
-  validateNumber(err, 'err');
-  if (err >= 0 || !Number.isSafeInteger(err)) throw ERR_OUT_OF_RANGE('err', 'a negative integer', err);
-  const entry = ERRNO.find((e) => e[0] === err);
-  return entry ? entry[1] : `Unknown system error ${err}`;
-}
-
+/**
+ * @param {number} err
+ * @returns {string}
+ */
 function getSystemErrorMessage(err) {
   validateNumber(err, 'err');
-  if (err >= 0 || !Number.isSafeInteger(err)) throw ERR_OUT_OF_RANGE('err', 'a negative integer', err);
-  const entry = ERRNO.find((e) => e[0] === err);
-  return entry ? entry[2] : `Unknown system error ${err}`;
+  if (err >= 0 || !NumberIsSafeInteger(err)) {
+    throw new ERR_OUT_OF_RANGE('err', 'a negative integer', err);
+  }
+  return internalErrorMessage(err);
 }
 
+/**
+ * @param {number} err
+ * @returns {string}
+ */
+function getSystemErrorName(err) {
+  validateNumber(err, 'err');
+  if (err >= 0 || !NumberIsSafeInteger(err)) {
+    throw new ERR_OUT_OF_RANGE('err', 'a negative integer', err);
+  }
+  return internalErrorName(err);
+}
+
+function _errnoException(...args) {
+  if (isErrorStackTraceLimitWritable()) {
+    const limit = Error.stackTraceLimit;
+    Error.stackTraceLimit = 0;
+    const e = new ErrnoException(...args);
+    Error.stackTraceLimit = limit;
+    ErrorCaptureStackTrace(e, _errnoException);
+    return e;
+  }
+  return new ErrnoException(...args);
+}
+
+function _exceptionWithHostPort(...args) {
+  if (isErrorStackTraceLimitWritable()) {
+    const limit = Error.stackTraceLimit;
+    Error.stackTraceLimit = 0;
+    const e = new ExceptionWithHostPort(...args);
+    Error.stackTraceLimit = limit;
+    ErrorCaptureStackTrace(e, _exceptionWithHostPort);
+    return e;
+  }
+  return new ExceptionWithHostPort(...args);
+}
+
+/**
+ * Parses the content of a `.env` file.
+ * @param {string} content
+ * @returns {Record<string, string>}
+ */
+function parseEnv(content) {
+  validateString(content, 'content');
+  return utilBinding.parseEnv(content);
+}
+
+const lazySourceMap = getLazy(() => require('internal/source_map/source_map_cache'));
+
+/**
+ * @typedef {object} CallSite // The call site
+ * @property {string} scriptName // The name of the resource that contains the
+ *   script for the function for this StackFrame
+ * @property {string} functionName // The name of the function associated with this stack frame
+ * @property {number} lineNumber // The number, 1-based, of the line for the associate function call
+ * @property {number} columnNumber // The 1-based column offset on the line for the associated function call
+ */
+
+/**
+ * @param {CallSite} callSite // The call site object to reconstruct from source map
+ * @returns {CallSite | undefined} // The reconstructed call site object
+ */
+function reconstructCallSite(callSite) {
+  const { scriptName, lineNumber, columnNumber } = callSite;
+  const sourceMap = lazySourceMap().findSourceMap(scriptName);
+  if (!sourceMap) return;
+  const entry = sourceMap.findEntry(lineNumber - 1, columnNumber - 1);
+  if (!entry?.originalSource) return;
+  return {
+    __proto__: null,
+    functionName: entry.name || callSite.functionName,
+    scriptName: entry.originalSource,
+    lineNumber: entry.originalLine + 1,
+    column: entry.originalColumn + 1,
+    columnNumber: entry.originalColumn + 1,
+  };
+}
+
+/**
+ *
+ * The call site array to map
+ * @param {CallSite[]} callSites
+ *   Array of objects with the reconstructed call site
+ * @returns {CallSite[]}
+ */
+function mapCallSite(callSites) {
+  const result = [];
+  for (let i = 0; i < callSites.length; ++i) {
+    const callSite = callSites[i];
+    const found = reconstructCallSite(callSite);
+    ArrayPrototypePush(result, found ?? callSite);
+  }
+  return result;
+}
+
+/**
+ * @typedef {object} CallSiteOptions // The call site options
+ * @property {boolean} sourceMap // Enable source map support
+ */
+
+/**
+ * Returns the callSite
+ * @param {number} frameCount
+ * @param {CallSiteOptions} options
+ * @returns {CallSite[]}
+ */
+function getCallSites(frameCount = 10, options) {
+  // If options is not provided check if frameCount is an object
+  if (options === undefined) {
+    if (typeof frameCount === 'object') {
+      // If frameCount is an object, it is the options object
+      options = frameCount;
+      validateObject(options, 'options');
+      if (options.sourceMap !== undefined) {
+        validateBoolean(options.sourceMap, 'options.sourceMap');
+      }
+      frameCount = 10;
+    } else {
+      // If options is not provided, set it to an empty object
+      options = {};
+    };
+  } else {
+    // If options is provided, validate it
+    validateObject(options, 'options');
+    if (options.sourceMap !== undefined) {
+      validateBoolean(options.sourceMap, 'options.sourceMap');
+    }
+  }
+
+  // Using kDefaultMaxCallStackSizeToCapture as reference
+  validateInteger(frameCount, 'frameCount', 1, 200);
+  // If options.sourceMaps is true or if sourceMaps are enabled but the option.sourceMaps is not set explicitly to false
+  if (options.sourceMap === true || (getOptionValue('--enable-source-maps') && options.sourceMap !== false)) {
+    return mapCallSite(utilBinding.getCallSites(frameCount));
+  }
+  return utilBinding.getCallSites(frameCount);
+};
+
+// Public util.deprecate API
+function deprecate(fn, msg, code, { modifyPrototype } = kEmptyObject) {
+  return internalDeprecate(fn, msg, code, undefined, modifyPrototype);
+}
+
+function markPromiseAsHandled(promise) {
+  if (!types.isPromise(promise)) {
+    throw new ERR_INVALID_ARG_TYPE('promise', 'Promise', promise);
+  }
+  utilBinding.markPromiseAsHandled(promise);
+}
+
+// Keep the `exports =` so that various functions can still be monkeypatched
 module.exports = {
-  _extend,
-  aborted,
+  _errnoException,
+  _exceptionWithHostPort,
+  _extend: internalDeprecate(_extend,
+                             'The `util._extend` API is deprecated. Please use Object.assign() instead.',
+                             'DEP0060'),
   callbackify,
+  convertProcessSignalToExitCode,
   debug: debuglog,
   debuglog,
   deprecate,
   format,
+  styleText,
   formatWithOptions,
-  getStringWidth,
+  getCallSites,
   getSystemErrorMap,
-  getSystemErrorMessage,
   getSystemErrorName,
+  getSystemErrorMessage,
   inherits,
   inspect,
-  isArray: Array.isArray,
-  isDeepStrictEqual,
+  isArray: internalDeprecate(ArrayIsArray,
+                             'The `util.isArray` API is deprecated. Please use `Array.isArray()` instead.',
+                             'DEP0044'),
+  isDeepStrictEqual(a, b, skipPrototype) {
+    if (internalDeepEqual === undefined) {
+      internalDeepEqual = require('internal/util/comparisons').isDeepStrictEqual;
+    }
+    return internalDeepEqual(a, b, skipPrototype);
+  },
+  isPartialDeepStrictEqual(a, b) {
+    if (internalPartialDeepEqual === undefined) {
+      internalPartialDeepEqual = require('internal/util/comparisons').isPartialStrictEqual;
+    }
+    return internalPartialDeepEqual(a, b);
+  },
+  markPromiseAsHandled,
   promisify,
   stripVTControlCharacters,
-  styleText,
-  toUSVString,
-  TextDecoder: globalThis.TextDecoder,
-  TextEncoder: globalThis.TextEncoder,
+  toUSVString(input) {
+    return StringPrototypeToWellFormed(`${input}`);
+  },
+  get transferableAbortSignal() {
+    return lazyAbortController().transferableAbortSignal;
+  },
+  get transferableAbortController() {
+    return lazyAbortController().transferableAbortController;
+  },
+  get aborted() {
+    return lazyAbortController().aborted;
+  },
   types,
-  // deprecated since long, still in Node 22
-  isBoolean: (arg) => typeof arg === 'boolean',
-  isBuffer: (arg) => require('buffer').Buffer.isBuffer(arg),
-  isDate: (arg) => typeChecks.isDate(arg),
-  isError: (arg) => typeChecks.isNativeError(arg) || arg instanceof Error,
-  isFunction: (arg) => typeof arg === 'function',
-  isNull: (arg) => arg === null,
-  isNullOrUndefined: (arg) => arg === null || arg === undefined,
-  isNumber: (arg) => typeof arg === 'number',
-  isObject: (arg) => arg !== null && typeof arg === 'object',
-  isPrimitive: (arg) => arg === null || (typeof arg !== 'object' && typeof arg !== 'function'),
-  isRegExp: (arg) => typeChecks.isRegExp(arg),
-  isString: (arg) => typeof arg === 'string',
-  isSymbol: (arg) => typeof arg === 'symbol',
-  isUndefined: (arg) => arg === undefined,
+  parseEnv,
 };
+
+defineLazyProperties(
+  module.exports,
+  'internal/util/parse_args/parse_args',
+  ['parseArgs'],
+);
+
+defineLazyProperties(
+  module.exports,
+  'internal/encoding',
+  ['TextDecoder', 'TextEncoder'],
+);
+
+defineLazyProperties(
+  module.exports,
+  'internal/mime',
+  ['MIMEType', 'MIMEParams'],
+);
+
+defineLazyProperties(
+  module.exports,
+  'internal/util/diff',
+  ['diff'],
+);
+
+ObjectDefineProperties(module.exports, {
+  debounce: {
+    __proto__: null,
+    configurable: true,
+    enumerable: true,
+    get() { return require('internal/util/debounce'); },
+  },
+  throttle: {
+    __proto__: null,
+    configurable: true,
+    enumerable: true,
+    get() { return require('internal/util/throttle'); },
+  },
+});
+
+defineLazyProperties(
+  module.exports,
+  'internal/util/trace_sigint',
+  ['setTraceSigInt'],
+);

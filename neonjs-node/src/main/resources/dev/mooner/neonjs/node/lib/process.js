@@ -36,11 +36,17 @@ process.pid = 0;
 process.ppid = 0;
 process.exitCode = undefined;
 process.config = { target_defaults: {}, variables: {} };
-process.features = { inspector: false, ipv6: true, tls: false, typescript: false };
+process.features = {
+  inspector: false, debug: false, uv: false, ipv6: true, tls_alpn: false, tls_sni: false, tls_ocsp: false, tls: false,
+  openssl_is_boringssl: false, cached_builtins: true, require_module: true, dtls: false, quic: false, typescript: false,
+};
 process.allowedNodeEnvironmentFlags = new Set();
-process.noDeprecation = false;
-process.throwDeprecation = false;
-process.traceDeprecation = false;
+// noDeprecation, throwDeprecation and traceDeprecation are there once set (Node's command line flags set them)
+process.domain = null;
+process.mainModule = undefined;
+process._exiting = false;
+process.moduleLoadList = [];
+process._preload_modules = [];
 
 process.cwd = function cwd_() {
   return cwd;
@@ -111,6 +117,154 @@ process.memoryUsage.rss = function rss() {
 
 process.cpuUsage = function cpuUsage() {
   return { user: 0, system: 0 };
+};
+
+process.threadCpuUsage = function threadCpuUsage() {
+  return { user: 0, system: 0 };
+};
+
+process.resourceUsage = function resourceUsage() {
+  const rss = binding.memoryUsage().rss;
+  return {
+    userCPUTime: 0, systemCPUTime: 0, maxRSS: Math.floor(rss / 1024), sharedMemorySize: 0, unsharedDataSize: 0,
+    unsharedStackSize: 0, minorPageFault: 0, majorPageFault: 0, swappedOut: 0, fsRead: 0, fsWrite: 0,
+    ipcSent: 0, ipcReceived: 0, signalsCount: 0, voluntaryContextSwitches: 0, involuntaryContextSwitches: 0,
+  };
+};
+
+// the memory the engine may still allocate; no container limit is known (0)
+process.availableMemory = function availableMemory() {
+  return binding.availableMemory();
+};
+process.constrainedMemory = function constrainedMemory() {
+  return 0;
+};
+
+process.getActiveResourcesInfo = function getActiveResourcesInfo() {
+  return [];
+};
+process._getActiveHandles = function _getActiveHandles() {
+  return [];
+};
+process._getActiveRequests = function _getActiveRequests() {
+  return [];
+};
+
+// a built-in module by its name (node: prefix or not), or undefined: never a host's module
+process.getBuiltinModule = function getBuiltinModule(id) {
+  if (typeof id !== 'string') throw invalidArg('id', 'of type string', id);
+  return binding.builtinModule(id.startsWith('node:') ? id.slice(5) : id);
+};
+
+// what keeps the event loop waiting, as Node asks it (its nodejs.ref / nodejs.unref methods, else ref / unref)
+process.ref = function ref(maybeRefable) {
+  const fn = maybeRefable?.[Symbol.for('nodejs.ref')] ?? maybeRefable?.ref;
+  if (typeof fn === 'function') Reflect.apply(fn, maybeRefable, []);
+};
+process.unref = function unref(maybeRefable) {
+  const fn = maybeRefable?.[Symbol.for('nodejs.unref')] ?? maybeRefable?.unref;
+  if (typeof fn === 'function') Reflect.apply(fn, maybeRefable, []);
+};
+
+// callbacks for the process's exit (or the loop's end) while their object is still alive
+const finalizers = { exit: new Set(), beforeExit: new Set() };
+function addFinalizer(event, obj, callback) {
+  if (typeof callback !== 'function') throw invalidArg('callback', 'of type function', callback);
+  if (obj === null || (typeof obj !== 'object' && typeof obj !== 'function')) throw invalidArg('obj', 'of type object', obj);
+  finalizers[event].add({ ref: new WeakRef(obj), callback });
+}
+function runFinalizers(event) {
+  for (const entry of finalizers[event]) {
+    const obj = entry.ref.deref();
+    if (obj !== undefined) entry.callback(obj, event);
+  }
+  finalizers[event].clear();
+}
+process.finalization = {
+  register(obj, callback) {
+    addFinalizer('exit', obj, callback);
+  },
+  registerBeforeExit(obj, callback) {
+    addFinalizer('beforeExit', obj, callback);
+  },
+  unregister(obj) {
+    for (const set of [finalizers.exit, finalizers.beforeExit]) {
+      for (const entry of set) if (entry.ref.deref() === obj) set.delete(entry);
+    }
+  },
+};
+process.on('exit', () => runFinalizers('exit'));
+process.on('beforeExit', () => runFinalizers('beforeExit'));
+
+// the callbacks that take uncaught exceptions before 'uncaughtException' listeners do
+const captureCallbacks = [];
+let captureCallback = null;
+function captureUncaught(err) {
+  if (captureCallback !== null) {
+    captureCallback(err);
+    return true;
+  }
+  for (const cb of captureCallbacks) cb(err);
+  return captureCallbacks.length > 0;
+}
+process.setUncaughtExceptionCaptureCallback = function setUncaughtExceptionCaptureCallback(fn) {
+  if (fn === null) {
+    captureCallback = null;
+    return;
+  }
+  if (typeof fn !== 'function') throw invalidArg('fn', 'of type function or null', fn);
+  if (captureCallback !== null) {
+    throw binding.error('Error', '`process.setupUncaughtExceptionCapture()` was called while a capture callback was ' +
+      'already active', 'ERR_UNCAUGHT_EXCEPTION_CAPTURE_ALREADY_SET');
+  }
+  captureCallback = fn;
+};
+process.hasUncaughtExceptionCaptureCallback = function hasUncaughtExceptionCaptureCallback() {
+  return captureCallback !== null || captureCallbacks.length > 0;
+};
+process.addUncaughtExceptionCaptureCallback = function addUncaughtExceptionCaptureCallback(fn) {
+  if (typeof fn !== 'function') throw invalidArg('fn', 'of type function', fn);
+  captureCallbacks.push(fn);
+};
+
+// source maps are not used here
+Object.defineProperty(process, 'sourceMapsEnabled', {
+  configurable: true,
+  enumerable: true,
+  get() { return false; },
+});
+process.setSourceMapsEnabled = function setSourceMapsEnabled(enabled) {
+  if (typeof enabled !== 'boolean') throw invalidArg('enabled', 'of type boolean', enabled);
+};
+
+// what a sandbox does not do: native addons, other programs, files, debuggers, diagnostics reports
+function unavailable(name) {
+  const fn = function () {
+    throw binding.error('Error', `process.${name} is not available in NeonJS`, 'ERR_UNAVAILABLE');
+  };
+  Object.defineProperty(fn, 'name', { value: name, configurable: true });
+  return fn;
+}
+for (const name of ['binding', 'dlopen', 'execve', 'loadEnvFile', 'openStdin', 'reallyExit', '_kill', '_linkedBinding',
+  '_fatalException']) {
+  process[name] = unavailable(name);
+}
+process.report = Object.freeze({
+  __proto__: null,
+  getReport: unavailable('report.getReport'),
+  writeReport: unavailable('report.writeReport'),
+});
+for (const name of ['_debugProcess', '_debugEnd', '_startProfilerIdleNotifier', '_stopProfilerIdleNotifier', '_tickCallback']) {
+  process[name] = function () {};
+}
+Object.defineProperty(process, 'debugPort', {
+  configurable: true,
+  enumerable: true,
+  get() { return 9229; },
+  set(port) {},
+});
+process._rawDebug = function _rawDebug(...args) {
+  binding.write(2, `${require('util').format(...args)}\n`);
 };
 
 function createWarning(message, type, code, ctor, detail) {
@@ -197,5 +351,5 @@ process.stdin = Object.assign(new EventEmitter(), {
   setRawMode() { return this; },
 });
 
-binding.setProcess(process);
+binding.setProcess(process, captureUncaught);
 module.exports = process;

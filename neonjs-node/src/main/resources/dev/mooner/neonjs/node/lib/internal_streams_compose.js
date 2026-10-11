@@ -1,4 +1,4 @@
-// Ported from Node.js v22.12.0 lib/internal/streams/compose.js (MIT license, see NOTICE).
+// Ported from Node.js v26.11.1 lib/internal/streams/compose.js (MIT license, see NOTICE).
 'use strict';
 
 const {
@@ -24,7 +24,7 @@ const {
     ERR_MISSING_ARGS,
   },
 } = require('internal/errors');
-const eos = require('internal/streams/end-of-stream');
+const { eos } = require('internal/streams/end-of-stream');
 
 module.exports = function compose(...streams) {
   if (streams.length === 0) {
@@ -83,7 +83,6 @@ module.exports = function compose(...streams) {
 
   let ondrain;
   let onfinish;
-  let onreadable;
   let onclose;
   let d;
 
@@ -185,31 +184,19 @@ module.exports = function compose(...streams) {
 
   if (readable) {
     if (isNodeStream(tail)) {
-      tail.on('readable', function() {
-        if (onreadable) {
-          const cb = onreadable;
-          onreadable = null;
-          cb();
+      d._read = function() {
+        tail.resume();
+      };
+
+      tail.on('data', function(chunk) {
+        if (!d.push(chunk)) {
+          tail.pause();
         }
       });
 
       tail.on('end', function() {
         d.push(null);
       });
-
-      d._read = function() {
-        while (true) {
-          const buf = tail.read();
-          if (buf === null) {
-            onreadable = d._read;
-            return;
-          }
-
-          if (!d.push(buf)) {
-            return;
-          }
-        }
-      };
     } else if (isWebStream(tail)) {
       const readable = isTransformStream(tail) ? tail.readable : tail;
       const reader = readable.getReader();
@@ -218,12 +205,12 @@ module.exports = function compose(...streams) {
           try {
             const { value, done } = await reader.read();
 
-            if (!d.push(value)) {
+            if (done) {
+              d.push(null);
               return;
             }
 
-            if (done) {
-              d.push(null);
+            if (!d.push(value)) {
               return;
             }
           } catch {
@@ -239,7 +226,6 @@ module.exports = function compose(...streams) {
       err = new AbortError();
     }
 
-    onreadable = null;
     ondrain = null;
     onfinish = null;
 

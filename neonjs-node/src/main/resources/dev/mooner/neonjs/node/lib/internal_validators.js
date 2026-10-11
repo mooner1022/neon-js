@@ -1,4 +1,4 @@
-// Ported from Node.js v22.12.0 lib/internal/validators.js (MIT license, see NOTICE); the signal names are Linux's, inline.
+// Ported from Node.js v26.11.1 lib/internal/validators.js (MIT license, see NOTICE); the signal names are Linux's, inline.
 /* eslint jsdoc/require-jsdoc: "error" */
 
 'use strict';
@@ -17,6 +17,7 @@ const {
   ObjectPrototypeHasOwnProperty,
   RegExpPrototypeExec,
   String,
+  StringPrototypeIncludes,
   StringPrototypeToUpperCase,
   StringPrototypeTrim,
 } = primordials;
@@ -25,6 +26,7 @@ const {
   codes: {
     ERR_INVALID_ARG_TYPE: { HideStackFramesError: ERR_INVALID_ARG_TYPE },
     ERR_INVALID_ARG_VALUE: { HideStackFramesError: ERR_INVALID_ARG_VALUE },
+    ERR_INVALID_THIS: { HideStackFramesError: ERR_INVALID_THIS },
     ERR_OUT_OF_RANGE: { HideStackFramesError: ERR_OUT_OF_RANGE },
     ERR_SOCKET_BAD_PORT: { HideStackFramesError: ERR_SOCKET_BAD_PORT },
     ERR_UNKNOWN_SIGNAL: { HideStackFramesError: ERR_UNKNOWN_SIGNAL },
@@ -35,6 +37,7 @@ const { normalizeEncoding } = require('internal/util');
 const {
   isAsyncFunction,
   isArrayBufferView,
+  isRegExp,
 } = require('internal/util/types');
 // os.constants.signals (Linux numbering)
 const signals = {
@@ -85,7 +88,8 @@ function parseFileMode(value, name, def) {
   }
 
   validateUint32(value, name);
-  return value;
+  // Coerce -0 to +0.
+  return value + 0;
 }
 
 /**
@@ -169,6 +173,14 @@ const validateUint32 = hideStackFrames((value, name, positive = false) => {
 const validateString = hideStackFrames((value, name) => {
   if (typeof value !== 'string')
     throw new ERR_INVALID_ARG_TYPE(name, 'string', value);
+});
+
+/** @type {validateString} */
+const validateStringWithoutNullBytes = hideStackFrames((value, name) => {
+  validateString(value, name);
+  if (StringPrototypeIncludes(value, '\u0000')) {
+    throw new ERR_INVALID_ARG_VALUE(name, value, 'must be a string without null bytes');
+  }
 });
 
 /**
@@ -310,7 +322,7 @@ const validateArray = hideStackFrames((value, name, minLength = 0) => {
     throw new ERR_INVALID_ARG_TYPE(name, 'Array', value);
   }
   if (value.length < minLength) {
-    const reason = `must be longer than ${minLength}`;
+    const reason = `must have a length of at least ${minLength}`;
     throw new ERR_INVALID_ARG_VALUE(name, value, reason);
   }
 });
@@ -434,7 +446,7 @@ const validatePort = hideStackFrames((port, name = 'Port', allowZero = true) => 
       (typeof port === 'string' && StringPrototypeTrim(port).length === 0) ||
       +port !== (+port >>> 0) ||
       port > 0xFFFF ||
-      (port === 0 && !allowZero)) {
+      (+port === 0 && !allowZero)) {
     throw new ERR_SOCKET_BAD_PORT(name, port, allowZero);
   }
   return port | 0;
@@ -515,7 +527,7 @@ function validateUnion(value, name, union) {
   (not necessarily a valid URI reference) followed by zero or more
   link-params separated by semicolons.
 */
-const linkValueRegExp = /^(?:<[^>]*>)(?:\s*;\s*[^;"\s]+(?:=(")?[^;"\s]*\1)?)*$/;
+const linkValueRegExp = /^(?:<[^>\r\n]*>)(?:\s*;\s*[^;"\s]+(?:=(")?[^;"\s]*\1)?)*$/;
 
 /**
  * @param {any} value
@@ -534,15 +546,21 @@ const validateLinkHeaderFormat = hideStackFrames((value, name) => {
   }
 });
 
-const validateInternalField = hideStackFrames((object, fieldKey, className) => {
+/**
+ * Validate provided `this` object by checking that it has specific own property
+ * @param {any} object
+ * @param {string|symbol} fieldKey
+ * @param {string} className
+ */
+const validateThisInternalField = hideStackFrames((object, fieldKey, className) => {
   if (typeof object !== 'object' || object === null || !ObjectPrototypeHasOwnProperty(object, fieldKey)) {
-    throw new ERR_INVALID_ARG_TYPE('this', className, object);
+    throw new ERR_INVALID_THIS(className);
   }
 });
 
 /**
  * @param {any} hints
- * @return {string}
+ * @returns {string}
  */
 const validateLinkHeaderValue = hideStackFrames((hints) => {
   if (typeof hints === 'string') {
@@ -574,6 +592,38 @@ const validateLinkHeaderValue = hideStackFrames((hints) => {
     hints,
     'must be an array or string of format "</styles.css>; rel=preload; as=style"',
   );
+});
+
+/**
+ * Validates a single ignore option element (string, RegExp, or Function).
+ * @param {*} value
+ * @param {string} name
+ */
+const validateIgnoreOptionElement = hideStackFrames((value, name) => {
+  if (typeof value === 'string') {
+    if (value.length === 0)
+      throw new ERR_INVALID_ARG_VALUE(name, value, 'must be a non-empty string');
+    return;
+  }
+  if (isRegExp(value)) return;
+  if (typeof value === 'function') return;
+  throw new ERR_INVALID_ARG_TYPE(name, ['string', 'RegExp', 'Function'], value);
+});
+
+/**
+ * Validates the ignore option for fs.watch.
+ * @param {*} value
+ * @param {string} name
+ */
+const validateIgnoreOption = hideStackFrames((value, name) => {
+  if (value == null) return;
+  if (ArrayIsArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      validateIgnoreOptionElement(value[i], `${name}[${i}]`);
+    }
+    return;
+  }
+  validateIgnoreOptionElement(value, name);
 });
 
 // 1. Returns false for undefined and NaN
@@ -629,6 +679,7 @@ module.exports = {
   validateDictionary,
   validateEncoding,
   validateFunction,
+  validateIgnoreOption,
   validateInt32,
   validateInteger,
   validateNumber,
@@ -644,12 +695,13 @@ module.exports = {
   validatePort,
   validateSignalName,
   validateString,
+  validateStringWithoutNullBytes,
   validateUint32,
   validateUndefined,
   validateUnion,
   validateAbortSignal,
   validateLinkHeaderValue,
-  validateInternalField,
+  validateThisInternalField,
   validateFiniteNumber,
   checkRangesOrGetDefault,
 };

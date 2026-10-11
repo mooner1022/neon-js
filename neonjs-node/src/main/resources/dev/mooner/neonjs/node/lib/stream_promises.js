@@ -1,7 +1,8 @@
-// Ported from Node.js v22.12.0 lib/stream/promises.js (MIT license, see NOTICE).
+// Ported from Node.js v26.11.1 lib/stream/promises.js (MIT license, see NOTICE).
 'use strict';
 
 const {
+  ArrayIsArray,
   ArrayPrototypePop,
   Promise,
 } = primordials;
@@ -29,13 +30,22 @@ function pipeline(...streams) {
       end = options.end;
     }
 
-    pl(streams, (err, value) => {
+    let lastStream = streams[streams.length - 1];
+    if (streams.length === 1 && ArrayIsArray(streams[0])) {
+      lastStream = streams[0][streams[0].length - 1];
+    }
+
+    const stream = pl(streams, (err, value) => {
       if (err) {
         reject(err);
       } else {
         resolve(value);
       }
     }, { signal, end });
+
+    if (typeof lastStream === 'function' && stream.readable) {
+      stream.resume();
+    }
   });
 }
 

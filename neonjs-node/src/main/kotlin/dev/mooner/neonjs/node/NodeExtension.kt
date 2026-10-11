@@ -28,6 +28,8 @@ internal class NodeRuntime(@JvmField val realm: Realm, @JvmField val options: No
 
     /** The process object, once node:process was made: its listeners see what the script left uncaught. */
     @JvmField var process: JSObject? = null
+    /** node:process's capture of uncaught exceptions (setUncaughtExceptionCaptureCallback): true when it took one. */
+    @JvmField var uncaughtCapture: Any? = null
 
     /** `require`: the host's modules first (as for import), then the built-in modules; nothing else. */
     val require: NativeFunction = NativeFunction(realm, "require", 1, { _, _, a, _ ->
@@ -83,11 +85,15 @@ internal class NodeRuntime(@JvmField val realm: Realm, @JvmField val options: No
     private fun uncaught(e: RuntimeException?, p: dev.mooner.neonjs.vm.JSPromise?): Boolean {
         val proc = process ?: return false
         val event = if (e != null) "uncaughtException" else "unhandledRejection"
-        if (Ops.toNumber(Ops.invoke(proc, "listenerCount", arrayOf(event))) == 0.0) return false
         if (e != null) {
             val value = if (e is JSException) e.value else realm.agent.hostExceptionToJS(e as dev.mooner.neonjs.vm.HostException, realm)
+            // a capture callback comes first, as in Node
+            val capture = uncaughtCapture
+            if (Ops.isCallable(capture) && Ops.toBoolean(Ops.call(capture, Undefined, arrayOf(value)))) return true
+            if (Ops.toNumber(Ops.invoke(proc, "listenerCount", arrayOf(event))) == 0.0) return false
             Ops.invoke(proc, "emit", arrayOf(event, value, "uncaughtException"))
         } else {
+            if (Ops.toNumber(Ops.invoke(proc, "listenerCount", arrayOf(event))) == 0.0) return false
             Ops.invoke(proc, "emit", arrayOf(event, p!!.result, p))
         }
         return true
@@ -163,7 +169,7 @@ internal class NodeRuntime(@JvmField val realm: Realm, @JvmField val options: No
         const val KEY = "%Node%"
         /** The built-in modules written in JS (resources lib/<name>.js). */
         private val JS_MODULES = listOf(
-            "_stream_duplex", "_stream_passthrough", "_stream_readable", "_stream_transform", "_stream_writable", "assert", "assert/strict", "buffer", "child_process", "crypto", "dns", "dns/promises", "events", "fs", "fs/promises", "http",
+            "assert", "assert/strict", "buffer", "child_process", "crypto", "dns", "dns/promises", "events", "fs", "fs/promises", "http",
             "https", "net", "os", "path", "path/posix", "path/win32", "process", "querystring", "stream", "stream/consumers",
             "stream/promises", "stream/web", "string_decoder", "timers", "timers/promises", "tls", "url", "util",
             "worker_threads", "zlib",

@@ -13,6 +13,13 @@ module.exports = {
   SHARE_ENV: Symbol.for('nodejs.worker_threads.SHARE_ENV'),
   Worker: unavailableClass('worker_threads.Worker'),
   getEnvironmentData: (key) => environmentData.get(key),
+  // Web Locks are not here
+  locks: Object.freeze({
+    __proto__: null,
+    query: unavailableFunction('worker_threads.locks.query'),
+    request: unavailableFunction('worker_threads.locks.request'),
+  }),
+  isInternalThread: false,
   isMainThread: true,
   isMarkedAsUntransferable: () => false,
   markAsUncloneable: () => {},
@@ -27,5 +34,6 @@ module.exports = {
     else environmentData.set(key, value);
   },
   threadId: 0,
+  threadName: '',
   workerData: null,
 };

@@ -25,6 +25,10 @@ function formatWhatwgURL(href, hash, unicode, search, auth) {
   return out;
 }
 const bindingUrl = { format: formatWhatwgURL };"""),
-    ("const { getOptionValue } = require('internal/options');",
-     "// no command line here: --pending-deprecation is off\nconst getOptionValue = () => false;"),
+    ("const { URLPattern } = internalBinding('url_pattern');",
+     "// URLPattern is native in Node, and not here yet\n"
+     "const URLPattern = require('internal/unavailable').unavailableClass('url.URLPattern');"),
+    ("const { isInsideNodeModules } = internalBinding('util');",
+     "// no node_modules here (bundles are one file): url.parse warns once, as in an application's own code\n"
+     "const isInsideNodeModules = () => false;"),
 ]

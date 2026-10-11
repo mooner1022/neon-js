@@ -16,7 +16,7 @@ class ZlibTest {
     @Test
     fun theBytesNodeWrites() {
         ctx().use { c ->
-            // as Node 22's zlib writes them (gzip's OS byte is Unix's, as on Linux)
+            // as Node 26's zlib writes them (gzip's OS byte is Unix's, as on Linux)
             assertEquals(
                 "1f8b0800000000000003cb48cdc9c9070086a6103605000000|789ccb48cdc9c90700062c0215|cb48cdc9c90700|" +
                     "1f8b0800000000000203cb48cdc9c9070086a6103605000000|78bb062c0215cb001100062c0215|907060870|222957957",

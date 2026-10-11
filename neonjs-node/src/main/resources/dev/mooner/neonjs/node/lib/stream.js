@@ -1,4 +1,4 @@
-// Ported from Node.js v22.12.0 lib/stream.js (MIT license, see NOTICE).
+// Ported from Node.js v26.11.1 lib/stream.js (MIT license, see NOTICE).
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -46,7 +46,7 @@ const compose = require('internal/streams/compose');
 const { setDefaultHighWaterMark, getDefaultHighWaterMark } = require('internal/streams/state');
 const { pipeline } = require('internal/streams/pipeline');
 const { destroyer } = require('internal/streams/destroy');
-const eos = require('internal/streams/end-of-stream');
+const { eos } = require('internal/streams/end-of-stream');
 const internalBuffer = require('internal/buffer');
 
 const promises = require('stream/promises');

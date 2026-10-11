@@ -1,4 +1,4 @@
-// Ported from Node.js v22.12.0 lib/internal/streams/duplexpair.js (MIT license, see NOTICE).
+// Ported from Node.js v26.11.1 lib/internal/streams/duplexpair.js (MIT license, see NOTICE).
 'use strict';
 const {
   Symbol,
@@ -51,6 +51,30 @@ class DuplexSide extends Duplex {
     this.#otherSide.on('end', callback);
     this.#otherSide.push(null);
   }
+
+
+  _destroy(err, callback) {
+    const otherSide = this.#otherSide;
+
+    if (otherSide !== null && !otherSide.destroyed) {
+      // Use nextTick to avoid crashing the current execution stack (like HTTP parser)
+      process.nextTick(() => {
+        if (otherSide.destroyed) return;
+
+        if (err) {
+          // Destroy the other side, without passing the 'err' object.
+          // This closes the other side gracefully so it doesn't hang,
+          // but prevents the "Unhandled error" crash.
+          otherSide.destroy();
+        } else {
+          // Standard graceful close
+          otherSide.push(null);
+        }
+      });
+    }
+
+    callback(err);
+  }
 }
 
 function duplexPair(options) {
@@ -58,6 +82,6 @@ function duplexPair(options) {
   const side1 = new DuplexSide(options);
   side0[kInitOtherSide](side1);
   side1[kInitOtherSide](side0);
-  return [ side0, side1 ];
+  return [side0, side1];
 }
 module.exports = duplexPair;

@@ -1,4 +1,4 @@
-"""Generates neonjs-node's lib/internal_errors.js from Node v22.12.0's lib/internal/errors.js: the E() definitions of
+"""Generates neonjs-node's lib/internal_errors.js from Node v26.11.1's lib/internal/errors.js: the E() definitions of
 the codes the libraries use, Node's helpers for their messages, and NeonJS's own error factory (codes.X callable with
 or without new).
 
@@ -25,7 +25,8 @@ ERR_PARSE_ARGS_UNEXPECTED_POSITIONAL ERR_PARSE_ARGS_UNKNOWN_OPTION ERR_SOCKET_BA
 ERR_STREAM_CANNOT_PIPE ERR_STREAM_DESTROYED ERR_STREAM_NULL_VALUES ERR_STREAM_PREMATURE_CLOSE ERR_STREAM_PUSH_AFTER_EOF
 ERR_STREAM_UNSHIFT_AFTER_END_EVENT ERR_STREAM_WRAP ERR_STREAM_WRITE_AFTER_END
 ERR_UNAVAILABLE_DURING_EXIT ERR_UNHANDLED_ERROR ERR_UNKNOWN_BUILTIN_MODULE ERR_UNKNOWN_ENCODING
-ERR_UNKNOWN_SIGNAL ERR_USE_AFTER_CLOSE
+ERR_UNKNOWN_SIGNAL ERR_USE_AFTER_CLOSE ERR_BROTLI_INVALID_PARAM ERR_CONSTRUCT_CALL_REQUIRED ERR_STREAM_ITER_MISSING_FLAG
+ERR_STREAM_UNABLE_TO_PIPE ERR_TRAILING_JUNK_AFTER_STREAM_END ERR_ZSTD_INVALID_PARAM
 """.split()
 
 # each E( block: from its line to the line before the next top-level statement
@@ -75,18 +76,45 @@ helpers = '\n\n'.join([
     function_source('addNumericalSeparator'), function_source('determineSpecificType'), function_source('formatList'),
 ])
 
-body = helpers + '\n\n' + defs
+def class_source(name):
+    i = next(k for k, l in enumerate(lines) if l.startswith(f'class {name} '))
+    j = i + 1
+    while not lines[j].startswith('}'):
+        j += 1
+    return '\n'.join(lines[i:j + 1])
+
+
+# libuv's errors (UVException, ErrnoException...) over internal/uv_errmap instead of internalBinding('uv')
+uv = '\n\n'.join([
+    """// libuv's error map, from internal/uv_errmap (loaded when first needed)
+let uvErrmap;
+const uvUnmappedError = ['UNKNOWN', 'unknown error'];
+function uvErrmapGet(name) {
+  uvErrmap ??= require('internal/uv_errmap').getErrorMap();
+  return MapPrototypeGet(uvErrmap, name);
+}
+
+// node:util, for getSystemErrorName (loaded when first needed)
+let util;
+
+// there is no permission model here
+const isPermissionModelError = () => false;""",
+    class_source('UVException'), class_source('UVExceptionWithHostPort'), class_source('ErrnoException'),
+    class_source('ExceptionWithHostPort'),
+])
+
+body = helpers + '\n\n' + uv + '\n\n' + defs
 # the primordials the messages use (by Node's naming), and those of the factory below
 used = re.findall(r'\b((?:Array|String|Object|Number|RegExp|JSON|Math|Reflect|Symbol|Error|Function|BigInt|Safe)'
                   r'(?:Prototype)?[A-Z]\w*)\b', body)
 prim = {n for n in used if not n.startswith('StringDecoder')} | {
     'ArrayIsArray', 'ErrorCaptureStackTrace', 'NumberPrototypeToString', 'ObjectAssign', 'ObjectDefineProperties', 'ObjectDefineProperty',
     'ObjectGetOwnPropertyDescriptor', 'ObjectIsExtensible', 'ObjectPrototypeHasOwnProperty', 'ReflectApply',
-    'RegExpPrototypeExec',
+    'RegExpPrototypeExec', 'MapPrototypeGet',
 }
 
 out = f"""'use strict';
-// Node's coded errors (ERR_*), generated from Node.js v22.12.0 lib/internal/errors.js (MIT license, see NOTICE): the
+// Node's coded errors (ERR_*), generated from Node.js v26.11.1 lib/internal/errors.js (MIT license, see NOTICE): the
 // definitions of the codes the libraries use, with Node's messages. codes.X makes the error with or without new, with
 // its .TypeError / .RangeError variants and .HideStackFramesError; hideStackFrames hides a validator's own frames from
 // the errors it throws. Libraries only: scripts cannot require this. Made by neonjs-node/tools/gen_errors.py.
@@ -270,6 +298,8 @@ module.exports = {{
   aggregateTwoErrors,
   codes,
   determineSpecificType,
+  ErrnoException,
+  ExceptionWithHostPort,
   formatList,
   genericNodeError,
   hideStackFrames,
@@ -278,6 +308,9 @@ module.exports = {{
   kEnhanceStackBeforeInspector,
   kIsNodeError,
   makeError,
+  UVException,
+  UVExceptionWithHostPort,
+  uvErrmapGet,
 }};
 """
 open(f'{ROOT}/neonjs-node/src/main/resources/dev/mooner/neonjs/node/lib/internal_errors.js', 'w', encoding='utf-8',

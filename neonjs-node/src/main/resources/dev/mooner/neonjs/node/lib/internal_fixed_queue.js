@@ -1,4 +1,4 @@
-// Ported from Node.js v22.12.0 lib/internal/fixed_queue.js (MIT license, see NOTICE).
+// Ported from Node.js v26.11.1 lib/internal/fixed_queue.js (MIT license, see NOTICE).
 'use strict';
 
 const {
@@ -90,8 +90,10 @@ class FixedCircularBuffer {
 }
 
 module.exports = class FixedQueue {
+  static #pool = [];
+
   constructor() {
-    this.head = this.tail = new FixedCircularBuffer();
+    this.head = this.tail = FixedQueue.#pool.pop() ?? new FixedCircularBuffer();
   }
 
   isEmpty() {
@@ -102,7 +104,7 @@ module.exports = class FixedQueue {
     if (this.head.isFull()) {
       // Head is full: Creates a new queue, sets the old queue's `.next` to it,
       // and sets it as the new main queue.
-      this.head = this.head.next = new FixedCircularBuffer();
+      this.head = this.head.next = FixedQueue.#pool.pop() ?? new FixedCircularBuffer();
     }
     this.head.push(data);
   }
@@ -114,6 +116,12 @@ module.exports = class FixedQueue {
       // If there is another queue, it forms the new tail.
       this.tail = tail.next;
       tail.next = null;
+      tail.bottom = 0;
+      tail.top = 0;
+
+      if (FixedQueue.#pool.length < 64) {
+        FixedQueue.#pool.push(tail); // Recycle old tail
+      }
     }
     return next;
   }

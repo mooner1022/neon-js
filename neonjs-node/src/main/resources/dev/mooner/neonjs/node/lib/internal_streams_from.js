@@ -1,4 +1,4 @@
-// Ported from Node.js v22.12.0 lib/internal/streams/from.js (MIT license, see NOTICE).
+// Ported from Node.js v26.11.1 lib/internal/streams/from.js (MIT license, see NOTICE).
 'use strict';
 
 const {
@@ -9,9 +9,12 @@ const {
 const { Buffer } = require('buffer');
 
 const {
-  ERR_INVALID_ARG_TYPE,
-  ERR_STREAM_NULL_VALUES,
-} = require('internal/errors').codes;
+  aggregateTwoErrors,
+  codes: {
+    ERR_INVALID_ARG_TYPE,
+    ERR_STREAM_NULL_VALUES,
+  },
+} = require('internal/errors');
 
 function from(Readable, iterable, opts) {
   let iterator;
@@ -44,6 +47,7 @@ function from(Readable, iterable, opts) {
     // TODO(ronag): What options should be allowed?
     ...opts,
   });
+  const originalDestroy = readable._destroy;
 
   // Flag to protect against _read
   // being called before last iteration completion.
@@ -65,11 +69,18 @@ function from(Readable, iterable, opts) {
   };
 
   readable._destroy = function(error, cb) {
-    PromisePrototypeThen(
-      close(error),
-      () => process.nextTick(cb, error), // nextTick is here in case cb throws
-      (e) => process.nextTick(cb, e || error),
-    );
+    originalDestroy.call(this, error, (destroyError) => {
+      const combinedError = destroyError || error;
+      PromisePrototypeThen(
+        close(combinedError),
+        // nextTick is here in case cb throws
+        () => process.nextTick(cb, combinedError),
+        (closeError) => process.nextTick(
+          cb,
+          aggregateTwoErrors(combinedError, closeError),
+        ),
+      );
+    });
   };
 
   async function close(error) {

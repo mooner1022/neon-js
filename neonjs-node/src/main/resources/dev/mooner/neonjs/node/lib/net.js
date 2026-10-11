@@ -6,8 +6,8 @@ const { unavailableModule } = require('internal/unavailable');
 const { isIP, isIPv4, isIPv6 } = require('internal/net');
 
 const net = unavailableModule('net', {
-  functions: ['connect', 'createConnection', 'createServer'],
-  classes: ['BlockList', 'Server', 'Socket', 'SocketAddress'],
+  functions: ['_createServerHandle', '_normalizeArgs', 'connect', 'createConnection', 'createServer'],
+  classes: ['BlockList', 'BoundSocket', 'Server', 'Socket', 'SocketAddress', '_TransferredBoundSocket'],
   values: {
     isIP,
     isIPv4,

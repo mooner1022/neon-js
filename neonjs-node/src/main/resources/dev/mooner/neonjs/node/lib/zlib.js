@@ -1,4 +1,4 @@
-// Ported from Node.js v22.12.0 lib/zlib.js (MIT license, see NOTICE); its native handle is internal/zlib (java.util.zip), without Brotli.
+// Ported from Node.js v26.11.1 lib/zlib.js (MIT license, see NOTICE); its native handle is internal/zlib (java.util.zip), without Brotli, Zstandard or ZIP archives.
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -34,7 +34,9 @@ const {
   ObjectSetPrototypeOf,
   ReflectApply,
   Symbol,
+  SymbolHasInstance,
   Uint32Array,
+  Uint8Array,
 } = primordials;
 
 const {
@@ -43,12 +45,16 @@ const {
     ERR_BUFFER_TOO_LARGE,
     ERR_INVALID_ARG_TYPE,
     ERR_OUT_OF_RANGE,
+    ERR_TRAILING_JUNK_AFTER_STREAM_END,
+    ERR_ZSTD_INVALID_PARAM,
   },
   genericNodeError,
 } = require('internal/errors');
 const { Transform, finished } = require('stream');
 const {
-  deprecate,
+  assignFunctionName,
+  deprecateInstantiation,
+  emitExperimentalWarning,
 } = require('internal/util');
 const {
   isArrayBufferView,
@@ -65,10 +71,22 @@ const {
 const owner_symbol = Symbol('owner_symbol');
 const {
   checkRangesOrGetDefault,
+  validateBoolean,
   validateFunction,
   validateUint32,
   validateFiniteNumber,
 } = require('internal/validators');
+const { FastBuffer } = require('internal/buffer');
+const {
+  ZipEntry,
+  ZipFile,
+  ZipBuffer,
+  createZipArchive,
+  createZipArchiveSync,
+  zipFiles,
+  getMaxZipContentSize,
+  setMaxZipContentSize,
+} = require('internal/zip');
 
 const kFlushFlag = Symbol('kFlushFlag');
 const kError = Symbol('kError');
@@ -84,9 +102,12 @@ const {
   // Node's compression stream modes (node_zlib_mode)
   DEFLATE, DEFLATERAW, INFLATE, INFLATERAW, GZIP, GUNZIP, UNZIP,
   BROTLI_DECODE, BROTLI_ENCODE,
+  ZSTD_COMPRESS, ZSTD_DECOMPRESS,
   // Brotli operations (~flush levels)
   BROTLI_OPERATION_PROCESS, BROTLI_OPERATION_FLUSH,
   BROTLI_OPERATION_FINISH, BROTLI_OPERATION_EMIT_METADATA,
+  // Zstd end directives (~flush levels)
+  ZSTD_e_continue, ZSTD_e_flush, ZSTD_e_end,
 } = constants;
 
 // Translation table for return codes.
@@ -146,7 +167,7 @@ function zlibBufferOnError(err) {
 function zlibBufferOnEnd() {
   let buf;
   if (this.nread === 0) {
-    buf = Buffer.alloc(0);
+    buf = new FastBuffer();
   } else {
     const bufs = this.buffers;
     buf = (bufs.length === 1 ? bufs[0] : Buffer.concat(bufs, this.nread));
@@ -183,9 +204,14 @@ function zlibOnError(message, errno, code) {
   // There is no way to cleanly recover.
   // Continuing only obscures problems.
 
-  const error = genericNodeError(message, { errno, code });
-  error.errno = errno;
-  error.code = code;
+  let error;
+  if (code === 'ERR_TRAILING_JUNK_AFTER_STREAM_END') {
+    error = new ERR_TRAILING_JUNK_AFTER_STREAM_END();
+  } else {
+    error = genericNodeError(message, { errno, code });
+    error.errno = errno;
+    error.code = code;
+  }
   self.destroy(error);
   self[kError] = error;
 }
@@ -193,24 +219,31 @@ function zlibOnError(message, errno, code) {
 const FLUSH_BOUND = [
   [ Z_NO_FLUSH, Z_BLOCK ],
   [ BROTLI_OPERATION_PROCESS, BROTLI_OPERATION_EMIT_METADATA ],
+  [ ZSTD_e_continue, ZSTD_e_end ],
 ];
 const FLUSH_BOUND_IDX_NORMAL = 0;
 const FLUSH_BOUND_IDX_BROTLI = 1;
+const FLUSH_BOUND_IDX_ZSTD = 2;
 
-// The base class for all Zlib-style streams.
+/**
+ * The base class for all Zlib-style streams.
+ * @class
+ */
 function ZlibBase(opts, mode, handle, { flush, finishFlush, fullFlush }) {
   let chunkSize = Z_DEFAULT_CHUNK;
   let maxOutputLength = kMaxLength;
   // The ZlibBase class is not exported to user land, the mode should only be
   // passed in by us.
   assert(typeof mode === 'number');
-  assert(mode >= DEFLATE && mode <= BROTLI_ENCODE);
+  assert(mode >= DEFLATE && mode <= ZSTD_DECOMPRESS);
 
   let flushBoundIdx;
-  if (mode !== BROTLI_ENCODE && mode !== BROTLI_DECODE) {
-    flushBoundIdx = FLUSH_BOUND_IDX_NORMAL;
-  } else {
+  if (mode === BROTLI_ENCODE || mode === BROTLI_DECODE) {
     flushBoundIdx = FLUSH_BOUND_IDX_BROTLI;
+  } else if (mode === ZSTD_COMPRESS || mode === ZSTD_DECOMPRESS) {
+    flushBoundIdx = FLUSH_BOUND_IDX_ZSTD;
+  } else {
+    flushBoundIdx = FLUSH_BOUND_IDX_NORMAL;
   }
 
   if (opts) {
@@ -235,15 +268,24 @@ function ZlibBase(opts, mode, handle, { flush, finishFlush, fullFlush }) {
       opts.maxOutputLength, 'options.maxOutputLength',
       1, kMaxLength, kMaxLength);
 
-    if (opts.encoding || opts.objectMode || opts.writableObjectMode) {
+    if (opts.rejectGarbageAfterEnd !== undefined) {
+      validateBoolean(
+        opts.rejectGarbageAfterEnd,
+        'options.rejectGarbageAfterEnd',
+      );
+    }
+
+    if (opts.encoding || opts.objectMode || opts.writableObjectMode ||
+          opts.decodeStrings === false) {
       opts = { ...opts };
       opts.encoding = null;
       opts.objectMode = false;
       opts.writableObjectMode = false;
+      opts.decodeStrings = true;
     }
   }
 
-  ReflectApply(Transform, this, [{ autoDestroy: true, ...opts }]);
+  Transform.call(this, { autoDestroy: true, ...opts });
   this[kError] = null;
   this.bytesWritten = 0;
   this._handle = handle;
@@ -257,8 +299,11 @@ function ZlibBase(opts, mode, handle, { flush, finishFlush, fullFlush }) {
   this._defaultFlushFlag = flush;
   this._finishFlushFlag = finishFlush;
   this._defaultFullFlushFlag = fullFlush;
+  this._flushBoundIdx = flushBoundIdx;
   this._info = opts?.info;
   this._maxOutputLength = maxOutputLength;
+
+  this._rejectGarbageAfterEnd = opts?.rejectGarbageAfterEnd === true;
 }
 ObjectSetPrototypeOf(ZlibBase.prototype, Transform.prototype);
 ObjectSetPrototypeOf(ZlibBase, Transform);
@@ -272,26 +317,8 @@ ObjectDefineProperty(ZlibBase.prototype, '_closed', {
   },
 });
 
-// `bytesRead` made sense as a name when looking from the zlib engine's
-// perspective, but it is inconsistent with all other streams exposed by Node.js
-// that have this concept, where it stands for the number of bytes read
-// *from* the stream (that is, net.Socket/tls.Socket & file system streams).
-ObjectDefineProperty(ZlibBase.prototype, 'bytesRead', {
-  __proto__: null,
-  configurable: true,
-  enumerable: true,
-  get: deprecate(function() {
-    return this.bytesWritten;
-  }, 'zlib.bytesRead is deprecated and will change its meaning in the ' +
-     'future. Use zlib.bytesWritten instead.', 'DEP0108'),
-  set: deprecate(function(value) {
-    this.bytesWritten = value;
-  }, 'Setting zlib.bytesRead is deprecated. ' +
-     'This feature will be removed in the future.', 'DEP0108'),
-});
-
 /**
- * @this ZlibBase
+ * @this {ZlibBase}
  * @returns {void}
  */
 ZlibBase.prototype.reset = function() {
@@ -299,13 +326,21 @@ ZlibBase.prototype.reset = function() {
   return this._handle.reset();
 };
 
-// This is the _flush function called by the transform class,
-// internally, when the last chunk has been written.
+/**
+ * This is the _flush function called by the transform class,
+ * internally, when the last chunk has been written.
+ * @returns {void}
+ * @this {ZlibBase}
+ */
 ZlibBase.prototype._flush = function(callback) {
-  this._transform(Buffer.alloc(0), '', callback);
+  this._transform(new FastBuffer(), '', callback);
 };
 
-// Force Transform compat behavior.
+/**
+ * Force Transform compat behavior.
+ * @returns {void}
+ * @this {ZlibBase}
+ */
 ZlibBase.prototype._final = function(callback) {
   callback();
 };
@@ -315,7 +350,7 @@ ZlibBase.prototype._final = function(callback) {
 // This is currently only used to figure out which flush flag to use for the
 // last chunk.
 // Roughly, the following holds:
-// Z_NO_FLUSH (< Z_TREES) < Z_BLOCK < Z_PARTIAL_FLUSH <
+// Z_NO_FLUSH < Z_BLOCK < Z_PARTIAL_FLUSH <
 //     Z_SYNC_FLUSH < Z_FULL_FLUSH < Z_FINISH
 const flushiness = [];
 const kFlushFlagList = [Z_NO_FLUSH, Z_BLOCK, Z_PARTIAL_FLUSH,
@@ -346,6 +381,11 @@ ZlibBase.prototype.flush = function(kind, callback) {
     kind = this._defaultFullFlushFlag;
   }
 
+  kind = checkRangesOrGetDefault(
+    kind, 'kind',
+    FLUSH_BOUND[this._flushBoundIdx][0], FLUSH_BOUND[this._flushBoundIdx][1],
+    this._defaultFullFlushFlag);
+
   if (this.writableFinished) {
     if (callback)
       process.nextTick(callback);
@@ -358,7 +398,7 @@ ZlibBase.prototype.flush = function(kind, callback) {
 };
 
 /**
- * @this import('stream').Transform
+ * @this {import('stream').Transform}
  * @param {(err?: Error) => any} [callback]
  */
 ZlibBase.prototype.close = function(callback) {
@@ -469,11 +509,16 @@ function processChunkSync(self, chunk, flushFlag) {
     }
   }
 
+  if (availInAfter > 0 && self._rejectGarbageAfterEnd) {
+    _close(self);
+    throw new ERR_TRAILING_JUNK_AFTER_STREAM_END();
+  }
+
   self.bytesWritten = inputRead;
   _close(self);
 
   if (nread === 0)
-    return Buffer.alloc(0);
+    return new FastBuffer();
 
   return (buffers.length === 1 ? buffers[0] : Buffer.concat(buffers, nread));
 }
@@ -581,6 +626,14 @@ function processCallback() {
     // stream has ended early.
     // This applies to streams where we don't check data past the end of
     // what was consumed; that is, everything except Gunzip/Unzip.
+
+    if (self._rejectGarbageAfterEnd) {
+      const err = new ERR_TRAILING_JUNK_AFTER_STREAM_END();
+      self.destroy(err);
+      this.cb(err);
+      return;
+    }
+
     self.push(null);
   }
 
@@ -667,12 +720,14 @@ function Zlib(opts, mode) {
               strategy,
               this._writeState,
               processCallback,
-              dictionary);
+              dictionary,
+              opts?.rejectGarbageAfterEnd === true);
 
-  ReflectApply(ZlibBase, this, [opts, mode, handle, zlibDefaultOpts]);
+  ZlibBase.call(this, opts, mode, handle, zlibDefaultOpts);
 
   this._level = level;
   this._strategy = strategy;
+  this._mode = mode;
 }
 ObjectSetPrototypeOf(Zlib.prototype, ZlibBase.prototype);
 ObjectSetPrototypeOf(Zlib, ZlibBase);
@@ -708,63 +763,70 @@ Zlib.prototype.params = function params(level, strategy, callback) {
 // generic zlib
 // minimal 2-byte header
 function Deflate(opts) {
-  if (!(this instanceof Deflate))
-    return new Deflate(opts);
-  ReflectApply(Zlib, this, [opts, DEFLATE]);
+  if (!(this instanceof Deflate)) {
+    return deprecateInstantiation(Deflate, 'DEP0184', opts);
+  }
+  Zlib.call(this, opts, DEFLATE);
 }
 ObjectSetPrototypeOf(Deflate.prototype, Zlib.prototype);
 ObjectSetPrototypeOf(Deflate, Zlib);
 
 function Inflate(opts) {
-  if (!(this instanceof Inflate))
-    return new Inflate(opts);
-  ReflectApply(Zlib, this, [opts, INFLATE]);
+  if (!(this instanceof Inflate)) {
+    return deprecateInstantiation(Inflate, 'DEP0184', opts);
+  }
+  Zlib.call(this, opts, INFLATE);
 }
 ObjectSetPrototypeOf(Inflate.prototype, Zlib.prototype);
 ObjectSetPrototypeOf(Inflate, Zlib);
 
 function Gzip(opts) {
-  if (!(this instanceof Gzip))
-    return new Gzip(opts);
-  ReflectApply(Zlib, this, [opts, GZIP]);
+  if (!(this instanceof Gzip)) {
+    return deprecateInstantiation(Gzip, 'DEP0184', opts);
+  }
+  Zlib.call(this, opts, GZIP);
 }
 ObjectSetPrototypeOf(Gzip.prototype, Zlib.prototype);
 ObjectSetPrototypeOf(Gzip, Zlib);
 
 function Gunzip(opts) {
-  if (!(this instanceof Gunzip))
-    return new Gunzip(opts);
-  ReflectApply(Zlib, this, [opts, GUNZIP]);
+  if (!(this instanceof Gunzip)) {
+    return deprecateInstantiation(Gunzip, 'DEP0184', opts);
+  }
+  Zlib.call(this, opts, GUNZIP);
 }
 ObjectSetPrototypeOf(Gunzip.prototype, Zlib.prototype);
 ObjectSetPrototypeOf(Gunzip, Zlib);
 
 function DeflateRaw(opts) {
   if (opts && opts.windowBits === 8) opts.windowBits = 9;
-  if (!(this instanceof DeflateRaw))
-    return new DeflateRaw(opts);
-  ReflectApply(Zlib, this, [opts, DEFLATERAW]);
+  if (!(this instanceof DeflateRaw)) {
+    return deprecateInstantiation(DeflateRaw, 'DEP0184', opts);
+  }
+  Zlib.call(this, opts, DEFLATERAW);
 }
 ObjectSetPrototypeOf(DeflateRaw.prototype, Zlib.prototype);
 ObjectSetPrototypeOf(DeflateRaw, Zlib);
 
 function InflateRaw(opts) {
-  if (!(this instanceof InflateRaw))
-    return new InflateRaw(opts);
-  ReflectApply(Zlib, this, [opts, INFLATERAW]);
+  if (!(this instanceof InflateRaw)) {
+    return deprecateInstantiation(InflateRaw, 'DEP0184', opts);
+  }
+  Zlib.call(this, opts, INFLATERAW);
 }
 ObjectSetPrototypeOf(InflateRaw.prototype, Zlib.prototype);
 ObjectSetPrototypeOf(InflateRaw, Zlib);
 
 function Unzip(opts) {
-  if (!(this instanceof Unzip))
-    return new Unzip(opts);
-  ReflectApply(Zlib, this, [opts, UNZIP]);
+  if (!(this instanceof Unzip)) {
+    return deprecateInstantiation(Unzip, 'DEP0184', opts);
+  }
+  Zlib.call(this, opts, UNZIP);
 }
 ObjectSetPrototypeOf(Unzip.prototype, Zlib.prototype);
 ObjectSetPrototypeOf(Unzip, Zlib);
 
-function createConvenienceMethod(ctor, sync) {
+function createConvenienceMethod(ctor, sync, prepareOpts) {
   if (sync) {
     return function syncBufferWrapper(buffer, opts) {
       return zlibBufferSync(new ctor(opts), buffer);
@@ -775,8 +837,36 @@ function createConvenienceMethod(ctor, sync) {
       callback = opts;
       opts = {};
     }
+    if (prepareOpts !== undefined) {
+      opts = prepareOpts(buffer, opts);
+    }
     return zlibBuffer(new ctor(opts), buffer, callback);
   };
+}
+
+// zstdCompress() writes the input and ends the frame in separate calls, so
+// unlike zstdCompressSync() zstd cannot infer the input size and sizes its
+// tables for an unbounded stream. Pledge the size, which is known up front.
+function withPledgedSrcSize(buffer, opts) {
+  if (opts?.pledgedSrcSize !== undefined) {
+    return opts;
+  }
+  let pledgedSrcSize;
+  if (typeof buffer === 'string') {
+    // The stream encodes strings with defaultEncoding, so only a UTF-8 length
+    // is known to match what gets written.
+    const encoding = opts?.defaultEncoding;
+    if (encoding != null && encoding !== 'utf8' && encoding !== 'utf-8') {
+      return opts;
+    }
+    pledgedSrcSize = Buffer.byteLength(buffer);
+  } else if (isArrayBufferView(buffer) || isAnyArrayBuffer(buffer)) {
+    pledgedSrcSize = buffer.byteLength;
+  } else {
+    // Leave invalid input to the existing validation.
+    return opts;
+  }
+  return { __proto__: null, ...opts, pledgedSrcSize };
 }
 
 const kMaxBrotliParam = MathMax(
@@ -811,43 +901,208 @@ function Brotli(opts, mode) {
     });
   }
 
+  let dictionary = opts?.dictionary;
+  if (dictionary !== undefined && !isArrayBufferView(dictionary)) {
+    if (isAnyArrayBuffer(dictionary)) {
+      dictionary = Buffer.from(dictionary);
+    } else {
+      throw new ERR_INVALID_ARG_TYPE(
+        'options.dictionary',
+        ['Buffer', 'TypedArray', 'DataView', 'ArrayBuffer'],
+        dictionary,
+      );
+    }
+  }
+
   const handle = mode === BROTLI_DECODE ?
     new zlibBinding.BrotliDecoder(mode) : new zlibBinding.BrotliEncoder(mode);
 
   this._writeState = new Uint32Array(2);
-  handle.init(brotliInitParamsArray, this._writeState, processCallback);
+  handle.init(
+    brotliInitParamsArray,
+    this._writeState,
+    processCallback,
+    dictionary,
+  );
 
-  ReflectApply(ZlibBase, this, [opts, mode, handle, brotliDefaultOpts]);
+  ZlibBase.call(this, opts, mode, handle, brotliDefaultOpts);
 }
 ObjectSetPrototypeOf(Brotli.prototype, Zlib.prototype);
 ObjectSetPrototypeOf(Brotli, Zlib);
 
 function BrotliCompress(opts) {
-  if (!(this instanceof BrotliCompress))
-    return new BrotliCompress(opts);
-  ReflectApply(Brotli, this, [opts, BROTLI_ENCODE]);
+  if (!(this instanceof BrotliCompress)) {
+    return deprecateInstantiation(BrotliCompress, 'DEP0184', opts);
+  }
+  Brotli.call(this, opts, BROTLI_ENCODE);
 }
 ObjectSetPrototypeOf(BrotliCompress.prototype, Brotli.prototype);
 ObjectSetPrototypeOf(BrotliCompress, Brotli);
 
 function BrotliDecompress(opts) {
-  if (!(this instanceof BrotliDecompress))
-    return new BrotliDecompress(opts);
-  ReflectApply(Brotli, this, [opts, BROTLI_DECODE]);
+  if (!(this instanceof BrotliDecompress)) {
+    return deprecateInstantiation(BrotliDecompress, 'DEP0184', opts);
+  }
+  Brotli.call(this, opts, BROTLI_DECODE);
 }
 ObjectSetPrototypeOf(BrotliDecompress.prototype, Brotli.prototype);
 ObjectSetPrototypeOf(BrotliDecompress, Brotli);
 
+
+const zstdDefaultOpts = {
+  flush: ZSTD_e_continue,
+  finishFlush: ZSTD_e_end,
+  fullFlush: ZSTD_e_flush,
+};
+class Zstd extends ZlibBase {
+  constructor(opts, mode, initParamsArray, maxParam) {
+    assert(mode === ZSTD_COMPRESS || mode === ZSTD_DECOMPRESS);
+
+    initParamsArray.fill(-1);
+    if (opts?.params) {
+      ObjectKeys(opts.params).forEach((origKey) => {
+        const key = +origKey;
+        if (NumberIsNaN(key) || key < 0 || key > maxParam ||
+            (initParamsArray[key] | 0) !== -1) {
+          throw new ERR_ZSTD_INVALID_PARAM(origKey);
+        }
+
+        const value = opts.params[origKey];
+        if (typeof value !== 'number' && typeof value !== 'boolean') {
+          throw new ERR_INVALID_ARG_TYPE('options.params[key]',
+                                         'number', opts.params[origKey]);
+        }
+        initParamsArray[key] = value;
+      });
+    }
+
+    let dictionary = opts?.dictionary;
+    if (dictionary !== undefined && !isArrayBufferView(dictionary)) {
+      if (isAnyArrayBuffer(dictionary)) {
+        dictionary = new Uint8Array(dictionary);
+      } else {
+        throw new ERR_INVALID_ARG_TYPE(
+          'options.dictionary',
+          ['Buffer', 'TypedArray', 'DataView', 'ArrayBuffer'],
+          dictionary,
+        );
+      }
+    }
+
+    const handle = mode === ZSTD_COMPRESS ?
+      new zlibBinding.ZstdCompress() : new zlibBinding.ZstdDecompress();
+
+    const pledgedSrcSize = opts?.pledgedSrcSize;
+
+    const writeState = new Uint32Array(2);
+
+    handle.init(
+      initParamsArray,
+      pledgedSrcSize,
+      writeState,
+      processCallback,
+      dictionary,
+      opts?.rejectGarbageAfterEnd === true,
+    );
+
+    super(opts, mode, handle, zstdDefaultOpts);
+    this._writeState = writeState;
+  }
+}
+
+const kMaxZstdCParam = MathMax(...ObjectKeys(constants).map(
+  (key) => (key.startsWith('ZSTD_c_') ?
+    constants[key] :
+    0),
+));
+
+const zstdInitCParamsArray = new Uint32Array(kMaxZstdCParam + 1);
+
+class ZstdCompress extends Zstd {
+  constructor(opts) {
+    super(opts, ZSTD_COMPRESS, zstdInitCParamsArray, kMaxZstdCParam);
+  }
+}
+
+const kMaxZstdDParam = MathMax(...ObjectKeys(constants).map(
+  (key) => (key.startsWith('ZSTD_d_') ?
+    constants[key] :
+    0),
+));
+
+const zstdInitDParamsArray = new Uint32Array(kMaxZstdDParam + 1);
+
+class ZstdDecompress extends Zstd {
+  constructor(opts) {
+    super(opts, ZSTD_DECOMPRESS, zstdInitDParamsArray, kMaxZstdDParam);
+  }
+}
 
 function createProperty(ctor) {
   return {
     __proto__: null,
     configurable: true,
     enumerable: true,
-    value: function(options) {
+    value: assignFunctionName(`create${ctor.name}`, function(options) {
       return new ctor(options);
-    },
+    }),
   };
+}
+
+// ZIP archive support is experimental. The warning fires when the API is
+// *used*, not when node:zlib is imported: the ESM facade reads every export to
+// build its bindings (see BuiltinModule.syncExports), so warning on property
+// access would fire on a bare `import 'node:zlib'`. Each public class is a thin
+// subclass whose factory methods (and, for ZipBuffer, its constructor) warn;
+// each function is a warn-on-call wrapper. A `[Symbol.hasInstance]` override
+// keeps `instanceof` matching instances produced by the internal (unwrapped)
+// implementation. The rest of node:zlib is stable and never warns.
+function emitZipExperimentalWarning() {
+  emitExperimentalWarning('The zlib ZIP archive API');
+}
+
+function experimentalZipFunction(fn, thisArg) {
+  return function(...args) {
+    emitZipExperimentalWarning();
+    return ReflectApply(fn, thisArg, args);
+  };
+}
+
+function experimentalZipProperty(value) {
+  return { __proto__: null, configurable: true, enumerable: true, value };
+}
+
+// Thin subclasses that gate *use* of the experimental ZIP API behind the
+// warning while leaving `instanceof` (and the public class name) intact.
+class ExperimentalZipEntry extends ZipEntry {
+  static [SymbolHasInstance](instance) { return instance instanceof ZipEntry; }
+}
+
+class ExperimentalZipFile extends ZipFile {
+  static [SymbolHasInstance](instance) { return instance instanceof ZipFile; }
+}
+
+class ExperimentalZipBuffer extends ZipBuffer {
+  static [SymbolHasInstance](instance) { return instance instanceof ZipBuffer; }
+  constructor(buffer) { emitZipExperimentalWarning(); super(buffer); }
+}
+
+// Shadow each public factory with a warn-on-call wrapper, and restore the
+// public class name that subclassing changed.
+for (const { 0: Wrapper, 1: Raw, 2: factories } of [
+  [ExperimentalZipEntry, ZipEntry, ['read', 'create', 'createSync', 'createStream', 'createSymlink']],
+  [ExperimentalZipFile, ZipFile, ['open', 'openSync']],
+  [ExperimentalZipBuffer, ZipBuffer, []],
+]) {
+  for (const name of factories) {
+    ObjectDefineProperty(Wrapper, name, {
+      __proto__: null,
+      configurable: true,
+      writable: true,
+      value: experimentalZipFunction(Raw[name], Raw),
+    });
+  }
+  ObjectDefineProperty(Wrapper, 'name', { __proto__: null, value: Raw.name });
 }
 
 function crc32(data, value = 0) {
@@ -855,6 +1110,8 @@ function crc32(data, value = 0) {
     throw new ERR_INVALID_ARG_TYPE('data', ['Buffer', 'TypedArray', 'DataView', 'string'], data);
   }
   validateUint32(value, 'value');
+  // Coerce -0 to +0.
+  value += 0;
   return crc32Native(data, value);
 }
 
@@ -877,6 +1134,8 @@ module.exports = {
   Unzip,
   BrotliCompress,
   BrotliDecompress,
+  ZstdCompress,
+  ZstdDecompress,
 
   // Convenience methods.
   // compress/decompress a string or buffer in one step.
@@ -898,6 +1157,10 @@ module.exports = {
   brotliCompressSync: createConvenienceMethod(BrotliCompress, true),
   brotliDecompress: createConvenienceMethod(BrotliDecompress, false),
   brotliDecompressSync: createConvenienceMethod(BrotliDecompress, true),
+  zstdCompress: createConvenienceMethod(ZstdCompress, false, withPledgedSrcSize),
+  zstdCompressSync: createConvenienceMethod(ZstdCompress, true),
+  zstdDecompress: createConvenienceMethod(ZstdDecompress, false),
+  zstdDecompressSync: createConvenienceMethod(ZstdDecompress, true),
 };
 
 ObjectDefineProperties(module.exports, {
@@ -910,6 +1173,8 @@ ObjectDefineProperties(module.exports, {
   createUnzip: createProperty(Unzip),
   createBrotliCompress: createProperty(BrotliCompress),
   createBrotliDecompress: createProperty(BrotliDecompress),
+  createZstdCompress: createProperty(ZstdCompress),
+  createZstdDecompress: createProperty(ZstdDecompress),
   constants: {
     __proto__: null,
     configurable: false,
@@ -922,6 +1187,16 @@ ObjectDefineProperties(module.exports, {
     writable: false,
     value: ObjectFreeze(codes),
   },
+
+  // ZIP archive support (experimental).
+  ZipEntry: experimentalZipProperty(ExperimentalZipEntry),
+  ZipFile: experimentalZipProperty(ExperimentalZipFile),
+  ZipBuffer: experimentalZipProperty(ExperimentalZipBuffer),
+  createZipArchive: experimentalZipProperty(experimentalZipFunction(createZipArchive)),
+  createZipArchiveSync: experimentalZipProperty(experimentalZipFunction(createZipArchiveSync)),
+  zipFiles: experimentalZipProperty(experimentalZipFunction(zipFiles)),
+  getMaxZipContentSize: experimentalZipProperty(experimentalZipFunction(getMaxZipContentSize)),
+  setMaxZipContentSize: experimentalZipProperty(experimentalZipFunction(setMaxZipContentSize)),
 });
 
 // These should be considered deprecated
