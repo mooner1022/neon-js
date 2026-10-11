@@ -29,7 +29,7 @@ scripts in Java/Kotlin applications:
 | Test262 `intl402/` (with `neonjs-intl`) | **3,363 / 3,365** in all modes — the two failures are ICU 78 data limits: one Chinese-calendar month boundary (2030) where ICU's astronomy differs from the official table Temporal uses, and islamic-civil eras that ICU does not distinguish |
 | Skipped Test262 features | `export-defer` (no stable semantics yet) |
 | web-platform-tests (web globals) | `encoding/`: 3,642 subtests pass, the rest need other encodings than UTF-8, streams or WebAssembly; `dom/events`, `dom/abort`, `hr-time`, `WebCryptoAPI` (getRandomValues, randomUUID) and their IDL tests: 370 / 373, the 3 are deliberate; `FileAPI`: 367 subtests pass (Blob, File), the rest need streams, FileReader, blob URLs or a server; `xhr/formdata`: 40 / 40; `fetch/api/headers`: the 102 subtests that need no `fetch`, `Request` or `Response` pass; `url` (with the UTS #46 tests of `IdnaTestV2`): 4,842 / 4,919, the rest need `Request` / `Response` or Unicode data newer than 17.0 (`neonjs-test262/wpt-known-failures.txt`) |
-| Node.js's own tests (`neonjs-node`) | 166 of the 249 `test/parallel` tests of `neonjs-test262/node-tests.txt` (assert, buffer, events, path, url, util, timers…) pass; most of the rest need modules not there (`vm`, `child_process`, `stream`, `fs`) or Node's legacy timers API (`neonjs-test262/node-known-failures.txt`) |
+| Node.js's own tests (`neonjs-node`) | 341 of the 448 `test/parallel` tests of `neonjs-test262/node-tests.txt` (assert, buffer, events, path, stream, url, util, timers…) pass; most of the rest need modules not there (`vm`, `child_process`, `fs`, servers, web streams) or Node's legacy timers API (`neonjs-test262/node-known-failures.txt`) |
 | JVM | Java 21+ (built with a JDK 25 toolchain, `jvmTarget` 21) |
 
 Implemented highlights: full ES2025 syntax and semantics (classes with private members, generators, async
@@ -367,7 +367,7 @@ take their web paths (fetch and WebSocket, from `neonjs-net`).
 
 | Module | What it is |
 |---|---|
-| `assert`, `assert/strict`, `events`, `path` (`posix`, `win32`), `querystring`, `string_decoder`, `url`, `util` (`inspect`, `format`, `types`, `promisify`, `deprecate`, `isDeepStrictEqual`…) | Node 22.12's own JavaScript, ported with few changes (`tools/port_node.py`); what V8 or C++ gives Node comes from the engine (`util.types`, promise and proxy details, IDNA, the string decoder) |
+| `assert`, `assert/strict`, `events`, `path` (`posix`, `win32`), `querystring`, `stream` (`promises`, `consumers`), `string_decoder`, `url`, `util` (`inspect`, `format`, `types`, `promisify`, `deprecate`, `isDeepStrictEqual`…) | Node 22.12's own JavaScript, ported with few changes (`tools/port_node.py`); what V8 or C++ gives Node comes from the engine (`util.types`, promise and proxy details, IDNA, the string decoder) |
 | `buffer` | Node's API and errors over the engine's typed arrays (`allocUnsafe` is zeroed) |
 | `process` | `env`, `argv`, `cwd`, `platform` from `NodeOptions` (nothing of the host's environment otherwise); `nextTick`; `exit` ends the evaluation (`NodeOptions.onExit`), never the host; `'uncaughtException'` / `'unhandledRejection'` / `'warning'` listeners; `stdout` / `stderr` to the console sink |
 | `timers`, `timers/promises` | over the web globals' timers (`maxTimers` applies) |
@@ -380,7 +380,7 @@ take their web paths (fetch and WebSocket, from `neonjs-net`).
 
 `NodeOptions.platform` is the host's (`android`, `win32`, `darwin`, `linux`) unless the host names one, and gives
 `path`, `url` and `os` their POSIX or Windows rules, as Node's does; `cwd` defaults to that platform's root (`C:\` or
-`/`), never the host's working directory. Not there: `vm`, `stream` (and so the stream forms of crypto and zlib), `async_hooks`,
+`/`), never the host's working directory. Not there: `vm`, the stream forms of crypto and zlib, the web's streams (`stream/web`, `Readable.toWeb`), `async_hooks`,
 `node:test`, `Error.prepareStackTrace`, `path.matchesGlob` (Node's minimatch), and unref'd `setImmediate` timing
 exactly as Node's. `util.inspect` runs guest code as Node does (`[util.inspect.custom]`, getters with `getters: true`),
 and so does `console` by default, formatting with `util.format` and `util.inspect` as Node's console does;

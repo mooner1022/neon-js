@@ -139,6 +139,12 @@ function createDeferredPromise() {
   return { promise, resolve, reject };
 }
 
+// node:util's promisify (loaded when called), with its symbol
+function promisify(original) {
+  return require('util').promisify(original);
+}
+promisify.custom = Symbol.for('nodejs.util.promisify.custom');
+
 function once(callback) {
   let called = false;
   return function (...args) {
@@ -166,6 +172,7 @@ module.exports = {
   kIsEncodingSymbol,
   normalizeEncoding,
   once,
+  promisify,
   removeColors,
   spliceOne,
   SymbolAsyncDispose,

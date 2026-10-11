@@ -1,5 +1,6 @@
 # The tests of neonjs-test262/node-tests.txt that fail (NodeTestsKt --known): most need modules not there yet (node:test,
-# vm, child_process, path, stream, domain...) or Node's legacy timers API. Written by --write-known.
+# vm, child_process, fs, net and http servers, web streams, domain...) or Node's legacy timers API. Written by
+# --write-known.
 test-assert-async.js  # unhandled rejection: AssertionError: The input did not match the regular expression /rejects/. Input:
 test-assert-builtins-not-read-from-filesystem.js  # uncaught: Error: fs.rmSync is not available in NeonJS [at rmSync (/test/common/tmpdir.js:20:5) < at refresh (/test/common/tmpdir.js:35:3)]
 test-assert-calltracker-getCalls.js  # exit code 1: (neonjs) [DEP0173] DeprecationWarning: assert.CallTracker is deprecated. / not ok - assert.CallTracker.getCalls() > should retu
@@ -17,7 +18,6 @@ test-buffer-pool-untransferable.js  # uncaught: AssertionError: Values have same
 test-buffer-resizable.js  # exit code 1: not ok - Using resizable ArrayBuffer with Buffer... > works as expected / AssertionError [ERR_ASSERTION]: Expected values to be
 test-buffer-tostring-range.js  # uncaught: RangeError: The value of "size" is out of range. It must be >= 0 && <= 2147483639. Received 4_294_967_315 [at <anonymous> (/test/p
 test-event-emitter-no-error-provided-to-error-event.js  # uncaught: Error: Cannot find module 'domain' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-event-emitt
-test-event-emitter-prepend.js  # uncaught: Error: Cannot find module 'stream' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-event-emitt
 test-http-status-code.js  # uncaught: Error: http.createServer is not available in NeonJS [at <anonymous> (/test/parallel/test-http-status-code.js:35:11)]
 test-next-tick-domain.js  # uncaught: Error: Cannot find module 'domain' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-next-tick-d
 test-os-homedir-no-envvar.js  # uncaught: Error: child_process.spawnSync is not available in NeonJS [at <anonymous> (/test/parallel/test-os-homedir-no-envvar.js:25:17)]
@@ -25,6 +25,25 @@ test-os-process-priority.js  # uncaught: AssertionError: Missing expected except
 test-os-userinfo-handles-getter-errors.js  # uncaught: Error: child_process.execFile is not available in NeonJS [at <anonymous> (/test/parallel/test-os-userinfo-handles-getter-errors.js
 test-path-glob.js  # uncaught: Error: path.matchesGlob is not available in NeonJS [at <anonymous> (/test/parallel/test-path-glob.js:37:20)]
 test-querystring.js  # uncaught: Error: Cannot find module 'vm' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-querystring.js:
+test-stream-base-typechecking.js  # uncaught: Error: net.createServer is not available in NeonJS [at <anonymous> (/test/parallel/test-stream-base-typechecking.js:6:16)]
+test-stream-consumers.js  # uncaught: Error: stream/web.TransformStream is not available in NeonJS [at <anonymous> (/test/parallel/test-stream-consumers.js:103:34)]
+test-stream-destroy.js  # uncaught: Error: http.createServer is not available in NeonJS [at <anonymous> (/test/parallel/test-stream-destroy.js:53:18)]
+test-stream-duplex-from.js  # uncaught: Error: stream/web.ReadableStream is not available in NeonJS [at makeATestReadableStream (/test/parallel/test-stream-duplex-from.js
+test-stream-duplex.js  # uncaught: Error: stream/web.ReadableStream is not available in NeonJS [at <anonymous> (/test/parallel/test-stream-duplex.js:63:20)]
+test-stream-finished.js  # uncaught: Error: fs.createReadStream is not available in NeonJS [at <anonymous> (/test/parallel/test-stream-finished.js:70:14)]
+test-stream-flatMap.js  # unhandled rejection: Error: fs.createReadStream is not available in NeonJS
+test-stream-pipeline-process.js  # uncaught: Error: child processes is not available when running Node's tests on NeonJS [at <anonymous> (/test/common/index.js:223:11) < at <a
+test-stream-pipeline.js  # uncaught: Error: http.createServer is not available in NeonJS [at <anonymous> (/test/parallel/test-stream-pipeline.js:149:18)]
+test-stream-preprocess.js  # uncaught: Error: Cannot find module 'readline' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-stream-pr
+test-stream-promises.js  # unhandled rejection: Error: fs.createReadStream is not available in NeonJS; uncaught: Error: fs.createReadStream is not available in NeonJS 
+test-stream-readable-async-iterators.js  # unhandled rejection: Error: fs.createReadStream is not available in NeonJS; uncaught: Error: http.createServer is not available in NeonJS [a
+test-stream-readable-from-web-termination.js  # uncaught: Error: stream web adapters (newReadableStreamFromStreamReadable) is not available in NeonJS [at <anonymous> (/test/parallel/test-s
+test-stream-readable-strategy-option.js  # uncaught: ReferenceError: ByteLengthQueuingStrategy is not defined [at <anonymous> (/test/parallel/test-stream-readable-strategy-option.js:2
+test-stream-readable-to-web-termination.js  # uncaught: Error: stream web adapters (newReadableStreamFromStreamReadable) is not available in NeonJS [at <anonymous> (/test/parallel/test-s
+test-stream-readable-unpipe-resume.js  # uncaught: Error: fs.createReadStream is not available in NeonJS [at <anonymous> (/test/parallel/test-stream-readable-unpipe-resume.js:7:20)]
+test-stream-toWeb-allows-server-response.js  # uncaught: Error: http.createServer is not available in NeonJS [at <anonymous> (/test/parallel/test-stream-toWeb-allows-server-response.js:9:
+test-stream-writable-samecb-singletick.js  # uncaught: Error: Cannot find module 'console' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-stream-wri
+test-stream2-httpclient-response-end.js  # uncaught: Error: http.createServer is not available in NeonJS [at <anonymous> (/test/parallel/test-stream2-httpclient-response-end.js:6:16)]
 test-timers-active.js  # uncaught: TypeError: active is not a function [at <anonymous> (/test/parallel/test-timers-active.js:14:3) < at <anonymous> (/test/parallel/t
 test-timers-clearImmediate-als.js  # uncaught: Error: Cannot find module 'async_hooks' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-timers
 test-timers-enroll-invalid-msecs.js  # uncaught: AssertionError: Expected values to be strictly deep-equal:

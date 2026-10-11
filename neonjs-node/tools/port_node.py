@@ -35,6 +35,32 @@ assert.js                            assert.js
 assert/strict.js                     assert_strict.js
 events.js                            events.js                            events
 string_decoder.js                    string_decoder.js                    string_decoder
+stream.js                            stream.js
+stream/promises.js                   stream_promises.js
+stream/consumers.js                  stream_consumers.js
+internal/streams/add-abort-signal.js internal_streams_add-abort-signal.js
+internal/streams/compose.js          internal_streams_compose.js
+internal/streams/destroy.js          internal_streams_destroy.js
+internal/streams/duplex.js           internal_streams_duplex.js
+internal/streams/duplexify.js        internal_streams_duplexify.js
+internal/streams/duplexpair.js       internal_streams_duplexpair.js
+internal/streams/end-of-stream.js    internal_streams_end-of-stream.js
+internal/streams/from.js             internal_streams_from.js
+internal/streams/lazy_transform.js   internal_streams_lazy_transform.js
+internal/streams/legacy.js           internal_streams_legacy.js
+internal/streams/operators.js        internal_streams_operators.js
+internal/streams/passthrough.js      internal_streams_passthrough.js
+internal/streams/pipeline.js         internal_streams_pipeline.js
+internal/streams/readable.js         internal_streams_readable.js
+internal/streams/state.js            internal_streams_state.js
+internal/streams/transform.js        internal_streams_transform.js
+internal/streams/utils.js            internal_streams_utils.js
+internal/streams/writable.js         internal_streams_writable.js
+_stream_duplex.js                    _stream_duplex.js
+_stream_passthrough.js               _stream_passthrough.js
+_stream_readable.js                  _stream_readable.js
+_stream_transform.js                 _stream_transform.js
+_stream_writable.js                  _stream_writable.js
 """
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))

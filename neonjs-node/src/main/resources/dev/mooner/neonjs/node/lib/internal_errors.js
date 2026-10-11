@@ -26,6 +26,7 @@ const {
   ObjectPrototypeHasOwnProperty,
   ReflectApply,
   RegExpPrototypeExec,
+  SafeArrayIterator,
   StringPrototypeEndsWith,
   StringPrototypeIncludes,
   StringPrototypeIndexOf,
@@ -206,6 +207,37 @@ const kTypes = [
   'bigint',
   'symbol',
 ];
+
+const aggregateTwoErrors = (innerError, outerError) => {
+  if (innerError && outerError && innerError !== outerError) {
+    if (ArrayIsArray(outerError.errors)) {
+      // If `outerError` is already an `AggregateError`.
+      ArrayPrototypePush(outerError.errors, innerError);
+      return outerError;
+    }
+    let err;
+    if (isErrorStackTraceLimitWritable()) {
+      const limit = Error.stackTraceLimit;
+      Error.stackTraceLimit = 0;
+      // eslint-disable-next-line no-restricted-syntax
+      err = new AggregateError(new SafeArrayIterator([
+        outerError,
+        innerError,
+      ]), outerError.message);
+      Error.stackTraceLimit = limit;
+      ErrorCaptureStackTrace(err, aggregateTwoErrors);
+    } else {
+      // eslint-disable-next-line no-restricted-syntax
+      err = new AggregateError(new SafeArrayIterator([
+        outerError,
+        innerError,
+      ]), outerError.message);
+    }
+    err.code = outerError.code;
+    return err;
+  }
+  return innerError || outerError;
+};
 
 function addNumericalSeparator(val) {
   let res = '';
@@ -563,6 +595,7 @@ E('ERR_UNAVAILABLE', (what) => `${what} is not available in NeonJS`, Error);
 module.exports = {
   AbortError,
   addNumericalSeparator,
+  aggregateTwoErrors,
   codes,
   determineSpecificType,
   formatList,

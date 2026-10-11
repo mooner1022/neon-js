@@ -62,8 +62,16 @@ def const_source(name):
     return '\n'.join(lines[i:j + 1])
 
 
+def arrow_source(name):
+    i = next(k for k, l in enumerate(lines) if l.startswith(f'const {name} = ('))
+    j = i + 1
+    while not lines[j].startswith('};'):
+        j += 1
+    return '\n'.join(lines[i:j + 1])
+
+
 helpers = '\n\n'.join([
-    const_source('classRegExp'), const_source('kTypes'),
+    const_source('classRegExp'), const_source('kTypes'), arrow_source('aggregateTwoErrors'),
     function_source('addNumericalSeparator'), function_source('determineSpecificType'), function_source('formatList'),
 ])
 
@@ -259,6 +267,7 @@ E('ERR_UNAVAILABLE', (what) => `${{what}} is not available in NeonJS`, Error);
 module.exports = {{
   AbortError,
   addNumericalSeparator,
+  aggregateTwoErrors,
   codes,
   determineSpecificType,
   formatList,

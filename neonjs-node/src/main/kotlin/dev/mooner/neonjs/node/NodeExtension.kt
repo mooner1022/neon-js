@@ -44,7 +44,13 @@ internal class NodeRuntime(@JvmField val realm: Realm, @JvmField val options: No
         }), Attr.WC)
         require.defineOwn("cache", JSObject(null), Attr.WC)
         defineModule("module") { moduleExports() }
-        for (name in JS_MODULES) defineModule(name) { NodeLib.load(this, name) }
+        for (name in JS_MODULES) defineModule(name) {
+            try {
+                NodeLib.load(this, name) { loadingModules["node:$name"] = it }
+            } finally {
+                loadingModules.remove("node:$name")
+            }
+        }
         defineModule("util/types") { (require("node:util") as JSObject).let { it.get("types", it) } }
         val g = realm.globalObject
         g.defineOwn("global", g, Attr.WC)
@@ -111,9 +117,13 @@ internal class NodeRuntime(@JvmField val realm: Realm, @JvmField val options: No
         if (id.startsWith("internal/")) internal(id.removePrefix("internal/")) else require(id)
     })
 
+    /** The module objects of the built-in modules running now: one required again meanwhile gives what it has so far. */
+    private val loadingModules = HashMap<String, JSObject>()
+
     fun require(id: String): Any? {
         Modules.hostModuleObject(realm, id)?.let { return it }
         val b = Modules.builtin(realm, id) ?: throw notFound(id)
+        loadingModules[b.name]?.let { return it.get("exports", it) }
         return b.exports()
     }
 
@@ -153,9 +163,10 @@ internal class NodeRuntime(@JvmField val realm: Realm, @JvmField val options: No
         const val KEY = "%Node%"
         /** The built-in modules written in JS (resources lib/<name>.js). */
         private val JS_MODULES = listOf(
-            "assert", "assert/strict", "buffer", "child_process", "crypto", "dns", "dns/promises", "events", "fs", "fs/promises", "http",
-            "https", "net", "os", "path", "path/posix", "path/win32", "process", "querystring", "string_decoder", "timers",
-            "timers/promises", "tls", "url", "util", "worker_threads", "zlib",
+            "_stream_duplex", "_stream_passthrough", "_stream_readable", "_stream_transform", "_stream_writable", "assert", "assert/strict", "buffer", "child_process", "crypto", "dns", "dns/promises", "events", "fs", "fs/promises", "http",
+            "https", "net", "os", "path", "path/posix", "path/win32", "process", "querystring", "stream", "stream/consumers",
+            "stream/promises", "stream/web", "string_decoder", "timers", "timers/promises", "tls", "url", "util",
+            "worker_threads", "zlib",
         )
         private val TIMER_GLOBALS = listOf("setTimeout", "clearTimeout", "setInterval", "clearInterval", "setImmediate", "clearImmediate")
 
