@@ -31,9 +31,10 @@ internal object NodeLib {
     )
     private val USES_PROCESS = Regex("""(?<![\w.$'"])process\.""")
 
-    private fun source(name: String): String {
+    /** The source of the library [name], or null when there is none (one of Node's the libraries do not have here). */
+    private fun source(name: String): String? {
         val path = "lib/" + name.replace('/', '_') + ".js"
-        val stream = NodeLib::class.java.getResourceAsStream(path) ?: throw IllegalStateException("missing $path")
+        val stream = NodeLib::class.java.getResourceAsStream(path) ?: return null
         return stream.use { String(it.readBytes(), Charsets.UTF_8) }
     }
 
@@ -41,7 +42,12 @@ internal object NodeLib {
         val engine = (realm.hostData as? NeonContext)?.engine
         val cache = if (engine == null) null else synchronized(compiled) { compiled.getOrPut(engine) { ConcurrentHashMap() } }
         cache?.get(name)?.let { return it }
-        val src = source(name)
+        // a library that is not here is a module not found, as a script's require would see it
+        val src = source(name) ?: run {
+            val e = realm.newError(ErrorKind.ERROR, "Cannot find module '$name'")
+            e.defineOwn("code", "MODULE_NOT_FOUND", Attr.WC)
+            throw JSException(e)
+        }
         val usesPrimordials = name != "primordials" && src.contains("} = primordials;")
         val usesProcess = name !in PROCESS_DEPENDENCIES && USES_PROCESS.containsMatchIn(src)
         // only the parameters the library uses (a library may declare a process of its own); the wrapper opens on the
