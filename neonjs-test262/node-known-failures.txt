@@ -1,27 +1,29 @@
 # The tests of neonjs-test262/node-tests.txt that fail (NodeTestsKt --known): most need modules not there yet (node:test,
 # vm, child_process, path, stream, domain...) or Node's legacy timers API. Written by --write-known.
 test-assert-async.js  # unhandled rejection: AssertionError: The input did not match the regular expression /rejects/. Input:
-test-assert-builtins-not-read-from-filesystem.js  # uncaught: Error: Cannot find module 'child_process' (require loads built-in and host modules only) [at <anonymous> (/test/common/tmpdir.js:3
+test-assert-builtins-not-read-from-filesystem.js  # uncaught: Error: fs.rmSync is not available in NeonJS [at rmSync (/test/common/tmpdir.js:20:5) < at refresh (/test/common/tmpdir.js:35:3)]
 test-assert-calltracker-getCalls.js  # exit code 1: (neonjs) [DEP0173] DeprecationWarning: assert.CallTracker is deprecated. / not ok - assert.CallTracker.getCalls() > should retu
 test-assert-esm-cjs-message-verify.js  # exit code 1: not ok - ensure the assert.ok throwing similar error messages for esm and cjs files > should return code 1 for each command / E
-test-assert-first-line.js  # uncaught: Error: Cannot find module 'fs' (require loads built-in and host modules only) [at <anonymous> (/test/common/fixtures.js:4:12) < at
+test-assert-first-line.js  # exit code 1: not ok - Verify that asserting in the very first line produces the expected result / AssertionError [ERR_ASSERTION]: Expected v
 test-assert.js  # uncaught: Error: Cannot find module 'vm' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-assert.js:28:12
 test-buffer-alloc.js  # uncaught: Error: Cannot find module 'vm' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-buffer-alloc.js
 test-buffer-bytelength.js  # uncaught: Error: Cannot find module 'vm' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-buffer-byteleng
 test-buffer-constructor-deprecation-error.js  # exit code 1: Mismatched <anonymous> function calls. Expected exactly 1, actual 0. /     at expectWarning (/test/common/index.js:172:31) /   
-test-buffer-constructor-node-modules-paths.js  # uncaught: Error: Cannot find module 'child_process' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-buff
-test-buffer-constructor-node-modules.js  # uncaught: Error: Cannot find module 'fs' (require loads built-in and host modules only) [at <anonymous> (/test/common/fixtures.js:4:12) < at
+test-buffer-constructor-node-modules-paths.js  # uncaught: Error: child_process.spawnSync is not available in NeonJS [at test (/test/parallel/test-buffer-constructor-node-modules-paths.js:1
+test-buffer-constructor-node-modules.js  # uncaught: Error: child_process.spawnSync is not available in NeonJS [at expectSyncExit (/test/common/child_process.js:70:17) < at <anonymous
 test-buffer-constructor-outside-node-modules.js  # uncaught: Error: Cannot find module 'vm' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-buffer-construc
 test-buffer-from.js  # uncaught: Error: Cannot find module 'vm' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-buffer-from.js:
-test-buffer-pool-untransferable.js  # uncaught: Error: Cannot find module 'worker_threads' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-buf
+test-buffer-pool-untransferable.js  # uncaught: AssertionError: Values have same structure but are not reference-equal:
 test-buffer-resizable.js  # exit code 1: not ok - Using resizable ArrayBuffer with Buffer... > works as expected / AssertionError [ERR_ASSERTION]: Expected values to be
 test-buffer-tostring-range.js  # uncaught: RangeError: The value of "size" is out of range. It must be >= 0 && <= 2147483639. Received 4_294_967_315 [at <anonymous> (/test/p
 test-event-emitter-no-error-provided-to-error-event.js  # uncaught: Error: Cannot find module 'domain' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-event-emitt
 test-event-emitter-prepend.js  # uncaught: Error: Cannot find module 'stream' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-event-emitt
+test-http-status-code.js  # uncaught: Error: http.createServer is not available in NeonJS [at <anonymous> (/test/parallel/test-http-status-code.js:35:11)]
 test-next-tick-domain.js  # uncaught: Error: Cannot find module 'domain' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-next-tick-d
+test-os-homedir-no-envvar.js  # uncaught: Error: child_process.spawnSync is not available in NeonJS [at <anonymous> (/test/parallel/test-os-homedir-no-envvar.js:25:17)]
+test-os-process-priority.js  # uncaught: AssertionError: Missing expected exception (SystemError). [at <anonymous> (/test/parallel/test-os-process-priority.js:113:3)]
+test-os-userinfo-handles-getter-errors.js  # uncaught: Error: child_process.execFile is not available in NeonJS [at <anonymous> (/test/parallel/test-os-userinfo-handles-getter-errors.js
 test-path-glob.js  # uncaught: Error: path.matchesGlob is not available in NeonJS [at <anonymous> (/test/parallel/test-path-glob.js:37:20)]
-test-path-makelong.js  # uncaught: Error: Cannot find module 'fs' (require loads built-in and host modules only) [at <anonymous> (/test/common/fixtures.js:4:12) < at
-test-path-resolve.js  # uncaught: Error: Cannot find module 'fs' (require loads built-in and host modules only) [at <anonymous> (/test/common/fixtures.js:4:12) < at
 test-querystring.js  # uncaught: Error: Cannot find module 'vm' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-querystring.js:
 test-timers-active.js  # uncaught: TypeError: active is not a function [at <anonymous> (/test/parallel/test-timers-active.js:14:3) < at <anonymous> (/test/parallel/t
 test-timers-clearImmediate-als.js  # uncaught: Error: Cannot find module 'async_hooks' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-timers
@@ -29,27 +31,26 @@ test-timers-enroll-invalid-msecs.js  # uncaught: AssertionError: Expected values
 test-timers-enroll-second-time.js  # uncaught: TypeError: timers.enroll is not a function [at <anonymous> (/test/parallel/test-timers-enroll-second-time.js:12:1)]
 test-timers-immediate-queue-throw.js  # uncaught: Error: Cannot find module 'domain' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-timers-imme
 test-timers-immediate-unref-nested-once.js  # uncaught: AssertionError: function should not have been called at /test/parallel/test-timers-immediate-unref-nested-once.js:8
-test-timers-immediate-unref-simple.js  # flaky: an unref'd immediate races the loop's end (immediates go through the timer thread)
-test-timers-immediate-unref.js  # uncaught: AssertionError: function should not have been called at /test/parallel/test-timers-immediate-unref.js:40
+test-timers-immediate-unref-simple.js  # uncaught: AssertionError: function should not have been called at /test/parallel/test-timers-immediate-unref-simple.js:12
 test-timers-max-duration-warning.js  # uncaught: TypeError: timers.enroll is not a function [at <anonymous> (/test/parallel/test-timers-max-duration-warning.js:39:3)]
 test-timers-promises-scheduler.js  # uncaught: AssertionError: Missing expected exception. [at <anonymous> (/test/parallel/test-timers-promises-scheduler.js:53:1)]
 test-timers-refresh-in-callback.js  # exit code 1: Mismatched <anonymous> function calls. Expected exactly 2, actual 1. /     at <anonymous> (/test/parallel/test-timers-refresh-i
 test-timers-reset-process-domain-on-throw.js  # uncaught: Error: Cannot find module 'domain' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-timers-rese
-test-timers-socket-timeout-removes-other-socket-unref-timer.js  # uncaught: Error: Cannot find module 'net' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-timers-socket-
+test-timers-socket-timeout-removes-other-socket-unref-timer.js  # uncaught: Error: net.createServer is not available in NeonJS [at <anonymous> (/test/parallel/test-timers-socket-timeout-removes-other-socket
 test-timers-timeout-to-interval.js  # exit code 1: Mismatched <anonymous> function calls. Expected exactly 2, actual 1. /     at <anonymous> (/test/parallel/test-timers-timeout-t
 test-timers-unenroll-unref-interval.js  # uncaught: TypeError: timers.unenroll is not a function; uncaught: TypeError: timers.unenroll is not a function; uncaught: TypeError: Cannot 
 test-timers-unref-active.js  # uncaught: TypeError: timers.unenroll is not a function [at <anonymous> (/test/parallel/test-timers-unref-active.js:32:1)]
 test-timers-unref-remove-other-unref-timers-only-one-fires.js  # uncaught: TypeError: timers.enroll is not a function [at <anonymous> (/test/parallel/test-timers-unref-remove-other-unref-timers-only-one-fi
 test-timers-unref-remove-other-unref-timers.js  # uncaught: TypeError: timers.enroll is not a function [at <anonymous> (/test/parallel/test-timers-unref-remove-other-unref-timers.js:23:1)]
 test-timers-unrefed-in-beforeexit.js  # exit code 1: Mismatched <anonymous> function calls. Expected exactly 1, actual 0. /     at <anonymous> (/test/parallel/test-timers-unrefed-i
-test-timers-unrefed-in-callback.js  # uncaught: Error: Cannot find module 'net' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-timers-unrefed
+test-timers-unrefed-in-callback.js  # uncaught: Error: net.createServer is not available in NeonJS [at Test1 (/test/parallel/test-timers-unrefed-in-callback.js:28:18) < at <anony
 test-timers-user-call.js  # uncaught: TypeError: this._onImmediate.apply is not a function; uncaught: TypeError: this._onImmediate.apply is not a function; uncaught: Ty
 test-url-parse-invalid-input.js  # uncaught: Error: child processes is not available when running Node's tests on NeonJS [at <anonymous> (/test/common/index.js:223:11) < at <a
 test-url-revokeobjecturl.js  # uncaught: AssertionError: Expected values to be strictly deep-equal:
-test-util-callbackify.js  # uncaught: Error: Cannot find module 'child_process' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-util
+test-util-callbackify.js  # uncaught: Error: child_process.execFile is not available in NeonJS [at <anonymous> (/test/parallel/test-util-callbackify.js:218:3)]
 test-util-format.js  # uncaught: AssertionError: Expected values to be strictly equal:
 test-util-getcallsite.js  # uncaught: TypeError: getCallSite is not a function [at <anonymous> (/test/parallel/test-util-getcallsite.js:9:1)]
-test-util-getcallsites.js  # uncaught: Error: Cannot find module 'fs' (require loads built-in and host modules only) [at <anonymous> (/test/common/fixtures.js:4:12) < at
+test-util-getcallsites.js  # uncaught: TypeError: getCallSites is not a function [at <anonymous> (/test/parallel/test-util-getcallsites.js:13:21)]
 test-util-log.js  # uncaught: TypeError: util.log is not a function [at <anonymous> (/test/parallel/test-util-log.js:57:3)]
-test-util-parse-env.js  # uncaught: Error: Cannot find module 'fs' (require loads built-in and host modules only) [at <anonymous> (/test/common/fixtures.js:4:12) < at
+test-util-parse-env.js  # uncaught: Error: fs.readFileSync is not available in NeonJS [at <anonymous> (/test/parallel/test-util-parse-env.js:11:24)]
 test-util-styletext.js  # uncaught: Error: Cannot find module 'node:tty' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-util-styl

@@ -3,7 +3,11 @@ test-assert*.js
 test-buffer-*.js
 test-event-emitter-*.js
 test-events-*.js
+test-http-methods.js
+test-http-status-code*.js
+test-net-isip*.js
 test-next-tick*.js
+test-os*.js
 test-path*.js
 test-querystring*.js
 test-string-decoder*.js
