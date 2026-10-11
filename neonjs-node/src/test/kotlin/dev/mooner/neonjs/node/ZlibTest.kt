@@ -6,7 +6,7 @@ import dev.mooner.neonjs.SandboxPolicy
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
-/** node:zlib's one-shot functions, against what Node's zlib writes and throws. */
+/** node:zlib's one-shot functions and streams, against what Node's zlib writes and throws. */
 class ZlibTest {
     private fun ctx(policy: SandboxPolicy = SandboxPolicy.UNRESTRICTED): NeonContext =
         NeonEngine.builder().console(null).webGlobals(true).sandbox(policy).extension(NodeExtension()).build().newContext()
@@ -81,6 +81,43 @@ class ZlibTest {
                 const z = require('zlib');
                 try { z.inflateSync(z.deflateSync(Buffer.alloc(1 << 20)), { maxOutputLength: 1 << 16 }) } catch (e) { e.code }
             """))
+        }
+    }
+
+    @Test
+    fun streams() {
+        ctx().use { c ->
+            val r = c.eval("""
+                (async () => {
+                    const zlib = require('zlib');
+                    const { pipeline, Readable } = require('stream');
+                    const { buffer } = require('stream/consumers');
+                    const text = 'stream me '.repeat(5000);
+                    const out = [];
+                    // gzip piece by piece, then gunzip a byte at a time (headers and trailers across writes)
+                    const gz = await buffer(Readable.from([text.slice(0, 7), text.slice(7, 30000), text.slice(30000)]).pipe(zlib.createGzip()));
+                    out.push(gz[0] === 0x1f && gz[1] === 0x8b, zlib.gunzipSync(gz).toString() === text);
+                    const bytes = [...gz].map((b) => Buffer.from([b]));
+                    const back = await buffer(Readable.from(bytes).pipe(zlib.createGunzip()));
+                    out.push(back.toString() === text);
+                    // two members, and unzip telling gzip from zlib
+                    const two = Buffer.concat([zlib.gzipSync('one,'), zlib.gzipSync('two')]);
+                    out.push(zlib.gunzipSync(two).toString(), zlib.unzipSync(zlib.deflateSync('zlib')).toString());
+                    // a flush gives what was written so far
+                    const d = zlib.createDeflateRaw();
+                    const got = [];
+                    d.on('data', (chunk) => got.push(chunk));
+                    d.write('flushed');
+                    await new Promise((resolve) => d.flush(zlib.constants.Z_SYNC_FLUSH, resolve));
+                    out.push(zlib.inflateRawSync(Buffer.concat(got), { finishFlush: zlib.constants.Z_SYNC_FLUSH }).toString());
+                    // the callback form goes through a stream; errors come as Node's
+                    out.push(await new Promise((resolve) => zlib.inflate(Buffer.from('not zlib'), (e) => resolve(e.code + ':' + e.errno))));
+                    out.push(await new Promise((resolve) => zlib.gunzip(gz.subarray(0, 40), (e) => resolve(e.message))));
+                    out.push(typeof zlib.createBrotliCompress, (() => { try { zlib.createBrotliCompress() } catch (e) { return e.code } })());
+                    return out.join();
+                })()
+            """).await(20_000).asString()
+            assertEquals("true,true,true,one,two,zlib,flushed,Z_DATA_ERROR:-3,unexpected end of file,function,ERR_UNAVAILABLE", r)
         }
     }
 }

@@ -143,8 +143,9 @@ differences between the interpreter and compiled code. Classes used on error pat
   values and the engine's own memory. `process.exit` interrupts the evaluation (and calls `onExit`), never the host
   process. There is no file system, process, socket or DNS access: those modules load and throw `ERR_UNAVAILABLE`.
   `Buffer` allocates through the engine's typed arrays (charged to the allocation budget); `Buffer#indexOf` (as slow
-  as haystack times needle) and `zlib` decompression check the time limit as they go; decompressed output is
-  charged before it is allocated and stops at `maxOutputLength`; strings stay within V8's 0x1fffffe8 characters.
+  as haystack times needle) and `zlib` check the time limit as they go; zlib writes only into the chunks its
+  JavaScript allocates (charged to the budget), as many as `maxOutputLength` allows, and reads a gzip header's
+  optional fields without keeping them; strings stay within V8's 0x1fffffe8 characters.
   `util.inspect` runs guest code as Node's does (custom inspection, getters when asked), but never a proxy's traps;
   so does `console` under `neonjs-node` unless `NodeOptions.consoleInspect` is false (a script's code then runs
   while it logs, within the same limits as the rest of it).

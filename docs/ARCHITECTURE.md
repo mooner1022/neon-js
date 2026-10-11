@@ -368,10 +368,12 @@ parses generic signatures and compares Methods in native code:
   Kotlin side: `Binding` (process, timers, IDNA, EventTarget listeners), `BufferBinding` and `Codecs` (Buffer's
   encodings, fills and searches over views JS allocated), `StringDecoderBinding` (a port of Node's native decoder),
   `Types` (internal slots, promise/proxy details, iterator previews, for `util.types` and `inspect`),
-  `CryptoBinding` (MessageDigest, Mac) and `ZlibBinding` (java.util.zip with output limits). Node's own files are
-  made by `tools/port_node.py` from Node's sources with the replacements in `tools/ports/`, the coded errors by
-  `tools/gen_errors.py` from Node's `lib/internal/errors.js`; `process`, `timers`, `buffer`, `os`, `crypto`, `zlib`
-  and the unavailable modules are NeonJS's own.
+  `CryptoBinding` (MessageDigest, Mac) and `ZlibBinding` (Node's zlib handle over java.util.zip: a stream that each
+  write advances from a slice of input into a slice of output JS allocated). Node's own files are made by
+  `tools/port_node.py` from Node's sources with the replacements in `tools/ports/`, the coded errors by
+  `tools/gen_errors.py` from Node's `lib/internal/errors.js`; `process`, `timers`, `buffer`, `os`, `crypto` and the
+  unavailable modules are NeonJS's own, and so are the small `internal/...` modules that give Node's files the web
+  globals or the engine (`internal/zlib`, `internal/blob`, `internal/abort_controller`...).
 
 ## Testing
 

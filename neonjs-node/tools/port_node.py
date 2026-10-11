@@ -61,6 +61,7 @@ _stream_passthrough.js               _stream_passthrough.js
 _stream_readable.js                  _stream_readable.js
 _stream_transform.js                 _stream_transform.js
 _stream_writable.js                  _stream_writable.js
+zlib.js                              zlib.js                              zlib
 """
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))

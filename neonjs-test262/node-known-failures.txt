@@ -1,5 +1,5 @@
 # The tests of neonjs-test262/node-tests.txt that fail (NodeTestsKt --known): most need modules not there yet (node:test,
-# vm, child_process, fs, net and http servers, web streams, domain...) or Node's legacy timers API. Written by
+# vm, child_process, fs, net and http servers, web streams, Brotli, domain...) or Node's legacy timers API. Written by
 # --write-known.
 test-assert-async.js  # unhandled rejection: AssertionError: The input did not match the regular expression /rejects/. Input:
 test-assert-builtins-not-read-from-filesystem.js  # uncaught: Error: fs.rmSync is not available in NeonJS [at rmSync (/test/common/tmpdir.js:20:5) < at refresh (/test/common/tmpdir.js:35:3)]
@@ -73,3 +73,21 @@ test-util-getcallsites.js  # uncaught: TypeError: getCallSites is not a function
 test-util-log.js  # uncaught: TypeError: util.log is not a function [at <anonymous> (/test/parallel/test-util-log.js:57:3)]
 test-util-parse-env.js  # uncaught: Error: fs.readFileSync is not available in NeonJS [at <anonymous> (/test/parallel/test-util-parse-env.js:11:24)]
 test-util-styletext.js  # uncaught: Error: Cannot find module 'node:tty' (require loads built-in and host modules only) [at <anonymous> (/test/parallel/test-util-styl
+test-zlib-brotli-16GB.js  # uncaught: Error: Brotli is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-brotli-16GB.js:15:17)]
+test-zlib-brotli-flush.js  # uncaught: Error: fs.readFileSync is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-brotli-flush.js:7:14)]
+test-zlib-brotli-from-brotli.js  # uncaught: Error: fs.rmSync is not available in NeonJS [at rmSync (/test/common/tmpdir.js:20:5) < at refresh (/test/common/tmpdir.js:35:3)]
+test-zlib-brotli-from-string.js  # uncaught: Error: Brotli is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-brotli-from-string.js:27:1)]
+test-zlib-brotli-kmaxlength-rangeerror.js  # uncaught: Error: Brotli is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-brotli-kmaxlength-rangeerror.js:21:1)]
+test-zlib-brotli.js  # uncaught: Error: fs.readFileSync is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-brotli.js:10:22)]
+test-zlib-bytes-read.js  # uncaught: Error: Brotli is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-bytes-read.js:40:16)]
+test-zlib-convenience-methods.js  # uncaught: Error: Brotli is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-convenience-methods.js:58:5)]
+test-zlib-empty-buffer.js  # unhandled rejection: Error: Brotli is not available in NeonJS
+test-zlib-from-concatenated-gzip.js  # uncaught: Error: fs.readFileSync is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-from-concatenated-gzip.js:45:38)]
+test-zlib-from-gzip.js  # uncaught: Error: fs.rmSync is not available in NeonJS [at rmSync (/test/common/tmpdir.js:20:5) < at refresh (/test/common/tmpdir.js:35:3)]
+test-zlib-invalid-input.js  # uncaught: Error: Brotli is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-invalid-input.js:42:3)]
+test-zlib-maxOutputLength.js  # uncaught: Error: Brotli is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-maxOutputLength.js:9:1)]
+test-zlib-params.js  # uncaught: Error: fs.readFileSync is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-params.js:7:14)]
+test-zlib-premature-end.js  # uncaught: Error: Brotli is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib-premature-end.js:13:22)]
+test-zlib-write-after-flush.js  # exit code 1: not ok - zlib should accept writing after flush / Error [ERR_UNAVAILABLE]: Brotli is not available in NeonJS /     at unavailab
+test-zlib-zero-byte.js  # exit code 1: not ok - zlib should properly handle zero byte input / Error [ERR_UNAVAILABLE]: Brotli is not available in NeonJS /     at unav
+test-zlib.js  # uncaught: Error: fs.readFileSync is not available in NeonJS [at <anonymous> (/test/parallel/test-zlib.js:81:17) < at <anonymous> (/test/comm
