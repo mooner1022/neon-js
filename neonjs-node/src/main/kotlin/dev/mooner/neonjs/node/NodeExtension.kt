@@ -126,7 +126,8 @@ internal class NodeRuntime(@JvmField val realm: Realm, @JvmField val options: No
 
     private fun moduleExports(): JSObject {
         val o = JSObject(realm.objectPrototype)
-        val names = Modules.builtinNames(realm).map { it.removePrefix("node:") }
+        // Node's own (other engine modules' builtins, as neonjs-net's undici, are no Node builtins)
+        val names = Modules.builtinNames(realm).filter { it.startsWith("node:") }.map { it.removePrefix("node:") }
         o.createDataProperty("builtinModules", JSArray.of(realm.arrayPrototype, names.toTypedArray<Any?>()))
         o.createDataProperty("createRequire", NativeFunction(realm, "createRequire", 1, { _, _, a, _ ->
             if (a.isEmpty() || (a[0] !is CharSequence && a[0] !is JSObject)) {
@@ -136,7 +137,7 @@ internal class NodeRuntime(@JvmField val realm: Realm, @JvmField val options: No
         }))
         o.createDataProperty("isBuiltin", NativeFunction(realm, "isBuiltin", 1, { _, _, a, _ ->
             val id = a.arg(0)
-            id is CharSequence && Modules.builtin(realm, id.toString()) != null
+            id is CharSequence && Modules.builtin(realm, id.toString())?.name?.startsWith("node:") == true
         }))
         return o
     }
