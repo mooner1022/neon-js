@@ -387,6 +387,40 @@ and so does `console` by default, formatting with `util.format` and `util.inspec
 `NodeOptions.builder().consoleInspect(false)` keeps the core's formatting, which runs no guest code. The module ports parts of Node's lib sources under
 Node's MIT license (see `NOTICE`).
 
+#### Libraries from npm (bundled with esbuild)
+
+NeonJS reads no `node_modules`: a script and the packages it uses are bundled into one file first.
+`neonjs-test262/discord/build.mjs` is the recipe for [esbuild](https://esbuild.github.io/) (`node build.mjs bot.js
+bot.bundle.js`):
+
+- `platform: 'neutral'` with `mainFields: ['main', 'module']`: packages resolve to their `default` exports, which are
+  their builds over `fetch` and `WebSocket` where they have one (`@discordjs/rest`'s web build rather than its undici
+  one);
+- `format: 'iife'`: the bundle runs as a script, which has `require` but no `module`;
+- external: Node's built-in modules (with and without `node:`), `undici` and `ws` (neonjs-node and neonjs-net give
+  them), and the native add-ons that libraries do without (`zlib-sync`, `erlpack`, `bufferutil`, `utf-8-validate`).
+
+The host runs the bundle, then its event loop:
+
+```kotlin
+val engine = NeonEngine.builder().webGlobals(true)
+    .sandbox(SandboxPolicy.builder().maxExecutionTime(10_000).limitsPerTask(true).build())   // per event, not per bot
+    .extension(NetExtension(NetOptions.builder()
+        .allowHosts("discord.com", "*.discord.gg", "cdn.discordapp.com", "media.discordapp.net")
+        .build()))
+    .extension(NodeExtension(NodeOptions.builder().env(mapOf("DISCORD_TOKEN" to token)).build()))
+    .build()
+engine.newContext().use { ctx ->
+    ctx.setUncaughtErrorHandler { error, rejection -> log.warn("bot", error) }
+    ctx.eval(bundle, "bot.js")
+    ctx.runEventLoop()   // until the bot destroys its client, or interrupt()
+}
+```
+
+A discord.js 14 bot runs this way: it logs in over REST and the gateway, gets its guilds, receives messages and answers
+them (`DiscordKt`, under Testing, runs one against a mock Discord). Without the native add-ons the gateway is not
+compressed; voice and sharding across processes are not available.
+
 ## Android
 
 NeonJS is a JVM engine that also runs on Android: the jars (core, intl, Kotlin stdlib, ASM) are converted to dex by
@@ -475,7 +509,7 @@ their context).
 | `neonjs-net` | `fetch` and `WebSocket` over OkHttp: `NetExtension`, `NetOptions` (the policy), the `undici` and `ws` modules |
 | `neonjs-node` | Node.js APIs: `NodeExtension`, the `node:` modules (`lib/`: Node's own sources and NeonJS's), their Kotlin side |
 | `neonjs-cli` | command-line runner and REPL |
-| `neonjs-test262` | Test262, web-platform-tests and Node.js test runners |
+| `neonjs-test262` | Test262, web-platform-tests and Node.js test runners; discord.js against a mock Discord (`discord/`, `DiscordKt`) |
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the internals.
 
@@ -535,6 +569,15 @@ git checkout FETCH_HEAD && cd ../..
 java -Xss16m -cp "neonjs-test262/build/install/neonjs-test262/lib/*" dev.mooner.neonjs.test262.NodeTestsKt --root third_party/node --known neonjs-test262/node-known-failures.txt --retries 1
 ```
 
+discord.js runs end to end against a mock Discord, REST and gateway over TLS through the network policy: the bot of
+`neonjs-test262/discord` (bundled from the locked packages) logs in, answers a message and quits, and each run prints
+how long each step took from the start of the bundle's evaluation:
+
+```bash
+(cd neonjs-test262/discord && npm ci --ignore-scripts && node build.mjs bot.js build/bot.js)
+java -Xss16m -cp "neonjs-test262/build/install/neonjs-test262/lib/*" dev.mooner.neonjs.test262.DiscordKt --bundle neonjs-test262/discord/build/bot.js [--mode interpreter|compiled|adaptive] [--runs N] [-v]
+```
+
 ### On Android devices and emulators
 
 `tools/android` runs the Test262 runner and Android-specific checks on a device or emulator through adb and
@@ -554,7 +597,10 @@ bundle that uses D8 at run time. `AndroidCheck` covers what Test262 does not: th
 `Java.extend`, default methods of JS-implemented interfaces, host objects on ART's class library and d8-desugared
 lambdas, and the cache directory. `InteropBench` (`device.py run neonjs-test262 dev.mooner.neonjs.test262.InteropBench
 -n 50000`, or `java -cp "neonjs-test262/build/install/neonjs-test262/lib/*"` on the JVM) times host calls, overload
-choice, wrapping and callbacks. `tools/android/ci-emulator.sh` runs these with dx and with D8 (pick the device
+choice, wrapping and callbacks. `DiscordKt` runs on devices too, with the bundle pushed (`adb push
+neonjs-test262/discord/build/bot.js /data/local/tmp/`, then `device.py run neonjs-test262
+dev.mooner.neonjs.test262.DiscordKt --bundle /data/local/tmp/bot.js`); on Android 8, whose TLS sessions break
+MockWebServer's, add `--cleartext`. `tools/android/ci-emulator.sh` runs these with dx and with D8 (pick the device
 with `ANDROID_SERIAL`); the Android workflow runs it on API 26 and API 34 emulators. An emulator without Android
 Studio (on Windows it uses the Windows Hypervisor Platform; in `cmd`, quote the package names, which contain `;`):
 
