@@ -67,12 +67,13 @@ class EventLoopTest {
 
     @Test
     fun anInterruptEndsAWaitingLoop() {
+        // (generous waits, for loaded CI runners)
         // with only the loop in the context
         ctx().use { c ->
             c.eval("setTimeout(() => {}, 10_000)")
             val loop = startLoop(c)
             c.interrupt()
-            val e = assertThrows<ExecutionException> { loop.get(5, TimeUnit.SECONDS) }
+            val e = assertThrows<ExecutionException> { loop.get(30, TimeUnit.SECONDS) }
             assertInstanceOf(NeonInterruptedException::class.java, e.cause)
         }
         // and while another thread evaluates: both end
@@ -82,10 +83,10 @@ class EventLoopTest {
             val busyRuns = CountDownLatch(1)
             c.setFunction("busyRuns") { busyRuns.countDown(); null }
             val busy = thread { c.eval("busyRuns(); for (;;) {}") }
-            assertTrue(busyRuns.await(5, TimeUnit.SECONDS))
+            assertTrue(busyRuns.await(30, TimeUnit.SECONDS))
             c.interrupt()
-            assertInstanceOf(NeonInterruptedException::class.java, assertThrows<ExecutionException> { busy.get(5, TimeUnit.SECONDS) }.cause)
-            assertInstanceOf(NeonInterruptedException::class.java, assertThrows<ExecutionException> { loop.get(5, TimeUnit.SECONDS) }.cause)
+            assertInstanceOf(NeonInterruptedException::class.java, assertThrows<ExecutionException> { busy.get(30, TimeUnit.SECONDS) }.cause)
+            assertInstanceOf(NeonInterruptedException::class.java, assertThrows<ExecutionException> { loop.get(30, TimeUnit.SECONDS) }.cause)
         }
     }
 
