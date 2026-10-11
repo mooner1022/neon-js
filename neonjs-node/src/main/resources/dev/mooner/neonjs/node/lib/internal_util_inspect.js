@@ -5,7 +5,7 @@
 // internal slots) comes from binding.types, which never runs script code; a proxy is shown as its target, without
 // asking its handler anything. Not here: prototype properties (showHidden).
 
-const { validateObject, validateString } = binding.internal('errors');
+const { validateObject, validateString, kValidateObjectAllowObjects } = require('internal/validators');
 const types = binding.types;
 
 const uncurry = (fn) => Function.prototype.call.bind(fn);
@@ -1454,7 +1454,7 @@ function format(...args) {
 }
 
 function formatWithOptions(inspectOptions, ...args) {
-  validateObject(inspectOptions, 'inspectOptions', { allowArray: true, allowFunction: true });
+  validateObject(inspectOptions, 'inspectOptions', kValidateObjectAllowObjects);
   return formatWithOptionsInternal(inspectOptions, args);
 }
 

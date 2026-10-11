@@ -85,15 +85,29 @@ internal class NodeRuntime(@JvmField val realm: Realm, @JvmField val options: No
         return true
     }
 
-    private val internals = HashMap<String, Any?>()
+    /** The libraries' own modules by name (their module objects, from the time they start loading). */
+    private val internals = HashMap<String, JSObject>()
 
     /** The libraries' own module `internal/[name]`, run once per realm (on first use). */
     fun internal(name: String): Any? {
-        internals[name]?.let { return it }
-        val exports = NodeLib.load(this, "internal/$name")
-        internals[name] = exports
-        return exports
+        internals[name]?.let { return it.get("exports", it) }
+        try {
+            NodeLib.load(this, "internal/$name") { internals[name] = it }
+        } catch (e: Throwable) {
+            internals.remove(name)
+            throw e
+        }
+        return internals[name]!!.let { it.get("exports", it) }
     }
+
+    /** The builtins as Node's libraries take them (`primordials`), made when a library first needs them. */
+    val primordials: Any? by lazy { NodeLib.load(this, "primordials") }
+
+    /** The `require` of the libraries: their own `internal/...` modules, then what scripts can require. */
+    val libRequire: NativeFunction = NativeFunction(realm, "require", 1, { _, _, a, _ ->
+        val id = Ops.toString(a.arg(0))
+        if (id.startsWith("internal/")) internal(id.removePrefix("internal/")) else require(id)
+    })
 
     fun require(id: String): Any? {
         Modules.hostModuleObject(realm, id)?.let { return it }
@@ -135,7 +149,9 @@ internal class NodeRuntime(@JvmField val realm: Realm, @JvmField val options: No
     companion object {
         const val KEY = "%Node%"
         /** The built-in modules written in JS (resources lib/<name>.js). */
-        private val JS_MODULES = listOf("buffer", "events", "process", "string_decoder", "timers", "timers/promises", "util")
+        private val JS_MODULES = listOf(
+            "assert", "assert/strict", "buffer", "events", "process", "string_decoder", "timers", "timers/promises", "util",
+        )
         private val TIMER_GLOBALS = listOf("setTimeout", "clearTimeout", "setInterval", "clearInterval", "setImmediate", "clearImmediate")
 
         /** The Node.js side of [realm] (a realm the extension was installed in). */

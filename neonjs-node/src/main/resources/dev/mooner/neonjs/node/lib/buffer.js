@@ -8,8 +8,8 @@ const {
     ERR_INVALID_ARG_TYPE, ERR_INVALID_ARG_VALUE, ERR_OUT_OF_RANGE, ERR_UNKNOWN_ENCODING, ERR_BUFFER_OUT_OF_BOUNDS,
     ERR_INVALID_BUFFER_SIZE,
   },
-  validateNumber, validateInteger, validateString, validateArray,
-} = binding.internal('errors');
+} = require('internal/errors');
+const { validateNumber, validateInteger, validateString, validateArray } = require('internal/validators');
 const native = binding.buffer;
 const types = binding.types;
 
@@ -709,7 +709,7 @@ defineMethods(proto, {
       if (extras) {
         if (this.length !== 0) str += ', ';
         // '[Object: null prototype] {'.length === 26
-        str += binding.internal('inspect').inspect(obj, { ...ctx, breakLength: Infinity, compact: true }).slice(27, -2);
+        str += require('internal/util/inspect').inspect(obj, { ...ctx, breakLength: Infinity, compact: true }).slice(27, -2);
       }
     }
     return `<${this.constructor.name} ${str}>`;

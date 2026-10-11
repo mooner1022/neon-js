@@ -3,7 +3,7 @@
 // (Node's JS implementation from before the native one, with base64url and typed array input added).
 
 const { Buffer } = require('buffer');
-const { codes: { ERR_INVALID_ARG_TYPE, ERR_UNKNOWN_ENCODING } } = binding.internal('errors');
+const { codes: { ERR_INVALID_ARG_TYPE, ERR_UNKNOWN_ENCODING } } = require('internal/errors');
 
 function normalizeEncoding(enc) {
   if (enc == null || enc === 'utf8' || enc === 'utf-8') return 'utf8';

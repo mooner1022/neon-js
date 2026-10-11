@@ -4,11 +4,15 @@
 
 const {
   codes: { ERR_INVALID_ARG_TYPE, ERR_INVALID_ARG_VALUE, ERR_FALSY_VALUE_REJECTION, ERR_OUT_OF_RANGE },
+} = require('internal/errors');
+const {
   validateFunction, validateString, validateObject, validateAbortSignal, validateNumber, validateBoolean,
-} = binding.internal('errors');
-const { inspect, format, formatWithOptions, stripVTControlCharacters, getStringWidth } = binding.internal('inspect');
-const { isDeepStrictEqual } = binding.internal('comparisons');
-const typeChecks = binding.types;
+  kValidateObjectAllowObjects,
+} = require('internal/validators');
+const { inspect, format, formatWithOptions, stripVTControlCharacters, getStringWidth } = require('internal/util/inspect');
+const { isDeepStrictEqual } = require('internal/util/comparisons');
+const { deprecate } = require('internal/util');
+const typeChecks = require('internal/util/types');
 
 let processModule;
 function lazyProcess() {
@@ -16,12 +20,8 @@ function lazyProcess() {
   return processModule;
 }
 
-// util.types: the is* checks of binding.types
-const types = {};
-for (const name of Object.getOwnPropertyNames(typeChecks)) {
-  if (name.startsWith('is')) types[name] = typeChecks[name];
-}
-Object.freeze(types);
+// util.types
+const types = Object.freeze({ ...typeChecks });
 
 // ---------------------------------------------------------------- promisify / callbackify
 
@@ -94,33 +94,6 @@ function callbackify(original) {
 }
 
 // ---------------------------------------------------------------- deprecate, debuglog
-
-const codesWarned = new Set();
-
-function deprecate(fn, msg, code) {
-  const process = lazyProcess();
-  if (process.noDeprecation === true) return fn;
-  if (code !== undefined) validateString(code, 'code');
-  let warned = false;
-  function deprecated(...args) {
-    if (!warned && !process.noDeprecation) {
-      warned = true;
-      if (code !== undefined) {
-        if (!codesWarned.has(code)) {
-          process.emitWarning(msg, 'DeprecationWarning', code, deprecated);
-          codesWarned.add(code);
-        }
-      } else {
-        process.emitWarning(msg, 'DeprecationWarning', deprecated);
-      }
-    }
-    if (new.target) return Reflect.construct(fn, args, new.target);
-    return Reflect.apply(fn, this, args);
-  }
-  Object.setPrototypeOf(deprecated, fn);
-  if (fn.prototype) deprecated.prototype = fn.prototype;
-  return deprecated;
-}
 
 let debugImpls;
 let testEnabled;
@@ -233,7 +206,7 @@ function aborted(signal, resource) {
   if (signal === undefined) return Promise.reject(ERR_INVALID_ARG_TYPE('signal', 'AbortSignal', signal));
   try {
     validateAbortSignal(signal, 'signal');
-    validateObject(resource, 'resource', { nullable: false, allowFunction: true, allowArray: true });
+    validateObject(resource, 'resource', kValidateObjectAllowObjects);
   } catch (e) {
     return Promise.reject(e);
   }

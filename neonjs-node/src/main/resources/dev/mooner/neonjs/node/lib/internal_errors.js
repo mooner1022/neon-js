@@ -1,40 +1,98 @@
 'use strict';
-// Node's coded errors (ERR_*) with Node's messages, and the argument validators of the libraries. Libraries only:
-// scripts cannot require this.
+// Node's coded errors (ERR_*) with Node's messages, after Node's lib/internal/errors.js (MIT license, see NOTICE).
+// codes.X makes the error, with or without new (codes.X.HideStackFramesError is the same, for the ported libraries);
+// hideStackFrames hides a validator's own frames from the errors it throws. Libraries only: scripts cannot require
+// this.
 
 const kTypes = ['string', 'function', 'number', 'object', 'Function', 'Object', 'boolean', 'bigint', 'symbol'];
 const classRegExp = /^([A-Z][a-z0-9]*)+$/;
+const kIsNodeError = Symbol('kIsNodeError');
 
-// internal/inspect's own inspect (not util's, which a script may replace); loaded on first use, as it needs this module
-let inspect;
+// internal/util/inspect's own inspect and format (not util's, which a script may replace); loaded on first use, as
+// they need this module
+let inspectModule;
 function lazyInspect(v, opts) {
-  if (inspect === undefined) inspect = binding.internal('inspect').inspect;
-  return inspect(v, opts);
+  if (inspectModule === undefined) inspectModule = require('internal/util/inspect');
+  return inspectModule.inspect(v, opts);
+}
+function lazyFormat(...args) {
+  if (inspectModule === undefined) inspectModule = require('internal/util/inspect');
+  return inspectModule.format(...args);
+}
+
+function isErrorStackTraceLimitWritable() {
+  const desc = Object.getOwnPropertyDescriptor(Error, 'stackTraceLimit');
+  if (desc === undefined) return Object.isExtensible(Error);
+  return Object.prototype.hasOwnProperty.call(desc, 'writable') ? desc.writable : desc.set !== undefined;
+}
+
+// the stack of a coded error again, from below stackStartFn, its first line still "TypeError [ERR_X]: message"
+function captureStack(err, stackStartFn) {
+  if (err !== null && typeof err === 'object' && err[kIsNodeError] === true && typeof err.code === 'string') {
+    const name = err.name;
+    err.name = `${name} [${err.code}]`;
+    Error.captureStackTrace(err, stackStartFn);
+    delete err.name;
+    if (err.name !== name) err.name = name;
+  } else {
+    Error.captureStackTrace(err, stackStartFn);
+  }
 }
 
 // an error of Base with Node's code: `code` is its own property, and its stack and toString() show the code
-function makeError(Base, code, message, cause) {
-  const options = cause === undefined ? undefined : { cause };
-  const err = new Base(message, options);
-  Object.defineProperty(err, 'toString', {
-    value() { return `${this.name} [${code}]: ${this.message}`; },
-    enumerable: false,
-    writable: true,
-    configurable: true,
+function makeError(Base, code, message, stackStartFn) {
+  const err = new Base(message);
+  Object.defineProperties(err, {
+    [kIsNodeError]: { value: true, enumerable: false, writable: false, configurable: true },
+    toString: {
+      value() { return `${this.name} [${code}]: ${this.message}`; },
+      enumerable: false,
+      writable: true,
+      configurable: true,
+    },
   });
-  // the stack's first line is "TypeError [ERR_X]: message", as in Node
-  err.name = `${Base.name} [${code}]`;
-  Error.captureStackTrace(err, makeError);
-  delete err.name;
   err.code = code;
+  captureStack(err, stackStartFn || makeError);
   return err;
+}
+
+function getMessage(code, message, args) {
+  if (typeof message === 'function') return message(...args);
+  if (args.length === 0) return message;
+  return lazyFormat(message, ...args);
 }
 
 const codes = {};
 function E(code, Base, message) {
-  codes[code] = function (...args) {
-    return makeError(Base, code, typeof message === 'function' ? message(...args) : message);
-  };
+  function NodeError(...args) {
+    return makeError(Base, code, getMessage(code, message, args), NodeError);
+  }
+  Object.defineProperty(NodeError, 'name', { value: Base.name, configurable: true });
+  NodeError.HideStackFramesError = NodeError;
+  codes[code] = NodeError;
+}
+
+// a function whose own frames the errors it throws do not show (Node's validators are made so)
+function hideStackFrames(fn) {
+  function wrappedFn(...args) {
+    try {
+      return Reflect.apply(fn, this, args);
+    } catch (error) {
+      if (Error.stackTraceLimit) captureStack(error, wrappedFn);
+      throw error;
+    }
+  }
+  wrappedFn.withoutStackTrace = fn;
+  return wrappedFn;
+}
+
+class AbortError extends Error {
+  constructor(message = 'The operation was aborted', options = undefined) {
+    if (options !== undefined && typeof options !== 'object') throw codes.ERR_INVALID_ARG_TYPE('options', 'Object', options);
+    super(message, options);
+    this.code = 'ABORT_ERR';
+    this.name = 'AbortError';
+  }
 }
 
 function addNumericalSeparator(val) {
@@ -122,7 +180,7 @@ E('ERR_INVALID_ARG_VALUE', TypeError, (name, value, reason = 'is invalid') => {
   return `The ${name.includes('.') ? 'property' : 'argument'} '${name}' ${reason}. Received ${inspected}`;
 });
 E('ERR_OUT_OF_RANGE', RangeError, (str, range, input, replaceDefaultBoolean = false) => {
-  let msg = replaceDefaultBoolean ? str : `The value of "${str}" is out of range.`;
+  const msg = replaceDefaultBoolean ? str : `The value of "${str}" is out of range.`;
   let received;
   if (Number.isInteger(input) && Math.abs(input) > 2 ** 32) {
     received = addNumericalSeparator(String(input));
@@ -135,11 +193,24 @@ E('ERR_OUT_OF_RANGE', RangeError, (str, range, input, replaceDefaultBoolean = fa
   }
   return `${msg} It must be ${range}. Received ${received}`;
 });
-E('ERR_UNKNOWN_ENCODING', TypeError, (enc) => `Unknown encoding: ${enc}`);
+E('ERR_AMBIGUOUS_ARGUMENT', TypeError, 'The "%s" argument is ambiguous. %s');
+E('ERR_ASSERTION', Error, '%s');
 E('ERR_BUFFER_OUT_OF_BOUNDS', RangeError, (name) =>
   name ? `"${name}" is outside of buffer bounds` : 'Attempt to access memory outside buffer bounds');
+E('ERR_FALSY_VALUE_REJECTION', Error, 'Promise was rejected with falsy value');
+E('ERR_ILLEGAL_CONSTRUCTOR', TypeError, 'Illegal constructor');
+E('ERR_INTERNAL_ASSERTION', Error, (message) => {
+  const suffix = 'This is caused by either a bug in NeonJS\'s Node.js libraries or incorrect usage of their internals.\n';
+  return message === undefined ? suffix : `${message}\n${suffix}`;
+});
 E('ERR_INVALID_BUFFER_SIZE', RangeError, (size) => `Buffer size must be a multiple of ${size}`);
-E('ERR_STRING_TOO_LONG', Error, (max) => `Cannot create a string longer than 0x${max.toString(16)} characters`);
+E('ERR_INVALID_RETURN_VALUE', TypeError, (input, name, value) => {
+  const type = value && value.constructor && value.constructor.name ? `instance of ${value.constructor.name}` : `type ${typeof value}`;
+  return `Expected ${input} to be returned from the "${name}" function but got ${type}.`;
+});
+E('ERR_INVALID_STATE', Error, 'Invalid state: %s');
+E('ERR_INVALID_THIS', TypeError, (type) => `Value of "this" must be of type ${type}`);
+E('ERR_METHOD_NOT_IMPLEMENTED', Error, (method) => `The ${method} method is not implemented`);
 E('ERR_MISSING_ARGS', TypeError, (...args) => {
   const wrap = (a) => (Array.isArray(a) ? a.map((x) => `"${x}"`).join(' or ') : `"${a}"`);
   let msg = 'The ';
@@ -148,83 +219,20 @@ E('ERR_MISSING_ARGS', TypeError, (...args) => {
   else msg += `${args.slice(0, -1).map(wrap).join(', ')}, and ${wrap(args[args.length - 1])} arguments`;
   return `${msg} must be specified`;
 });
-E('ERR_INVALID_THIS', TypeError, (type) => `Value of "this" must be of type ${type}`);
-E('ERR_FALSY_VALUE_REJECTION', Error, 'Promise was rejected with falsy value');
-E('ERR_METHOD_NOT_IMPLEMENTED', Error, (method) => `The ${method} method is not implemented`);
-E('ERR_ILLEGAL_CONSTRUCTOR', TypeError, 'Illegal constructor');
-E('ERR_INVALID_RETURN_VALUE', TypeError, (input, name, value) => {
-  const type = value && value.constructor && value.constructor.name ? `instance of ${value.constructor.name}` : `type ${typeof value}`;
-  return `Expected ${input} to be returned from the "${name}" function but got ${type}.`;
-});
+E('ERR_SOCKET_BAD_PORT', RangeError, (name, port, allowZero = true) =>
+  `${name} should be ${allowZero ? '>=' : '>'} 0 and < 65536. Received ${determineSpecificType(port)}.`);
+E('ERR_STRING_TOO_LONG', Error, (max) => `Cannot create a string longer than 0x${max.toString(16)} characters`);
 E('ERR_UNAVAILABLE', Error, (what) => `${what} is not available in NeonJS`);
-
-// ---------------------------------------------------------------- validators
-
-function validateString(value, name) {
-  if (typeof value !== 'string') throw codes.ERR_INVALID_ARG_TYPE(name, 'string', value);
-}
-
-function validateFunction(value, name) {
-  if (typeof value !== 'function') throw codes.ERR_INVALID_ARG_TYPE(name, 'Function', value);
-}
-
-function validateBoolean(value, name) {
-  if (typeof value !== 'boolean') throw codes.ERR_INVALID_ARG_TYPE(name, 'boolean', value);
-}
-
-function validateObject(value, name, options) {
-  const allowArray = options && options.allowArray;
-  const allowFunction = options && options.allowFunction;
-  const nullable = options && options.nullable;
-  if ((!nullable && value === null) || (!allowArray && Array.isArray(value)) ||
-      (typeof value !== 'object' && (!allowFunction || typeof value !== 'function'))) {
-    throw codes.ERR_INVALID_ARG_TYPE(name, 'Object', value);
-  }
-}
-
-function validateNumber(value, name, min, max) {
-  if (typeof value !== 'number') throw codes.ERR_INVALID_ARG_TYPE(name, 'number', value);
-  if ((min != null && value < min) || (max != null && value > max) || ((min != null || max != null) && Number.isNaN(value))) {
-    throw codes.ERR_OUT_OF_RANGE(name,
-      `${min != null ? `>= ${min}` : ''}${min != null && max != null ? ' && ' : ''}${max != null ? `<= ${max}` : ''}`, value);
-  }
-}
-
-function validateInteger(value, name, min = Number.MIN_SAFE_INTEGER, max = Number.MAX_SAFE_INTEGER) {
-  if (typeof value !== 'number') throw codes.ERR_INVALID_ARG_TYPE(name, 'number', value);
-  if (!Number.isInteger(value)) throw codes.ERR_OUT_OF_RANGE(name, 'an integer', value);
-  if (value < min || value > max) throw codes.ERR_OUT_OF_RANGE(name, `>= ${min} && <= ${max}`, value);
-}
-
-function validateInt32(value, name, min = -2147483648, max = 2147483647) {
-  if (typeof value !== 'number') throw codes.ERR_INVALID_ARG_TYPE(name, 'number', value);
-  if (!Number.isInteger(value)) throw codes.ERR_OUT_OF_RANGE(name, 'an integer', value);
-  if (value < min || value > max) throw codes.ERR_OUT_OF_RANGE(name, `>= ${min} && <= ${max}`, value);
-}
-
-function validateArray(value, name, minLength = 0) {
-  if (!Array.isArray(value)) throw codes.ERR_INVALID_ARG_TYPE(name, 'Array', value);
-  if (value.length < minLength) throw codes.ERR_INVALID_ARG_VALUE(name, value, `must be longer than ${minLength}`);
-}
-
-function validateAbortSignal(signal, name) {
-  if (signal !== undefined && (signal === null || typeof signal !== 'object' || !('aborted' in signal))) {
-    throw codes.ERR_INVALID_ARG_TYPE(name, 'AbortSignal', signal);
-  }
-}
+E('ERR_UNKNOWN_ENCODING', TypeError, (enc) => `Unknown encoding: ${enc}`);
+E('ERR_UNKNOWN_SIGNAL', TypeError, 'Unknown signal: %s');
 
 module.exports = {
+  AbortError,
   codes,
-  makeError,
   determineSpecificType,
   addNumericalSeparator,
-  validateString,
-  validateFunction,
-  validateBoolean,
-  validateObject,
-  validateNumber,
-  validateInteger,
-  validateInt32,
-  validateArray,
-  validateAbortSignal,
+  hideStackFrames,
+  isErrorStackTraceLimitWritable,
+  kIsNodeError,
+  makeError,
 };
