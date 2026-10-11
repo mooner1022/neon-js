@@ -1,8 +1,8 @@
 package dev.mooner.neonjs.node
 
 import dev.mooner.neonjs.NeonConsole
-import dev.mooner.neonjs.NeonContext
 import dev.mooner.neonjs.NeonEngine
+import dev.mooner.neonjs.ext.ConsoleBuiltins
 import dev.mooner.neonjs.ext.WebGlobals
 import dev.mooner.neonjs.runtime.*
 import java.math.BigInteger
@@ -202,7 +202,7 @@ internal class Binding(private val rt: NodeRuntime) {
     }
 
     private fun write(stream: Int, text: String) {
-        val console = ((realm.hostData as? NeonContext)?.engine?.console) ?: return
+        val console = ConsoleBuiltins.sinkOf(realm) ?: return
         val sb = pending[stream]
         sb.append(text)
         if (sb.length > 1 shl 20) {
