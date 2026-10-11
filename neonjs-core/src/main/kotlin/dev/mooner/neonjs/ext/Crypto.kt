@@ -17,7 +17,7 @@ internal object Crypto {
 
     private val secure by lazy { java.security.SecureRandom() }
 
-    private fun randomBytes(realm: Realm, out: ByteArray) {
+    fun randomBytes(realm: Realm, out: ByteArray) {
         val r = realm.agent.randomSource
         if (r != null) r.nextBytes(out) else secure.nextBytes(out)
     }

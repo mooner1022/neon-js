@@ -6,7 +6,8 @@ import dev.mooner.neonjs.runtime.*
 
 /**
  * `Headers` (Fetch Standard): a header list whose names compare case-insensitively, with the "none" guard of
- * headers made by scripts and the "immutable" one. Names and values are ByteStrings (code units up to 0xFF).
+ * headers made by scripts, the "request" one of a Request's and the "immutable" one. Names and values are ByteStrings
+ * (code units up to 0xFF).
  */
 internal object Headers {
     class JSHeaders(proto: JSObject?) : JSObject(proto) {
@@ -14,6 +15,11 @@ internal object Headers {
         /** The header list, in order: (name as given, value). */
         @JvmField val list = ArrayList<Pair<String, String>>()
         @JvmField var immutable = false
+        /** The "request" guard: names the transport owns ([isForbiddenRequestHeader]) are left out silently. */
+        @JvmField var requestGuard = false
+
+        /** Whether the guard leaves [name] out. */
+        fun guards(name: String) = requestGuard && isForbiddenRequestHeader(name)
 
         fun contains(name: String) = list.any { it.first.equals(name, ignoreCase = true) }
 
@@ -56,7 +62,26 @@ internal object Headers {
         }
     }
 
+    private val FORBIDDEN_REQUEST_HEADERS = setOf(
+        "accept-encoding", "connection", "content-length", "expect", "host", "keep-alive", "te", "trailer",
+        "transfer-encoding", "upgrade",
+    )
+
+    /**
+     * The request headers that the transport and not the script decides: the framing and routing of the request
+     * (`Host`, `Content-Length`, `Connection`, `Transfer-Encoding`...), its content coding (`Accept-Encoding`: the
+     * response comes decoded), proxies' (`Proxy-*`) and the WebSocket handshake's (`Sec-WebSocket-*`). A narrower
+     * list than the Fetch Standard's forbidden request-header names: like Node's and Deno's fetch, scripts may set
+     * `Cookie`, `Origin`, `Referer` and `User-Agent`.
+     */
+    fun isForbiddenRequestHeader(name: String): Boolean {
+        val n = name.lowercase(java.util.Locale.ROOT)
+        return n in FORBIDDEN_REQUEST_HEADERS || n.startsWith("proxy-") || n.startsWith("sec-websocket-")
+    }
+
     private fun isTokenChar(c: Char) = c in 'a'..'z' || c in 'A'..'Z' || c in '0'..'9' || "!#$%&'*+-.^_`|~".indexOf(c) >= 0
+
+    fun isToken(s: String) = s.isNotEmpty() && s.all { isTokenChar(it) }
 
     /** A header name: a non-empty token, else a TypeError. */
     fun name(v: Any?, what: String): String {
@@ -85,11 +110,17 @@ internal object Headers {
             val pairs = Idl.sequence(realm, init, what) { inner -> Idl.sequence(realm, inner, what) { Idl.byteString(it, what) } }
             for (p in pairs) {
                 if (p.size != 2) typeErr("$what: a header pair must have exactly two items")
-                h.append(name(p[0], what), value(p[1], what))
+                val n = name(p[0], what)
+                val v = value(p[1], what)
+                if (!h.guards(n)) h.append(n, v)
             }
             return
         }
-        for ((k, v) in Idl.record(init, { Idl.byteString(it, what) }, { Idl.byteString(it, what) })) h.append(name(k, what), value(v, what))
+        for ((k, v) in Idl.record(init, { Idl.byteString(it, what) }, { Idl.byteString(it, what) })) {
+            val n = name(k, what)
+            val value = value(v, what)
+            if (!h.guards(n)) h.append(n, value)
+        }
     }
 
     fun install(realm: Realm) {
@@ -105,7 +136,7 @@ internal object Headers {
             val name = name(a[0], "Headers.append")
             val value = value(a[1], "Headers.append")
             checkMutable(h, "Headers.append")
-            h.append(name, value)
+            if (!h.guards(name)) h.append(name, value)
             Undefined
         }
         i.operation("delete", 1) { _, t, a, _ ->
@@ -113,7 +144,7 @@ internal object Headers {
             Idl.required(a, 1, "Headers.delete")
             val name = name(a[0], "Headers.delete")
             checkMutable(h, "Headers.delete")
-            h.delete(name)
+            if (!h.guards(name)) h.delete(name)
             Undefined
         }
         i.operation("get", 1) { _, t, a, _ ->
@@ -136,7 +167,7 @@ internal object Headers {
             val name = name(a[0], "Headers.set")
             val value = value(a[1], "Headers.set")
             checkMutable(h, "Headers.set")
-            h.set(name, value)
+            if (!h.guards(name)) h.set(name, value)
             Undefined
         }
         i.pairIterable(JSHeaders::class.java) { h -> h.sortedAndCombined() }

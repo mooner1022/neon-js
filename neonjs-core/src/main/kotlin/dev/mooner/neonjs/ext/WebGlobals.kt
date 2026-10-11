@@ -20,9 +20,10 @@ import java.util.concurrent.TimeUnit
  * Opt-in web platform globals that embedded scripts commonly expect (not part of ECMAScript): `queueMicrotask`,
  * `setTimeout` / `setInterval` / `clearTimeout` / `clearInterval`, `structuredClone`, `DOMException`, `atob` /
  * `btoa`, UTF-8 `TextEncoder` / `TextDecoder`, `Event` / `CustomEvent` / `EventTarget` ([Events]) and
- * `AbortController` / `AbortSignal` ([Abort]), `performance` ([Performance]) and `crypto.getRandomValues` /
- * `randomUUID` ([Crypto]), `Blob` / `File` ([Blob]), `FormData` ([FormData]), `Headers` ([Headers]) and `URL` /
- * `URLSearchParams` ([Url]).
+ * `AbortController` / `AbortSignal` ([Abort]), `MessageEvent` / `CloseEvent` / `ErrorEvent`, `performance`
+ * ([Performance]) and `crypto.getRandomValues` / `randomUUID` ([Crypto]), `Blob` / `File` ([Blob]), `FormData`
+ * ([FormData]), `Headers` ([Headers]), `Request` / `Response` ([Fetch]) and `URL` / `URLSearchParams` ([Url]).
+ * `fetch` and `WebSocket` come with a transport ([WebNetwork]).
  */
 object WebGlobals {
     fun install(realm: Realm, maxTimers: Int) {
@@ -46,6 +47,7 @@ object WebGlobals {
         Blob.install(realm)
         FormData.install(realm)
         Headers.install(realm)
+        Fetch.install(realm)
         Url.install(realm)
         installBase64(realm)
         installTextEncoder(realm)

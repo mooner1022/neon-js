@@ -4,7 +4,10 @@ import dev.mooner.neonjs.builtins.Builtins
 import dev.mooner.neonjs.builtins.typeErr
 import dev.mooner.neonjs.runtime.*
 
-/** `FormData` (XMLHttpRequest Standard), without form elements: a list of entries whose values are strings or files. */
+/**
+ * `FormData` (XMLHttpRequest Standard), without form elements: a list of entries whose values are strings or files;
+ * and its `multipart/form-data` encoding (HTML Standard) and parsing, for bodies of requests and responses.
+ */
 internal object FormData {
     class JSFormData(proto: JSObject?) : JSObject(proto) {
         override val className: String get() = "FormData"
@@ -34,6 +37,170 @@ internal object FormData {
             return name to entryValue(realm, blob, filename)
         }
         return name to Idl.usvString(a[1])
+    }
+
+    fun newFormData(realm: Realm): JSFormData = JSFormData(realm.intrinsic("%FormData.prototype%"))
+
+    /** CR not followed by LF and LF not preceded by CR, each made CRLF. */
+    private fun crlf(s: String): String {
+        if (s.indexOf('\r') < 0 && s.indexOf('\n') < 0) return s
+        val sb = StringBuilder(s.length + 8)
+        var i = 0
+        while (i < s.length) {
+            val c = s[i]
+            if (c == '\r') {
+                sb.append("\r\n")
+                if (i + 1 < s.length && s[i + 1] == '\n') i++
+            } else if (c == '\n') {
+                sb.append("\r\n")
+            } else {
+                sb.append(c)
+            }
+            i++
+        }
+        return sb.toString()
+    }
+
+    /** A name or filename in a Content-Disposition header: LF, CR and '"' percent-encoded. */
+    private fun escapeName(s: String): String = s.replace("\n", "%0A").replace("\r", "%0D").replace("\"", "%22")
+
+    /**
+     * The multipart/form-data encoding of [fd]'s entries: the body and its Content-Type (with a boundary of random
+     * characters that the body is not searched for, as in browsers: it is long enough not to occur by chance).
+     */
+    fun multipart(realm: Realm, fd: JSFormData): Pair<ByteArray, String> {
+        val random = ByteArray(16)
+        Crypto.randomBytes(realm, random)
+        val boundary = "----formdata-neonjs-" + random.joinToString("") { "%02x".format(it.toInt() and 0xFF) }
+        val parts = ArrayList<ByteArray>(fd.entries.size * 3 + 1)
+        var total = 0L
+        fun add(b: ByteArray) {
+            total += b.size
+            if (total > Int.MAX_VALUE - 8) throw JSException.rangeError("FormData: the body is too large")
+            parts.add(b)
+        }
+        for ((name, value) in fd.entries) {
+            val head = StringBuilder("--").append(boundary).append("\r\nContent-Disposition: form-data; name=\"").append(escapeName(crlf(name))).append('"')
+            if (value is Blob.JSFile) {
+                head.append("; filename=\"").append(escapeName(value.name)).append("\"\r\nContent-Type: ")
+                    .append(value.type.ifEmpty { "application/octet-stream" }).append("\r\n\r\n")
+                add(WebGlobals.utf8(head.toString()))
+                add(value.bytes())
+                add(CRLF)
+            } else {
+                head.append("\r\n\r\n").append(crlf(value as String)).append("\r\n")
+                add(WebGlobals.utf8(head.toString()))
+            }
+        }
+        add(WebGlobals.utf8("--$boundary--\r\n"))
+        realm.agent.reserveAllocation(total)
+        val out = ByteArray(total.toInt())
+        var at = 0
+        for (b in parts) {
+            System.arraycopy(b, 0, out, at, b.size)
+            at += b.size
+        }
+        return out to "multipart/form-data; boundary=$boundary"
+    }
+
+    private val CRLF = byteArrayOf(13, 10)
+
+    private fun indexOf(data: ByteArray, needle: ByteArray, from: Int): Int {
+        if (needle.isEmpty()) return from
+        val first = needle[0]
+        var i = from
+        val last = data.size - needle.size
+        outer@ while (i <= last) {
+            if (data[i] != first) {
+                i++
+                continue
+            }
+            for (k in 1 until needle.size) if (data[i + k] != needle[k]) {
+                i++
+                continue@outer
+            }
+            return i
+        }
+        return -1
+    }
+
+    /** A parameter of a Content-Disposition (or Content-Type) header value, unquoted, or null. */
+    internal fun headerParam(value: String, param: String): String? {
+        var i = value.indexOf(';')
+        while (i >= 0 && i < value.length) {
+            var j = i + 1
+            while (j < value.length && (value[j] == ' ' || value[j] == '\t')) j++
+            val eq = value.indexOf('=', j)
+            if (eq < 0) return null
+            val key = value.substring(j, eq).trim()
+            var k = eq + 1
+            val v: String
+            if (k < value.length && value[k] == '"') {
+                val sb = StringBuilder()
+                k++
+                while (k < value.length && value[k] != '"') {
+                    if (value[k] == '\\' && k + 1 < value.length) k++
+                    sb.append(value[k])
+                    k++
+                }
+                v = sb.toString()
+                k++
+            } else {
+                val end = value.indexOf(';', k).let { if (it < 0) value.length else it }
+                v = value.substring(k, end).trim()
+                k = end
+            }
+            if (key.equals(param, ignoreCase = true)) return v
+            i = value.indexOf(';', k)
+        }
+        return null
+    }
+
+    /** Parses a multipart/form-data body with [boundary] into a new FormData (names, filenames and text as UTF-8), or a TypeError. */
+    fun parseMultipart(realm: Realm, data: ByteArray, boundary: String): JSFormData {
+        val fd = newFormData(realm)
+        fun bad(): Nothing = typeErr("FormData: the body is not valid multipart/form-data")
+        val delimiter = WebGlobals.utf8("--$boundary")
+        var at = indexOf(data, delimiter, 0)
+        if (at < 0) bad()
+        while (true) {
+            at += delimiter.size
+            // "--" ends the body; else the part's line ends
+            if (at + 1 < data.size && data[at] == '-'.code.toByte() && data[at + 1] == '-'.code.toByte()) return fd
+            if (at + 1 >= data.size || data[at] != 13.toByte() || data[at + 1] != 10.toByte()) bad()
+            at += 2
+            val headersEnd = indexOf(data, byteArrayOf(13, 10, 13, 10), at)
+            if (headersEnd < 0) bad()
+            var name: String? = null
+            var filename: String? = null
+            var type = ""
+            for (line in String(data, at, headersEnd - at, Charsets.UTF_8).split("\r\n")) {
+                val colon = line.indexOf(':')
+                if (colon <= 0) bad()
+                val key = line.substring(0, colon).trim().lowercase(java.util.Locale.ROOT)
+                val value = line.substring(colon + 1).trim()
+                if (key == "content-disposition") {
+                    if (!value.lowercase(java.util.Locale.ROOT).startsWith("form-data")) bad()
+                    name = headerParam(value, "name")
+                    filename = headerParam(value, "filename")
+                } else if (key == "content-type") {
+                    type = value
+                }
+            }
+            if (name == null) bad()
+            val bodyStart = headersEnd + 4
+            val next = indexOf(data, WebGlobals.utf8("\r\n--$boundary"), bodyStart)
+            if (next < 0) bad()
+            val bytes = data.copyOfRange(bodyStart, next)
+            val value: Any = if (filename != null) {
+                Blob.newFile(realm, bytes, type, filename, Math.floor(realm.agent.currentTimeMillis()))
+            } else {
+                WebGlobals.utf8Decode(realm, bytes)
+            }
+            fd.entries.add(name to value)
+            at = next + 2
+            if ((fd.entries.size and 255) == 0) realm.agent.checkInterrupt()
+        }
     }
 
     fun install(realm: Realm) {
