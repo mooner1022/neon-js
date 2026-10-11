@@ -24,6 +24,7 @@ const uncurry = (fn) => Function.prototype.call.bind(fn);
 const TypedArrayPrototypeFill = uncurry(TypedArrayPrototype.fill);
 const TypedArrayPrototypeSet = uncurry(TypedArrayPrototype.set);
 const TypedArrayPrototypeSlice = uncurry(TypedArrayPrototype.slice);
+const TypedArrayPrototypeSubarray = uncurry(TypedArrayPrototype.subarray);
 const getter = (name) => uncurry(Object.getOwnPropertyDescriptor(TypedArrayPrototype, name).get);
 const TypedArrayPrototypeGetLength = getter('length');
 const TypedArrayPrototypeGetByteLength = getter('byteLength');
@@ -224,13 +225,6 @@ Buffer.allocUnsafeSlow = function allocUnsafeSlow(size) {
   return new FastBuffer(size);
 };
 
-function SlowBuffer(size) {
-  validateNumber(size, 'size', 0, kMaxLength);
-  return new FastBuffer(size);
-}
-Object.setPrototypeOf(SlowBuffer.prototype, Uint8Array.prototype);
-Object.setPrototypeOf(SlowBuffer, Uint8Array);
-
 Buffer.isBuffer = function isBuffer(b) {
   return b instanceof Buffer;
 };
@@ -254,17 +248,28 @@ Buffer.concat = function concat(list, length) {
   if (length === undefined) {
     length = 0;
     for (let i = 0; i < list.length; i++) {
-      if (list[i].length) length += list[i].length;
+      const buf = list[i];
+      if (!isUint8Array(buf)) throw ERR_INVALID_ARG_TYPE(`list[${i}]`, ['Buffer', 'Uint8Array'], buf);
+      length += TypedArrayPrototypeGetByteLength(buf);
     }
   } else {
     validateOffset(length, 'length');
+    for (let i = 0; i < list.length; i++) {
+      if (!isUint8Array(list[i])) throw ERR_INVALID_ARG_TYPE(`list[${i}]`, ['Buffer', 'Uint8Array'], list[i]);
+    }
   }
   const buffer = Buffer.allocUnsafe(length);
   let pos = 0;
   for (let i = 0; i < list.length; i++) {
     const buf = list[i];
-    if (!isUint8Array(buf)) throw ERR_INVALID_ARG_TYPE(`list[${i}]`, ['Buffer', 'Uint8Array'], list[i]);
-    pos += _copyActual(buf, buffer, pos, 0, buf.length);
+    const bufLength = TypedArrayPrototypeGetByteLength(buf);
+    if (pos + bufLength > length) {
+      TypedArrayPrototypeSet(buffer, TypedArrayPrototypeSubarray(buf, 0, length - pos), pos);
+      pos = length;
+      break;
+    }
+    TypedArrayPrototypeSet(buffer, buf, pos);
+    pos += bufLength;
   }
   if (pos < length) TypedArrayPrototypeFill(buffer, 0, pos, length);
   return buffer;
@@ -294,6 +299,31 @@ function byteLength(string, encoding) {
 }
 Buffer.byteLength = byteLength;
 
+// the length of the string the bytes decode to in an encoding (without making it)
+Buffer.stringLength = function stringLength(input, encoding = 'utf8') {
+  if (!isTypedArray(input) && !isAnyArrayBuffer(input)) {
+    throw ERR_INVALID_ARG_TYPE('input', ['ArrayBuffer', 'Buffer', 'TypedArray'], input);
+  }
+  validateString(encoding, 'encoding');
+  const e = encodingIndex(encoding);
+  if (e < 0) throw ERR_UNKNOWN_ENCODING(encoding);
+  const length = input.byteLength;
+  switch (e) {
+    case UTF8:
+      return length === 0 ? 0 : native.stringLengthUtf8(isTypedArray(input) ? input : new Uint8Array(input));
+    case UTF16LE:
+      return Math.floor(length / 2);
+    case HEX:
+      return length * 2;
+    case BASE64:
+      return Math.ceil(length / 3) * 4;
+    case BASE64URL:
+      return Math.ceil(length * 4 / 3);
+    default:
+      return length;
+  }
+};
+
 // ---------------------------------------------------------------- copying, comparing, searching
 
 function toInteger(n, defaultVal) {
@@ -305,8 +335,8 @@ function toInteger(n, defaultVal) {
 }
 
 function _copy(source, target, targetStart, sourceStart, sourceEnd) {
-  if (!isUint8Array(source)) throw ERR_INVALID_ARG_TYPE('source', ['Buffer', 'Uint8Array'], source);
-  if (!isUint8Array(target)) throw ERR_INVALID_ARG_TYPE('target', ['Buffer', 'Uint8Array'], target);
+  if (!ArrayBuffer.isView(source)) throw ERR_INVALID_ARG_TYPE('source', ['Buffer', 'Uint8Array'], source);
+  if (!ArrayBuffer.isView(target)) throw ERR_INVALID_ARG_TYPE('target', ['Buffer', 'Uint8Array'], target);
   if (targetStart === undefined) {
     targetStart = 0;
   } else {
@@ -337,13 +367,27 @@ function _copyActual(source, target, targetStart, sourceStart, sourceEnd) {
   const sourceLen = source.byteLength - sourceStart;
   if (nb > sourceLen) nb = sourceLen;
   if (nb <= 0) return 0;
-  // set() copies through a clone when both views share a buffer, so overlapping ranges move as memmove does
-  TypedArrayPrototypeSet(target, new Uint8Array(TypedArrayPrototypeGetBuffer(source),
-    TypedArrayPrototypeGetByteOffset(source) + sourceStart, nb), targetStart);
+  // the bytes of both views (any kind); set() copies through a clone when they share a buffer, so overlapping ranges
+  // move as memmove does
+  TypedArrayPrototypeSet(bytesOfView(target), bytesOfView(source, sourceStart, nb), targetStart);
   return nb;
 }
 
-function bidirectionalIndexOf(buffer, val, byteOffset, encoding, dir) {
+const DataViewPrototypeGetBuffer = uncurry(Object.getOwnPropertyDescriptor(DataView.prototype, 'buffer').get);
+const DataViewPrototypeGetByteOffset = uncurry(Object.getOwnPropertyDescriptor(DataView.prototype, 'byteOffset').get);
+const DataViewPrototypeGetByteLength = uncurry(Object.getOwnPropertyDescriptor(DataView.prototype, 'byteLength').get);
+
+// a Uint8Array over a view's bytes (from start, n of them)
+function bytesOfView(view, start = 0, n) {
+  if (isTypedArray(view)) {
+    return new Uint8Array(TypedArrayPrototypeGetBuffer(view), TypedArrayPrototypeGetByteOffset(view) + start,
+      n ?? TypedArrayPrototypeGetByteLength(view) - start);
+  }
+  return new Uint8Array(DataViewPrototypeGetBuffer(view), DataViewPrototypeGetByteOffset(view) + start,
+    n ?? DataViewPrototypeGetByteLength(view) - start);
+}
+
+function bidirectionalIndexOf(buffer, val, byteOffset, end, encoding, dir) {
   validateBuffer(buffer);
   if (typeof byteOffset === 'string') {
     encoding = byteOffset;
@@ -356,13 +400,13 @@ function bidirectionalIndexOf(buffer, val, byteOffset, encoding, dir) {
   byteOffset = +byteOffset;
   if (Number.isNaN(byteOffset)) byteOffset = dir ? 0 : (buffer.length || buffer.byteLength);
   dir = !!dir;
-  if (typeof val === 'number') return native.indexOf(buffer, (val >>> 0) & 0xFF, byteOffset, UTF8, dir);
+  if (typeof val === 'number') return native.indexOf(buffer, (val >>> 0) & 0xFF, byteOffset, UTF8, dir, end);
   const e = encoding === undefined ? UTF8 : encodingIndex(encoding);
   if (typeof val === 'string') {
     if (e < 0) throw ERR_UNKNOWN_ENCODING(encoding);
-    return native.indexOf(buffer, val, byteOffset, e, dir);
+    return native.indexOf(buffer, val, byteOffset, e, dir, end);
   }
-  if (isUint8Array(val)) return native.indexOf(buffer, val, byteOffset, e < 0 ? UTF8 : e, dir);
+  if (isUint8Array(val)) return native.indexOf(buffer, val, byteOffset, e < 0 ? UTF8 : e, dir, end);
   throw ERR_INVALID_ARG_TYPE('value', ['number', 'string', 'Buffer', 'Uint8Array'], val);
 }
 
@@ -669,9 +713,13 @@ for (let e = 0; e < ENCODING_NAMES.length; e++) {
   // ascii, latin1 and utf8 check their arguments in JS in Node; the others natively
   const checkedInJS = e === ASCII || e === LATIN1 || e === UTF8;
   Object.defineProperty(proto, `${name}Write`, {
-    value: checkedInJS ? function write(string, offset = 0, length = TypedArrayPrototypeGetByteLength(this)) {
-      if (offset < 0 || offset > TypedArrayPrototypeGetByteLength(this)) throw new ERR_BUFFER_OUT_OF_BOUNDS('offset');
-      if (length < 0) throw new ERR_BUFFER_OUT_OF_BOUNDS('length');
+    value: checkedInJS ? function write(string, offset = 0, length) {
+      const byteLength = TypedArrayPrototypeGetByteLength(this);
+      offset = Number(offset);
+      if (offset < 0 || offset > byteLength) throw new ERR_BUFFER_OUT_OF_BOUNDS('offset');
+      if (length === undefined) length = byteLength - offset;
+      else length = Number(length);
+      if (length < 0 || length > byteLength - offset) throw new ERR_BUFFER_OUT_OF_BOUNDS('length');
       return nativeWrite(this, string, offset, length, e);
     } : function write(string, offset, length) {
       return nativeWrite(this, string, offset, length, e);
@@ -778,16 +826,34 @@ defineMethods(proto, {
 
   // functions, not methods, as Node's are (new Buffer.prototype.indexOf() is an invalid receiver, not a TypeError
   // of its own)
-  indexOf: function indexOf(val, byteOffset, encoding) {
-    return bidirectionalIndexOf(this, val, byteOffset, encoding, true);
+  indexOf: function indexOf(val, offset, end, encoding) {
+    if (typeof end === 'string') {
+      encoding = end;
+      end = this.length;
+    } else if (end === undefined) {
+      end = this.length;
+    }
+    return bidirectionalIndexOf(this, val, offset, end, encoding, true);
   },
 
-  lastIndexOf: function lastIndexOf(val, byteOffset, encoding) {
-    return bidirectionalIndexOf(this, val, byteOffset, encoding, false);
+  lastIndexOf: function lastIndexOf(val, offset, end, encoding) {
+    if (typeof end === 'string') {
+      encoding = end;
+      end = this.length;
+    } else if (end === undefined) {
+      end = this.length;
+    }
+    return bidirectionalIndexOf(this, val, offset, end, encoding, false);
   },
 
-  includes: function includes(val, byteOffset, encoding) {
-    return this.indexOf(val, byteOffset, encoding) !== -1;
+  includes: function includes(val, offset, end, encoding) {
+    if (typeof end === 'string') {
+      encoding = end;
+      end = this.length;
+    } else if (end === undefined) {
+      end = this.length;
+    }
+    return bidirectionalIndexOf(this, val, offset, end, encoding, true) !== -1;
   },
 
   fill(value, offset, end, encoding) {
@@ -901,7 +967,7 @@ const ArrayBufferPrototypeGetDetached = Object.getOwnPropertyDescriptor(ArrayBuf
 function validationBytes(input) {
   const ab = isTypedArray(input) ? TypedArrayPrototypeGetBuffer(input) : input;
   if (ArrayBufferPrototypeGetDetached !== undefined && types.isArrayBuffer(ab) && ArrayBufferPrototypeGetDetached.call(ab)) {
-    throw makeError(Error, 'ERR_INVALID_STATE', 'Cannot validate on a detached buffer');
+    return new Uint8Array(0);
   }
   return isTypedArray(input) ?
     new Uint8Array(ab, TypedArrayPrototypeGetByteOffset(input), TypedArrayPrototypeGetByteLength(input)) : new Uint8Array(input);
@@ -915,6 +981,13 @@ function isUtf8(input) {
 function isAscii(input) {
   if (isTypedArray(input) || isAnyArrayBuffer(input)) return native.isAscii(validationBytes(input));
   throw ERR_INVALID_ARG_TYPE('input', ['ArrayBuffer', 'Buffer', 'TypedArray'], input);
+}
+
+// whether every UTF-16 code unit of the string is at most 0xFF: it can be written as latin1 losing nothing
+function isLatin1(input) {
+  validateString(input, 'input');
+  for (let i = 0; i < input.length; i++) if (input.charCodeAt(i) > 0xFF) return false;
+  return true;
 }
 
 const TRANSCODE = ['ascii', 'latin1', 'utf16le', 'utf8'];
@@ -938,10 +1011,10 @@ function transcode(source, fromEncoding, toEncoding) {
 
 module.exports = {
   Buffer,
-  SlowBuffer,
   transcode,
   isUtf8,
   isAscii,
+  isLatin1,
   kMaxLength,
   kStringMaxLength,
   btoa: globalThis.btoa,

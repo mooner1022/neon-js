@@ -177,4 +177,21 @@ class BufferTest {
             """))
         }
     }
+
+    @Test
+    fun node26Additions() {
+        ctx().use { c ->
+            assertEquals("-1,2,0,4,0,5,2,true,false,4,1-2-3-4", c.str("""
+                const b = Buffer.from('abcabc');
+                const u = Buffer.from('\u6881\u6882\u6881', 'utf16le');
+                const x = new Uint16Array(4);
+                Buffer.of(1, 2, 3, 4).copy(x);
+                [b.indexOf('c', 0, 2), b.indexOf('c', 0, 3), b.lastIndexOf('a', 5, 3), u.indexOf('\u6881', 1, 'utf16le'),
+                 u.lastIndexOf('\u6881', 3, 'utf16le'), Buffer.stringLength(Buffer.from('h\u00e9llo')),
+                 Buffer.stringLength(Buffer.from('\ud83d\ude00')), require('buffer').isLatin1('\u00ff'),
+                 require('buffer').isLatin1('\u0100'), Buffer.stringLength(new Uint8Array(2), 'hex'),
+                 Array.from(new Uint8Array(x.buffer, 0, 4)).join('-')].join()
+            """))
+        }
+    }
 }

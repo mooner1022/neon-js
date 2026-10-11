@@ -90,28 +90,25 @@ internal object BufferBinding {
             0.0
         }
 
-        // (view, needle: number | string | Uint8Array, byteOffset, encoding, forward) -> index or -1
-        fn("indexOf", 5) { f, _, a, _ ->
+        // (view, needle: number | string | Uint8Array, byteOffset, encoding, forward, end) -> index or -1; only the
+        // bytes before end are searched (Node 26's IndexOfNumber, IndexOfString, IndexOfBuffer)
+        fn("indexOf", 6) { f, _, a, _ ->
             val t = view(a.arg(0))
             val needleArg = a.arg(1)
             val e = enc(a.arg(3))
-            val offset = Ops.toNumber(a.arg(2))
+            val offset = Ops.toNumber(a.arg(2)).let { if (it.isNaN()) 0L else it.coerceIn(-9.007199254740991E15, 9.007199254740991E15).toLong() }
             val forward = Ops.toBoolean(a.arg(4))
+            val end = Ops.toNumber(a.arg(5)).let { if (it.isNaN()) 0L else it.coerceIn(-9.007199254740991E15, 9.007199254740991E15).toLong() }
             val agent = f.realm.agent
             when (needleArg) {
-                is Double -> indexOf(agent, t, byteArrayOf(Ops.toUint32(needleArg).toByte()), 0, 1, offset, forward, false)
+                is Double -> indexOfByte(t, Ops.toUint32(needleArg).toByte(), offset, end, forward)
                 // a view's bytes are searched where they are (nothing runs during the search to change them); in
                 // ucs2, whole code units of both, as Node does
-                is JSTypedArray -> {
-                    val ucs2 = e == Codecs.Enc.UTF16LE
-                    val n = length(needleArg)
-                    if (ucs2 && (length(t) < 2 || n < 2)) -1
-                    else indexOf(agent, t, needleArg.buffer.data, needleArg.byteOffset, if (ucs2) n and 1.inv() else n, offset, forward, ucs2)
-                }
+                is JSTypedArray -> indexOf(agent, t, needleArg.buffer.data, needleArg.byteOffset, length(needleArg), offset, end, forward,
+                    e == Codecs.Enc.UTF16LE, string = false)
                 else -> {
                     val needle = bytesOf(f.realm, needleArg, e)
-                    if (e == Codecs.Enc.UTF16LE && length(t) < 2) -1
-                    else indexOf(agent, t, needle, 0, needle.size, offset, forward, e == Codecs.Enc.UTF16LE)
+                    indexOf(agent, t, needle, 0, needle.size, offset, end, forward, e == Codecs.Enc.UTF16LE, string = true)
                 }
             }.toDouble()
         }
@@ -127,6 +124,11 @@ internal object BufferBinding {
             compare(x.buffer.data, x.byteOffset + xs, xe - xs, y.buffer.data, y.byteOffset + ys, ye - ys).toDouble()
         }
 
+        // the length of the string a view's bytes decode to in UTF-8 (each invalid sequence one U+FFFD, as V8 decodes)
+        fn("stringLengthUtf8", 1) { _, _, a, _ ->
+            val t = view(a.arg(0))
+            utf8Length(t.buffer.data, t.byteOffset, t.byteOffset + length(t)).toDouble()
+        }
         fn("isUtf8", 1) { _, _, a, _ ->
             val t = view(a.arg(0))
             Codecs.isUtf8(t.buffer.data, t.byteOffset, t.byteOffset + length(t))
@@ -162,39 +164,126 @@ internal object BufferBinding {
         }
     }
 
+    /** The UTF-16 length of [d]'s bytes from [from] to [to] decoded as UTF-8 (the WHATWG decoder's replacements). */
+    private fun utf8Length(d: ByteArray, from: Int, to: Int): Long {
+        var n = 0L
+        var needed = 0
+        var seen = 0
+        var lower = 0x80
+        var upper = 0xBF
+        var four = false
+        var i = from
+        while (i < to) {
+            val b = d[i].toInt() and 0xFF
+            if (needed == 0) {
+                when (b) {
+                    in 0x00..0x7F -> n++
+                    in 0xC2..0xDF -> needed = 1
+                    in 0xE0..0xEF -> {
+                        if (b == 0xE0) lower = 0xA0
+                        if (b == 0xED) upper = 0x9F
+                        needed = 2
+                    }
+                    in 0xF0..0xF4 -> {
+                        if (b == 0xF0) lower = 0x90
+                        if (b == 0xF4) upper = 0x8F
+                        needed = 3
+                        four = true
+                    }
+                    else -> n++
+                }
+                i++
+                continue
+            }
+            if (b !in lower..upper) {
+                // the bytes so far are one replacement; this byte starts over
+                needed = 0; seen = 0; lower = 0x80; upper = 0xBF; four = false
+                n++
+                continue
+            }
+            lower = 0x80
+            upper = 0xBF
+            seen++
+            i++
+            if (seen == needed) {
+                n += if (four) 2 else 1
+                needed = 0; seen = 0; four = false
+            }
+        }
+        if (needed != 0) n++
+        return n
+    }
+
     /** Node's IndexOfOffset: where a search of [needle] bytes starts in [len] bytes, or -1 for no match. */
-    private fun startOf(len: Int, offset: Long, needle: Int, forward: Boolean): Long = when {
-        offset < 0 -> if (offset + len >= 0) len + offset else if (forward || needle == 0) 0 else -1
+    private fun startOf(len: Long, offset: Long, needle: Long, forward: Boolean): Long = when {
+        offset < 0 -> if (offset + len >= 0) len + offset else if (forward || needle == 0L) 0 else -1
         offset + needle <= len -> offset
-        needle == 0 -> len.toLong()
+        needle == 0L -> len
         forward -> -1
-        else -> len - 1L
+        else -> len - 1
+    }
+
+    /** Node's IndexOfNumber: where the byte [b] is in [t] before [end], from [offset] forward or backward. */
+    private fun indexOfByte(t: JSTypedArray, b: Byte, offset: Long, end: Long, forward: Boolean): Int {
+        val len = length(t).toLong()
+        val start = startOf(len, offset, 1, forward)
+        if (start <= -1 || len == 0L) return -1
+        val searchEnd = end.coerceIn(0, len).toInt()
+        val data = t.buffer.data
+        val base = t.byteOffset
+        if (forward) {
+            for (i in start.toInt() until searchEnd) if (data[base + i] == b) return i
+        } else {
+            for (i in minOf(start + 1, searchEnd.toLong()).toInt() - 1 downTo 0) if (data[base + i] == b) return i
+        }
+        return -1
     }
 
     /**
-     * Where [nLen] bytes of [needle] from [nOff] are in [t], searching from [offsetArg] forward or backward. Naive (and
-     * so as slow as haystack times needle), it checks the agent's limits as it goes.
+     * Node's IndexOfString / IndexOfBuffer: where [nLen] bytes of [needle] from [nOff] are in [t] before [end],
+     * searching from [offsetArg] forward or backward; in ucs2 ([ucs2]), whole code units. Naive (and so as slow as
+     * haystack times needle), it checks the agent's limits as it goes.
      */
     private fun indexOf(
-        agent: Agent, t: JSTypedArray, needle: ByteArray, nOff: Int, nLen: Int, offsetArg: Double, forward: Boolean, aligned: Boolean,
+        agent: Agent, t: JSTypedArray, needle: ByteArray, nOff: Int, nLen0: Int, offsetArg: Long, end: Long, forward: Boolean,
+        ucs2: Boolean, string: Boolean,
     ): Int {
-        val len = length(t)
-        val offset = if (offsetArg.isNaN()) (if (forward) 0L else len.toLong()) else offsetArg.coerceIn(-2147483648.0, 2147483647.0).toLong()
-        var start = startOf(len, offset, nLen, forward)
-        if (nLen == 0) return start.toInt()
-        if (len == 0 || start < 0 || nLen > len) return -1
-        if (forward && start + nLen > len) return -1
+        val len = length(t).toLong()
+        // a string's haystack is whole code units in ucs2
+        val haystack = if (ucs2 && string) len and 1L.inv() else len
+        var searchEnd = end.coerceIn(0, haystack)
+        if (ucs2) searchEnd = searchEnd and 1L.inv()
+        val nLen = nLen0.toLong()
+        val opt = startOf(haystack, offsetArg, nLen, forward)
+        if (nLen == 0L) return minOf(opt, searchEnd).toInt()
+        if (haystack == 0L || opt <= -1) return -1
+        var offset = opt
+        if (!forward && offset >= searchEnd) {
+            if (searchEnd == 0L) return -1
+            offset = searchEnd - 1
+        } else if (forward && offset >= searchEnd) {
+            return -1
+        }
+        if (ucs2 && string && forward) {
+            offset += offset % 2
+            if (offset >= searchEnd) return -1
+        }
+        if ((forward && nLen + offset > searchEnd) || nLen > searchEnd) return -1
+        // in ucs2, code units of both: the needle's whole ones, from the unit the offset falls in
+        val step = if (ucs2) 2 else 1
+        val n = if (ucs2) (nLen and 1L.inv()).toInt() else nLen.toInt()
+        if (ucs2 && (searchEnd < 2 || n < 2)) return -1
+        val units = if (ucs2) offset / 2 * 2 else offset
         val data = t.buffer.data
         val base = t.byteOffset
-        // utf16le strings are searched in whole code units from the unit the offset falls in, as Node does
-        val step = if (aligned) 2 else 1
-        if (aligned) start -= start % 2
-        var i = if (forward) start.toInt() else minOf(start, (len - nLen).toLong()).toInt().let { if (aligned && it % 2 != 0) it - 1 else it }
+        val last = searchEnd - n
+        var i = if (forward) units else minOf(units, last).let { if (ucs2 && it % 2 != 0L) it - 1 else it }
         var work = 0
-        while (if (forward) i + nLen <= len else i >= 0) {
+        while (if (forward) i <= last else i >= 0) {
             var k = 0
-            while (k < nLen && data[base + i + k] == needle[nOff + k]) k++
-            if (k == nLen) return i
+            val at = base + i.toInt()
+            while (k < n && data[at + k] == needle[nOff + k]) k++
+            if (k == n) return i.toInt()
             work += k + 1
             if (work >= 1 shl 16) {
                 work = 0
