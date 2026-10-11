@@ -371,7 +371,7 @@ take their web paths (fetch and WebSocket, from `neonjs-net`).
 | `buffer` | Node's API and errors over the engine's typed arrays (`allocUnsafe` is zeroed) |
 | `process` | `env`, `argv`, `cwd`, `platform` from `NodeOptions` (nothing of the host's environment otherwise); `nextTick`; `exit` ends the evaluation (`NodeOptions.onExit`), never the host; `'uncaughtException'` / `'unhandledRejection'` / `'warning'` listeners; `stdout` / `stderr` to the console sink |
 | `timers`, `timers/promises` | over the web globals' timers (`maxTimers` applies) |
-| `crypto` | hashes and HMACs (`createHash`, `createHmac`, `hash`; not yet streams), `randomBytes` / `randomInt` / `randomUUID`, `timingSafeEqual`, `webcrypto`; ciphers, signatures and keys are not there |
+| `crypto` | hashes and HMACs (`createHash`, `createHmac`, `hash`; also as Transform streams), `randomBytes` / `randomInt` / `randomUUID`, `timingSafeEqual`, `webcrypto`; ciphers, signatures and keys are not there |
 | `zlib` | the one-shot functions (`inflateSync`, `gunzip`…) and constants; output bounded by `maxOutputLength` and the allocation limit; no streams or Brotli yet |
 | `os` | the platform and architecture, `process.env`'s `HOME` / `TMPDIR`, the engine's memory; neutral values for the rest (never the host's) |
 | `http`, `https` | `STATUS_CODES`, `METHODS`, header checks; requests and servers load but are not available (fetch is the network) |
@@ -380,7 +380,7 @@ take their web paths (fetch and WebSocket, from `neonjs-net`).
 
 `NodeOptions.platform` is the host's (`android`, `win32`, `darwin`, `linux`) unless the host names one, and gives
 `path`, `url` and `os` their POSIX or Windows rules, as Node's does; `cwd` defaults to that platform's root (`C:\` or
-`/`), never the host's working directory. Not there: `vm`, the stream forms of crypto and zlib, the web's streams (`stream/web`, `Readable.toWeb`), `async_hooks`,
+`/`), never the host's working directory. Not there: `vm`, zlib's streams, the web's streams (`stream/web`, `Readable.toWeb`), `async_hooks`,
 `node:test`, `Error.prepareStackTrace`, `path.matchesGlob` (Node's minimatch), and unref'd `setImmediate` timing
 exactly as Node's. `util.inspect` runs guest code as Node does (`[util.inspect.custom]`, getters with `getters: true`),
 and so does `console` by default, formatting with `util.format` and `util.inspect` as Node's console does;

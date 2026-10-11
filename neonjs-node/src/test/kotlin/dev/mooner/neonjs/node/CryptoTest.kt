@@ -81,4 +81,28 @@ class CryptoTest {
             """))
         }
     }
+
+    @Test
+    fun hashesAreStreams() {
+        ctx().use { c ->
+            val r = c.eval("""
+                (async () => {
+                    const crypto = require('crypto');
+                    const { Readable, Transform, pipeline } = require('stream');
+                    const h = crypto.createHash('sha256');
+                    const out = [h instanceof Transform, h instanceof crypto.Hash];
+                    h.end('abc');
+                    out.push(h.read().toString('hex'));
+                    const piped = await new Promise((resolve, reject) => {
+                        const hmac = crypto.createHmac('sha256', 'key');
+                        pipeline(Readable.from(['The quick brown fox ', 'jumps over the lazy dog']), hmac, (e) => e ? reject(e) : resolve(hmac.read().toString('hex')));
+                    });
+                    out.push(piped);
+                    return out.join();
+                })()
+            """).await(10_000).asString()
+            assertEquals("true,true,ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad," +
+                "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8", r)
+        }
+    }
 }

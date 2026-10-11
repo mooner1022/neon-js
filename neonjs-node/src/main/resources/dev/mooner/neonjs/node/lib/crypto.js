@@ -1,6 +1,6 @@
 'use strict';
 // node:crypto, the part a sandbox can give without OpenSSL: hashes and HMACs as Node's Hash and Hmac have them
-// (synchronous, over the platform's digests through binding.crypto; not yet streams), random bytes, integers and
+// (over the platform's digests through binding.crypto; also Transform streams, as in Node), random bytes, integers and
 // UUIDs from the web crypto's generator, timingSafeEqual, and the web crypto itself (webcrypto, subtle). Ciphers,
 // signatures and key pairs are not here; they load and say so when used.
 
@@ -47,6 +47,29 @@ function update(data, encoding) {
   return this;
 }
 
+// Hash and Hmac are LazyTransform streams, as in Node; node:stream loads with the first of them
+let LazyTransform;
+function lazyTransform(self, options) {
+  if (LazyTransform === undefined) {
+    LazyTransform = require('internal/streams/lazy_transform');
+    for (const C of [Hash, Hmac]) {
+      Object.setPrototypeOf(C.prototype, LazyTransform.prototype);
+      Object.setPrototypeOf(C, LazyTransform);
+    }
+  }
+  Reflect.apply(LazyTransform, self, [options]);
+}
+
+function transform(chunk, encoding, callback) {
+  native.update(this[kHandle], toBytes(chunk, encoding));
+  callback();
+}
+
+function flush(callback) {
+  this.push(digestOf(this[kHandle]));
+  callback();
+}
+
 function Hash(algorithm, options) {
   if (!new.target) return new Hash(algorithm, options);
   if (algorithm !== null && typeof algorithm === 'object' && algorithm[kHandle] !== undefined) {
@@ -62,9 +85,12 @@ function Hash(algorithm, options) {
     this[kHandle] = handle;
   }
   this[kFinalized] = false;
+  lazyTransform(this, options);
 }
 
 Hash.prototype.update = update;
+Hash.prototype._transform = transform;
+Hash.prototype._flush = flush;
 
 Hash.prototype.digest = function digest(outputEncoding) {
   if (this[kFinalized]) throw new ERR_CRYPTO_HASH_FINALIZED();
@@ -93,9 +119,12 @@ function Hmac(hmac, key, options) {
   if (handle === null) throw new ERR_CRYPTO_INVALID_DIGEST(hmac);
   this[kHandle] = handle;
   this[kFinalized] = false;
+  lazyTransform(this, options);
 }
 
 Hmac.prototype.update = update;
+Hmac.prototype._transform = transform;
+Hmac.prototype._flush = flush;
 
 Hmac.prototype.digest = function digest(outputEncoding) {
   if (this[kFinalized]) {
