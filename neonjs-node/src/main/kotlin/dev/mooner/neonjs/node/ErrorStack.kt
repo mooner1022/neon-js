@@ -4,7 +4,7 @@ import dev.mooner.neonjs.runtime.*
 
 /**
  * V8's `Error.captureStackTrace(target, constructorOpt)` and `Error.stackTraceLimit`, which Node.js libraries use
- * (discord.js's errors call the former in their constructor). The stack is the target's `Error.prototype.toString` and
+ * (their error classes often call the former in their constructors). The stack is the target's `Error.prototype.toString` and
  * the frames below the call of `constructorOpt` (none when it is not on the stack), at most `Error.stackTraceLimit`.
  */
 internal object ErrorStack {

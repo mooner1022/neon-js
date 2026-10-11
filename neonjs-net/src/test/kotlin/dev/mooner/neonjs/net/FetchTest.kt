@@ -155,13 +155,13 @@ class FetchTest {
 
     @Test
     fun hostPatterns() {
-        val p = HostPattern.parse("*.discord.gg")
-        assertTrue(p.matches("gateway.discord.gg", 443))
-        assertTrue(p.matches("a.b.discord.gg", 443))
-        assertFalse(p.matches("discord.gg", 443))
-        assertFalse(p.matches("evildiscord.gg", 443))
-        assertTrue(HostPattern.parse("Discord.com").matches("discord.com", 443))
-        assertFalse(HostPattern.parse("discord.com:8443").matches("discord.com", 443))
+        val p = HostPattern.parse("*.example.net")
+        assertTrue(p.matches("api.example.net", 443))
+        assertTrue(p.matches("a.b.example.net", 443))
+        assertFalse(p.matches("example.net", 443))
+        assertFalse(p.matches("evilexample.net", 443))
+        assertTrue(HostPattern.parse("Example.com").matches("example.com", 443))
+        assertFalse(HostPattern.parse("example.com:8443").matches("example.com", 443))
         assertTrue(HostPattern.parse("[::1]:80").matches("[::1]", 80))
         assertTrue(HostPattern.parse("0:0::1").matches("[::1]", 1))
         assertTrue(HostPattern.parse("127.0.0.1").matches("127.0.0.1", 9))

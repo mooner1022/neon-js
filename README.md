@@ -326,7 +326,7 @@ The optional `neonjs-net` module gives scripts `fetch` and `WebSocket` over [OkH
 ```kotlin
 val engine = NeonEngine.builder().webGlobals(true)
     .extension(NetExtension(NetOptions.builder()
-        .allowHosts("discord.com", "*.discord.gg", "cdn.discordapp.com")   // *.x: the subdomains of x
+        .allowHosts("api.example.com", "*.example.net")   // *.x: the subdomains of x
         .build()))
     .build()
 ```

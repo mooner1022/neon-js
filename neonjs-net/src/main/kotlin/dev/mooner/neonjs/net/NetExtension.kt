@@ -8,7 +8,7 @@ import dev.mooner.neonjs.vm.Promises
 
 /**
  * `fetch` and `WebSocket` for the contexts of an engine, over OkHttp, within [options]' network policy:
- * `NeonEngine.builder().webGlobals(true).extension(NetExtension(NetOptions.builder().allowHosts("discord.com").build()))`.
+ * `NeonEngine.builder().webGlobals(true).extension(NetExtension(NetOptions.builder().allowHosts("api.example.com").build()))`.
  * Also the modules `undici` and `ws` (importable, and requirable with neonjs-node), which give libraries written for
  * those packages the same `fetch` and `WebSocket`. Needs the web globals. The engine's contexts share one client
  * (its connection pool); each context has its own limits of fetches and sockets.
