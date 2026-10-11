@@ -53,9 +53,29 @@ class CliTest {
             env = mapOf("B" to "from the host"))
         assertEquals(0, r.status, r.err)
         assertEquals(
-            """{"A":"1=2","B":"from the host","C":"single","D":"two\nlines","E":"plain"}""" + "\n" + """["${script.absolutePath.replace("\\", "\\\\")}","x","-y"]""",
+            """{"C":"single","D":"two\nlines","E":"plain","A":"1=2","B":"from the host"}""" + "\n" + """["${script.absolutePath.replace("\\", "\\\\")}","x","-y"]""",
             r.out,
         )
+    }
+
+    @Test
+    fun envFilesAsNode() {
+        val a = file("a.env", "A=from a\nB=from a\nC=from a\n")
+        val b = file("b.env", "B=from b\nC=from b\n")
+        val code = "const e = require('node:process').env; print(e.A, '/', e.B, '/', e.C)"
+        // a later file wins, and --env over the files
+        val r = cli("--node", "--env-file=${a.path}", "--env-file", b.path, "--env", "C=given", "-e", code)
+        assertEquals(0, r.status, r.err)
+        assertEquals("from a / from b / given", r.out)
+        val missing = File(dir, "missing.env").path
+        val optional = cli("--node", "--env-file-if-exists", missing, "--env-file-if-exists=${a.path}", "-e", code)
+        assertEquals("from a / from a / from a", optional.out)
+        assertEquals("$missing not found. Continuing without it.", optional.err)
+        // a missing --env-file ends the run before any script, with Node's status
+        val required = cli("--node", "--env-file", missing, "-e", "print('ran')")
+        assertEquals(9, required.status)
+        assertEquals("", required.out)
+        assertEquals("neonjs: $missing: not found", required.err)
     }
 
     @Test
@@ -94,6 +114,7 @@ class CliTest {
             arrayOf("--allow-host", "a b", "-e", "1"),
             arrayOf("--allow-address", "not-a-range", "-e", "1"),
             arrayOf("--env"),
+            arrayOf("--env-file-if-exists", "x.env", "-e", "1"),
         )) {
             assertEquals(2, cli(*args).status, args.joinToString(" "))
         }

@@ -7,6 +7,7 @@ import dev.mooner.neonjs.ext.Inspector
 import dev.mooner.neonjs.ext.WebGlobals
 import dev.mooner.neonjs.net.NetExtension
 import dev.mooner.neonjs.net.NetOptions
+import dev.mooner.neonjs.node.DotEnv
 import dev.mooner.neonjs.node.NodeExtension
 import dev.mooner.neonjs.node.NodeOptions
 import dev.mooner.neonjs.runtime.*
@@ -32,7 +33,10 @@ private const val USAGE = """usage: neonjs [options] [file.js | file.mjs ...] [-
   --node          Node.js APIs: require and the node: modules, Buffer, Node's timers and console
   --env NAME[=VALUE]
                   with --node: sets process.env.NAME (without a value, to the host's NAME); repeatable
-  --env-file PATH with --node: sets process.env from the NAME=VALUE lines of PATH
+  --env-file PATH with --node: sets process.env from the .env file PATH, read as Node reads one
+                  (later files win, --env over all of them); also --env-file=PATH
+  --env-file-if-exists PATH
+                  the same, for a file that may not be there
   --allow-host PATTERNS
                   fetch and WebSocket may reach these hosts (comma-separated: example.com,
                   *.example.com for its subdomains, example.com:8443); repeatable
@@ -79,6 +83,8 @@ private fun cliMain(args: Array<String>): Int {
     var node = false
     val env = LinkedHashMap<String, String>()
     var envGiven = false
+    // (path, whether it may be missing), in the order given
+    val envFiles = ArrayList<Pair<String, Boolean>>()
     val scriptArgs = ArrayList<String>()
     val net = NetOptions.builder()
     fun usageError(message: String): Nothing {
@@ -113,13 +119,10 @@ private fun cliMain(args: Array<String>): Int {
                 if (eq >= 0) env[v.substring(0, eq)] = v.substring(eq + 1) else System.getenv(v)?.let { env[v] = it }
                 envGiven = true
             }
-            a == "--env-file" -> {
-                val f = File(args.getOrNull(++i) ?: usageError("option --env-file requires a file path"))
-                try {
-                    env.putAll(parseEnvFile(f.readText(Charsets.UTF_8)))
-                } catch (e: java.io.IOException) {
-                    usageError("cannot read '$f': ${e.message}")
-                }
+            a == "--env-file" || a == "--env-file-if-exists" || a.startsWith("--env-file=") || a.startsWith("--env-file-if-exists=") -> {
+                val eq = a.indexOf('=')
+                val path = if (eq >= 0) a.substring(eq + 1) else args.getOrNull(++i) ?: usageError("option $a requires a file path")
+                envFiles.add(path to a.startsWith("--env-file-if-exists"))
                 envGiven = true
             }
             a == "--allow-host" -> for (p in list(a, args.getOrNull(++i))) {
@@ -149,6 +152,26 @@ private fun cliMain(args: Array<String>): Int {
     if (!node && scriptArgs.isNotEmpty()) usageError("the arguments after -- are the script's process.argv: they need --node")
     System.setOut(java.io.PrintStream(java.io.FileOutputStream(java.io.FileDescriptor.out), true, "UTF-8"))
     System.setErr(java.io.PrintStream(java.io.FileOutputStream(java.io.FileDescriptor.err), true, "UTF-8"))
+    // as Node: a later file's variables replace an earlier one's, and the environment given otherwise (--env) wins
+    if (envFiles.isNotEmpty()) {
+        val fromFiles = LinkedHashMap<String, String>()
+        for ((path, optional) in envFiles) {
+            val text = try {
+                File(path).readText(Charsets.UTF_8)
+            } catch (_: java.io.IOException) {
+                if (optional) {
+                    System.err.println("$path not found. Continuing without it.")
+                    continue
+                }
+                System.err.println("neonjs: $path: not found")
+                return 9
+            }
+            fromFiles.putAll(DotEnv.parse(text))
+        }
+        fromFiles.putAll(env)
+        env.clear()
+        env.putAll(fromFiles)
+    }
     val agent = Agent()
     agent.config.executionMode = mode
     if (jitThreshold > 0) agent.config.jitThreshold = jitThreshold
@@ -290,28 +313,6 @@ private fun exitEvent(realm: Realm, status: Int): Int {
     proc.set("_exiting", true, proc)
     Ops.invoke(proc, "emit", arrayOf("exit", code.toDouble()))
     return exitCode(code)
-}
-
-/**
- * The variables of a `.env` file: `NAME=VALUE` lines (optionally `export NAME=VALUE`); `#` starts a comment outside
- * quotes; a value in single, double or back quotes is taken as is, and `\n` in double quotes is a newline.
- */
-private fun parseEnvFile(text: String): Map<String, String> {
-    val out = LinkedHashMap<String, String>()
-    for (raw in text.lineSequence()) {
-        val line = raw.trim().removePrefix("export ").trim()
-        if (line.isEmpty() || line.startsWith("#")) continue
-        val eq = line.indexOf('=').takeIf { it > 0 } ?: continue
-        var value = line.substring(eq + 1).trim()
-        val q = value.firstOrNull()
-        value = if (q == '"' || q == '\'' || q == '`') {
-            val end = value.indexOf(q, 1)
-            val v = if (end < 0) value.substring(1) else value.substring(1, end)
-            if (q == '"') v.replace("\\n", "\n") else v
-        } else value.substringBefore(" #").trim()
-        out[line.substring(0, eq).trim()] = value
-    }
-    return out
 }
 
 private fun repl(realm: Realm, agent: Agent) {

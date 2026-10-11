@@ -75,7 +75,7 @@ The jars are Java 21 class files. For Android, see [Android](#android).
 
 ```
 neonjs [--interpreter | --compiled | --adaptive] [--jit-threshold N] [--sync-jit] [--module] [--dis]
-       [--node] [--env NAME[=VALUE] ...] [--env-file FILE]
+       [--node] [--env NAME[=VALUE] ...] [--env-file FILE ...] [--env-file-if-exists FILE ...]
        [--allow-host PATTERNS ...] [--allow-all-hosts] [--allow-address CIDRS ...] [--allow-insecure]
        [-e CODE] [-f FILE ...] [file.js | file.mjs ...] [-- ARGS...]
 ```
@@ -94,8 +94,11 @@ application (see [Libraries from npm](#libraries-from-npm-bundled)):
 
 - `--node` gives scripts the Node.js APIs (`require` and the `node:` modules, `Buffer`, Node's timers and console).
   `process.env` holds only what `--env NAME=VALUE`, `--env NAME` (the host's value of `NAME`, which keeps it out of
-  the command line) and `--env-file FILE` (`NAME=VALUE` lines) give it; the arguments after `--` are the script's
-  (`process.argv` is `neonjs`, the first file's path, then those).
+  the command line) and `.env` files give it. `--env-file FILE` (or `--env-file=FILE`) and `--env-file-if-exists FILE`
+  read them as Node does, with Node's own parser: a later file's variables replace an earlier one's and `--env` wins
+  over all of them; a missing `--env-file` ends the run with status 9, a missing `--env-file-if-exists` is reported
+  and skipped. The arguments after `--` are the script's (`process.argv` is `neonjs`, the first file's path, then
+  those).
 - `fetch` and `WebSocket` reach nothing unless allowed: `--allow-host` takes host patterns (`example.com`,
   `*.example.com` for its subdomains, `example.com:8443`; comma-separated or repeated), `--allow-all-hosts` any host.
   Loopback and private addresses also need their range (`--allow-address 127.0.0.0/8,::1/128`), and `http:` / `ws:`
