@@ -150,8 +150,8 @@ private fun cliMain(args: Array<String>): Int {
     }
     if (!node && envGiven) usageError("--env and --env-file need --node")
     if (!node && scriptArgs.isNotEmpty()) usageError("the arguments after -- are the script's process.argv: they need --node")
-    System.setOut(java.io.PrintStream(java.io.FileOutputStream(java.io.FileDescriptor.out), true, "UTF-8"))
-    System.setErr(java.io.PrintStream(java.io.FileOutputStream(java.io.FileDescriptor.err), true, "UTF-8"))
+    System.setOut(java.io.PrintStream(java.io.FileOutputStream(java.io.FileDescriptor.out), true, Terminal.charset("stdout.encoding")))
+    System.setErr(java.io.PrintStream(java.io.FileOutputStream(java.io.FileDescriptor.err), true, Terminal.charset("stderr.encoding")))
     // as Node: a later file's variables replace an earlier one's, and the environment given otherwise (--env) wins
     if (envFiles.isNotEmpty()) {
         val fromFiles = LinkedHashMap<String, String>()
@@ -317,7 +317,7 @@ private fun exitEvent(realm: Realm, status: Int): Int {
 
 private fun repl(realm: Realm, agent: Agent) {
     println("NeonJS REPL - type .exit or press Ctrl+D to quit")
-    val reader = System.`in`.bufferedReader()
+    val reader = System.`in`.bufferedReader(Terminal.charset("stdin.encoding"))
     val buf = StringBuilder()
     while (true) {
         // run timers / host events that became due while the user was typing (what they leave uncaught is reported)
@@ -342,6 +342,27 @@ private fun repl(realm: Realm, agent: Agent) {
             buf.setLength(0)
             System.err.println("Uncaught RangeError: Maximum call stack size exceeded")
         }
+    }
+}
+
+/**
+ * The encoding of the standard streams: a terminal's own (on Windows its code page, so that a console set to 949
+ * shows Hangul rather than UTF-8 bytes), else UTF-8, as Node writes to files and pipes.
+ */
+private object Terminal {
+    private val console: java.io.Console? = System.console()
+
+    /** Whether the streams are a terminal's: [java.io.Console.isTerminal] from Java 22, a console at all before. */
+    private val isTerminal: Boolean = console != null && try {
+        java.io.Console::class.java.getMethod("isTerminal").invoke(console) as Boolean
+    } catch (_: NoSuchMethodException) {
+        true
+    }
+
+    /** The charset of the stream whose encoding the system property [property] names (the console's when unset). */
+    fun charset(property: String): java.nio.charset.Charset {
+        if (!isTerminal) return Charsets.UTF_8
+        return System.getProperty(property)?.let { runCatching { java.nio.charset.Charset.forName(it) }.getOrNull() } ?: console!!.charset()
     }
 }
 

@@ -85,7 +85,9 @@ Local files run in the order given, either as plain arguments or with `-f FILE` 
 the remaining files still run (exit status 1); a bad option exits with status 2. Without files or `-e` it starts a
 REPL. The executable jar runs the same way: `java -jar neonjs-cli-<version>-all.jar [options] [files]` (it
 includes `neonjs-intl`, `neonjs-net` and `neonjs-node`, and needs no `-Xss` flag). `print(...)` and `console.*` write
-to stdout/stderr; `.mjs` files (or `--module`) are run as ES modules with relative imports resolved from the file
+to stdout/stderr, in the terminal's encoding on a terminal (on Windows the console's code page: Hangul shows with
+code page 949, and characters outside the code page, such as emoji, need `chcp 65001`) and in UTF-8 to files and
+pipes; `.mjs` files (or `--module`) are run as ES modules with relative imports resolved from the file
 system. `--jit-threshold N` (adaptive mode: compile a function on its Nth call) and `--sync-jit` (compile on the
 calling thread) make compiled code run at a fixed point, for tests and comparisons.
 
