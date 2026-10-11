@@ -18,8 +18,8 @@ internal object Headers {
         /** The "request" guard: names the transport owns ([isForbiddenRequestHeader]) are left out silently. */
         @JvmField var requestGuard = false
 
-        /** Whether the guard leaves [name] out. */
-        fun guards(name: String) = requestGuard && isForbiddenRequestHeader(name)
+        /** Whether the guard leaves the header [name] out (with [value], for a method override). */
+        fun guards(name: String, value: String? = null) = requestGuard && (isForbiddenRequestHeader(name) || value != null && isForbiddenOverride(name, value))
 
         fun contains(name: String) = list.any { it.first.equals(name, ignoreCase = true) }
 
@@ -79,6 +79,15 @@ internal object Headers {
         return n in FORBIDDEN_REQUEST_HEADERS || n.startsWith("proxy-") || n.startsWith("sec-websocket-")
     }
 
+    private val METHOD_OVERRIDES = setOf("x-http-method", "x-http-method-override", "x-method-override")
+    private val FORBIDDEN_METHODS = setOf("CONNECT", "TRACE", "TRACK")
+
+    /** A method override header naming a forbidden method (CONNECT, TRACE, TRACK) among its comma-separated values. */
+    private fun isForbiddenOverride(name: String, value: String): Boolean {
+        if (name.lowercase(java.util.Locale.ROOT) !in METHOD_OVERRIDES) return false
+        return value.split(',').any { it.trim(' ', '\t').uppercase(java.util.Locale.ROOT) in FORBIDDEN_METHODS }
+    }
+
     private fun isTokenChar(c: Char) = c in 'a'..'z' || c in 'A'..'Z' || c in '0'..'9' || "!#$%&'*+-.^_`|~".indexOf(c) >= 0
 
     fun isToken(s: String) = s.isNotEmpty() && s.all { isTokenChar(it) }
@@ -112,14 +121,14 @@ internal object Headers {
                 if (p.size != 2) typeErr("$what: a header pair must have exactly two items")
                 val n = name(p[0], what)
                 val v = value(p[1], what)
-                if (!h.guards(n)) h.append(n, v)
+                if (!h.guards(n, v)) h.append(n, v)
             }
             return
         }
         for ((k, v) in Idl.record(init, { Idl.byteString(it, what) }, { Idl.byteString(it, what) })) {
             val n = name(k, what)
             val value = value(v, what)
-            if (!h.guards(n)) h.append(n, value)
+            if (!h.guards(n, value)) h.append(n, value)
         }
     }
 
@@ -136,7 +145,7 @@ internal object Headers {
             val name = name(a[0], "Headers.append")
             val value = value(a[1], "Headers.append")
             checkMutable(h, "Headers.append")
-            if (!h.guards(name)) h.append(name, value)
+            if (!h.guards(name, value)) h.append(name, value)
             Undefined
         }
         i.operation("delete", 1) { _, t, a, _ ->
@@ -167,7 +176,7 @@ internal object Headers {
             val name = name(a[0], "Headers.set")
             val value = value(a[1], "Headers.set")
             checkMutable(h, "Headers.set")
-            if (!h.guards(name)) h.set(name, value)
+            if (!h.guards(name, value)) h.set(name, value)
             Undefined
         }
         i.pairIterable(JSHeaders::class.java) { h -> h.sortedAndCombined() }

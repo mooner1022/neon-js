@@ -283,7 +283,9 @@ internal object Fetch {
                 }
                 "application/x-www-form-urlencoded" -> {
                     val fd = FormData.newFormData(f.realm)
-                    for (p in Url.parseForm(WebGlobals.utf8Decode(f.realm, bytes))) fd.entries.add(p)
+                    // the bytes as the urlencoded parser takes them: UTF-8 decoded without removing a BOM
+                    f.realm.agent.checkStringLength(bytes.size.toLong())
+                    for (p in Url.parseForm(WhatwgUtf8.decode(bytes))) fd.entries.add(p)
                     fd
                 }
                 else -> typeErr("$iface.formData: the body is neither multipart/form-data nor application/x-www-form-urlencoded")
