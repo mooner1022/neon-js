@@ -178,6 +178,17 @@ function clearImmediate(immediate) {
   }
 }
 
+// util.promisify(setTimeout) is timers/promises' setTimeout, as in Node
+const customPromisify = Symbol.for('nodejs.util.promisify.custom');
+Object.defineProperty(setTimeout, customPromisify, {
+  enumerable: true,
+  get() { return require('timers/promises').setTimeout; },
+});
+Object.defineProperty(setImmediate, customPromisify, {
+  enumerable: true,
+  get() { return require('timers/promises').setImmediate; },
+});
+
 module.exports = {
   setTimeout,
   clearTimeout,

@@ -44,9 +44,23 @@ internal class NodeRuntime(@JvmField val realm: Realm, @JvmField val options: No
         require.defineOwn("cache", JSObject(null), Attr.WC)
         defineModule("module") { moduleExports() }
         for (name in JS_MODULES) defineModule(name) { NodeLib.load(this, name) }
+        defineModule("util/types") { (require("node:util") as JSObject).let { it.get("types", it) } }
         val g = realm.globalObject
         g.defineOwn("global", g, Attr.WC)
         g.defineOwn("require", require, Attr.WC)
+        // Buffer, as in Node, but node:buffer runs only once a script looks at it
+        g.definePropertyOrThrow("Buffer", PropertyDescriptor.accessor(
+            NativeFunction(realm, "get Buffer", 0, { _, _, _, _ ->
+                val buffer = (require("node:buffer") as JSObject).let { it.get("Buffer", it) }
+                g.definePropertyOrThrow("Buffer", PropertyDescriptor.data(buffer, Attr.WC))
+                buffer
+            }),
+            NativeFunction(realm, "set Buffer", 1, { _, _, a, _ ->
+                g.definePropertyOrThrow("Buffer", PropertyDescriptor.data(a.arg(0), Attr.WC))
+                Undefined
+            }),
+            Attr.CONFIGURABLE,
+        ))
         ErrorStack.install(realm)
         // Node's timers are the global ones (Timeout objects rather than numbers), from the start
         val timers = require("node:timers") as JSObject
@@ -69,6 +83,16 @@ internal class NodeRuntime(@JvmField val realm: Realm, @JvmField val options: No
             Ops.invoke(proc, "emit", arrayOf(event, p!!.result, p))
         }
         return true
+    }
+
+    private val internals = HashMap<String, Any?>()
+
+    /** The libraries' own module `internal/[name]`, run once per realm (on first use). */
+    fun internal(name: String): Any? {
+        internals[name]?.let { return it }
+        val exports = NodeLib.load(this, "internal/$name")
+        internals[name] = exports
+        return exports
     }
 
     fun require(id: String): Any? {
@@ -111,7 +135,7 @@ internal class NodeRuntime(@JvmField val realm: Realm, @JvmField val options: No
     companion object {
         const val KEY = "%Node%"
         /** The built-in modules written in JS (resources lib/<name>.js). */
-        private val JS_MODULES = listOf("events", "process", "timers", "timers/promises")
+        private val JS_MODULES = listOf("buffer", "events", "process", "string_decoder", "timers", "timers/promises", "util")
         private val TIMER_GLOBALS = listOf("setTimeout", "clearTimeout", "setInterval", "clearInterval", "setImmediate", "clearImmediate")
 
         /** The Node.js side of [realm] (a realm the extension was installed in). */

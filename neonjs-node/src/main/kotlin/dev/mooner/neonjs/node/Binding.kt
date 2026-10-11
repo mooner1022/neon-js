@@ -115,6 +115,12 @@ internal class Binding(private val rt: NodeRuntime) {
             write(stream, Ops.toString(a.arg(1)))
             Undefined
         }
+
+        // ---------------- modules
+        b.defineOwn("buffer", BufferBinding.create(realm), Attr.NONE)
+        b.defineOwn("types", Types.create(realm), Attr.NONE)
+        // the libraries' own modules (lib/internal_<name>.js), which scripts cannot require
+        fn("internal", 1) { _, _, a, _ -> rt.internal(Ops.toString(a.arg(0))) }
         return b
     }
 
