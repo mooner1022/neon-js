@@ -61,6 +61,15 @@ internal object Types {
         return null
     }
 
+    /** `length`, then the other string keys, then the symbols: the order of [JSArray.ownPropertyKeys] without the indices. */
+    private fun arrayNonIndexKeys(a: JSArray): List<Any> {
+        val out = arrayListOf<Any>("length")
+        val pm = a.props ?: return out
+        pm.forEachLive { i -> val k = pm.keys[i]!!; if (k is String && PK.arrayIndex(k) < 0) out.add(k) }
+        pm.forEachLive { i -> val k = pm.keys[i]!!; if (k is JSSymbol) out.add(k) }
+        return out
+    }
+
     fun create(realm: Realm): JSObject {
         val b = JSObject(null)
         fun fn(name: String, length: Int, impl: NativeImpl) = b.defineOwn(name, NativeFunction(realm, name, length, impl), Attr.NONE)
@@ -93,7 +102,12 @@ internal object Types {
         fn("ownNonIndexKeys", 2) { f, _, a, _ ->
             val o = a.arg(0) as? JSObject ?: return@fn JSArray.of(f.realm.arrayPrototype, emptyArray())
             val all = Ops.toBoolean(a.arg(1))
-            val keys = if (o is JSTypedArray) o.ordinaryOwnKeys(null) else o.ownPropertyKeys()
+            // an array's or typed array's own keys without listing its elements first
+            val keys = when (o) {
+                is JSTypedArray -> o.ordinaryOwnKeys(null)
+                is JSArray -> arrayNonIndexKeys(o)
+                else -> o.ownPropertyKeys()
+            }
             val out = ArrayList<Any?>()
             for (k in keys) {
                 if (k is Int || (k is String && PK.arrayIndex(k) >= 0)) continue

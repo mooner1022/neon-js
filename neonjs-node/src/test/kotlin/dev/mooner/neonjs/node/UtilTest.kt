@@ -177,6 +177,15 @@ class UtilTest {
             assertEquals("The \"list[1]\" argument must be an instance of Buffer or Uint8Array. Received type string ('x')", c.str("""
                 try { Buffer.concat([Buffer.alloc(1), 'x']) } catch (err) { err.message }
             """))
+            // the libraries' messages and layouts use their own inspect, not the one a script can replace
+            assertEquals("Received 5|[ 1, [length]: 1 ]", c.str("""
+                const util = require('util'), realInspect = util.inspect;
+                util.inspect = () => 'replaced';
+                let msg;
+                try { Buffer.alloc(1).readUInt8(5) } catch (err) { msg = err.message.slice(-10) }
+                util.inspect = realInspect;
+                [msg, util.inspect([1], { showHidden: true })].join('|')
+            """))
         }
     }
 }

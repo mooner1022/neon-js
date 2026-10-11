@@ -52,6 +52,7 @@ const inspectDefaultOptions = Object.seal({
 });
 
 const kObjectType = 0;
+const kArrayType = 1;
 const kArrayExtrasType = 2;
 const kMinLineWidth = 16;
 
@@ -812,7 +813,7 @@ function formatArray(ctx, value, recurseTimes) {
   const output = [];
   for (let i = 0; i < len; i++) {
     if (!ObjectPrototypeHasOwnProperty(value, i)) return formatSpecialArray(ctx, value, recurseTimes, len, output, i);
-    output.push(formatProperty(ctx, value, recurseTimes, i, kArrayExtrasType));
+    output.push(formatProperty(ctx, value, recurseTimes, i, kArrayType));
   }
   if (remaining > 0) output.push(remainingText(remaining));
   return output;
@@ -834,7 +835,7 @@ function formatSpecialArray(ctx, value, recurseTimes, maxLength, output, i) {
       index = tmp;
       if (output.length === maxLength) break;
     }
-    output.push(formatProperty(ctx, value, recurseTimes, key, kArrayExtrasType));
+    output.push(formatProperty(ctx, value, recurseTimes, key, kArrayType));
     index++;
   }
   const remaining = value.length - index;
@@ -849,7 +850,7 @@ function formatSpecialArray(ctx, value, recurseTimes, maxLength, output, i) {
   return output;
 }
 
-let hexSlice;
+const kHex = 4; // binding.buffer's index of hex
 function formatArrayBuffer(ctx, value) {
   let buffer;
   try {
@@ -857,8 +858,7 @@ function formatArrayBuffer(ctx, value) {
   } catch {
     return [ctx.stylize('(detached)', 'special')];
   }
-  if (hexSlice === undefined) hexSlice = uncurry(require('buffer').Buffer.prototype.hexSlice);
-  let str = hexSlice(buffer, 0, Math.min(ctx.maxArrayLength, buffer.length)).replace(/(.{2})/g, '$1 ').trim();
+  let str = binding.buffer.toString(buffer, kHex, 0, Math.min(ctx.maxArrayLength, buffer.length)).replace(/(.{2})/g, '$1 ').trim();
   const remaining = buffer.length - ctx.maxArrayLength;
   if (remaining > 0) str += ` ... ${remaining} more byte${remaining > 1 ? 's' : ''}`;
   return [`${ctx.stylize('[Uint8Contents]', 'special')}: <${str}>`];
@@ -992,7 +992,8 @@ function formatProperty(ctx, value, recurseTimes, key, type, desc, original = va
   } else {
     str = ctx.stylize('undefined', 'undefined');
   }
-  if (type === kArrayExtrasType) return str;
+  // an element: no key
+  if (type === kArrayType) return str;
   if (typeof key === 'symbol') {
     name = `[${ctx.stylize(SymbolPrototypeToString(key).replace(strEscapeSequencesReplacer, escapeFn), 'symbol')}]`;
   } else if (key === '__proto__') {

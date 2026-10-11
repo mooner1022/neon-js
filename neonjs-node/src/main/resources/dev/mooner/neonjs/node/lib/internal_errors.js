@@ -5,9 +5,10 @@
 const kTypes = ['string', 'function', 'number', 'object', 'Function', 'Object', 'boolean', 'bigint', 'symbol'];
 const classRegExp = /^([A-Z][a-z0-9]*)+$/;
 
+// internal/inspect's own inspect (not util's, which a script may replace); loaded on first use, as it needs this module
 let inspect;
 function lazyInspect(v, opts) {
-  if (inspect === undefined) inspect = require('util').inspect;
+  if (inspect === undefined) inspect = binding.internal('inspect').inspect;
   return inspect(v, opts);
 }
 

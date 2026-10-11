@@ -709,7 +709,7 @@ defineMethods(proto, {
       if (extras) {
         if (this.length !== 0) str += ', ';
         // '[Object: null prototype] {'.length === 26
-        str += require('util').inspect(obj, { ...ctx, breakLength: Infinity, compact: true }).slice(27, -2);
+        str += binding.internal('inspect').inspect(obj, { ...ctx, breakLength: Infinity, compact: true }).slice(27, -2);
       }
     }
     return `<${this.constructor.name} ${str}>`;

@@ -20,10 +20,8 @@ const kIsArray = 1;
 const kIsSet = 2;
 const kIsMap = 3;
 
-let compareBytes;
 function bytesEqual(a, b) {
-  if (compareBytes === undefined) compareBytes = require('buffer').Buffer.compare;
-  return compareBytes(a, b) === 0;
+  return binding.buffer.compare(a, 0, a.length, b, 0, b.length) === 0;
 }
 
 function isError(v) {
