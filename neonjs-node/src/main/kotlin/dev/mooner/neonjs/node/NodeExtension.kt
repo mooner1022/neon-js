@@ -152,7 +152,7 @@ internal class NodeRuntime(@JvmField val realm: Realm, @JvmField val options: No
         private val JS_MODULES = listOf(
             "assert", "assert/strict", "buffer", "child_process", "crypto", "dns", "dns/promises", "events", "fs", "fs/promises", "http",
             "https", "net", "os", "path", "path/posix", "path/win32", "process", "querystring", "string_decoder", "timers",
-            "timers/promises", "tls", "url", "util", "worker_threads",
+            "timers/promises", "tls", "url", "util", "worker_threads", "zlib",
         )
         private val TIMER_GLOBALS = listOf("setTimeout", "clearTimeout", "setInterval", "clearInterval", "setImmediate", "clearImmediate")
 
