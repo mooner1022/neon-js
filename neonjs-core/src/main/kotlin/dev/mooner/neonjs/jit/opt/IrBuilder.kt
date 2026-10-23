@@ -157,6 +157,7 @@ internal class IrBuilder(
             for (b in order) for (s in successors(b.pc)) blockAt[s]!!.preds.add(b)
             for ((pc, e) in catchEntries) blockAt[pc]!!.preds.add(e)
             for (b in order) b.handler = coverOf(b.pc) ?: outerHandler
+            liveness()
             if (catchEntries.isNotEmpty()) homeRegs = homes()
             goto(from, first)
             stateOut[from] = regs
@@ -190,11 +191,24 @@ internal class IrBuilder(
             depthOut[e] = 1
         }
 
-        /** Registers live before each instruction, exceptions included (computed by [homes]). */
+        /** Registers live before each instruction, exceptions included ([liveness]). */
         lateinit var liveIn: Array<BooleanArray>
+
+        /**
+         * [v], register [r]'s value, in the state at [pc]: undefined where the register is dead there (the interpreter
+         * writes it before it reads it), so that an exit does not keep the value (nor a phi of it) alive.
+         */
+        fun regAt(pc: Int, r: Int, v: Value): Value = if (pc < bc.size && !liveIn[pc][r]) undefined() else v
 
         /** The registers live at some handler's start: those kept in homes. */
         private fun homes(): IntArray {
+            val out = ArrayList<Int>()
+            for (r in 0 until nregs) if (catchEntries.keys.any { liveIn[it][r] }) out.add(r)
+            return out.toIntArray()
+        }
+
+        /** [liveIn]: the registers the bytecode may read before writing them, from each instruction on. */
+        private fun liveness() {
             val pcs = ArrayList<Int>()
             var p = 0
             while (p < bc.size) {
@@ -223,9 +237,6 @@ internal class IrBuilder(
                     }
                 }
             }
-            val out = ArrayList<Int>()
-            for (r in 0 until nregs) if (catchEntries.keys.any { liveIn[it][r] }) out.add(r)
-            return out.toIntArray()
         }
 
         private fun handlerOf(pc: Int): Int? {
@@ -384,7 +395,7 @@ internal class IrBuilder(
                 b.entryDepth = stack.size
             }
             var cur = b
-            fun state(pc: Int) = FrameState(pc, Array(nregs + stack.size) { if (it < nregs) regs[it]!! else stack[it - nregs] }, site)
+            fun state(pc: Int) = FrameState(pc, Array(nregs + stack.size) { if (it < nregs) regAt(pc, it, regs[it]!!) else stack[it - nregs] }, site)
             // in a handler's range: the registers it may read where it finds them
             val homed = site == null && b.handler != null && homeRegs.isNotEmpty()
             fun home(r: Int) {
@@ -661,9 +672,10 @@ internal class IrBuilder(
             // the guard: anything else than a closure of the target here leaves before the call, which the
             // interpreter then makes
             val guard = add(cur, Inst(Ir.CHECK_CLOSURE, arrayOf(fn), g.dataIndex(target), 0, 0, pc, stmt))
-            guard.state = FrameState(pc, Array(nregs + stack.size) { if (it < nregs) regs[it]!! else stack[it - nregs] }, site)
+            guard.state = FrameState(pc, Array(nregs + stack.size) { if (it < nregs) regAt(pc, it, regs[it]!!) else stack[it - nregs] }, site)
             repeat(n) { stack.removeAt(stack.size - 1) }
-            val callerState = FrameState(pc, Array(nregs + stack.size) { if (it < nregs) regs[it]!! else stack[it - nregs] }, site)
+            // (where the caller goes on after the call: what is live at the call is)
+            val callerState = FrameState(pc, Array(nregs + stack.size) { if (it < nregs) regAt(pc, it, regs[it]!!) else stack[it - nregs] }, site)
             val enter = add(cur, Inst(Ir.INLINE_ENTER, arrayOf(fn), pc, 0, 0, pc, stmt))
             val env = add(cur, Inst(Ir.CLOSURE_ENV, arrayOf(fn), 0, 0, 0, pc, stmt).also { it.hasResult = true })
             val thisValue = if (readsThis(target)) {
