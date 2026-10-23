@@ -341,6 +341,7 @@ internal class IrCodegen(
             regs != null && b.entryDepth == 0 && java.util.Arrays.binarySearch(targets, b.pc) >= 0 &&
                 live[b]!!.all { v -> regs.any { it === v } }
         }.sortedBy { it.pc }
+        g.osrPcs = entries.map { it.pc }.distinct().toIntArray()
         val normal = Label()
         val none = Label()
         frame()

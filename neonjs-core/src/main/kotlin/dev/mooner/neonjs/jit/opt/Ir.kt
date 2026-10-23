@@ -12,6 +12,8 @@ import dev.mooner.neonjs.jit.JT
 class Graph(@JvmField val code: CodeBlock) {
     /** Blocks in reverse post order; the first is the entry. */
     @JvmField val blocks = ArrayList<Block>()
+    /** The loop headers the generated code can be entered at (IrCodegen's on-stack replacement entries), sorted. */
+    @JvmField var osrPcs = IntArray(0)
     /** Objects the code needs at run time (T2Code.data), each once. */
     @JvmField val data = ArrayList<Any?>()
 

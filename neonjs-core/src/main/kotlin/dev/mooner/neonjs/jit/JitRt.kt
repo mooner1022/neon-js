@@ -62,6 +62,18 @@ object JitRt {
      */
     @JvmStatic fun deoptChain(f: Frame, pc: Int, values: Array<Any?>, inner: Any?): Any? = Deopt.resume(f, pc, values, inner as Deopt.Inlined?)
 
+    /**
+     * Whether the code running [f] ([code]) finds, at a loop back edge, a later version of its block's code installed
+     * (the optimizing tier's) that it can be entered at the loop header [pc] (JvmCompiler, Gen.tierUpCheck).
+     */
+    @JvmStatic fun canTierUp(f: Frame, code: Any?, pc: Int): Boolean {
+        val c = f.code.compiled
+        return c !== code && c is dev.mooner.neonjs.jit.opt.T2Code && c.hasEntry(pc)
+    }
+
+    /** The loop of [f] at header [pc], with registers [values], goes on in its block's later code (Deopt.tierUp). */
+    @JvmStatic fun tierUp(f: Frame, pc: Int, values: Array<Any?>): Any? = Deopt.tierUp(f, pc, values)
+
     /** A call compiled inlined live at an exit, inside [inner] (Deopt.Inlined): built by the optimizing tier's exits. */
     @JvmStatic fun inlined(fn: Any?, thisV: Any?, args: Array<Any?>, env: Any?, pc: Int, values: Array<Any?>, inner: Any?): Any =
         Deopt.Inlined(fn.cast<JSClosure>(), thisV, args, env as Env?, pc, values, inner as Deopt.Inlined?)

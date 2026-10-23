@@ -17,10 +17,13 @@ interface JitBackend {
     fun compile(blocks: List<CodeBlock>): List<CompiledCode?>
 }
 
-/** The JVM bytecode backend: [JvmCompiler] generates classes, [definer] defines them, a batch at a time. */
-class ClassBackend(val definer: CodeDefiner) : JitBackend {
-    override fun compile(blocks: List<CodeBlock>): List<CompiledCode?> = JvmCompiler.compileAll(blocks, definer)
+/**
+ * The JVM bytecode backend: [JvmCompiler] generates classes, [definer] defines them, a batch at a time. With [tierUp]
+ * (the optimizing tier on), the code's loops move to the tier's code once it is installed (JitInput.tierUp).
+ */
+class ClassBackend(val definer: CodeDefiner, val tierUp: Boolean = false) : JitBackend {
+    override fun compile(blocks: List<CodeBlock>): List<CompiledCode?> = JvmCompiler.compileAll(blocks, definer, tierUp)
 
-    override fun equals(other: Any?): Boolean = other is ClassBackend && other.definer === definer
-    override fun hashCode(): Int = System.identityHashCode(definer)
+    override fun equals(other: Any?): Boolean = other is ClassBackend && other.definer === definer && other.tierUp == tierUp
+    override fun hashCode(): Int = System.identityHashCode(definer) * 31 + (if (tierUp) 1 else 0)
 }

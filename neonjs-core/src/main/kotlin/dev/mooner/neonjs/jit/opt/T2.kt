@@ -52,7 +52,8 @@ object T2 {
             }
             JvmCompiler.DUMP_DIR?.let { dir -> runCatching { java.io.File(dir, name.substringAfterLast('/') + ".class").writeBytes(bytes) } }
             val cls = definer.define(name.replace('/', '.'), bytes, JvmCompiler::class.java.classLoader)
-            val code = cls.getDeclaredConstructor(Array<Any?>::class.java, CodeBlock::class.java).newInstance(g.data.toTypedArray(), cb) as CompiledCode
+            val code = cls.getDeclaredConstructor(Array<Any?>::class.java, CodeBlock::class.java).newInstance(g.data.toTypedArray(), cb) as T2Code
+            code.osrPcs = g.osrPcs
             compiledCount.incrementAndGet()
             return code
         } catch (e: Throwable) {
@@ -77,10 +78,13 @@ object T2 {
         java.util.concurrent.ThreadPoolExecutor.DiscardPolicy(),
     ).also { it.allowCoreThreadTimeOut(true) }
 
-    /** Compiles [cb] on the tier's background thread and installs the code over its baseline, which runs meanwhile. */
-    fun submit(cb: CodeBlock, definer: CodeDefiner) {
+    /**
+     * Compiles [cb] on the tier's background thread (on the calling thread without [background]) and installs the code
+     * over its baseline, which runs meanwhile.
+     */
+    fun submit(cb: CodeBlock, definer: CodeDefiner, background: Boolean = true) {
         if (cb.t2Off || !JvmCompiler.canCompile(cb)) return
-        queue.execute { compileOver(cb, definer) }
+        if (background) queue.execute { compileOver(cb, definer) } else compileOver(cb, definer)
     }
 
     /** Compiles [cb] with [definer] and installs the code over its baseline (the stress mode). */

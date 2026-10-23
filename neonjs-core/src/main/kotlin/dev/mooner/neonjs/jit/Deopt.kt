@@ -33,9 +33,28 @@ object Deopt {
         @JvmField val inner: Inlined?,
     )
 
-    /** Exits taken, and those inside calls compiled inlined. */
+    /** Exits taken, and those inside calls compiled inlined; loops moved to a later version of their code ([tierUp]). */
     @JvmField val count = AtomicLong()
     @JvmField val inlinedCount = AtomicLong()
+    @JvmField val tierUps = AtomicLong()
+
+    /**
+     * Continues [f], whose code found a later version of its block's code installed at a loop back edge (JitRt.canTierUp),
+     * in that version: the frame becomes interpreted at the loop header [pc] with the registers [values], then enters
+     * the new code there by on-stack replacement; where that code declines the entry or deoptimizes, the interpreter goes
+     * on. Returns the frame's result, or [JitRt.DEOPTED] when the code was given [f] interpreted (as [resume]).
+     */
+    @JvmStatic
+    fun tierUp(f: Frame, pc: Int, values: Array<Any?>): Any? {
+        tierUps.incrementAndGet()
+        val entered = !f.isCompiled
+        JitRt.dropInlined(f)
+        write(f, values)
+        f.pc = pc
+        val r = Jit.osr(f)
+        if (r !== JitRt.NO_OSR && r !== JitRt.DEOPTED) return r
+        return if (entered) JitRt.DEOPTED else Interpreter.run(f)
+    }
 
     /**
      * Continues [f], the frame of an activation of compiled code, in the interpreter: at [pc] with [values] (registers,

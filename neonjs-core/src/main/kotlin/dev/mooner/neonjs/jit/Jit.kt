@@ -131,7 +131,7 @@ object Jit {
 
     /** The backend compiling for [agent]: JVM classes defined by its code definer. */
     @JvmStatic
-    fun backend(agent: Agent): JitBackend = ClassBackend(agent.config.codeDefiner ?: CodeDefiners.default)
+    fun backend(agent: Agent): JitBackend = ClassBackend(agent.config.codeDefiner ?: CodeDefiners.default, agent.config.tier2)
 
     /** In compiled mode, queues the functions [cb] defines (once per block; not for blocks compiled in advance). */
     private fun queueChildren(cb: CodeBlock, agent: Agent) {

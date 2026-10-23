@@ -13,6 +13,10 @@ import dev.mooner.neonjs.vm.Frame
  */
 abstract class T2Code(@JvmField val data: Array<Any?>, @JvmField val block: CodeBlock) : CompiledCode {
     @JvmField var deopts = 0
+    /** The loop headers the code can be entered at by on-stack replacement, sorted. */
+    @JvmField var osrPcs: IntArray = IntArray(0)
+
+    fun hasEntry(pc: Int): Boolean = java.util.Arrays.binarySearch(osrPcs, pc) >= 0
 
     companion object {
         /** Deoptimizations after which a block's code goes back to its baseline, and the block stays there. */

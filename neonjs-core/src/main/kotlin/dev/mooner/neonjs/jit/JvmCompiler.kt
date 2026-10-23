@@ -12,7 +12,16 @@ import java.util.concurrent.atomic.AtomicLong
  * only these fields, so [identity], a hash of all of them, decides whether two code blocks can share a class. Constants
  * are not part of it (generated code reads them from the running frame's code block at run time).
  */
-class JitInput(cb: CodeBlock, debugInfo: Boolean = JvmCompiler.DEBUG_INFO, planInlining: Boolean = true) {
+class JitInput(
+    cb: CodeBlock,
+    debugInfo: Boolean = JvmCompiler.DEBUG_INFO,
+    planInlining: Boolean = true,
+    /**
+     * Whether the code moves to a later version of its block's code (the optimizing tier's) from its loops
+     * (Gen.tierUpCheck): with the tier on.
+     */
+    @JvmField val tierUp: Boolean = false,
+) {
     /** Function name part of the class name (for profilers). */
     @JvmField val name: String = JvmCompiler.sanitize(cb.name)
     @JvmField val code: IntArray = cb.code
@@ -84,6 +93,7 @@ class JitInput(cb: CodeBlock, debugInfo: Boolean = JvmCompiler.DEBUG_INFO, planI
         ints(statementPcs)
         ints(lines)
         out.writeUTF(sourceName ?: "")
+        if (tierUp) out.writeUTF("tierUp")
         out.flush()
         md.digest().copyOf(16).joinToString("") { "%02x".format(it) }
     }
@@ -169,7 +179,7 @@ object JvmCompiler {
      * definer's [CodeCache], and the new classes are defined with one [CodeDefiner.defineAll] call (one dex file on
      * Android). Element i of the result is the code for `blocks[i]`, or null if it cannot be compiled. Never throws.
      */
-    fun compileAll(blocks: List<CodeBlock>, definer: CodeDefiner): List<CompiledCode?> {
+    fun compileAll(blocks: List<CodeBlock>, definer: CodeDefiner, tierUp: Boolean = false): List<CompiledCode?> {
         val out = arrayOfNulls<CompiledCode>(blocks.size)
         val usable = CodeDefiners.isUsable(definer)
         // visible classes live in the engine's class loader under counter names: never shared
@@ -192,7 +202,7 @@ object JvmCompiler {
                 continue
             }
             try {
-                val input = JitInput(cb)
+                val input = JitInput(cb, tierUp = tierUp)
                 // read by the generated code through its frame's code block: set before the code is installed
                 cb.inlineTargets = input.inlineTargets
                 val id = if (cache == null) "#$i" else input.identity
@@ -1083,6 +1093,40 @@ object JvmCompiler {
             }
         }
 
+        /**
+         * The back edge JUMP at [pc] to the loop header [target] (an empty stack there), with the optimizing tier on: the
+         * interrupt check, and, when it runs (every 4096 iterations), a look at the block's code: when a later version is
+         * installed that can be entered at [target] (JitRt.canTierUp), the loop goes on in it (JitRt.tierUp), from an
+         * exit after the method's body with the registers at [pc] (as at [target]: the jump changes none).
+         */
+        private fun tierUpCheck(pc: Int, target: Int) {
+            val ta = ta!!
+            val ok = Label()
+            val exit = Label()
+            mv.visitIincInsn(L_BUDGET, -1)
+            mv.visitVarInsn(ILOAD, L_BUDGET)
+            mv.visitJumpInsn(IFGT, ok)
+            mv.visitVarInsn(ALOAD, L_AGENT)
+            mv.visitMethodInsn(INVOKEVIRTUAL, "dev/mooner/neonjs/runtime/Agent", "checkInterrupt", "()V", false)
+            iconst(4096)
+            mv.visitVarInsn(ISTORE, L_BUDGET)
+            frame()
+            mv.visitVarInsn(ALOAD, 0)
+            iconst(target)
+            rt("canTierUp", "(${FRAME_D}${OBJ}I)Z")
+            mv.visitJumpInsn(IFNE, exit)
+            mv.visitLabel(ok)
+            val regKinds = ByteArray(cb.numRegs) { ta.regKind(pc, it) }
+            root.exits.add {
+                mv.visitLabel(exit)
+                frame()
+                iconst(target)
+                values(regKinds, ByteArray(0), IntArray(0))
+                rt("tierUp", "(${FRAME_D}I$CONSTS_D)$OBJ")
+                mv.visitInsn(ARETURN)
+            }
+        }
+
         /** Whether this (inlined) function reads `this`. */
         fun readsThis(): Boolean {
             var pc = 0
@@ -1359,7 +1403,10 @@ object JvmCompiler {
                     return
                 }
                 Op.JUMP -> {
-                    if (a <= pc) interruptCheck()
+                    if (a <= pc) {
+                        if (cb.tierUp && inl == null && st.size == 0 && ta.stackIn[a]!!.isEmpty()) tierUpCheck(pc, a)
+                        else interruptCheck()
+                    }
                     convertTo(ta.stackIn[a]!!)
                     mv.visitJumpInsn(GOTO, label(a))
                     return

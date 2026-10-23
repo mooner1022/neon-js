@@ -274,6 +274,39 @@ class T2Test {
     }
 
     @Test
+    fun runningLoopsMoveToTheTiersCode() {
+        // T1 code with the tier on checks its block's code at loop back edges: once T2 code is installed (here by the
+        // loop itself, through a host function), the running loop goes on in it (Deopt.tierUp)
+        val src = """
+            function f(n) { var s = 0, t = 0.5, str = ''; for (var i = 0; i < n; i++) { s = (s + i % 7) | 0; t = t * 1.0001 + 1; if (i === 5000) install('f'); if (i % 9000 === 1) str += i } return [s, t.toFixed(2), str].join(' ') }
+            function g(n) { var s = 0; for (var i = 0; i < n; i++) { for (var j = 0; j < 3; j++) s += j; if (i === 7000) install('g') } return s }
+            """.trimIndent()
+        val expr = "[f(40000), g(30000)].join('|')"
+        val expected = interpreted(src.replace("install('f')", "0").replace("install('g')", "0"), expr)
+        val tierUps = dev.mooner.neonjs.jit.Deopt.tierUps.get()
+        NeonEngine.builder().executionMode(ExecutionMode.COMPILED).backgroundCompilation(false).console(null).build().newContext().use { ctx ->
+            ctx.agent.config.tier2 = true
+            ctx.setFunction("install") { args ->
+                // the block of the function running the loop
+                val n = args[0].asString()
+                val cb: CodeBlock = (ctx.eval(n).raw as JSClosure).code
+                Jit.install(cb, T2.compile(cb, CodeDefiners.default) ?: fail("$n not compiled"))
+                null
+            }
+            ctx.eval(src)
+            // compiled mode: T1 code before the first call; the tier's own compilation (on this thread) is undone first,
+            // so that the loops start in T1 code
+            for (n in listOf("f", "g")) {
+                val cb: CodeBlock = (ctx.eval(n).raw as JSClosure).code
+                cb.baseline ?: JvmCompiler.compileAll(listOf(cb), CodeDefiners.default, tierUp = true)[0]!!.also { cb.baseline = it; cb.compiled = it }
+                cb.compiled = cb.baseline
+            }
+            assertEquals(expected, ctx.eval(expr).asString())
+        }
+        assertTrue(dev.mooner.neonjs.jit.Deopt.tierUps.get() - tierUps >= 2, "loops moved: ${dev.mooner.neonjs.jit.Deopt.tierUps.get() - tierUps}")
+    }
+
+    @Test
     fun errorsAndTdz() {
         same(
             """

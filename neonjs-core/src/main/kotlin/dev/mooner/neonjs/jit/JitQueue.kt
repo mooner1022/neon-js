@@ -124,7 +124,7 @@ object JitQueue {
                 val definer = (t.backend as? ClassBackend)?.definer
                 if (definer != null) {
                     if (dev.mooner.neonjs.jit.opt.T2.STRESS) dev.mooner.neonjs.jit.opt.T2.compileOver(cb, definer)
-                    else if (t.owner?.config?.tier2 == true) dev.mooner.neonjs.jit.opt.T2.submit(cb, definer)
+                    else t.owner?.config?.let { c -> if (c.tier2) dev.mooner.neonjs.jit.opt.T2.submit(cb, definer, c.backgroundJit) }
                 }
             }
         } else if (cb.baseline == null) cb.jitFailed = true
