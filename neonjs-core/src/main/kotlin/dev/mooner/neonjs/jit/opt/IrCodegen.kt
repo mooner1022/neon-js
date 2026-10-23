@@ -38,6 +38,16 @@ internal class IrCodegen(
     private val intKind = if (ints) JT.INT else JT.NUM
     /** The statement position stored in Frame.pc since the current block started (-2: none). */
     private var storedPc = -2
+    /** The inlined call whose body the block being generated belongs to (null: the function compiled). */
+    private var curSite: InlineSite? = null
+    /** The locals holding T2Code.data and each code block's constants (the function compiled's: L_CONSTS). */
+    private var dataLocal = -1
+    private val constsLocal = HashMap<dev.mooner.neonjs.compiler.CodeBlock, Int>()
+
+    // an inlined body reads its own constants and environment, and its calls record their position in Frame.inlinePc
+    override fun consts() = mv.visitVarInsn(ALOAD, curSite?.let { constsLocal[it.code]!! } ?: L_CONSTS)
+    override fun inlinedEnv(): Int = curSite?.let { local[it.env]!! } ?: -1
+    override val inInlinedBody: Boolean get() = curSite != null
 
     /** The exits reached from `run`: the label of each, its state, and whether an assumption failed there. */
     private class Exit(val label: Label, val state: FrameState, val counted: Boolean)
@@ -65,7 +75,7 @@ internal class IrCodegen(
      */
     private fun emitExit(n: Int, e: Exit) {
         mv.visitLabel(e.label)
-        val params = e.state.values.filter { it !is Const }.distinct()
+        val params = (e.state.values.asList() + (e.state.site?.values() ?: emptyList())).filter { it !is Const }.distinct()
         mv.visitVarInsn(ALOAD, 0)
         frame()
         for (v in params) load(v, v.kind)
@@ -94,35 +104,50 @@ internal class IrCodegen(
         val em = object : JvmEmitter(m) {
             var top = firstFree
             override fun alloc(n: Int): Int = top.also { top += n }
-            // the constants of the frame's code block
-            override fun consts() {
-                m.visitVarInsn(ALOAD, L_FRAME)
-                m.visitFieldInsn(GETFIELD, FRAME, "code", CODEBLOCK_D)
-                m.visitFieldInsn(GETFIELD, CODEBLOCK, "constants", CONSTS_D)
-            }
         }
-        val values = e.state.values
-        em.iconst(values.size)
-        m.visitTypeInsn(ANEWARRAY, "java/lang/Object")
-        for ((j, v) in values.withIndex()) {
-            m.visitInsn(DUP)
-            em.iconst(j)
+        fun value(v: Value) {
             if (v is Const) constObject(em, v)
             else {
                 m.visitVarInsn(when (v.kind) { JT.NUM -> DLOAD; JT.INT, JT.BOOL -> ILOAD; else -> ALOAD }, slot[v]!!)
                 em.box(v.kind)
             }
-            m.visitInsn(AASTORE)
         }
-        val arr = em.temp()
-        m.visitVarInsn(ASTORE, arr)
+        fun array(values: Array<Value>) {
+            em.iconst(values.size)
+            m.visitTypeInsn(ANEWARRAY, "java/lang/Object")
+            for ((j, v) in values.withIndex()) {
+                m.visitInsn(DUP)
+                em.iconst(j)
+                value(v)
+                m.visitInsn(AASTORE)
+            }
+        }
+        // the calls compiled inlined, innermost first (Deopt.Inlined, each inside the next), then the frame's state
+        val inner = em.temp()
+        m.visitInsn(ACONST_NULL)
+        m.visitVarInsn(ASTORE, inner)
+        var s = e.state
+        while (true) {
+            val site = s.site ?: break
+            value(site.fn)
+            value(site.thisValue)
+            array(site.args)
+            value(site.env)
+            em.iconst(s.pc)
+            array(s.values)
+            m.visitVarInsn(ALOAD, inner)
+            em.rt("inlined", "($OBJ$OBJ$CONSTS_D${OBJ}I$CONSTS_D$OBJ)$OBJ")
+            m.visitVarInsn(ASTORE, inner)
+            s = site.callerState
+        }
         if (e.counted) m.visitVarInsn(ALOAD, 0)
         m.visitVarInsn(ALOAD, L_FRAME)
-        em.iconst(e.state.pc)
-        m.visitVarInsn(ALOAD, arr)
+        em.iconst(s.pc)
+        array(s.values)
+        m.visitVarInsn(ALOAD, inner)
         if (e.counted) {
-            m.visitMethodInsn(INVOKESTATIC, SUPER, "exit", "(L$SUPER;${FRAME_D}I$CONSTS_D)$OBJ", false)
-        } else em.rt("deopt", "(${FRAME_D}I$CONSTS_D)$OBJ")
+            m.visitMethodInsn(INVOKESTATIC, SUPER, "exit", "(L$SUPER;${FRAME_D}I$CONSTS_D$OBJ)$OBJ", false)
+        } else em.rt("deoptChain", "(${FRAME_D}I$CONSTS_D$OBJ)$OBJ")
         m.visitInsn(ARETURN)
         m.visitMaxs(0, 0)
         m.visitEnd()
@@ -136,7 +161,23 @@ internal class IrCodegen(
             v === Null -> em.getstatic("dev/mooner/neonjs/runtime/Null", "INSTANCE", "Ldev/mooner/neonjs/runtime/Null;")
             v == true -> em.getstatic("java/lang/Boolean", "TRUE", "Ljava/lang/Boolean;")
             v == false -> em.getstatic("java/lang/Boolean", "FALSE", "Ljava/lang/Boolean;")
-            c.k >= 0 -> em.constant(c.k)
+            c.k >= 0 -> {
+                // from the constants of its code block: the frame's, or one in T2Code.data
+                val cb = c.code
+                if (cb == null || cb === g.code) {
+                    em.mv.visitVarInsn(ALOAD, L_FRAME)
+                    em.mv.visitFieldInsn(GETFIELD, FRAME, "code", CODEBLOCK_D)
+                    em.mv.visitFieldInsn(GETFIELD, CODEBLOCK, "constants", CONSTS_D)
+                } else {
+                    em.mv.visitVarInsn(ALOAD, 0)
+                    em.mv.visitFieldInsn(GETFIELD, SUPER, "data", CONSTS_D)
+                    em.iconst(g.dataIndex(cb.constants))
+                    em.mv.visitInsn(AALOAD)
+                    em.mv.visitTypeInsn(CHECKCAST, CONSTS_D)
+                }
+                em.iconst(c.k)
+                em.mv.visitInsn(AALOAD)
+            }
             v is Double -> {
                 em.iconst(v.toInt())
                 em.mv.visitMethodInsn(INVOKESTATIC, "dev/mooner/neonjs/runtime/Ops", "num", "(I)$OBJ", false)
@@ -153,8 +194,10 @@ internal class IrCodegen(
             for (p in b.phis) used.addAll(p.inputs)
             for (i in b.insts) {
                 used.addAll(i.inputs)
-                i.state?.let { used.addAll(it.values) } // an exit reads them
+                i.state?.let { s -> used.addAll(s.values); s.site?.let { used.addAll(it.values()) } } // an exit reads them
             }
+            // an inlined body reads its environment from its local
+            b.site?.let { used.add(it.env) }
         }
         for (b in g.blocks) {
             for (p in b.phis) local[p] = slotFor(p.kind)
@@ -184,7 +227,12 @@ internal class IrCodegen(
                 v === Null -> getstatic("dev/mooner/neonjs/runtime/Null", "INSTANCE", "Ldev/mooner/neonjs/runtime/Null;")
                 v == true -> getstatic("java/lang/Boolean", "TRUE", "Ljava/lang/Boolean;")
                 v == false -> getstatic("java/lang/Boolean", "FALSE", "Ljava/lang/Boolean;")
-                c.k >= 0 -> constant(c.k)
+                c.k >= 0 -> {
+                    // from the constants of its code block
+                    mv.visitVarInsn(ALOAD, c.code?.let { constsLocal[it] } ?: L_CONSTS)
+                    iconst(c.k)
+                    mv.visitInsn(AALOAD)
+                }
                 v is Double -> {
                     // PUSH_INT: an int32, boxed as the baseline boxes it
                     iconst(v.toInt())
@@ -233,6 +281,27 @@ internal class IrCodegen(
         mv.visitVarInsn(ASTORE, L_AGENT)
         iconst(4096)
         mv.visitVarInsn(ISTORE, L_BUDGET)
+        constsLocal[g.code] = L_CONSTS
+        val codes = LinkedHashSet<dev.mooner.neonjs.compiler.CodeBlock>()
+        for (b in g.blocks) {
+            b.site?.let { codes.add(it.code) }
+            for (p in b.phis) for (v in p.inputs) if (v is Const && v.k >= 0 && v.code != null) codes.add(v.code)
+            for (i in b.insts) for (v in i.inputs) if (v is Const && v.k >= 0 && v.code != null) codes.add(v.code)
+        }
+        codes.remove(g.code)
+        dataLocal = temp()
+        mv.visitVarInsn(ALOAD, 0)
+        mv.visitFieldInsn(GETFIELD, SUPER, "data", CONSTS_D)
+        mv.visitVarInsn(ASTORE, dataLocal)
+        for (cb in codes) {
+            val l = temp()
+            mv.visitVarInsn(ALOAD, dataLocal)
+            iconst(g.dataIndex(cb.constants))
+            mv.visitInsn(AALOAD)
+            mv.visitTypeInsn(CHECKCAST, CONSTS_D)
+            mv.visitVarInsn(ASTORE, l)
+            constsLocal[cb] = l
+        }
     }
 
     /**
@@ -305,7 +374,10 @@ internal class IrCodegen(
                 for (i in b.insts.asReversed()) {
                     live.remove(i)
                     for (v in i.inputs) if (v !is Const) live.add(v)
-                    i.state?.values?.forEach { v -> if (v !is Const) live.add(v) }
+                    i.state?.let { s ->
+                        for (v in s.values) if (v !is Const) live.add(v)
+                        s.site?.values()?.forEach { v -> if (v !is Const) live.add(v) }
+                    }
                 }
                 live.addAll(b.phis)
                 if (live != liveIn[b]) {
@@ -322,6 +394,7 @@ internal class IrCodegen(
     private fun emitBlock(b: Block) {
         mv.visitLabel(label[b])
         storedPc = -2
+        curSite = b.site
         for (i in b.insts) {
             if (i.isTerminator) terminator(b, i) else inst(i)
         }
@@ -402,7 +475,8 @@ internal class IrCodegen(
         if (i.stmt < 0 || i.stmt == storedPc) return
         frame()
         iconst(i.stmt)
-        mv.visitFieldInsn(PUTFIELD, FRAME, "pc", "I")
+        // an inlined body's position: Frame.pc stays at its call
+        mv.visitFieldInsn(PUTFIELD, FRAME, if (curSite != null) "inlinePc" else "pc", "I")
         storedPc = i.stmt
     }
 
@@ -415,6 +489,59 @@ internal class IrCodegen(
                 frame()
                 iconst(i.a)
                 rt("arg", "(${FRAME_D}I)$OBJ")
+                done(i, JT.ANY)
+                return
+            }
+            Ir.CHECK_CLOSURE -> {
+                // a closure of the code block inlined, in the frame's realm (as Gen.emitInlineCall's guard)
+                val fn = i.inputs[0]
+                val l = Label()
+                load(fn, JT.ANY)
+                mv.visitTypeInsn(INSTANCEOF, CLOSURE)
+                mv.visitJumpInsn(IFEQ, l)
+                load(fn, JT.ANY)
+                mv.visitTypeInsn(CHECKCAST, CLOSURE)
+                mv.visitFieldInsn(GETFIELD, CLOSURE, "code", CODEBLOCK_D)
+                mv.visitVarInsn(ALOAD, dataLocal)
+                iconst(i.a)
+                mv.visitInsn(AALOAD)
+                mv.visitJumpInsn(IF_ACMPNE, l)
+                load(fn, JT.ANY)
+                mv.visitTypeInsn(CHECKCAST, CLOSURE)
+                mv.visitFieldInsn(GETFIELD, CLOSURE, "realm", REALM_D)
+                frame()
+                mv.visitFieldInsn(GETFIELD, FRAME, "realm", REALM_D)
+                mv.visitJumpInsn(IF_ACMPNE, l)
+                exits.add(Exit(l, i.state!!, counted = true))
+                return
+            }
+            Ir.INLINE_ENTER -> {
+                frame()
+                load(i.inputs[0], JT.ANY)
+                mv.visitTypeInsn(CHECKCAST, CLOSURE)
+                iconst(i.a)
+                rt("inlineEnter", "($FRAME_D$CLOSURE_D" + "I)V")
+                storedPc = -2
+                return
+            }
+            Ir.INLINE_EXIT -> {
+                frame()
+                rt("inlineExit", "($FRAME_D)V")
+                storedPc = -2
+                return
+            }
+            Ir.CLOSURE_ENV -> {
+                load(i.inputs[0], JT.ANY)
+                mv.visitTypeInsn(CHECKCAST, CLOSURE)
+                mv.visitFieldInsn(GETFIELD, CLOSURE, "env", "Ldev/mooner/neonjs/runtime/Env;")
+                done(i, JT.ANY)
+                return
+            }
+            Ir.INLINE_THIS -> {
+                load(i.inputs[0], JT.ANY)
+                mv.visitTypeInsn(CHECKCAST, CLOSURE)
+                load(i.inputs[1], JT.ANY)
+                rt("inlineThis", "($CLOSURE_D$OBJ)$OBJ")
                 done(i, JT.ANY)
                 return
             }

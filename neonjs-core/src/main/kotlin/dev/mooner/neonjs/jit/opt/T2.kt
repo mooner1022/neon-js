@@ -24,6 +24,8 @@ object T2 {
     /** Blocks compiled, and those that could not be, by reason; code that deoptimized too often (T2Code.exit). */
     @JvmField val compiledCount = AtomicLong()
     @JvmField val reverted = AtomicLong()
+    /** Calls compiled inlined (IrBuilder). */
+    @JvmField val inlinedCalls = AtomicLong()
     @JvmField val failedCount = AtomicLong()
     @JvmField val failureReasons = ConcurrentHashMap<String, AtomicLong>()
 

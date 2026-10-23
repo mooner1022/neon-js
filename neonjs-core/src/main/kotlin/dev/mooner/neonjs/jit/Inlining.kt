@@ -63,13 +63,13 @@ internal object Inlining {
      * helpers of a few instructions read the strictness from the frame, which is the caller's: a callee of the other
      * strictness (class methods are strict, scripts mostly sloppy) is inlined only without them ([STRICT_SENSITIVE]).
      */
-    fun eligible(caller: CodeBlock, callee: CodeBlock): Boolean {
+    fun eligible(caller: CodeBlock, callee: CodeBlock, maxCode: Int = MAX_CALLEE_CODE): Boolean {
         val f = callee.flags
         if (f and (CodeBlock.GENERATOR or CodeBlock.ASYNC or CodeBlock.CLASS_CTOR or CodeBlock.DERIVED or CodeBlock.NO_JIT) != 0) return false
         val sameStrictness = (f and CodeBlock.STRICT) == (caller.flags and CodeBlock.STRICT)
         if (callee.strictPcs != null || callee.handlers.isNotEmpty()) return false
         val code = callee.code
-        if (code.size > MAX_CALLEE_CODE) return false
+        if (code.size > maxCode) return false
         // null: no parameter in a register (none at all, or ones read with LOAD_ARG, which is not allowed)
         callee.paramRegs?.let { pr -> for (r in pr) if (r < 0) return false }
         var pc = 0

@@ -23,13 +23,13 @@ abstract class T2Code(@JvmField val data: Array<Any?>, @JvmField val block: Code
          * the block's baseline runs new activations again (Jit.revert) and the block is not compiled by this tier again.
          */
         @JvmStatic
-        fun exit(code: T2Code, f: Frame, pc: Int, values: Array<Any?>): Any? {
+        fun exit(code: T2Code, f: Frame, pc: Int, values: Array<Any?>, inner: Any?): Any? {
             if (++code.deopts == DEOPT_LIMIT) {
                 code.block.t2Off = true
                 Jit.revert(code.block, code)
                 T2.reverted.incrementAndGet()
             }
-            return Deopt.resume(f, pc, values, null)
+            return Deopt.resume(f, pc, values, inner as Deopt.Inlined?)
         }
     }
 }

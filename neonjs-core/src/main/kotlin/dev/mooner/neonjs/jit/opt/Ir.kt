@@ -32,8 +32,11 @@ class Graph(@JvmField val code: CodeBlock) {
     fun values(): Sequence<Value> = blocks.asSequence().flatMap { b -> b.phis.asSequence() + b.insts.asSequence() }
 }
 
-/** A basic block: phis, then instructions, the last of which is its terminator ([Inst.isTerminator]). */
-class Block(@JvmField val id: Int, /** Bytecode pc of its first instruction. */ @JvmField val pc: Int) {
+/**
+ * A basic block: phis, then instructions, the last of which is its terminator ([Inst.isTerminator]). [site] is the call
+ * compiled inlined whose body it belongs to (null: the function compiled); [pc] is its first instruction's in that body.
+ */
+class Block(@JvmField var id: Int, @JvmField val pc: Int, @JvmField val site: InlineSite? = null) {
     @JvmField val phis = ArrayList<Phi>()
     @JvmField val insts = ArrayList<Inst>()
     @JvmField val preds = ArrayList<Block>()
@@ -61,10 +64,10 @@ abstract class Value {
 }
 
 /**
- * A constant: a JS value known when compiling. [k] is its index in the code block's constants when it is read from them
- * (a string or another object constant), else -1.
+ * A constant: a JS value known when compiling. [k] is its index in the constants of code block [code] when it is read
+ * from them (a string or another object constant), else -1.
  */
-class Const(@JvmField val value: Any?, @JvmField val k: Int = -1) : Value() {
+class Const(@JvmField val value: Any?, @JvmField val k: Int = -1, @JvmField val code: CodeBlock? = null) : Value() {
     override fun toString() = when (value) {
         is CharSequence -> "\"" + value.toString().take(20) + "\""
         null -> "null!"
@@ -107,10 +110,47 @@ class Inst(
 }
 
 /**
- * The interpreter's state at an exit (Deopt): where it resumes, [pc], and the values of the registers then the operand
- * stack there ([values]). Its values are uses of them, as instruction inputs are.
+ * The interpreter's state at an exit (Deopt) in the function compiled ([site] null) or in the body of a call compiled
+ * inlined ([site]): where it resumes, [pc], and the values of the registers then the operand stack there ([values]).
+ * An inlined body's caller has its own state at the call ([InlineSite.callerState]). Its values, and those of its sites,
+ * are uses, as instruction inputs are.
  */
-class FrameState(@JvmField val pc: Int, @JvmField val values: Array<Value>)
+class FrameState(@JvmField val pc: Int, @JvmField val values: Array<Value>, @JvmField val site: InlineSite? = null)
+
+/**
+ * A call compiled inlined: the callee's [code], the CALL at [callPc] in its caller (the body of [parent], or the
+ * function compiled), the caller's state at that call ([callerState]: its registers and the stack below the call's
+ * operands), and what a frame of the callee holds: the closure [fn], `this` as the call binds it ([thisValue]; undefined
+ * where the callee does not read it), the arguments, the environment.
+ */
+class InlineSite(
+    @JvmField val parent: InlineSite?,
+    @JvmField val code: CodeBlock,
+    @JvmField val callPc: Int,
+    @JvmField val callerState: FrameState,
+    @JvmField val fn: Value,
+    @JvmField val thisValue: Value,
+    @JvmField val args: Array<Value>,
+    @JvmField val env: Value,
+) {
+    /** 1 for a call in the function compiled, 2 for a call in that callee's body, and so on. */
+    @JvmField val depth: Int = (parent?.depth ?: 0) + 1
+
+    /** The values of this site and its callers' that an exit inside it reads. */
+    fun values(): List<Value> {
+        val out = ArrayList<Value>()
+        var s: InlineSite? = this
+        while (s != null) {
+            out.addAll(s.callerState.values)
+            out.add(s.fn)
+            out.add(s.thisValue)
+            out.addAll(s.args)
+            out.add(s.env)
+            s = s.parent
+        }
+        return out
+    }
+}
 
 /** The operations of the IR that are not bytecode instructions, and facts about all of them. */
 object Ir {
@@ -120,6 +160,17 @@ object Ir {
     const val CHECK_TDZ = 1001
     /** The deopt stress mode's exit (JvmCompiler.DEOPT_STRESS), taken one time in N, to its [Inst.state]. */
     const val STRESS_EXIT = 1002
+    /**
+     * (fn) the guard of a call compiled inlined: [Inst.a] indexes the callee's code block in the graph's data; unless
+     * fn is a closure of it in the frame's realm, an exit to [Inst.state], before the CALL.
+     */
+    const val CHECK_CLOSURE = 1003
+    /** (fn) entering the body of a call compiled inlined at the CALL at [Inst.a] (JitRt.inlineEnter), and leaving it. */
+    const val INLINE_ENTER = 1004
+    const val INLINE_EXIT = 1005
+    /** (fn, this) `this` as a call of fn binds it (JitRt.inlineThis); (fn) its environment. */
+    const val INLINE_THIS = 1006
+    const val CLOSURE_ENV = 1007
     /** Terminators. GOTO; BRANCH(value): [Inst.a] is the bytecode jump tested (JUMP_IF_TRUE and the like). */
     const val GOTO = 1100
     const val BRANCH = 1101
@@ -134,6 +185,11 @@ object Ir {
         PARAM -> "Param"
         CHECK_TDZ -> "CheckTdz"
         STRESS_EXIT -> "StressExit"
+        CHECK_CLOSURE -> "CheckClosure"
+        INLINE_ENTER -> "InlineEnter"
+        INLINE_EXIT -> "InlineExit"
+        INLINE_THIS -> "InlineThis"
+        CLOSURE_ENV -> "ClosureEnv"
         GOTO -> "Goto"
         BRANCH -> "Branch"
         RETURN -> "Return"

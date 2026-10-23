@@ -111,6 +111,61 @@ class T2Test {
     }
 
     @Test
+    fun inlinedCalls() {
+        // static targets: calls of declared functions are compiled inlined, their results unboxed
+        val inlined = T2.inlinedCalls.get()
+        same(
+            """
+            function sq(x) { return x * x }
+            function sum(n) { var s = 0; for (var i = 0; i < n; i++) s += sq(i); return s }
+            function pick(c, a, b) { if (c) return a; return b }
+            function choose(n) { var t = 0; for (var i = 0; i < n; i++) t += pick(i & 1, i, -i); return t }
+            function inner() { return new Error('x').stack }
+            function outer() { return 'trace ' + inner() }
+            function thrower(v) { throw new RangeError('no ' + v) }
+            function guarded(n) { var c = 0; for (var i = 0; i < n; i++) { try { wrap(i) } catch (e) { c++ } } return c }
+            function wrap(v) { return thrower(v) + 1 }
+            function looped(n) { var s = 0; for (var j = 0; j < n; j++) s += j; return s }
+            function useLoop(n) { return looped(n) * 2 + 1 }
+            """.trimIndent(),
+            listOf("sum", "choose", "outer", "wrap", "useLoop"),
+            "[sum(100), choose(50), outer(), guarded(3000), useLoop(1000)].join('|')",
+        )
+        assertTrue(T2.inlinedCalls.get() > inlined, "no call compiled inlined")
+    }
+
+    @Test
+    fun guardsLeaveWhenAnotherFunctionIsCalled() {
+        // the interpreter's feedback names sq at apply's call; then cube is called there: the guard exits, the
+        // interpreter calls cube, and after enough exits the block goes back to its baseline for good
+        val src = """
+            function sq(x) { return x * x }
+            function cube(x) { return x * x * x }
+            function apply(f, x) { return f(x) }
+            var o = { k: 3, m: function (x) { return this.k * x } }
+            function method(p, x) { return p.m(x) }
+            """.trimIndent()
+        val warm = "for (var i = 0; i < 50; i++) { apply(sq, i); method(o, i) }"
+        val expr = "var r = []; for (var i = 0; i < 200; i++) r.push(apply(i < 50 ? sq : cube, i), method(i < 60 ? o : { k: 5, m: function (x) { return -x } }, i)); r.join(',')"
+        val expected = interpreted(src, "$warm; $expr")
+        val reverted = T2.reverted.get()
+        NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
+            .build().newContext().use { ctx ->
+                ctx.eval(src)
+                ctx.eval(warm)
+                for (n in listOf("apply", "method")) {
+                    val cb: CodeBlock = (ctx.eval(n).raw as JSClosure).code
+                    cb.baseline ?: JvmCompiler.compile(cb)!!.also { cb.baseline = it; cb.compiled = it }
+                    val inlined = T2.inlinedCalls.get()
+                    Jit.install(cb, T2.compile(cb, CodeDefiners.default) ?: fail("$n not compiled"))
+                    assertTrue(T2.inlinedCalls.get() > inlined, "$n: no call compiled inlined")
+                }
+                assertEquals(expected, ctx.eval(expr).asString())
+            }
+        assertTrue(T2.reverted.get() > reverted, "no block went back to its baseline")
+    }
+
+    @Test
     fun errorsAndTdz() {
         same(
             """

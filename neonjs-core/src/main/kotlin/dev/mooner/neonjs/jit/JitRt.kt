@@ -56,6 +56,16 @@ object JitRt {
         return (x ushr 1) % n == 0
     }
 
+    /**
+     * An exit of compiled code running [f] ([Deopt.resume]) inside the calls compiled inlined [inner] (a Deopt.Inlined,
+     * or null): the optimizing tier's (T2Code), for its deopt stress mode.
+     */
+    @JvmStatic fun deoptChain(f: Frame, pc: Int, values: Array<Any?>, inner: Any?): Any? = Deopt.resume(f, pc, values, inner as Deopt.Inlined?)
+
+    /** A call compiled inlined live at an exit, inside [inner] (Deopt.Inlined): built by the optimizing tier's exits. */
+    @JvmStatic fun inlined(fn: Any?, thisV: Any?, args: Array<Any?>, env: Any?, pc: Int, values: Array<Any?>, inner: Any?): Any =
+        Deopt.Inlined(fn.cast<JSClosure>(), thisV, args, env as Env?, pc, values, inner as Deopt.Inlined?)
+
     /** An exit of compiled code running [f] ([Deopt.resume]): [values] are its registers, then its operand stack, at [pc]. */
     @JvmStatic fun deopt(f: Frame, pc: Int, values: Array<Any?>): Any? = Deopt.resume(f, pc, values, null)
 
