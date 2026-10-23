@@ -13,8 +13,9 @@ class Frame(
     @JvmField val newTarget: Any?,
     @JvmField var env: Env?,
     /**
-     * Compiled code to run this activation with (the code block's installed code, which is never replaced), or null to
-     * interpret it. Not kept: a frame run by compiled code has [NO_SLOTS] (see [isCompiled]).
+     * Compiled code to run this activation with (the code block's entry code), or null to interpret it. Not kept: a
+     * frame run by compiled code has [NO_SLOTS] (see [isCompiled]), and every version of a block's code runs such a
+     * frame.
      */
     compiled: dev.mooner.neonjs.jit.CompiledCode? = code.compiled as dev.mooner.neonjs.jit.CompiledCode?,
 ) {

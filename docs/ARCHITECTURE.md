@@ -249,9 +249,11 @@ present generator follows them, and so must anything added next to it:
 - Entry: `CompiledCode.run(Frame)` starts a block at its beginning given a frame made for compiled code, and continues
   it at a loop header given an interpreted frame (registers in `Frame.slots`, an empty operand stack; environment,
   `this`, arguments and realm in the frame), returning the frame's result, `Interpreter.TAIL` for a tail call, or
-  `JitRt.NO_OSR` where it has no entry. A generator chooses which headers it supports. Installed code is never
-  replaced, and frames rely on that (`Frame` does not keep its code): a tier compiling a block a second time would
-  first have to change that.
+  `JitRt.NO_OSR` where it has no entry. A generator chooses which headers it supports. A block's first code
+  (`CodeBlock.baseline`, T1's) is never replaced; the code new activations run (`CodeBlock.compiled`) may change to a
+  later version and back (`Jit.install`, `Jit.revert`). Frames do not keep their code: since every version runs both
+  kinds of frame, a reader of `compiled` gets a version that works whichever it gets, and an activation keeps running
+  the one it started with.
 - Input: the generator reads a code block only through `JitInput`, whose identity names the class. Call feedback
   (`CodeBlock.callFeedback`) and the compiler's static call targets (`CodeBlock.callHintPcs`) are hints for any tier;
   code that uses one checks it where it runs.

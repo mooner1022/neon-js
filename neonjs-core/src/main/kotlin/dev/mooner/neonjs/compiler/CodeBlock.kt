@@ -161,12 +161,19 @@ class CodeBlock(@JvmField val name: String, @JvmField val kind: FunctionKind) {
         return if (i >= 0) callHintTargets!![i] else null
     }
     /**
-     * The code blocks the compiled code inlines, by site: the generated code inlines site k's body when the function
-     * called is a closure of exactly `inlineTargets[k]`. Set before the compiled code is installed, never changed after.
+     * The code blocks the [baseline] code inlines, by site: the generated code inlines site k's body when the function
+     * called is a closure of exactly `inlineTargets[k]`. Set before the baseline is installed, never changed after.
      */
     @JvmField var inlineTargets: Array<CodeBlock?>? = null
-    /** JIT state (see dev.mooner.neonjs.jit.Jit): the compiled code, once installed. */
+    /**
+     * JIT state (see dev.mooner.neonjs.jit.Jit): the code new activations of this block run, once some is installed:
+     * the [baseline], or a later version over it (docs/OPTIMIZING_TIER.md, "Code versions"), which can give way to the
+     * baseline again. Every version runs a frame made for compiled code and answers on-stack replacement, so readers
+     * need not care which one they get.
+     */
     @JvmField @Volatile var compiled: Any? = null
+    /** The first compiled code (dev.mooner.neonjs.jit.JvmCompiler's), once installed: never replaced. */
+    @JvmField @Volatile var baseline: Any? = null
     @JvmField var invocationCount = 0
     @JvmField @Volatile var jitFailed = false
     /** The pending dev.mooner.neonjs.jit.JitTask while the block is queued or being compiled. */

@@ -99,6 +99,29 @@ object Jit {
     @JvmField val osrEntered = java.util.concurrent.atomic.AtomicLong()
     @JvmField val osrMissed = java.util.concurrent.atomic.AtomicLong()
 
+    /**
+     * Makes [code], a later version of [cb]'s code (the optimizing tier's), the code new activations of [cb] run
+     * (docs/OPTIMIZING_TIER.md, "Code versions"). Like the baseline it runs frames made for compiled code from the start
+     * and answers on-stack replacement. Returns false, installing nothing, while the block has no baseline. Activations
+     * already running keep the version they started with.
+     */
+    @JvmStatic
+    fun install(cb: CodeBlock, code: CompiledCode): Boolean {
+        if (cb.baseline == null) return false
+        cb.compiled = code
+        return true
+    }
+
+    /** Makes [cb]'s baseline the code new activations run again, if [code] is the one they run now. */
+    @JvmStatic
+    fun revert(cb: CodeBlock, code: CompiledCode) {
+        val b = cb.baseline ?: return
+        COMPILED.compareAndSet(cb, code, b)
+    }
+
+    private val COMPILED: java.util.concurrent.atomic.AtomicReferenceFieldUpdater<CodeBlock, Any> =
+        java.util.concurrent.atomic.AtomicReferenceFieldUpdater.newUpdater(CodeBlock::class.java, Any::class.java, "compiled")
+
     /** Queues [cb], code created at run time (the `Function` constructor), in compiled mode: it is about to be called. */
     @JvmStatic
     fun prefetch(cb: CodeBlock, agent: Agent) {

@@ -196,10 +196,10 @@ object JvmCompiler {
         val inputs = LinkedHashMap<String, JitInput>()
         val wanting = HashMap<String, MutableList<Int>>()
         for ((i, cb) in blocks.withIndex()) {
-            // a block's code is never replaced. Jit.prepare reads `compiled` before `jitTask`, so a thread that read
+            // a block's baseline is never replaced. Jit.prepare reads `compiled` before `jitTask`, so a thread that read
             // it just before the code was installed can queue the block again once the task is gone; the installed
             // code reads the callees it inlines from the block (inlineTargets), set once with it
-            val installed = cb.compiled
+            val installed = cb.baseline
             if (installed != null) {
                 out[i] = installed as CompiledCode
                 continue
