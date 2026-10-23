@@ -175,8 +175,10 @@ callee ran at least 16 times there (`-Dneonjs.jit.inlineMinCount`) and is small 
 body compiled into the caller, at most 8 calls per function and never further inside an inlined body. The callee must
 be an ordinary function (not a generator, async function or class constructor) of at most 96 bytecode ints, with the
 caller's strictness, no exception handlers, its parameters in registers and only instructions from a closed list: none
-reads the callee's own frame (`this`, `arguments`, `new.target`, the function), creates scopes or closures, or
-resolves names dynamically. The inlined body runs behind a guard: the function called is a `JSClosure` whose code block
+reads the callee's own frame (`arguments`, `new.target`, the function), creates scopes or closures, or resolves names
+dynamically. `this` is bound when the body is entered (`JitRt.inlineThis`), by the same `Interpreter.thisFor` that
+binds it for a call (the closure's lexical `this` for an arrow, the receiver as is in strict code, the global `this`
+for `undefined` and `null` in sloppy code, a wrapper object for a primitive there). The inlined body runs behind a guard: the function called is a `JSClosure` whose code block
 is that very block (`CodeBlock.inlineTargets[k]`, an object identity) and whose realm is the caller's; anything else
 takes the ordinary call, which is compiled next to it. Nothing is assumed beyond the guard, so nothing deoptimizes.
 The callee's registers become JVM locals of the caller (missing arguments are `undefined`, extra ones are evaluated and
@@ -207,7 +209,7 @@ V8 (TurboFan), JavaScriptCore (DFG/FTL) and SpiderMonkey (Warp) inline from the 
 behind a check of the closure or its code; a failing check deoptimizes, and their inlining bugs come from frame states
 rebuilt wrongly on deoptimization, missing stack frames, or the inlined function's `arguments`. Here a failing check
 takes the ordinary call compiled next to it, the frame keeps the position of both functions, and callees that read
-their own frame are not inlined.
+their own frame (but for `this`) are not inlined.
 
 Background compilation (`jit/JitQueue.kt`): a block due for compilation gets a `JitTask` (`CodeBlock.jitTask`,
 set by CAS, so one thread compiles it) and is queued; daemon workers drain whatever is queued (up to a batch) and

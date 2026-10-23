@@ -410,7 +410,7 @@ object JvmCompiler {
     }
 
     /** What the body of a call compiled inlined reads instead of its own frame's state (see Gen.emitInlineCall). */
-    private class InlineCtx(val constsLocal: Int, val envLocal: Int, val resultLocal: Int, val resultKind: Byte, val exit: Label)
+    private class InlineCtx(val constsLocal: Int, val envLocal: Int, val thisLocal: Int, val resultLocal: Int, val resultKind: Byte, val exit: Label)
 
     private class Gen(
         val cb: JitInput,
@@ -1007,9 +1007,20 @@ object JvmCompiler {
             mv.visitTypeInsn(CHECKCAST, CLOSURE)
             mv.visitFieldInsn(GETFIELD, CLOSURE, "env", "Ldev/mooner/neonjs/runtime/Env;")
             mv.visitVarInsn(ASTORE, envLocal)
+            // the callee's `this`, bound as a call would bind it, if it reads it
+            var thisLocal = -1
+            if (callee.readsThis()) {
+                thisLocal = temp()
+                mv.visitVarInsn(ALOAD, fn)
+                mv.visitTypeInsn(CHECKCAST, CLOSURE)
+                loadTemp(kinds[1], temps[1])
+                box(kinds[1])
+                rt("inlineThis", "($CLOSURE_D$OBJ)$OBJ")
+                mv.visitVarInsn(ASTORE, thisLocal)
+            }
             val resultLocal = if (r == JT.NUM) tempD() else temp()
             val exit = Label()
-            callee.inl = InlineCtx(constsLocal, envLocal, resultLocal, r, exit)
+            callee.inl = InlineCtx(constsLocal, envLocal, thisLocal, resultLocal, r, exit)
             callee.emitInlined(IntArray(argc) { temps[2 + it] }, ByteArray(argc) { kinds[2 + it] })
             mv.visitLabel(exit)
             frame()
@@ -1035,6 +1046,16 @@ object JvmCompiler {
             mv.visitLabel(merge)
             inlinedCalls.incrementAndGet()
             return end
+        }
+
+        /** Whether this (inlined) function reads `this`. */
+        fun readsThis(): Boolean {
+            var pc = 0
+            while (pc < code.size) {
+                if (code[pc] == Op.LOAD_THIS) return true
+                pc += Op.length(code, pc)
+            }
+            return false
         }
 
         /** The kind of the values this (inlined) function returns: INT or NUM when every return is one, else ANY. */
@@ -1699,7 +1720,8 @@ object JvmCompiler {
                 Op.RESOLVE_NAME -> { frame(); constant(a); rt("resolveName", "($FRAME_D$OBJ)$OBJ") }
                 Op.GET_REF -> { frame(); rt("getRef", "($OBJ$FRAME_D)$OBJ") }
                 Op.PUT_REF -> { frame(); rt("putRef", "($OBJ$OBJ$FRAME_D)$OBJ") }
-                Op.LOAD_THIS -> { frame(); mv.visitFieldInsn(GETFIELD, FRAME, "thisValue", OBJ) }
+                // an inlined body's `this` was bound when it was entered
+                Op.LOAD_THIS -> if (inl != null) mv.visitVarInsn(ALOAD, inl!!.thisLocal) else { frame(); mv.visitFieldInsn(GETFIELD, FRAME, "thisValue", OBJ) }
                 Op.LOAD_FUNCTION -> { frame(); rt("loadFunction", "($FRAME_D)$OBJ") }
                 Op.LOAD_NEW_TARGET -> { frame(); mv.visitFieldInsn(GETFIELD, FRAME, "newTarget", OBJ) }
                 Op.LOAD_HOME -> { frame(); rt("loadHome", "($FRAME_D)$OBJ") }

@@ -186,6 +186,29 @@ class InliningTest {
     }
 
     @Test
+    fun thisAsACallBindsIt() {
+        // methods: the receiver, through the prototype chain (class code is strict: so is the caller's)
+        same(
+            "class Vec { constructor(x, y) { this.x = x; this.y = y } dot(o) { return this.x * o.x + this.y * o.y } len2() { return this.dot(this) } }" +
+                "function each(n, v, w) { 'use strict'; var s = 0; for (var k = 0; k < n; k++) s += v.dot(w) + v.len2(); return s } var v = new Vec(1, 2), w = new Vec(3, 4); each(20, v, w); each(20, v, w); all(each(5, v, w))",
+        )
+        // sloppy callees: the global this for undefined and null, a wrapper for a primitive; strict ones: as is
+        same(
+            "function sloppy() { return typeof this + ':' + (this === globalThis) } Number.prototype.sl = sloppy; String.prototype.sl = sloppy;" +
+                "function each(n, f, t) { var r = ''; for (var k = 0; k < n; k++) r = f.call(t) + (5).sl() + 'x'.sl() + f(); return r } each(20, sloppy, null); each(20, sloppy, null); all(each(3, sloppy, 7))",
+        )
+        same(
+            "function strict() { 'use strict'; return typeof this + ':' + String(this) } Number.prototype.st = strict;" +
+                "function each(n) { 'use strict'; var r = ''; for (var k = 0; k < n; k++) r = (5).st() + strict() + ({ m: strict, toString() { return 'o' } }).m(); return r } each(20); each(20); all(each(3))",
+        )
+        // an arrow at the top level: the script's this; a method called on another receiver later takes the guard again
+        same(
+            "var top = () => this === globalThis; var o = { n: 1, get() { return this.n } }, p = { n: 2, get: o.get };" +
+                "function each(n, a) { var s = 0; for (var k = 0; k < n; k++) s += (top() ? 1 : 0) + a.get(); return s } each(20, o); each(20, o); all(each(3, o), each(3, p))",
+        )
+    }
+
+    @Test
     fun typedArraysAndConversions() {
         same(
             "var t = new Float64Array([1.5, -0, NaN, 2]); function at(i) { return t[i & 3] } function sum(n) { var s = 0; for (var k = 0; k < n; k++) s += at(k); return s }" +

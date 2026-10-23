@@ -63,12 +63,7 @@ object Interpreter {
                 val c = code.compiled
                 if (c != null && code.childrenQueued) c as dev.mooner.neonjs.jit.CompiledCode else dev.mooner.neonjs.jit.Jit.prepare(code, realm.agent)
             }
-            val thisValue = if (flags and CodeBlock.ARROW != 0) fn.lexicalThis
-            else if (flags and CodeBlock.STRICT != 0) thisArg
-            else if (thisArg === Undefined || thisArg === Null || thisArg == null) realm.globalEnv.thisValue
-            else if (thisArg is JSObject) thisArg
-            else if (flags and (CodeBlock.USES_THIS or CodeBlock.HAS_EVAL) != 0) Ops.toObject(realm, thisArg)
-            else thisArg
+            val thisValue = thisFor(fn, flags, realm, thisArg)
             val frame = Frame(fn, code, realm, thisValue, args, Undefined, fn.env, compiled)
             if (flags and (CodeBlock.GENERATOR or CodeBlock.ASYNC) != 0) {
                 return Generators.start(frame)
@@ -80,6 +75,19 @@ object Interpreter {
             args = frame.tailArgs!!
         }
     }
+
+    /**
+     * The `this` a call of [fn] (code block flags [flags], realm [realm]) runs with for [thisArg] (OrdinaryCallBindThis):
+     * one definition for calls and for calls compiled inlined (dev.mooner.neonjs.jit.JitRt.inlineThis).
+     */
+    @Suppress("NOTHING_TO_INLINE")
+    internal inline fun thisFor(fn: JSClosure, flags: Int, realm: Realm, thisArg: Any?): Any? =
+        if (flags and CodeBlock.ARROW != 0) fn.lexicalThis
+        else if (flags and CodeBlock.STRICT != 0) thisArg
+        else if (thisArg === Undefined || thisArg === Null || thisArg == null) realm.globalEnv.thisValue
+        else if (thisArg is JSObject) thisArg
+        else if (flags and (CodeBlock.USES_THIS or CodeBlock.HAS_EVAL) != 0) Ops.toObject(realm, thisArg)
+        else thisArg
 
     @JvmStatic
     fun constructClosure(fn: JSClosure, args: Array<Any?>, newTarget: JSObject): Any? {

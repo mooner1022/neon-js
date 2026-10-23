@@ -199,6 +199,9 @@ object JitRt {
         f.realm.agent.depth--
     }
 
+    /** The `this` of an inlined body of [fn] called with [thisArg], as a call of it would bind it. */
+    @JvmStatic fun inlineThis(fn: JSClosure, thisArg: Any?): Any? = Interpreter.thisFor(fn, fn.code.flags, fn.realm, thisArg)
+
     /**
      * [t] leaving compiled code running [f] (Interpreter.execute): a JS error gets its stack trace (compiled code keeps
      * f.pc at the current statement or call, and f.inlinePc in an inlined body), then an inlined call it left ends.

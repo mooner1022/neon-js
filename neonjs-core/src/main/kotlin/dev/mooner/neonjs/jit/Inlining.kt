@@ -34,7 +34,7 @@ internal object Inlining {
             Op.POP, Op.DUP, Op.DUP2, Op.SWAP, Op.ROT3,
             Op.LOAD_REG, Op.STORE_REG, Op.LOAD_REG_TDZ, Op.CHECK_REG_TDZ,
             Op.LOAD_ENV, Op.STORE_ENV, Op.LOAD_ENV_TDZ, Op.CHECK_ENV_TDZ,
-            Op.LOAD_GLOBAL, Op.LOAD_GLOBAL_TYPEOF, Op.STORE_GLOBAL,
+            Op.LOAD_GLOBAL, Op.LOAD_GLOBAL_TYPEOF, Op.STORE_GLOBAL, Op.LOAD_THIS,
             Op.GET_PROP, Op.PUT_PROP, Op.GET_ELEM, Op.PUT_ELEM,
             Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD, Op.EXP, Op.SHL, Op.SAR, Op.SHR, Op.BAND, Op.BOR, Op.BXOR,
             Op.EQ, Op.NE, Op.SEQ, Op.SNE, Op.LT, Op.GT, Op.LE, Op.GE, Op.INSTANCEOF, Op.IN,
@@ -49,8 +49,9 @@ internal object Inlining {
     /**
      * Whether [callee] can be inlined into [caller]: an ordinary function (not a generator, async function or class
      * constructor), with the caller's strictness (helpers read it from the caller's frame), no exception handlers, its
-     * parameters in registers, and only [ALLOWED] instructions: none that reads the callee's own frame (`this`,
-     * `arguments`, `new.target`, the function itself), creates scopes or closures, or resolves names dynamically.
+     * parameters in registers, and only [ALLOWED] instructions: none that reads the callee's own frame (`arguments`,
+     * `new.target`, the function itself), creates scopes or closures, or resolves names dynamically. `this` is bound
+     * when the body is entered, as a call binds it (JitRt.inlineThis).
      */
     fun eligible(caller: CodeBlock, callee: CodeBlock): Boolean {
         val f = callee.flags
