@@ -242,6 +242,29 @@ of them. Only functions and classic scripts (`CodeBlock.SCRIPT`) are compiled fr
 stay interpreted, as before. `-Dneonjs.jit.osrStress` enters every loop after its first iteration (compiling on the
 calling thread) to test this; interrupt checks then run at every back-edge, so statement limits run out sooner.
 
+Contracts for other code generators (an optimizing tier with its own IR, or front ends other than JS bytecode). The
+present generator follows them, and so must anything added next to it:
+
+- Entry: `CompiledCode.run(Frame)` starts a block at its beginning given a frame made for compiled code, and continues
+  it at a loop header given an interpreted frame (registers in `Frame.slots`, an empty operand stack; environment,
+  `this`, arguments and realm in the frame), returning the frame's result, `Interpreter.TAIL` for a tail call, or
+  `JitRt.NO_OSR` where it has no entry. A generator chooses which headers it supports. Installed code is never
+  replaced, and frames rely on that (`Frame` does not keep its code): a tier compiling a block a second time would
+  first have to change that.
+- Input: the generator reads a code block only through `JitInput`, whose identity names the class. Call feedback
+  (`CodeBlock.callFeedback`) and the compiler's static call targets (`CodeBlock.callHintPcs`) are hints for any tier;
+  code that uses one checks it where it runs.
+- Semantics: an instruction's meaning lives in the runtime (`runtime/`, `vm/Rt`, the `JitRt` helpers), shared by every
+  tier; where a tier does a step itself, it shares the definition (`Interpreter.thisFor`, `PropCache` entries).
+- No speculation: kinds come from what instructions produce; a guard falls back to the generic code compiled next to
+  it, and nothing deoptimizes. A tier with an IR keeps this by versioning (a guard, then a specialized and a generic
+  copy, as `GET_ELEM` and inlined calls do now); deoptimization would be a separate decision, against the reasons above.
+- TypeScript: types are erased with the syntax and never become kinds, since any value can arrive at run time; TS code
+  gets the bytecode its JavaScript would get.
+- WebAssembly: functions typed by validation would not go through the code block pipeline (`JitInput`, `TypeAnalysis`,
+  `JvmCompiler`, `CompiledCode`, which are about JS frames), but share what turns classes into code: `CodeDefiner`
+  (hidden classes on the JVM, dex on Android) and an identity cache like `CodeCache`.
+
 ## Object model (`runtime/`)
 
 - **Values**: `Undefined`, `Null`, `Boolean`, `Double` (all numbers), `String`/`Rope` (`CharSequence`),
