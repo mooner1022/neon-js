@@ -569,6 +569,9 @@ the two tiers:
 java -Xss64m -cp "neonjs-test262/build/install/neonjs-test262/lib/*" dev.mooner.neonjs.test262.FuzzKt --root third_party/test262 --iterations 100000 --threads 6 --seed 1 --out fuzz-out
 ```
 
+With `--mode adaptive` it compares the interpreter with adaptive mode instead; add `-Dneonjs.jit.osrStress` so that
+every loop continues in compiled code after its first iteration. The Test262 runner takes the same property.
+
 The runner executes each test in strict and sloppy mode as required, supports `$262` (including
 `createRealm`, `evalScript`, `detachArrayBuffer` and multi-agent `$262.agent`), modules and async tests, and
 writes failures to `--out`. Note: Test262 must be checked out with LF line endings (`core.autocrlf=false`); a few

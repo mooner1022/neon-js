@@ -20,7 +20,10 @@ import kotlin.random.Random
  *  - hang: no completion although the time limit should have stopped it,
  *  - mismatch: interpreter and compiled code complete differently (normal result vs. thrown error type).
  *
- * usage: FuzzKt --root third_party/test262 [--iterations N] [--seed S] [--threads T] [--out DIR]
+ * `--mode adaptive` compares the interpreter with adaptive mode instead of compiled mode: with
+ * `-Dneonjs.jit.osrStress`, every loop then continues in compiled code after its first iteration (on-stack replacement).
+ *
+ * usage: FuzzKt --root third_party/test262 [--iterations N] [--seed S] [--threads T] [--out DIR] [--mode compiled|adaptive]
  */
 fun main(args: Array<String>) {
     var root = File("third_party/test262")
@@ -28,6 +31,7 @@ fun main(args: Array<String>) {
     var seed = System.nanoTime()
     var threads = maxOf(1, Runtime.getRuntime().availableProcessors() / 2)
     var out = File("fuzz-out")
+    var mode = 1
     var i = 0
     while (i < args.size) {
         when (args[i]) {
@@ -36,13 +40,15 @@ fun main(args: Array<String>) {
             "--seed" -> seed = args[++i].toLong()
             "--threads" -> threads = args[++i].toInt()
             "--out" -> out = File(args[++i])
+            "--mode" -> mode = if (args[++i] == "adaptive") 2 else 1
         }
         i++
     }
-    Fuzzer(root, out, seed).run(iterations, threads)
+    Fuzzer(root, out, seed, mode).run(iterations, threads)
 }
 
-private class Fuzzer(val root: File, val out: File, val seed: Long) {
+/** [mode]: the execution mode compared with the interpreter (1 compiled, 2 adaptive). */
+private class Fuzzer(val root: File, val out: File, val seed: Long, val mode: Int) {
     private val corpus: List<File> = listOf("language", "built-ins", "annexB", "intl402").flatMap { d ->
         File(root, "test/$d").walkTopDown().filter { it.isFile && it.name.endsWith(".js") && !it.name.contains("_FIXTURE") }.toList()
     }.sortedBy { it.path }
@@ -166,23 +172,24 @@ private class Fuzzer(val root: File, val out: File, val seed: Long) {
         var src = mutate(body(file), rnd)
         if (strict) src = "'use strict';\n$src"
         val interp = execute(src, isModule, 0)
-        val compiled = execute(src, isModule, 1)
+        val compiled = execute(src, isModule, mode)
         done.incrementAndGet()
         if (interp.kind == "ok") completed.incrementAndGet()
         outcomes.computeIfAbsent(interp.kind + " " + interp.detail.take(60)) { AtomicInteger() }.incrementAndGet()
-        for ((mode, r) in listOf("interpreter" to interp, "compiled" to compiled)) {
+        val name = if (mode == 2) "adaptive" else "compiled"
+        for ((m, r) in listOf("interpreter" to interp, name to compiled)) {
             if (r.kind == "crash" || r.kind == "hang") {
                 val top = r.error?.stackTrace?.take(4)?.joinToString("|") { "${it.className}.${it.methodName}:${it.lineNumber}" } ?: ""
                 val sig = "${r.kind}:${r.error?.javaClass?.name}:$top"
                 if (r.kind == "crash") crashes.incrementAndGet() else hangs.incrementAndGet()
-                if (signatures.add(sig)) save(r.kind, src, isModule, "$mode ${file.relativeTo(root)}\n${r.detail}\n${r.error?.stackTraceToString() ?: ""}")
+                if (signatures.add(sig)) save(r.kind, src, isModule, "$m ${file.relativeTo(root)}\n${r.detail}\n${r.error?.stackTraceToString() ?: ""}")
             }
         }
         val comparable = setOf("ok", "throw")
         if (interp.kind in comparable && compiled.kind in comparable && (interp.kind != compiled.kind || interp.detail != compiled.detail)) {
             mismatches.incrementAndGet()
             val sig = "mismatch:${interp.kind}:${interp.detail.take(40)}:${compiled.kind}:${compiled.detail.take(40)}"
-            if (signatures.add(sig)) save("mismatch", src, isModule, "${file.relativeTo(root)}\ninterpreter: ${interp.kind} ${interp.detail}\ncompiled:    ${compiled.kind} ${compiled.detail}")
+            if (signatures.add(sig)) save("mismatch", src, isModule, "${file.relativeTo(root)}\ninterpreter: ${interp.kind} ${interp.detail}\n$name:    ${compiled.kind} ${compiled.detail}")
         }
     }
 
