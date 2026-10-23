@@ -26,6 +26,7 @@ object IrPrinter {
                 i.state?.let { s -> sb.append(" [pc ").append(s.pc).append(": ").append(s.values.joinToString(", ")).append(']') }
                 if (i.targets.isNotEmpty()) sb.append(" -> ").append(i.targets.joinToString(", "))
                 if (i.hasResult) sb.append(kind(i))
+                if (i.virtual) sb.append(" virtual")
                 sb.append('\n')
             }
         }

@@ -67,6 +67,7 @@ internal class IrBuilder(
         order(start)
         removeTrivialPhis()
         removeDeadPhis()
+        if (speculate) ScalarReplacement.run(g)
         val kinds = Kinds(ints, elems)
         kinds.infer(g)
         if (preferDoubles()) kinds.infer(g)

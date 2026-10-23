@@ -5,6 +5,7 @@ import dev.mooner.neonjs.jit.CodeDefiners
 import dev.mooner.neonjs.jit.CompiledCode
 import dev.mooner.neonjs.jit.Jit
 import dev.mooner.neonjs.jit.JvmCompiler
+import dev.mooner.neonjs.jit.opt.IrBuilder
 import dev.mooner.neonjs.jit.opt.T2
 import dev.mooner.neonjs.vm.Frame
 import dev.mooner.neonjs.vm.JSClosure
@@ -342,6 +343,34 @@ class T2Test {
         var pc = 0
         while (cb.code[pc] != dev.mooner.neonjs.compiler.Op.CALL) pc += dev.mooner.neonjs.compiler.Op.length(cb.code, pc)
         return pc
+    }
+
+    @Test
+    fun objectLiteralsOnlyReadAreNotAllocated() {
+        val src = """
+            function lit(n) { var r = 0; for (var i = 0; i < n; i++) { var p = { x: i, y: i * 2 }; r += p.x + p.y } return r }
+            function pt(i) { return { x: i, y: -i } }
+            function viaCall(n) { var r = 0; for (var i = 0; i < n; i++) r += pt(i).x; return r }
+            function escapes(n) { var a = []; for (var i = 0; i < n; i++) { var p = { x: i }; if (i % 100 === 0) a.push(p) } return a.length + ':' + a[3].x }
+            function nested(n) { var s = ''; for (var i = 0; i < n; i++) { var o = { k: 'a' + i, v: { w: i } }; s = o.k + o.v.w } return s }
+            function absent(n) { var t = 0; for (var i = 0; i < n; i++) { var o = { a: i }; t += o.toString === Object.prototype.toString ? 1 : 0 } return t }
+            """.trimIndent()
+        val names = listOf("lit", "viaCall", "escapes", "nested", "absent")
+        val expr = "[lit(3000), viaCall(3000), escapes(1000), nested(500), absent(100)].join('|')"
+        val g = IrBuilder(dev.mooner.neonjs.compiler.Compiler.compileScript(
+            dev.mooner.neonjs.parser.Parser.parse(src, dev.mooner.neonjs.parser.ParseOptions(sourceName = "t.js")),
+            dev.mooner.neonjs.compiler.Source("t.js", src)).constants.filterIsInstance<CodeBlock>().first { it.name == "lit" },
+            ints = true, elems = true).build()
+        assertTrue(dev.mooner.neonjs.jit.opt.IrPrinter.print(g).contains("virtual"), dev.mooner.neonjs.jit.opt.IrPrinter.print(g))
+        val before = JvmCompiler.DEOPT_STRESS
+        try {
+            for (stress in intArrayOf(0, 2)) {
+                JvmCompiler.DEOPT_STRESS = stress
+                same(src, names, expr)
+            }
+        } finally {
+            JvmCompiler.DEOPT_STRESS = before
+        }
     }
 
     @Test

@@ -94,7 +94,7 @@ internal class IrCodegen(
      */
     private fun emitExit(n: Int, e: Exit) {
         mv.visitLabel(e.label)
-        val params = (e.state.values.asList() + (e.state.site?.values() ?: emptyList())).filter { it !is Const }.distinct()
+        val params = expand(e.state.values.asList() + (e.state.site?.values() ?: emptyList()))
         mv.visitVarInsn(ALOAD, 0)
         frame()
         for (v in params) load(v, v.kind)
@@ -102,6 +102,17 @@ internal class IrCodegen(
         mv.visitMethodInsn(INVOKESPECIAL, className, "exit$n", desc, false)
         mv.visitInsn(ARETURN)
         exitMethod(n, e, params, desc)
+    }
+
+    /** [values] without constants, a virtual allocation standing for its inputs (recursively), each once. */
+    private fun expand(values: List<Value>): List<Value> {
+        val out = LinkedHashSet<Value>()
+        fun add(v: Value) {
+            if (v is Const) return
+            if (v is Inst && v.virtual) v.inputs.forEach { add(it) } else out.add(v)
+        }
+        values.forEach { add(it) }
+        return out.toList()
     }
 
     private fun typeOf(kind: Byte) = when (kind) {
@@ -124,9 +135,30 @@ internal class IrCodegen(
             var top = firstFree
             override fun alloc(n: Int): Int = top.also { top += n }
         }
+        val made = HashMap<Value, Int>()
         fun value(v: Value) {
             if (v is Const) constObject(em, v)
-            else {
+            else if (v is Inst && v.virtual) {
+                // a literal not allocated: allocated now, once for every place the state holds it
+                made[v]?.let { m.visitVarInsn(ALOAD, it); return }
+                em.iconst(v.inputs.size)
+                m.visitTypeInsn(ANEWARRAY, "java/lang/Object")
+                for ((j, x) in v.inputs.withIndex()) {
+                    m.visitInsn(DUP)
+                    em.iconst(j)
+                    value(x)
+                    m.visitInsn(AASTORE)
+                }
+                constantsOf(em, ScalarReplacement.codeOf(g, v))
+                em.iconst(v.a)
+                m.visitInsn(AALOAD)
+                m.visitVarInsn(ALOAD, L_FRAME)
+                em.rt("newObjectLiteral", "([$OBJ$OBJ$FRAME_D)$OBJ")
+                m.visitInsn(DUP)
+                val l = em.temp()
+                m.visitVarInsn(ASTORE, l)
+                made[v] = l
+            } else {
                 m.visitVarInsn(when (v.kind) { JT.NUM -> DLOAD; JT.INT, JT.BOOL -> ILOAD; else -> ALOAD }, slot[v]!!)
                 em.box(v.kind)
             }
@@ -173,6 +205,21 @@ internal class IrCodegen(
         m.visitEnd()
     }
 
+    /** In an exit method: pushes the constants of [cb], the frame's code block's or one in T2Code.data. */
+    private fun constantsOf(em: JvmEmitter, cb: dev.mooner.neonjs.compiler.CodeBlock) {
+        if (cb === g.code) {
+            em.mv.visitVarInsn(ALOAD, L_FRAME)
+            em.mv.visitFieldInsn(GETFIELD, FRAME, "code", CODEBLOCK_D)
+            em.mv.visitFieldInsn(GETFIELD, CODEBLOCK, "constants", CONSTS_D)
+        } else {
+            em.mv.visitVarInsn(ALOAD, 0)
+            em.mv.visitFieldInsn(GETFIELD, SUPER, "data", CONSTS_D)
+            em.iconst(g.dataIndex(cb.constants))
+            em.mv.visitInsn(AALOAD)
+            em.mv.visitTypeInsn(CHECKCAST, CONSTS_D)
+        }
+    }
+
     /** Pushes constant [c] as the Object the interpreter holds (as [pushConst] does with an Object wanted). */
     private fun constObject(em: JvmEmitter, c: Const) {
         val v = c.value
@@ -182,19 +229,7 @@ internal class IrCodegen(
             v == true -> em.getstatic("java/lang/Boolean", "TRUE", "Ljava/lang/Boolean;")
             v == false -> em.getstatic("java/lang/Boolean", "FALSE", "Ljava/lang/Boolean;")
             c.k >= 0 -> {
-                // from the constants of its code block: the frame's, or one in T2Code.data
-                val cb = c.code
-                if (cb == null || cb === g.code) {
-                    em.mv.visitVarInsn(ALOAD, L_FRAME)
-                    em.mv.visitFieldInsn(GETFIELD, FRAME, "code", CODEBLOCK_D)
-                    em.mv.visitFieldInsn(GETFIELD, CODEBLOCK, "constants", CONSTS_D)
-                } else {
-                    em.mv.visitVarInsn(ALOAD, 0)
-                    em.mv.visitFieldInsn(GETFIELD, SUPER, "data", CONSTS_D)
-                    em.iconst(g.dataIndex(cb.constants))
-                    em.mv.visitInsn(AALOAD)
-                    em.mv.visitTypeInsn(CHECKCAST, CONSTS_D)
-                }
+                constantsOf(em, c.code ?: g.code)
                 em.iconst(c.k)
                 em.mv.visitInsn(AALOAD)
             }
@@ -221,7 +256,7 @@ internal class IrCodegen(
         }
         for (b in g.blocks) {
             for (p in b.phis) local[p] = slotFor(p.kind)
-            for (i in b.insts) if (i.hasResult && i in used) local[i] = slotFor(i.kind)
+            for (i in b.insts) if (i.hasResult && i in used && !i.virtual) local[i] = slotFor(i.kind)
         }
     }
 
@@ -426,8 +461,7 @@ internal class IrCodegen(
                     live.remove(i)
                     for (v in i.inputs) if (v !is Const) live.add(v)
                     i.state?.let { s ->
-                        for (v in s.values) if (v !is Const) live.add(v)
-                        s.site?.values()?.forEach { v -> if (v !is Const) live.add(v) }
+                        for (v in expand(s.values.asList() + (s.site?.values() ?: emptyList()))) live.add(v)
                     }
                 }
                 live.addAll(b.phis)
@@ -584,6 +618,7 @@ internal class IrCodegen(
 
     private fun inst(i: Inst) {
         val op = i.op
+        if (i.virtual) return // allocated by the exits that need it
         when (op) {
             Ir.PARAM -> {
                 frame()
@@ -649,6 +684,26 @@ internal class IrCodegen(
             Ir.CHECK_NUMBER, Ir.CHECK_INT32 -> {
                 val v = i.inputs[0]
                 val l = Label()
+                val vk = kindOf(v)
+                if (JT.isNum(vk)) {
+                    // a number already (a read replaced by the value it reads): only an int32 check is left, if any
+                    if (op == Ir.CHECK_NUMBER || vk == JT.INT) {
+                        load(v, if (op == Ir.CHECK_NUMBER) JT.NUM else JT.INT)
+                        done(i, if (op == Ir.CHECK_NUMBER) JT.NUM else JT.INT)
+                        return
+                    }
+                    val t = tempD()
+                    load(v, JT.NUM)
+                    mv.visitVarInsn(DSTORE, t)
+                    mv.visitVarInsn(DLOAD, t)
+                    rt("isInt32", "(D)Z")
+                    mv.visitJumpInsn(IFEQ, l)
+                    mv.visitVarInsn(DLOAD, t)
+                    mv.visitInsn(D2I)
+                    done(i, JT.INT)
+                    exits.add(specExit(l, i))
+                    return
+                }
                 load(v, JT.ANY)
                 mv.visitTypeInsn(INSTANCEOF, "java/lang/Double")
                 mv.visitJumpInsn(IFEQ, l)

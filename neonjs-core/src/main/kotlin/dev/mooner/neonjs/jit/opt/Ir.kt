@@ -111,6 +111,11 @@ class Inst(
     @JvmField var hasResult = false
     /** For an instruction that can leave the code for the interpreter (an exit): the interpreter's state there. */
     @JvmField var state: FrameState? = null
+    /**
+     * An allocation that is not made (ScalarReplacement): no code, no local; an exit whose state holds it allocates it
+     * from its inputs.
+     */
+    @JvmField var virtual = false
 
     val isTerminator: Boolean get() = Ir.isTerminator(op)
 
