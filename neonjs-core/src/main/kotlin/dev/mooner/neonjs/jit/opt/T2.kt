@@ -54,6 +54,7 @@ object T2 {
             val cls = definer.define(name.replace('/', '.'), bytes, JvmCompiler::class.java.classLoader)
             val code = cls.getDeclaredConstructor(Array<Any?>::class.java, CodeBlock::class.java).newInstance(g.data.toTypedArray(), cb) as T2Code
             code.osrPcs = g.osrPcs
+            code.definer = definer
             compiledCount.incrementAndGet()
             return code
         } catch (e: Throwable) {

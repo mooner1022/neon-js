@@ -307,6 +307,44 @@ class T2Test {
     }
 
     @Test
+    fun failedSpeculationsAreNotMadeAgain() {
+        // a callback site the feedback saw call one function, then called with another: the guard exits until the code
+        // gives way to the baseline and is compiled again without inlining there (CodeBlock.t2Failed)
+        val src = """
+            function repeatf(n, block) { var s = 0; for (var i = 0; i < n; i++) s += block(i); return s }
+            function dbl(x) { return x * 2 }
+            function inc(x) { return x + 1 }
+            """.trimIndent()
+        val warm = "for (var w = 0; w < 30; w++) repeatf(20, dbl)"
+        val expr = "var t = 0; for (var k = 0; k < 200; k++) t += repeatf(10, k % 2 ? dbl : inc); String(t)"
+        val expected = interpreted(src, "$warm; $expr")
+        NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
+            .build().newContext().use { ctx ->
+                ctx.agent.config.tier2 = true
+                ctx.eval(src)
+                ctx.eval(warm)
+                val cb: CodeBlock = (ctx.eval("repeatf").raw as JSClosure).code
+                cb.baseline ?: JvmCompiler.compile(cb)!!.also { cb.baseline = it; cb.compiled = it }
+                val inlined = T2.inlinedCalls.get()
+                Jit.install(cb, T2.compile(cb, CodeDefiners.default) ?: fail("not compiled"))
+                assertTrue(T2.inlinedCalls.get() > inlined, "the callback was not inlined")
+                val exits = dev.mooner.neonjs.jit.Deopt.count.get()
+                assertEquals(expected, ctx.eval(expr).asString())
+                assertEquals(1, cb.t2Recompiles, "compiled again once")
+                assertTrue(cb.compiled is dev.mooner.neonjs.jit.opt.T2Code, "the tier's code runs")
+                assertTrue(cb.t2FailedAt(pcOfCall(cb)), "the call's speculation is noted")
+                // the second version makes no exit there: the exits stop at the limit
+                assertTrue(dev.mooner.neonjs.jit.Deopt.count.get() - exits <= dev.mooner.neonjs.jit.opt.T2Code.DEOPT_LIMIT + 2)
+            }
+    }
+
+    private fun pcOfCall(cb: CodeBlock): Int {
+        var pc = 0
+        while (cb.code[pc] != dev.mooner.neonjs.compiler.Op.CALL) pc += dev.mooner.neonjs.compiler.Op.length(cb.code, pc)
+        return pc
+    }
+
+    @Test
     fun errorsAndTdz() {
         same(
             """

@@ -52,7 +52,8 @@ internal class IrBuilder(
         }
         // parameters that only ever received numbers are taken as numbers, leaving at the start otherwise
         val params = cb.profile?.params
-        if (speculate && params != null) {
+        // (not where such a check failed before: CodeBlock.t2Failed, the parameters' bit)
+        if (speculate && params != null && !cb.t2FailedAt(cb.code.size)) {
             val entry = FrameState(0, regs.copyOf())
             cb.paramRegs?.forEachIndexed { i, r ->
                 if (r >= 0 && i < params.size) numberCheck(params[i].toInt() and 0xFF)?.let { op ->
@@ -517,7 +518,7 @@ internal class IrBuilder(
                         return
                     }
                     Op.GET_PROP -> {
-                        val ic = monomorphic(code.constants[a], PropCache.DATA)
+                        val ic = if (code.t2FailedAt(pc)) null else monomorphic(code.constants[a], PropCache.DATA)
                         if (ic == null) inst(op, arrayOf(pop()), result = true)
                         else {
                             // the receiver's shape (and its prototypes', for an inherited property) as the cache saw it,
@@ -532,7 +533,7 @@ internal class IrBuilder(
                         }
                     }
                     Op.PUT_PROP -> {
-                        val ic = monomorphic(code.constants[a], PropCache.STORE)
+                        val ic = if (code.t2FailedAt(pc)) null else monomorphic(code.constants[a], PropCache.STORE)
                         if (ic == null) {
                             val v = pop()
                             inst(op, arrayOf(pop(), v), result = true)
@@ -567,7 +568,7 @@ internal class IrBuilder(
                     }
                 }
                 // a load whose values were only numbers: a number from here on, or an exit after the load
-                if (speculate && (op == Op.GET_PROP || op == Op.GET_ELEM || op == Op.LOAD_ENV || op == Op.CALL)) {
+                if (speculate && (op == Op.GET_PROP || op == Op.GET_ELEM || op == Op.LOAD_ENV || op == Op.CALL) && !code.t2FailedAt(pc)) {
                     val top = stack.lastOrNull()
                     val bits = code.profile?.values?.get(pc)?.toInt()?.and(0xFF) ?: 0
                     if (top is Inst && top.pc == pc && top.block?.site == site) numberCheck(bits)?.let { check ->
@@ -607,7 +608,8 @@ internal class IrBuilder(
         /** The code block to compile the CALL at [pc] inlined with, or null. */
         private fun inlineTarget(pc: Int): CodeBlock? {
             val depth = site?.depth ?: 0
-            if (depth >= maxInlineDepth) return null
+            // not where a call made there was another function before (CodeBlock.t2Failed)
+            if (depth >= maxInlineDepth || code.t2FailedAt(pc)) return null
             val fb = code.callFeedback
             val target = (if (fb == null) code.callHint(pc) else fb.getOrNull(pc)?.takeIf { it.count >= Inlining.MIN_COUNT }?.target) ?: return null
             // helpers read the strictness from the frame: the function compiled's

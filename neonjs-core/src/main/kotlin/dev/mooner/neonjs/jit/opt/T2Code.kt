@@ -13,27 +13,43 @@ import dev.mooner.neonjs.vm.Frame
  */
 abstract class T2Code(@JvmField val data: Array<Any?>, @JvmField val block: CodeBlock) : CompiledCode {
     @JvmField var deopts = 0
+    /** The definer the code came from, which its block's next compilation uses. */
+    @JvmField var definer: dev.mooner.neonjs.jit.CodeDefiner? = null
     /** The loop headers the code can be entered at by on-stack replacement, sorted. */
     @JvmField var osrPcs: IntArray = IntArray(0)
 
     fun hasEntry(pc: Int): Boolean = java.util.Arrays.binarySearch(osrPcs, pc) >= 0
 
     companion object {
-        /** Deoptimizations after which a block's code goes back to its baseline, and the block stays there. */
-        @JvmField val DEOPT_LIMIT = Integer.getInteger("neonjs.jit.t2DeoptLimit", 64)
+        /**
+         * Deoptimizations after which a version of a block's code gives way to its baseline (and the block is compiled
+         * again without the speculations that failed, [RECOMPILES] times at most, then not at all).
+         */
+        @JvmField val DEOPT_LIMIT = Integer.getInteger("neonjs.jit.t2DeoptLimit", 16)
+        const val RECOMPILES = 3
 
         /**
-         * An exit of [code] running [f] (Deopt.resume) where an assumption failed: counted, and past [DEOPT_LIMIT]
-         * the block's baseline runs new activations again (Jit.revert) and the block is not compiled by this tier again.
+         * An exit of [code] running [f] (Deopt.resume) where the speculation [data] names (a [Speculation]) failed: it is
+         * noted on its code block, and past [DEOPT_LIMIT] exits the block's baseline runs new activations again
+         * (Jit.revert) while the block is compiled again, without the speculations that failed.
          */
         @JvmStatic
-        fun exit(code: T2Code, f: Frame, pc: Int, values: Array<Any?>, inner: Any?): Any? {
+        fun exit(code: T2Code, f: Frame, pc: Int, values: Array<Any?>, inner: Any?, spec: Int): Any? {
+            val s = code.data[spec] as Speculation
+            synchronized(s.code) {
+                (s.code.t2Failed ?: java.util.BitSet().also { s.code.t2Failed = it }).set(s.pc)
+            }
             if (++code.deopts == DEOPT_LIMIT) {
-                code.block.t2Off = true
                 Jit.revert(code.block, code)
                 T2.reverted.incrementAndGet()
+                val b = code.block
+                if (++b.t2Recompiles > RECOMPILES) b.t2Off = true
+                else code.definer?.let { T2.submit(b, it, f.realm.agent.config.backgroundJit) }
             }
             return Deopt.resume(f, pc, values, inner as Deopt.Inlined?)
         }
     }
 }
+
+/** A speculation an exit stands for: made at [pc] of [code] (pc [CodeBlock.code].size: the parameters). */
+class Speculation(@JvmField val code: CodeBlock, @JvmField val pc: Int)

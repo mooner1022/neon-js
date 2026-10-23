@@ -50,7 +50,13 @@ internal class IrCodegen(
     override val inInlinedBody: Boolean get() = curSite != null
 
     /** The exits reached from `run`: the label of each, its state, and whether an assumption failed there. */
-    private class Exit(val label: Label, val state: FrameState, val counted: Boolean)
+    private class Exit(val label: Label, val state: FrameState, val counted: Boolean, val spec: Int = -1)
+
+    /** The exit of a speculation [i] makes (counted, and noted where it failed: T2Code.exit). */
+    private fun specExit(l: Label, i: Inst): Exit {
+        val code = i.block!!.site?.code ?: g.code
+        return Exit(l, i.state!!, counted = true, spec = g.dataIndex(Speculation(code, if (i.op == Ir.CHECK_NUMBER || i.op == Ir.CHECK_INT32) (if (i.pc < 0) code.code.size else i.pc) else i.pc)))
+    }
     private val exits = ArrayList<Exit>()
 
     /** The end of each block's code, and the local and kind of each register's home (exception handlers). */
@@ -159,7 +165,8 @@ internal class IrCodegen(
         array(s.values)
         m.visitVarInsn(ALOAD, inner)
         if (e.counted) {
-            m.visitMethodInsn(INVOKESTATIC, SUPER, "exit", "(L$SUPER;${FRAME_D}I$CONSTS_D$OBJ)$OBJ", false)
+            em.iconst(e.spec)
+            m.visitMethodInsn(INVOKESTATIC, SUPER, "exit", "(L$SUPER;${FRAME_D}I$CONSTS_D${OBJ}I)$OBJ", false)
         } else em.rt("deoptChain", "(${FRAME_D}I$CONSTS_D$OBJ)$OBJ")
         m.visitInsn(ARETURN)
         m.visitMaxs(0, 0)
@@ -605,7 +612,7 @@ internal class IrCodegen(
                 frame()
                 mv.visitFieldInsn(GETFIELD, FRAME, "realm", REALM_D)
                 mv.visitJumpInsn(IF_ACMPNE, l)
-                exits.add(Exit(l, i.state!!, counted = true))
+                exits.add(specExit(l, i))
                 return
             }
             Ir.INLINE_ENTER -> {
@@ -657,7 +664,7 @@ internal class IrCodegen(
                     mv.visitInsn(D2I)
                     done(i, JT.INT)
                 } else done(i, JT.NUM)
-                exits.add(Exit(l, i.state!!, counted = true))
+                exits.add(specExit(l, i))
                 return
             }
             Ir.LOAD_SLOT, Ir.STORE_SLOT -> {
@@ -703,7 +710,7 @@ internal class IrCodegen(
                     load(i.inputs[1], JT.ANY)
                     mv.visitInsn(AASTORE)
                 }
-                exits.add(Exit(l, i.state!!, counted = true))
+                exits.add(specExit(l, i))
                 return
             }
             Ir.CATCH_VALUE -> {

@@ -231,6 +231,16 @@ class CodeBlock(@JvmField val name: String, @JvmField val kind: FunctionKind) {
     @JvmField @Volatile var baseline: Any? = null
     /** Whether the optimizing tier's code for this block deoptimized too often: it is not compiled by that tier again. */
     @JvmField var t2Off = false
+    /**
+     * The pcs where a speculation of the optimizing tier failed (an exit taken), which its next compilations of this
+     * block, or of blocks inlining it, do not make again (bit [code].size: the parameters); and how many times the block
+     * was compiled again because of them.
+     */
+    @JvmField var t2Failed: java.util.BitSet? = null
+    @JvmField var t2Recompiles = 0
+
+    /** Whether a speculation of the optimizing tier at [pc] failed before ([t2Failed]). */
+    fun t2FailedAt(pc: Int): Boolean = t2Failed?.get(pc) ?: false
     @JvmField var invocationCount = 0
     @JvmField @Volatile var jitFailed = false
     /** The pending dev.mooner.neonjs.jit.JitTask while the block is queued or being compiled. */
