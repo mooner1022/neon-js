@@ -269,8 +269,15 @@ gives each value used a JVM local of its kind and copies phi inputs at the end o
 stored: a parallel copy), so the JVM operand stack is empty at every block boundary, and emits T1's code for each
 instruction (`JvmEmitter`); its on-stack replacement entries load each register into the local of the value it holds
 at the loop header. Blocks with exception handlers or instructions the IR does not have yet keep their baseline.
-Nothing uses it yet but `-Dneonjs.jit.t2Stress`, which compiles every block right after its baseline is installed and
-installs the result over it (`Jit.install`); Test262 passes that way in every mode.
+Calls that feedback or static targets name, and `Inlining.eligible` accepts, have the callee's body built in place,
+up to three levels deep, behind a guard (the closure's code block and realm) that exits before the `CALL` when it
+fails. An exit (`FrameState` on the instruction) is a private method of the generated class (a `T2Code`) that boxes
+the interpreter's state, with a `Deopt.Inlined` per call inlined around it, and calls `Deopt.resume`; past 64 exits
+the block's baseline runs again for good (`CodeBlock.t2Off`). The innermost inlined call is `Frame.inlineFn` as in T1,
+the ones around it a stack in `FrameExt` (`JitRt.inlineEnterNested`), and `JitRt.dropInlined` gives back the call
+depth of every level when an exception leaves the frame or it deoptimizes. Nothing uses the tier yet but
+`-Dneonjs.jit.t2Stress`, which compiles every block right after its baseline is installed and installs the result
+over it (`Jit.install`); Test262 passes that way in every mode, with `-Dneonjs.jit.deoptStress` too.
 
 Contracts for other code generators (an optimizing tier with its own IR, or front ends other than JS bytecode). The
 present generator follows them, and so must anything added next to it:

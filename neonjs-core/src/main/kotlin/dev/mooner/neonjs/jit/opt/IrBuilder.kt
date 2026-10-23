@@ -359,6 +359,15 @@ internal class IrBuilder(
             val target = (if (fb == null) code.callHint(pc) else fb.getOrNull(pc)?.takeIf { it.count >= Inlining.MIN_COUNT }?.target) ?: return null
             // helpers read the strictness from the frame: the function compiled's
             if (!Inlining.eligible(cb, target, MAX_CALLEE_CODE)) return null
+            // recursion is inlined once, at the function compiled (as the baseline does): further copies only grow it
+            if (depth > 0) {
+                if (target === cb) return null
+                var s = site
+                while (s != null) {
+                    if (s.code === target) return null
+                    s = s.parent
+                }
+            }
             if (inlined + target.code.size > INLINE_BUDGET) return null
             return target
         }
@@ -545,7 +554,7 @@ internal class IrBuilder(
         private val NO_VALUES = arrayOf<Value>()
 
         /** Calls compiled inlined into one another at most; bytecode ints of one callee and of all of them, at most. */
-        const val MAX_INLINE_DEPTH = 1
+        const val MAX_INLINE_DEPTH = 3
         const val MAX_CALLEE_CODE = 400
         const val INLINE_BUDGET = 2000
 

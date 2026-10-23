@@ -207,11 +207,25 @@ object JitRt {
     @JvmStatic fun catchValue(t: Throwable, f: Frame): Any? {
         // the stack trace first, while an inlined call the exception came from still shows in it
         val v = Rt.catchValue(t, f.realm, f, f.pc)
-        if (f.inlineFn != null) {
-            f.inlineFn = null
-            f.realm.agent.depth--
-        }
+        dropInlined(f)
         return v
+    }
+
+    /**
+     * Ends the calls compiled inlined that [f] is running (an exception leaves them, or the frame deoptimizes): the call
+     * depth they count is given back.
+     */
+    @JvmStatic fun dropInlined(f: Frame) {
+        if (f.inlineFn == null) return
+        var n = 1
+        val e = f.ext
+        if (e != null && e.inlineCount > 0) {
+            n += e.inlineCount
+            e.inlineCount = 0
+            java.util.Arrays.fill(e.inlineFns!!, null)
+        }
+        f.inlineFn = null
+        f.realm.agent.depth -= n
     }
 
     // ------------------------------------------------------------------ inlined calls (Inlining)
@@ -247,6 +261,53 @@ object JitRt {
         f.realm.agent.depth--
     }
 
+    /**
+     * [inlineEnter] for a call compiled inlined in the body of another ([Frame.inlineFn], at the call at [pc] there): that
+     * one goes on the frame's stack of outer calls (FrameExt.inlineFns), allocated the first time.
+     */
+    @JvmStatic fun inlineEnterNested(f: Frame, fn: JSClosure, pc: Int) {
+        val agent = f.realm.agent
+        if (++agent.depth > agent.maxDepth) {
+            agent.depth--
+            throw JSException.rangeError("Maximum call stack size exceeded")
+        }
+        if (--agent.callBudget < 0) {
+            agent.callBudget = 1024
+            try {
+                agent.checkInterrupt()
+            } catch (t: Throwable) {
+                agent.depth--
+                throw t
+            }
+        }
+        val e = f.ext ?: Frame.FrameExt().also { f.ext = it }
+        var fns = e.inlineFns
+        var pcs = e.inlinePcs
+        val n = e.inlineCount
+        if (fns == null || n == fns.size) {
+            fns = (fns ?: arrayOfNulls(4)).copyOf(maxOf(4, n * 2))
+            pcs = (pcs ?: IntArray(4)).copyOf(maxOf(4, n * 2))
+            e.inlineFns = fns
+            e.inlinePcs = pcs
+        }
+        fns[n] = f.inlineFn
+        pcs!![n] = pc
+        e.inlineCount = n + 1
+        f.inlinePc = 0
+        f.inlineFn = fn
+    }
+
+    /** Leaving a call [inlineEnterNested] entered: the call it was inlined in is the innermost again. */
+    @JvmStatic fun inlineExitNested(f: Frame) {
+        val e = f.ext!!
+        val n = e.inlineCount - 1
+        f.inlineFn = e.inlineFns!![n]
+        f.inlinePc = e.inlinePcs!![n]
+        e.inlineFns!![n] = null
+        e.inlineCount = n
+        f.realm.agent.depth--
+    }
+
     /** The `this` of an inlined body of [fn] called with [thisArg], as a call of it would bind it. */
     @JvmStatic fun inlineThis(fn: JSClosure, thisArg: Any?): Any? = Interpreter.thisFor(fn, fn.code.flags, fn.realm, thisArg)
 
@@ -256,10 +317,7 @@ object JitRt {
      */
     @JvmStatic fun leaveCompiled(t: Throwable, f: Frame): Throwable {
         if (t is JSException) Rt.attachStack(t, f, f.pc)
-        if (f.inlineFn != null) {
-            f.inlineFn = null
-            f.realm.agent.depth--
-        }
+        dropInlined(f)
         return t
     }
 

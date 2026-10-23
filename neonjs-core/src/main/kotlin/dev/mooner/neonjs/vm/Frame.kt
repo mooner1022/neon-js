@@ -91,7 +91,8 @@ class Frame(
     @JvmField var parent: Frame? = null
     /**
      * The function whose body compiled code is running inlined in this frame (dev.mooner.neonjs.jit.Inlining), and the
-     * pc in that body; [pc] stays at the call. Stack traces show the inlined call as a frame of its own.
+     * pc in that body; [pc] stays at the call. Stack traces show the inlined call as a frame of its own. Calls inlined
+     * into it, the optimizing tier's, make it the innermost one ([FrameExt.inlineFns] holds the others).
      */
     @JvmField var inlineFn: JSClosure? = null
     @JvmField var inlinePc: Int = 0
@@ -131,6 +132,13 @@ class Frame(
         @JvmField var deoptCall: Any? = null
         @JvmField var pendingThrow: Throwable? = null
         @JvmField var throwPc = 0
+        /**
+         * Calls compiled inlined into one another (the optimizing tier's), but the innermost ([inlineFn]): the function of
+         * each, outermost first, and its position, the call of the next one; [inlineCount] of them.
+         */
+        @JvmField var inlineFns: Array<JSClosure?>? = null
+        @JvmField var inlinePcs: IntArray? = null
+        @JvmField var inlineCount = 0
     }
 
     companion object {

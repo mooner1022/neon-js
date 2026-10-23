@@ -51,11 +51,8 @@ object Deopt {
     fun resume(f: Frame, pc: Int, values: Array<Any?>, inner: Inlined?): Any? {
         count.incrementAndGet()
         val entered = !f.isCompiled
-        // a call compiled code ran inlined in the frame ends here: it gets a frame of its own (finishCall)
-        if (f.inlineFn != null) {
-            f.inlineFn = null
-            f.realm.agent.depth--
-        }
+        // the calls compiled code ran inlined in the frame end here: they get frames of their own (finishCall)
+        JitRt.dropInlined(f)
         write(f, values)
         f.pc = pc
         if (inner != null) {

@@ -520,13 +520,14 @@ internal class IrCodegen(
                 load(i.inputs[0], JT.ANY)
                 mv.visitTypeInsn(CHECKCAST, CLOSURE)
                 iconst(i.a)
-                rt("inlineEnter", "($FRAME_D$CLOSURE_D" + "I)V")
+                // a call inlined in an inlined body: that one goes on the frame's stack of outer calls
+                rt(if (curSite != null) "inlineEnterNested" else "inlineEnter", "($FRAME_D$CLOSURE_D" + "I)V")
                 storedPc = -2
                 return
             }
             Ir.INLINE_EXIT -> {
                 frame()
-                rt("inlineExit", "($FRAME_D)V")
+                rt(if (curSite != null) "inlineExitNested" else "inlineExit", "($FRAME_D)V")
                 storedPc = -2
                 return
             }

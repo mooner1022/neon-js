@@ -135,6 +135,50 @@ class T2Test {
     }
 
     @Test
+    fun callsInlinedIntoOneAnother() {
+        val src = """
+            function c3(x) { return new Error('deep ' + x).stack }
+            function c2(x) { return 'b' + c3(x + 1) }
+            function c1(x) { return 'a' + c2(x + 1) }
+            function traced(n) { var r = ''; for (var i = 0; i < n; i++) r = c1(i); return r }
+            function t3(v) { if (v % 7 === 3) throw new TypeError('t' + v); return v }
+            function t2(v) { return t3(v) * 2 }
+            function t1(v) { return t2(v) + 1 }
+            function many(n) { var c = 0, s = 0; for (var i = 0; i < n; i++) { try { s += t1(i) } catch (e) { c++ } } return c + ':' + s }
+            function n3(x) { return x * 3 }
+            function n2(x) { return n3(x) + n3(x + 1) }
+            function n1(x) { return n2(x) - n2(x - 1) }
+            function sum(n) { var s = 0; for (var i = 0; i < n; i++) s += n1(i); return s }
+            """.trimIndent()
+        val expr = "[traced(20), many(3000), sum(2000)].join('|')"
+        val expected = interpreted(src, expr)
+        val before = JvmCompiler.DEOPT_STRESS
+        try {
+            for (stress in intArrayOf(0, 3)) {
+                JvmCompiler.DEOPT_STRESS = stress
+                val inlined = T2.inlinedCalls.get()
+                val nested = dev.mooner.neonjs.jit.Deopt.inlinedCount.get()
+                NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
+                    .build().newContext().use { ctx ->
+                        ctx.eval(src)
+                        for (n in listOf("traced", "t1", "sum")) {
+                            val cb: CodeBlock = (ctx.eval(n).raw as JSClosure).code
+                            cb.baseline ?: JvmCompiler.compile(cb)!!.also { cb.baseline = it; cb.compiled = it }
+                            Jit.install(cb, T2.compile(cb, CodeDefiners.default) ?: fail("$n not compiled"))
+                        }
+                        assertEquals(expected, ctx.eval(expr).asString(), "deopt stress $stress")
+                        // exceptions out of calls inlined two deep gave their call depth back
+                        assertEquals(0, ctx.agent.depth)
+                    }
+                assertTrue(T2.inlinedCalls.get() - inlined >= 6, "calls inlined into one another")
+                if (stress > 0) assertTrue(dev.mooner.neonjs.jit.Deopt.inlinedCount.get() > nested, "no exit inside inlined calls")
+            }
+        } finally {
+            JvmCompiler.DEOPT_STRESS = before
+        }
+    }
+
+    @Test
     fun guardsLeaveWhenAnotherFunctionIsCalled() {
         // the interpreter's feedback names sq at apply's call; then cube is called there: the guard exits, the
         // interpreter calls cube, and after enough exits the block goes back to its baseline for good

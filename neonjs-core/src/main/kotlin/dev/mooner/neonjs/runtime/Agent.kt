@@ -505,15 +505,27 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
         var f = topFrame
         var n = 0
         while (f != null && n < limit) {
-            // a call compiled code runs inlined in this frame is a frame of its own here
+            // a call compiled code runs inlined in this frame is a frame of its own here, as are the calls it is inlined
+            // in (the optimizing tier's)
             val inl = f.inlineFn
             if (inl != null) {
-                if (skipping) {
-                    if (inl === skipThrough) skipping = false
-                } else {
-                    appendFrame(sb, inl.debugName().ifEmpty { "<anonymous>" }, inl.code, f.inlinePc)
-                    if (++n >= limit) break
+                val e = f.ext
+                var level = e?.inlineCount ?: 0
+                var fn: dev.mooner.neonjs.vm.JSClosure = inl
+                var pc = f.inlinePc
+                while (true) {
+                    if (skipping) {
+                        if (fn === skipThrough) skipping = false
+                    } else {
+                        appendFrame(sb, fn.debugName().ifEmpty { "<anonymous>" }, fn.code, pc)
+                        if (++n >= limit) break
+                    }
+                    if (level == 0) break
+                    level--
+                    fn = e!!.inlineFns!![level]!!
+                    pc = e.inlinePcs!![level]
                 }
+                if (n >= limit) break
             }
             if (skipping) {
                 if (f.fn != null && f.fn === skipThrough) skipping = false

@@ -1,8 +1,8 @@
 # Optimizing tier (T2): design and plan
 
-Status (2026-10-23): P0 done; P1 done but for inlining, which moves to P2 (the IR and its code run Test262 in every
-mode with `-Dneonjs.jit.t2Stress`); P2 next. Nothing here is enabled by default; `RuntimeConfig.tier2` (default off)
-gates every part that costs anything.
+Status (2026-10-23): P0, P1 and P2 done (the IR, its code, its exits and inlining run Test262 in every mode with
+`-Dneonjs.jit.t2Stress`, with and without `-Dneonjs.jit.deoptStress`); P3 next. Nothing here is enabled by default;
+`RuntimeConfig.tier2` (default off) gates every part that costs anything.
 
 This document is the plan for a second compiler tier that speculates on profiled types, inlines deeply, removes
 allocations and hoists loads, and deoptimizes to the interpreter when a speculation fails. It complements
@@ -260,9 +260,26 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
   127K Test262 functions verified. On HotSpot, T2 code matches T1 but where T1 inlines calls (fib, closures: 25-40%
   slower until P2), and runs NeonBench's int case 30x faster, since HotSpot can OSR-compile its loops (T1 keeps
   values on the JVM stack below inlined loops). The T2 compile queue moves to P5.
-- **P2: inlining** (~2K). Multi-level inlining in the builder, inlined frames in FrameStates and stack traces
-  (a position per level in the frame), constructor calls. Exit: nested-calls bound reached within 2x; Test262 with
-  `t2Stress` + `deoptStress`.
+- **P2: exits and inlining** (~1.5K, done). Exits came forward from P3: a guard that falls back to the generic call
+  would merge the inlined result with the call's, boxing it again, so a failed guard exits instead.
+  - FrameStates on the instructions that can exit; each exit is a private method of the class that boxes the state
+    and calls Deopt.resume (the `run` method only passes the values). The class extends T2Code: the objects the code
+    needs (`data`), and a deoptimization count; past 64 (`-Dneonjs.jit.t2DeoptLimit`) the block's baseline runs again
+    and the block is not compiled by the tier again (`CodeBlock.t2Off`). `deoptStress` gives T2 code exits at the start
+    and loop headers of each body, as it does T1's.
+  - Inlining in the builder: calls named by feedback or static targets that `Inlining.eligible` accepts (400 bytecode
+    ints at most, 2000 per function, three levels deep, recursion once as in T1), behind a guard (a closure of that
+    code block in the frame's realm) that exits before the CALL. The callee's registers are graph values, so arguments
+    and results stay unboxed; exits inside a body carry the caller's state at the call and the callee's closure,
+    `this`, arguments and environment (InlineSite), and Deopt.resume rebuilds a frame per level.
+  - Frames: the innermost inlined call stays in `Frame.inlineFn`/`inlinePc` (T1's helpers keep working); the calls
+    around it go on a stack in FrameExt, allocated at the first nesting; `JitRt.dropInlined` gives back the depth of
+    every level when an exception leaves or the frame deoptimizes; stack traces show each level.
+  - Result: Test262 0 failures with `t2Stress` and `t2Stress` + `deoptStress` in compiled, adaptive and
+    adaptive + `osrStress` mode (120K calls inlined in compiled mode; up to 520M exits, 218K inside inlined calls);
+    fuzzer clean. On HotSpot: the nested-calls bound 200 ms -> 79 ms (flattened: 22-26 ms), a method using `this`
+    60 -> 53 ms, NeonBench's call and closure cases as T1, fib 10-15% slower than T1. Constructor calls (`new`) are
+    not inlined yet.
 - **P3: speculation** (~3K). Profile-driven guards, typed arithmetic with overflow exits, shape-guarded loads and
   stores, global cells, intrinsics, deopt counters and invalidation. Exit: property-load and nbody bounds within 1.5x;
   no deopt loops in jsbench and NeonBench (counters).
