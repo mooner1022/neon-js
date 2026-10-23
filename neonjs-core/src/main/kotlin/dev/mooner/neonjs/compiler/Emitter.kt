@@ -57,7 +57,7 @@ internal class Emitter(fi: FnInfo, source: Source, analyzer: ScopeAnalyzer) :
     fun compileProgram(prog: Program, mode: CodeMode): CodeBlock {
         val kind = FunctionKind.NORMAL
         val cb = CodeBlock(if (mode == CodeMode.SCRIPT) "<script>" else "<eval>", kind)
-        cb.flags = CodeBlock.TOP_LEVEL or (if (prog.strict) CodeBlock.STRICT else 0)
+        cb.flags = CodeBlock.TOP_LEVEL or (if (prog.strict) CodeBlock.STRICT else 0) or (if (mode == CodeMode.SCRIPT) CodeBlock.SCRIPT else 0)
         cb.source = source
         cb.srcStart = 0
         cb.srcEnd = prog.end

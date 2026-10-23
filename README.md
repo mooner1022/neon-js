@@ -144,7 +144,8 @@ Compiled scripts (`engine.compile(source)`) can be evaluated in any context of t
 - `INTERPRETER`: bytecode interpreter only.
 - `ADAPTIVE` (default): functions start interpreted; after `jitThreshold` calls (or long-running loops) they are
   compiled to JVM bytecode by background threads, and keep running interpreted until their code is ready. Functions
-  that become hot together are compiled together.
+  that become hot together are compiled together. A long-running loop continues in the compiled code as soon as it is
+  ready (on-stack replacement), in a function as in a script's top-level code.
 - `COMPILED`: every function is compiled before its first call; the calling thread waits for its own function only,
   while the functions a script defines are compiled in parallel by the background threads.
 
@@ -157,8 +158,8 @@ generated classes, for profilers), `neonjs.jit.typed` (`false` keeps numbers box
 `neonjs.jit.int32` (`false` keeps int32 values as doubles in generated code), `neonjs.jit.elem` (`false` boxes the
 numbers generated code stores into typed arrays and reads from arrays), `neonjs.jit.inline` (`false` compiles calls
 without inlining the callee), `neonjs.jit.inlineMinCount` (16: calls a site must have made to one function, while its
-caller ran interpreted, before that function is inlined there), `neonjs.jit.dump` (a directory to write the generated
-classes to).
+caller ran interpreted, before that function is inlined there), `neonjs.jit.osrStress` (tests: every loop continues
+in compiled code after its first iteration), `neonjs.jit.dump` (a directory to write the generated classes to).
 
 ### Values
 

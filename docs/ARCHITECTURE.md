@@ -126,8 +126,9 @@ specialised. The rules that keep this sound:
   before. A register is a `double` only when no instruction but `LOAD_REG` / `STORE_REG` touches it (registers read by
   TDZ checks, iterators, the finally dispatch `JUMP_TABLE`, `INIT_THIS_REG` and `MAKE_METHOD` stay Objects) and every
   read sees a number. Registers are invisible outside their function (closures, `eval`, `with` and mapped `arguments`
-  use environment slots) and compiled code is only entered at its start, so nothing else reads or writes a `double`
-  local.
+  use environment slots), and compiled code is entered at its start or at a loop header by on-stack replacement (below),
+  where a `double` or `int` local is loaded from the interpreter's register through the same `checkcast` / `exactInt`
+  as any load, and only where the analysis has a number in it; nothing else reads or writes such a local.
 - INT is only what is an int32 by definition: integer literals and constants that are int32s (not -0), and the results
   of `&`, `|`, `^`, `<<`, `>>` and `~`. Bitwise operators on two numbers are ToInt32 and a JVM int instruction (the
   JVM masks shift counts to 5 bits, as JS does; `>>>` gives its uint32 as a double), comparisons of two ints are
@@ -218,7 +219,20 @@ withdraws its queued tasks.
 `Jit.prepare` implements tiering: `INTERPRETER` never compiles, `COMPILED` compiles before the first call (the
 caller waits for its block only, then queues the blocks it defines), `ADAPTIVE` queues a block after `jitThreshold`
 calls and keeps interpreting it until its code is installed. Compiled code and interpreted code share frames and are
-interchangeable at call boundaries.
+interchangeable at call boundaries, and at loop headers:
+
+On-stack replacement (`Jit.loop`, `Jit.osr`): every 4096 back-edges of an interpreted loop (`Jit.LOOP_CHECK`, also the
+period of the interrupt checks), `Jit.loop` credits 64 calls toward the block's threshold and, in adaptive mode, queues
+the block once it is due, without waiting for its next call. Once its code is installed, a backward `JUMP`,
+`JUMP_IF_TRUE` or `JUMP_IF_FALSE` with an empty operand stack continues the frame in it: `run` leaves its exception
+dispatch first (compiled code runs the handlers of what it throws, and its exceptions leave through
+`JitRt.leaveCompiled`), then calls the code with the interpreted frame. Generated code recognizes such a frame by its
+slots (`Frame.isCompiled` is false), loads the registers from them and jumps to the loop header in `Frame.pc`; a header
+whose stack the analysis does not have empty gets `JitRt.NO_OSR` back before anything happens, and the interpreter
+goes on. Every class of a block with a backward jump has this dispatch, typed or not, since the interpreter tries all
+of them. Only functions and classic scripts (`CodeBlock.SCRIPT`) are compiled from a loop: eval code and module bodies
+stay interpreted, as before. `-Dneonjs.jit.osrStress` enters every loop after its first iteration (compiling on the
+calling thread) to test this; interrupt checks then run at every back-edge, so statement limits run out sooner.
 
 ## Object model (`runtime/`)
 

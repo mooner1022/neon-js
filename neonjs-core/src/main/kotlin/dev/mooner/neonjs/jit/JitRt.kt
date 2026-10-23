@@ -6,7 +6,16 @@ import dev.mooner.neonjs.compiler.*
 import dev.mooner.neonjs.runtime.*
 import dev.mooner.neonjs.vm.*
 
-/** Entry point implemented by generated classes. */
+/**
+ * Entry point implemented by generated classes.
+ *
+ * [run] starts the code block at its beginning when [f] is a frame made for compiled code ([Frame.isCompiled]). Given
+ * an interpreted frame instead, it is an on-stack replacement ([Jit.osr]): the interpreter stopped at a loop header,
+ * [Frame.pc], with an empty operand stack and the registers in [Frame.slots]; the code continues there and returns the
+ * frame's result, or returns [JitRt.NO_OSR] before doing anything when it has no entry at that pc. Code whose block
+ * has no backward jump may assume it is never given an interpreted frame. Any code generator (a later tier included)
+ * follows this contract, whichever entries it supports.
+ */
 interface CompiledCode {
     fun run(f: Frame): Any?
 }
@@ -18,6 +27,9 @@ interface CompiledCode {
  */
 @Suppress("unused")
 object JitRt {
+    /** Returned by [CompiledCode.run] given an interpreted frame at a pc it cannot be entered at. */
+    @JvmField val NO_OSR = Any()
+
     private fun tdzError(name: String) = JSException.referenceError(
         if (name == "this") "Must call super constructor in derived class before accessing 'this' or returning from derived constructor"
         else "Cannot access '$name' before initialization"

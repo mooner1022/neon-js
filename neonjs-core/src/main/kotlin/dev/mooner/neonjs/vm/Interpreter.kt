@@ -192,7 +192,7 @@ object Interpreter {
         var sp = f.sp
         var pc = f.pc
         var opStart = pc
-        var budget = 4096
+        var budget = dev.mooner.neonjs.jit.Jit.LOOP_CHECK
         var pendingThrow: Any? = null
         if (f.resumeMode == Frame.MODE_THROW && f.suspendKind == Frame.SUSPEND_AWAIT) {
             // resumed from await with a rejection: throw at the await instruction
@@ -207,7 +207,7 @@ object Interpreter {
                     pendingThrow = null
                     throw JSException(t)
                 }
-                while (true) {
+                dispatch@ while (true) {
                     opStart = pc
                     when (code[pc++]) {
                         Op.NOP -> {}
@@ -370,8 +370,8 @@ object Interpreter {
                         Op.JUMP -> {
                             val t = code[pc]
                             if (t < pc && --budget <= 0) {
-                                budget = 4096
-                                backEdge(realm.agent, cb)
+                                budget = dev.mooner.neonjs.jit.Jit.LOOP_CHECK
+                                if (backEdge(f, sp)) { pc = t; break@dispatch }
                             }
                             pc = t
                         }
@@ -380,7 +380,10 @@ object Interpreter {
                             s[sp] = null
                             if (if (v is Boolean) v else Ops.toBoolean(v)) {
                                 val t = code[pc]
-                                if (t < pc && --budget <= 0) { budget = 4096; backEdge(realm.agent, cb) }
+                                if (t < pc && --budget <= 0) {
+                                    budget = dev.mooner.neonjs.jit.Jit.LOOP_CHECK
+                                    if (backEdge(f, sp)) { pc = t; break@dispatch }
+                                }
                                 pc = t
                             } else pc++
                         }
@@ -389,7 +392,10 @@ object Interpreter {
                             s[sp] = null
                             if (!(if (v is Boolean) v else Ops.toBoolean(v))) {
                                 val t = code[pc]
-                                if (t < pc && --budget <= 0) { budget = 4096; backEdge(realm.agent, cb) }
+                                if (t < pc && --budget <= 0) {
+                                    budget = dev.mooner.neonjs.jit.Jit.LOOP_CHECK
+                                    if (backEdge(f, sp)) { pc = t; break@dispatch }
+                                }
                                 pc = t
                             } else pc++
                         }
@@ -484,7 +490,7 @@ object Interpreter {
                             val v = Iteration.stepValue(rec)
                             if (v === NotFound) {
                                 pc = t
-                                if (--budget <= 0) { budget = 4096; backEdge(realm.agent, cb) }
+                                if (--budget <= 0) { budget = dev.mooner.neonjs.jit.Jit.LOOP_CHECK; backEdge(f, -1) }
                             } else s[sp++] = v
                         }
                         Op.FOR_IN_NEXT -> {
@@ -492,7 +498,7 @@ object Interpreter {
                             val t = code[pc++]
                             val key = it.next()
                             if (key == null) pc = t else s[sp++] = key
-                            if (--budget <= 0) { budget = 4096; backEdge(realm.agent, cb) }
+                            if (--budget <= 0) { budget = dev.mooner.neonjs.jit.Jit.LOOP_CHECK; backEdge(f, -1) }
                         }
                         Op.GENERATOR_INIT -> {
                             f.pc = pc
@@ -554,19 +560,29 @@ object Interpreter {
                 sp = base + depth
                 s[sp++] = v
                 pc = h[hi + 2]
+                continue
             }
+            // a loop continues in compiled code (backEdge), outside the exception dispatch above: compiled code has
+            // run the handlers of what it throws
+            f.pc = pc
+            f.sp = sp
+            val r = dev.mooner.neonjs.jit.Jit.osr(f)
+            if (r !== dev.mooner.neonjs.jit.JitRt.NO_OSR) return r
         }
     }
 
     /**
-     * Every 4096 loop iterations of interpreted code: the agent's limits, and (adaptive mode) credit toward compiling
-     * this code block at its next call, so a function whose time goes into long loops is compiled even when it is
-     * called only a few times (about 64K iterations reach the default threshold of 1000 calls).
+     * Every [dev.mooner.neonjs.jit.Jit.LOOP_CHECK] loop iterations of interpreted code: the agent's limits, and the
+     * JIT's tier-up policy (Jit.loop). At a backward jump to a loop header ([sp]: the operand stack there, -1
+     * elsewhere), returns whether the loop continues in the block's compiled code (Jit.osr), which takes only an empty
+     * operand stack.
      */
     @JvmStatic
-    private fun backEdge(agent: Agent, cb: CodeBlock) {
+    private fun backEdge(f: Frame, sp: Int): Boolean {
+        val agent = f.realm.agent
         agent.checkInterrupt()
-        if (cb.compiled == null) cb.invocationCount += 64
+        val cb = f.code
+        return dev.mooner.neonjs.jit.Jit.loop(cb, agent) && sp == cb.numRegs
     }
 
     /** Less frequent instructions, kept out of [run] so the hot loop stays small enough for the JVM JIT. */

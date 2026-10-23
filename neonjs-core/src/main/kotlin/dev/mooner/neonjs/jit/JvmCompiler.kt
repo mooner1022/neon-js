@@ -95,7 +95,7 @@ class JitInput(cb: CodeBlock, debugInfo: Boolean = JvmCompiler.DEBUG_INFO, planI
 
     companion object {
         /** Changes when the code generator changes what it emits for the same input. */
-        private const val FORMAT = 7
+        private const val FORMAT = 8
         const val CONST_OTHER: Byte = 0
         const val CONST_NUMBER: Byte = 1
         /** A number that is an int32 (and not -0). */
@@ -160,6 +160,21 @@ object JvmCompiler {
     private const val MAX_SPLIT = 6
 
     fun canCompile(cb: CodeBlock): Boolean = !cb.isGenerator && !cb.isAsync && cb.flags and CodeBlock.NO_JIT == 0
+
+    /**
+     * The targets of the backward jumps (`JUMP`, `JUMP_IF_TRUE`, `JUMP_IF_FALSE`) in [code], sorted: the loop headers
+     * where the interpreter may continue in compiled code (Jit.osr), and only there.
+     */
+    internal fun backEdgeTargets(code: IntArray): IntArray {
+        val t = java.util.TreeSet<Int>()
+        var pc = 0
+        while (pc < code.size) {
+            val op = code[pc]
+            if ((op == Op.JUMP || op == Op.JUMP_IF_TRUE || op == Op.JUMP_IF_FALSE) && code[pc + 1] <= pc) t.add(code[pc + 1])
+            pc += Op.length(code, pc)
+        }
+        return t.toIntArray()
+    }
 
     /**
      * Compiles [cb] into a class defined by [definer], or reuses the code of a block with the same identity; returns
@@ -562,6 +577,7 @@ object JvmCompiler {
                     JT.INT -> { mv.visitInsn(ICONST_0); mv.visitVarInsn(ISTORE, slots[r]) }
                 }
             }
+            emitOsrEntry()
             cb.paramRegs?.forEachIndexed { idx, r ->
                 // a parameter register kept unboxed is never read before a number is stored in it
                 if (r >= 0 && storage[r] == JT.ANY) {
@@ -576,6 +592,80 @@ object JvmCompiler {
             pushUndefined()
             mv.visitInsn(ARETURN)
             emitTrampolines()
+        }
+
+        /**
+         * On-stack replacement ([CompiledCode]): given an interpreted frame, continues at the loop header in its pc with
+         * the registers in its slots, or returns [JitRt.NO_OSR] when that pc is not an entry. Entries are the targets of
+         * backward jumps where the operand stack is empty (the interpreter enters only at those, and checks its stack).
+         * A register held unboxed is loaded only where the analysis has a number in it, through the checkcast (and
+         * exactInt for an int) of any load of it; where the analysis has none, it is not read before a store (the
+         * analysis's own rule) and keeps its initial value. Emitted whenever the block has a backward jump, entries or
+         * not, since the interpreter tries every such block. Registers are initialized before (for the verifier).
+         */
+        private fun emitOsrEntry() {
+            val targets = backEdgeTargets(code)
+            if (targets.isEmpty()) return
+            val normal = Label()
+            val none = Label()
+            frame()
+            mv.visitFieldInsn(GETFIELD, FRAME, "slots", CONSTS_D)
+            getstatic(FRAME, "NO_SLOTS", CONSTS_D)
+            mv.visitJumpInsn(IF_ACMPEQ, normal)
+            // the untyped code's entries come from the analysis too: only the stack depths are used then
+            val kinds = ta ?: try { TypeAnalysis(cb, INT32, ELEMS).run() } catch (_: JitBailout) { null }
+            val entries = if (kinds == null) IntArray(0) else targets.filter { kinds.reachable(it) && kinds.stackIn[it]!!.isEmpty() }.toIntArray()
+            if (entries.isNotEmpty()) {
+                // the unboxed registers loaded at each entry (and of which kind): entries alike share their loads
+                val groups = LinkedHashMap<List<Byte>, Label>()
+                val groupOf = Array(entries.size) { i ->
+                    val load = List(cb.numRegs) { r ->
+                        val k = if (storage[r] == JT.ANY) JT.ANY else ta!!.regKind(entries[i], r)
+                        when {
+                            storage[r] == JT.NUM && JT.isNum(k) -> JT.NUM
+                            storage[r] == JT.INT && k == JT.INT -> JT.INT
+                            else -> JT.ANY // held as an Object, or not read before a store
+                        }
+                    }
+                    groups.getOrPut(load) { Label() }
+                }
+                frame()
+                mv.visitFieldInsn(GETFIELD, FRAME, "pc", "I")
+                mv.visitLookupSwitchInsn(none, entries, groupOf)
+                val common = Label()
+                for ((load, l) in groups) {
+                    mv.visitLabel(l)
+                    for (r in 0 until cb.numRegs) {
+                        if (storage[r] == JT.ANY || load[r] == JT.ANY) continue
+                        frame()
+                        mv.visitFieldInsn(GETFIELD, FRAME, "slots", CONSTS_D)
+                        iconst(r)
+                        mv.visitInsn(AALOAD)
+                        unboxNum()
+                        if (load[r] == JT.INT) {
+                            rt("exactInt", "(D)I")
+                            mv.visitVarInsn(ISTORE, slots[r])
+                        } else mv.visitVarInsn(DSTORE, slots[r])
+                    }
+                    mv.visitJumpInsn(GOTO, common)
+                }
+                mv.visitLabel(common)
+                for (r in 0 until cb.numRegs) {
+                    if (storage[r] != JT.ANY) continue
+                    frame()
+                    mv.visitFieldInsn(GETFIELD, FRAME, "slots", CONSTS_D)
+                    iconst(r)
+                    mv.visitInsn(AALOAD)
+                    mv.visitVarInsn(ASTORE, reg(r))
+                }
+                frame()
+                mv.visitFieldInsn(GETFIELD, FRAME, "pc", "I")
+                mv.visitLookupSwitchInsn(none, entries, Array(entries.size) { label(entries[it]) })
+            }
+            mv.visitLabel(none)
+            getstatic(RT, "NO_OSR", OBJ)
+            mv.visitInsn(ARETURN)
+            mv.visitLabel(normal)
         }
 
         private fun emitTrampolines() {

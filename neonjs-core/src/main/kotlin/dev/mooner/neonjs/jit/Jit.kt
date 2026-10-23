@@ -2,6 +2,7 @@ package dev.mooner.neonjs.jit
 
 import dev.mooner.neonjs.compiler.CodeBlock
 import dev.mooner.neonjs.runtime.Agent
+import dev.mooner.neonjs.vm.Frame
 
 /** Tier-up policy: decides when code blocks are compiled, and whether the caller waits for the code. */
 object Jit {
@@ -43,6 +44,60 @@ object Jit {
             }
         }
     }
+
+    /**
+     * Back-edges of an interpreted loop between two calls of [loop] (Interpreter: also the period of its interrupt
+     * checks). `-Dneonjs.jit.osrStress` makes it 1 and compiles on the calling thread at the first one, so every loop
+     * that runs is entered compiled after its first iteration (for tests).
+     */
+    @JvmField val OSR_STRESS = System.getProperty("neonjs.jit.osrStress") != null
+    @JvmField val LOOP_CHECK = if (OSR_STRESS) 1 else 4096
+
+    /**
+     * An interpreted loop of [cb] made [LOOP_CHECK] more iterations. Credits them toward compiling the block (adaptive
+     * mode: 64 per period, so a function whose time goes into its loops is compiled after about 64K iterations even
+     * when it is called only a few times), and queues the block once due rather than at its next call, so its code is
+     * ready while the loop still runs. Returns whether compiled code is installed that the loop can continue in
+     * ([osr]).
+     *
+     * Only blocks that calls and scripts compile anyway are compiled here: functions and classic scripts. Eval code and
+     * module bodies stay interpreted, as before.
+     */
+    @JvmStatic
+    fun loop(cb: CodeBlock, agent: Agent): Boolean {
+        val config = agent.config
+        if (cb.compiled != null) return config.executionMode != MODE_INTERPRETER
+        cb.invocationCount += 64
+        if (config.executionMode != MODE_ADAPTIVE || cb.jitFailed || cb.jitTask != null) return false
+        if (cb.invocationCount < config.jitThreshold && !OSR_STRESS) return false
+        if (cb.flags and CodeBlock.TOP_LEVEL != 0 && cb.flags and CodeBlock.SCRIPT == 0) return false
+        if (!compilable(cb)) return false
+        if (config.backgroundJit && !OSR_STRESS && JitQueue.submit(cb, backend(agent), agent)) return false
+        return compileNow(cb, agent) != null
+    }
+
+    /**
+     * On-stack replacement: continues interpreted frame [f] in its code block's compiled code, at the loop header
+     * [Frame.pc] with the registers in [Frame.slots] and an empty operand stack (see [CompiledCode]). Returns the
+     * frame's result, or [JitRt.NO_OSR] (nothing done) when the code has no entry there. Called by the interpreter
+     * outside its exception dispatch: exceptions leave the frame as they leave compiled code (JitRt.leaveCompiled).
+     */
+    @JvmStatic
+    fun osr(f: Frame): Any? {
+        val c = f.code.compiled as CompiledCode
+        val r = try {
+            c.run(f)
+        } catch (e: Throwable) {
+            osrEntered.incrementAndGet()
+            throw JitRt.leaveCompiled(e, f)
+        }
+        (if (r === JitRt.NO_OSR) osrMissed else osrEntered).incrementAndGet()
+        return r
+    }
+
+    /** Loops continued in compiled code ([osr]), and attempts at a pc the code has no entry at. */
+    @JvmField val osrEntered = java.util.concurrent.atomic.AtomicLong()
+    @JvmField val osrMissed = java.util.concurrent.atomic.AtomicLong()
 
     /** Queues [cb], code created at run time (the `Function` constructor), in compiled mode: it is about to be called. */
     @JvmStatic

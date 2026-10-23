@@ -193,6 +193,8 @@ class CodeBlock(@JvmField val name: String, @JvmField val kind: FunctionKind) {
         const val TOP_LEVEL = 1024
         const val HAS_EVAL = 2048
         const val NO_JIT = 4096
+        /** A classic script's top-level code (eval code and module bodies are TOP_LEVEL without it). */
+        const val SCRIPT = 8192
 
         const val CTX_NEW_TARGET = 1
         const val CTX_SUPER_PROP = 2
