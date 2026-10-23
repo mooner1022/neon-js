@@ -418,6 +418,62 @@ class T2Test {
         assertTrue(irOf(src, "both").contains("LoadGlobalLex"), irOf(src, "both"))
     }
 
+    @Test
+    fun quietCallsAreNotRecorded() {
+        // bodies that cannot throw, call, loop or catch are entered without the frame's record of inlined calls; their
+        // exits still give the call a frame, so an error thrown there after an exit has the callee in its stack
+        val src = """
+            function sq(x) { return x * x }
+            function px(o) { return o.p.q }
+            function sumSq(n) { var s = 0; for (var i = 0; i < n; i++) s += sq(i); return s }
+            function readAll(a) { var s = 0; for (var i = 0; i < a.length; i++) s += px(a[i]); return s }
+            function trace(a) { try { return readAll(a) } catch (e) { return e.name + ' ' + e.stack.split('\n').length } }
+            var objs = []; for (var i = 0; i < 10; i++) objs.push({ p: { q: i } });
+            """.trimIndent()
+        val warm = "for (var r = 0; r < 30; r++) { sumSq(10); readAll(objs) }"
+        val expr = "[sumSq(100), readAll(objs), trace(objs.concat([{ p: null }])), readAll([{ p: { q: 'x' } }, { q: 1, p: { q: 2 } }])].join('|')"
+        val expected = interpreted(src, "$warm; $expr")
+        for (stress in intArrayOf(0, 2)) {
+            JvmCompiler.DEOPT_STRESS = stress
+            try {
+                NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
+                    .build().newContext().use { ctx ->
+                        ctx.eval(src)
+                        ctx.eval(warm)
+                        for (n in listOf("sumSq", "readAll")) {
+                            val cb: CodeBlock = (ctx.eval(n).raw as JSClosure).code
+                            val ir = dev.mooner.neonjs.jit.opt.IrPrinter.print(IrBuilder(cb, ints = true, elems = true).build())
+                            assertTrue(ir.contains(" quiet"), ir)
+                            cb.baseline ?: JvmCompiler.compile(cb)!!.also { cb.baseline = it; cb.compiled = it }
+                            Jit.install(cb, T2.compile(cb, CodeDefiners.default) ?: fail("$n not compiled"))
+                        }
+                        assertEquals(expected, ctx.eval(expr).asString())
+                    }
+            } finally {
+                JvmCompiler.DEOPT_STRESS = 0
+            }
+        }
+    }
+
+    @Test
+    fun loopsOfQuietCallsCanBeInterrupted() {
+        NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
+            .build().newContext().use { ctx ->
+                ctx.eval("function step(x) { return x + 1 } function spin(stop) { var i = 0; while (i !== stop) i = step(i) % 1000; return i }")
+                ctx.eval("for (var r = 0; r < 20; r++) spin(5)")
+                val cb: CodeBlock = (ctx.eval("spin").raw as JSClosure).code
+                val ir = dev.mooner.neonjs.jit.opt.IrPrinter.print(IrBuilder(cb, ints = true, elems = true).build())
+                assertTrue(ir.contains(" quiet"), ir)
+                cb.baseline ?: JvmCompiler.compile(cb)!!.also { cb.baseline = it; cb.compiled = it }
+                Jit.install(cb, T2.compile(cb, CodeDefiners.default) ?: fail("spin not compiled"))
+                val t = Thread { Thread.sleep(300); ctx.interrupt() }
+                t.start()
+                assertThrows(NeonInterruptedException::class.java) { ctx.eval("spin(-1)") }
+                t.join()
+                assertEquals(5, ctx.eval("spin(5)").asInt())
+            }
+    }
+
     /** The IR of function [name] after [src] ran in the interpreter (its caches and profiles filled). */
     private fun irOf(src: String, name: String): String =
         NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).console(null).build().newContext().use { ctx ->

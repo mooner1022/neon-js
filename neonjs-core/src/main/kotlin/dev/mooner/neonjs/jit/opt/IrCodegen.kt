@@ -654,6 +654,7 @@ internal class IrCodegen(
                 return
             }
             Ir.INLINE_ENTER -> {
+                if (i.callee!!.quiet) return // nothing sees it: no record (QuietInlines)
                 frame()
                 load(i.inputs[0], JT.ANY)
                 mv.visitTypeInsn(CHECKCAST, CLOSURE)
@@ -664,6 +665,7 @@ internal class IrCodegen(
                 return
             }
             Ir.INLINE_EXIT -> {
+                if (i.callee!!.quiet) return
                 frame()
                 rt(if (curSite != null) "inlineExitNested" else "inlineExit", "($FRAME_D)V")
                 storedPc = -2

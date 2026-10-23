@@ -72,6 +72,7 @@ internal class IrBuilder(
         val kinds = Kinds(ints, elems)
         kinds.infer(g)
         if (preferDoubles()) kinds.infer(g)
+        QuietInlines.run(g, kinds)
         number()
         return g
     }
@@ -661,13 +662,14 @@ internal class IrBuilder(
             guard.state = FrameState(pc, Array(nregs + stack.size) { if (it < nregs) regs[it]!! else stack[it - nregs] }, site)
             repeat(n) { stack.removeAt(stack.size - 1) }
             val callerState = FrameState(pc, Array(nregs + stack.size) { if (it < nregs) regs[it]!! else stack[it - nregs] }, site)
-            add(cur, Inst(Ir.INLINE_ENTER, arrayOf(fn), pc, 0, 0, pc, stmt))
+            val enter = add(cur, Inst(Ir.INLINE_ENTER, arrayOf(fn), pc, 0, 0, pc, stmt))
             val env = add(cur, Inst(Ir.CLOSURE_ENV, arrayOf(fn), 0, 0, 0, pc, stmt).also { it.hasResult = true })
             val thisValue = if (readsThis(target)) {
                 add(cur, Inst(Ir.INLINE_THIS, arrayOf(fn, ops[1]), 0, 0, 0, pc, stmt).also { it.hasResult = true })
             } else undefined()
             val args = Array(argc) { ops[2 + it] }
             val calleeSite = InlineSite(site, target, pc, callerState, fn, thisValue, args, env)
+            enter.callee = calleeSite
             g.dataIndex(target.constants)
             val body = Body(target, calleeSite, cur.handler)
             val join = newBlock(pc, site)
@@ -681,7 +683,7 @@ internal class IrBuilder(
                 1 -> body.returned[0]
                 else -> Phi(join).also { p -> join.phis.add(p); p.inputs.addAll(body.returned) }
             }
-            add(join, Inst(Ir.INLINE_EXIT, NO_VALUES, 0, 0, 0, pc, stmt))
+            add(join, Inst(Ir.INLINE_EXIT, NO_VALUES, 0, 0, 0, pc, stmt)).callee = calleeSite
             stack.add(result)
             return join
         }

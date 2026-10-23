@@ -116,6 +116,8 @@ class Inst(
      * from its inputs.
      */
     @JvmField var virtual = false
+    /** For INLINE_ENTER and INLINE_EXIT: the call they enter and leave. */
+    @JvmField var callee: InlineSite? = null
 
     val isTerminator: Boolean get() = Ir.isTerminator(op)
 
@@ -148,6 +150,8 @@ class InlineSite(
 ) {
     /** 1 for a call in the function compiled, 2 for a call in that callee's body, and so on. */
     @JvmField val depth: Int = (parent?.depth ?: 0) + 1
+    /** Whether nothing can see the call from outside the frame: it is entered and left without a record (QuietInlines). */
+    @JvmField var quiet = false
 
     /** The values of this site and its callers' that an exit inside it reads. */
     fun values(): List<Value> {
