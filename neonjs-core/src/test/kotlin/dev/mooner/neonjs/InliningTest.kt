@@ -201,6 +201,15 @@ class InliningTest {
             "function strict() { 'use strict'; return typeof this + ':' + String(this) } Number.prototype.st = strict;" +
                 "function each(n) { 'use strict'; var r = ''; for (var k = 0; k < n; k++) r = (5).st() + strict() + ({ m: strict, toString() { return 'o' } }).m(); return r } each(20); each(20); all(each(3))",
         )
+        // callees of the other strictness: class methods and strict functions in sloppy code (this as is, undefined
+        // included), sloppy ones in strict code (the global this); a strict assignment that fails still throws
+        same(
+            "class P { constructor(x) { this.x = x } twice(k) { return this.x * k + (this === undefined) } }" +
+                "function st() { 'use strict'; return String(this) } function sl() { return this === globalThis }" +
+                "function setFrozen(o) { 'use strict'; o.x = 1; return 'set' } function strictCaller(n) { 'use strict'; var r; for (var k = 0; k < n; k++) r = sl(); return r }" +
+                "function each(n, p) { var s = 0, t; for (var k = 0; k < n; k++) { s += p.twice(k); t = st() } return s + t } var p = new P(2); each(20, p); each(20, p); strictCaller(20); strictCaller(20);" +
+                "var e; for (var k = 0; k < 20; k++) { try { setFrozen(Object.freeze({ x: 0 })) } catch (x) { e = x.name } } all(each(3, p), strictCaller(2), e)",
+        )
         // an arrow at the top level: the script's this; a method called on another receiver later takes the guard again
         same(
             "var top = () => this === globalThis; var o = { n: 1, get() { return this.n } }, p = { n: 2, get: o.get };" +

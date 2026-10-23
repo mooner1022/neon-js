@@ -47,16 +47,25 @@ internal object Inlining {
     }
 
     /**
+     * The [ALLOWED] instructions whose helpers behave differently in strict code (a failed assignment throws): they read
+     * the strictness from the frame (JitRt.strict).
+     */
+    private val STRICT_SENSITIVE = BooleanArray(256).also { a ->
+        for (op in intArrayOf(Op.PUT_PROP, Op.PUT_ELEM, Op.STORE_GLOBAL)) a[op] = true
+    }
+
+    /**
      * Whether [callee] can be inlined into [caller]: an ordinary function (not a generator, async function or class
-     * constructor), with the caller's strictness (helpers read it from the caller's frame), no exception handlers, its
-     * parameters in registers, and only [ALLOWED] instructions: none that reads the callee's own frame (`arguments`,
-     * `new.target`, the function itself), creates scopes or closures, or resolves names dynamically. `this` is bound
-     * when the body is entered, as a call binds it (JitRt.inlineThis).
+     * constructor), no exception handlers, its parameters in registers, and only [ALLOWED] instructions: none that
+     * reads the callee's own frame (`arguments`, `new.target`, the function itself), creates scopes or closures, or
+     * resolves names dynamically. `this` is bound when the body is entered, as a call binds it (JitRt.inlineThis). The
+     * helpers of a few instructions read the strictness from the frame, which is the caller's: a callee of the other
+     * strictness (class methods are strict, scripts mostly sloppy) is inlined only without them ([STRICT_SENSITIVE]).
      */
     fun eligible(caller: CodeBlock, callee: CodeBlock): Boolean {
         val f = callee.flags
         if (f and (CodeBlock.GENERATOR or CodeBlock.ASYNC or CodeBlock.CLASS_CTOR or CodeBlock.DERIVED or CodeBlock.NO_JIT) != 0) return false
-        if ((f and CodeBlock.STRICT) != (caller.flags and CodeBlock.STRICT)) return false
+        val sameStrictness = (f and CodeBlock.STRICT) == (caller.flags and CodeBlock.STRICT)
         if (callee.strictPcs != null || callee.handlers.isNotEmpty()) return false
         val code = callee.code
         if (code.size > MAX_CALLEE_CODE) return false
@@ -66,6 +75,7 @@ internal object Inlining {
         while (pc < code.size) {
             val op = code[pc]
             if (op < 0 || op >= ALLOWED.size || !ALLOWED[op]) return false
+            if (!sameStrictness && STRICT_SENSITIVE[op]) return false
             pc += Op.length(code, pc)
         }
         return true

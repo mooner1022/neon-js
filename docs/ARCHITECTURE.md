@@ -173,8 +173,8 @@ Inlined calls (`jit/Inlining.kt`): in adaptive mode the interpreter records, at 
 function called most (`CodeBlock.callFeedback`, a majority vote). When the caller is compiled, a call whose recorded
 callee ran at least 16 times there (`-Dneonjs.jit.inlineMinCount`) and is small and simple enough gets the callee's
 body compiled into the caller, at most 8 calls per function and never further inside an inlined body. The callee must
-be an ordinary function (not a generator, async function or class constructor) of at most 96 bytecode ints, with the
-caller's strictness, no exception handlers, its parameters in registers and only instructions from a closed list: none
+be an ordinary function (not a generator, async function or class constructor) of at most 96 bytecode ints, with no
+exception handlers, its parameters in registers and only instructions from a closed list: none
 reads the callee's own frame (`arguments`, `new.target`, the function), creates scopes or closures, or resolves names
 dynamically. `this` is bound when the body is entered (`JitRt.inlineThis`), by the same `Interpreter.thisFor` that
 binds it for a call (the closure's lexical `this` for an arrow, the receiver as is in strict code, the global `this`
@@ -198,7 +198,9 @@ result unboxed. The rules that keep calls the same as before:
   source) name the callee's code. An exception caught by the caller gets its stack before the frame leaves the body.
 - Realms: one code block runs in several realms (a script compiled once, Test262's `createRealm`) and compiled code
   reads globals and intrinsics from the frame's realm, so a closure of the same code from another realm is called.
-- Strictness: helpers read it from the frame (the caller's), so only callees of the caller's strictness are inlined.
+- Strictness: helpers read it from the frame (the caller's). A callee of the other strictness (class methods are
+  strict, scripts mostly sloppy) is inlined only if it has none of the instructions whose helpers do (`PUT_PROP`,
+  `PUT_ELEM`, `STORE_GLOBAL`: `Inlining.STRICT_SENSITIVE`); its `this` is bound by its own strictness.
 - Identity: the inlined sites and the callees' own `JitInput`s are part of the caller's `JitInput`, and
   `CodeBlock.inlineTargets` is set before the code is installed through the volatile `compiled` field. A block whose
   code with inlined calls would exceed the JVM method size limit is compiled without them
