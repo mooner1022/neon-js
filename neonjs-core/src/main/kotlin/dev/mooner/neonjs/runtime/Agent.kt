@@ -59,6 +59,8 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
      * clears it and takes the full [[Get]]. A stale true only costs a slow path.
      */
     @JvmField var elemMiss = false
+    /** The deopt stress mode's pseudo-random state (dev.mooner.neonjs.jit.JitRt.stressExit). */
+    @JvmField var stressExits = 0
     @JvmField val jobs = ArrayDeque<Runnable>()
     @JvmField val symbolRegistry = HashMap<String, JSSymbol>()
 

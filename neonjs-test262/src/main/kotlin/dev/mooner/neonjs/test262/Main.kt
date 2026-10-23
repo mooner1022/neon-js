@@ -76,6 +76,7 @@ fun main(args: Array<String>) {
         dev.mooner.neonjs.jit.JvmCompiler.untypedReasons.entries.sortedByDescending { it.value.get() }.take(15).forEach { System.err.println("  ${it.value} compiled without unboxed values: ${it.key}") }
         System.err.println("JIT inlined calls=${dev.mooner.neonjs.jit.JvmCompiler.inlinedCalls}")
         System.err.println("JIT loops entered compiled (OSR)=${dev.mooner.neonjs.jit.Jit.osrEntered} without an entry=${dev.mooner.neonjs.jit.Jit.osrMissed}")
+        System.err.println("JIT deoptimizations=${dev.mooner.neonjs.jit.Deopt.count} inside inlined calls=${dev.mooner.neonjs.jit.Deopt.inlinedCount}")
         dev.mooner.neonjs.jit.JvmCompiler.notInlinedReasons.entries.sortedByDescending { it.value.get() }.take(15).forEach { System.err.println("  ${it.value} compiled without inlined calls: ${it.key}") }
     }
     // exit status 1 when a test failed that the --known list does not expect

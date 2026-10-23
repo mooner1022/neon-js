@@ -39,6 +39,23 @@ object JitRt {
      */
     @JvmField val DEOPTED = Any()
 
+    /**
+     * Whether compiled code with the deopt stress mode's exits (JvmCompiler.DEOPT_STRESS = N) takes the exit it reached:
+     * one in N, at pseudo-random (xorshift, per agent, so a run repeats) rather than every Nth, which a loop body with a
+     * multiple of N exits would always take at the same one.
+     */
+    @JvmStatic fun stressExit(ag: Agent): Boolean {
+        val n = JvmCompiler.DEOPT_STRESS
+        if (n <= 0) return false
+        var x = ag.stressExits
+        if (x == 0) x = 0x2545F491
+        x = x xor (x shl 13)
+        x = x xor (x ushr 17)
+        x = x xor (x shl 5)
+        ag.stressExits = x
+        return (x ushr 1) % n == 0
+    }
+
     /** An exit of compiled code running [f] ([Deopt.resume]): [values] are its registers, then its operand stack, at [pc]. */
     @JvmStatic fun deopt(f: Frame, pc: Int, values: Array<Any?>): Any? = Deopt.resume(f, pc, values, null)
 

@@ -37,6 +37,8 @@ class JitInput(cb: CodeBlock, debugInfo: Boolean = JvmCompiler.DEBUG_INFO, planI
     /** Debug info: source line of each statement (or -1), and the source name; null without debug info. */
     @JvmField val lines: IntArray?
     @JvmField val sourceName: String?
+    /** Whether the code gets the deopt stress mode's exits ([JvmCompiler.DEOPT_STRESS]). */
+    @JvmField val deoptStress: Boolean = JvmCompiler.DEOPT_STRESS > 0
 
     init {
         val plan = if (planInlining && JvmCompiler.TYPED) Inlining.plan(cb) else emptyList()
@@ -63,7 +65,7 @@ class JitInput(cb: CodeBlock, debugInfo: Boolean = JvmCompiler.DEBUG_INFO, planI
             out.writeInt(a.size)
             for (v in a) out.writeInt(v)
         }
-        out.writeInt(FORMAT)
+        out.writeInt(if (deoptStress) -FORMAT else FORMAT)
         out.writeBoolean(JvmCompiler.TYPED)
         out.writeBoolean(JvmCompiler.INT32)
         out.writeBoolean(JvmCompiler.ELEMS)
@@ -369,6 +371,14 @@ object JvmCompiler {
      */
     internal val ELEMS = System.getProperty("neonjs.jit.elem") != "false"
 
+    /**
+     * Testing deoptimization: with `-Dneonjs.jit.deoptStress=N` (N > 0; 3 without a value), code compiled from then on
+     * has exits (Gen.stressExit) at its start, its loop headers, the start and loop headers of the bodies it inlines,
+     * and after each inlined call, and one in N exits reached (JitRt.stressExit) leaves the activation to the
+     * interpreter there (Deopt). Part of the class identity; tests change it between compilations.
+     */
+    @JvmField @Volatile var DEOPT_STRESS: Int = System.getProperty("neonjs.jit.deoptStress")?.let { it.toIntOrNull() ?: 3 } ?: 0
+
     /** Debugging: `-Dneonjs.jit.dump=DIR` writes every generated class there. */
     private val DUMP_DIR: String? = System.getProperty("neonjs.jit.dump")
 
@@ -409,8 +419,15 @@ object JvmCompiler {
         return if (sb.isEmpty()) "anon" else sb.take(40).toString()
     }
 
-    /** What the body of a call compiled inlined reads instead of its own frame's state (see Gen.emitInlineCall). */
-    private class InlineCtx(val constsLocal: Int, val envLocal: Int, val thisLocal: Int, val resultLocal: Int, val resultKind: Byte, val exit: Label)
+    /**
+     * What the body of a call compiled inlined reads instead of its own frame's state (see Gen.emitInlineCall), and what
+     * an exit in it needs of the call: its pc, the kinds of the caller's values below its operands (on the JVM stack
+     * while the body runs), the function and the arguments.
+     */
+    private class InlineCtx(
+        val constsLocal: Int, val envLocal: Int, val thisLocal: Int, val resultLocal: Int, val resultKind: Byte, val exit: Label,
+        val callPc: Int, val below: ByteArray, val fnLocal: Int, val argLocals: IntArray, val argKinds: ByteArray,
+    )
 
     private class Gen(
         val cb: JitInput,
@@ -429,6 +446,15 @@ object JvmCompiler {
         val ta: TypeAnalysis? = if (typed) TypeAnalysis(cb, INT32, ELEMS, argKinds).run() else null
         /** Set while this generator emits a body inlined at a call. */
         var inl: InlineCtx? = null
+        /** The outermost generator, the method's: it emits the exits of the bodies inlined into it ([stressExit]). */
+        val root: Gen = outer?.root ?: this
+        /** The deopt stress mode's exits, emitted after the method's body (outside every exception range). */
+        private val exits = ArrayList<() -> Unit>()
+        /** The instructions the deopt stress mode has an exit before (DEOPT_STRESS): the first, the loop headers. */
+        private val exitAt: BooleanArray? = if (!cb.deoptStress || ta == null) null else BooleanArray(code.size).also { e ->
+            if (e.isNotEmpty()) e[0] = true
+            for (t in backEdgeTargets(code)) e[t] = true
+        }
         /** CALL pc -> inline site k (the outermost function only: inlined bodies do not inline further). */
         val inlineAt: Map<Int, Int> =
             if (!inlining || outer != null || ta == null) emptyMap() else cb.inlineSites.withIndex().associate { (k, s) -> s.first to k }
@@ -592,6 +618,7 @@ object JvmCompiler {
             pushUndefined()
             mv.visitInsn(ARETURN)
             emitTrampolines()
+            for (e in exits) e()
         }
 
         /**
@@ -719,6 +746,7 @@ object JvmCompiler {
                     rt("catchValue", "(Ljava/lang/Throwable;$FRAME_D)$OBJ")
                 }
                 if (ta != null) st.set(ta.stackIn[pc]!!)
+                if (exitAt != null && exitAt[pc]) stressExit(pc)
                 if (newStatement) {
                     // f.pc = pc at each statement, so errors raised between calls point at the right statement
                     frame()
@@ -1020,7 +1048,10 @@ object JvmCompiler {
             }
             val resultLocal = if (r == JT.NUM) tempD() else temp()
             val exit = Label()
-            callee.inl = InlineCtx(constsLocal, envLocal, thisLocal, resultLocal, r, exit)
+            callee.inl = InlineCtx(
+                constsLocal, envLocal, thisLocal, resultLocal, r, exit,
+                pc, below, fn, IntArray(argc) { temps[2 + it] }, ByteArray(argc) { kinds[2 + it] },
+            )
             callee.emitInlined(IntArray(argc) { temps[2 + it] }, ByteArray(argc) { kinds[2 + it] })
             mv.visitLabel(exit)
             frame()
@@ -1028,6 +1059,7 @@ object JvmCompiler {
             st.set(below)
             loadTemp(r, resultLocal)
             st.push(r)
+            if (exitAt != null && ta.reachable(first)) stressExit(first)
             emitRegionFast(first, end, ta)
             mv.visitJumpInsn(GOTO, merge)
             // the ordinary call
@@ -1046,6 +1078,88 @@ object JvmCompiler {
             mv.visitLabel(merge)
             inlinedCalls.incrementAndGet()
             return end
+        }
+
+        /**
+         * The deopt stress mode's exit before the instruction at [pc]: reached with the operand stack [st] (in an inlined
+         * body, on top of the caller's values below the call), taken when JitRt.stressExit says so, it leaves the
+         * activation to the interpreter (JitRt.deopt / deoptInlined) with this function's state at [pc] and, in an
+         * inlined body, the caller's at the call. Its code comes after the method's body, outside every exception
+         * range ([root]).
+         */
+        private fun stressExit(pc: Int) {
+            val ta = ta!!
+            val l = Label()
+            mv.visitVarInsn(ALOAD, L_AGENT)
+            rt("stressExit", "($AGENT_D)Z")
+            mv.visitJumpInsn(IFNE, l)
+            val stack = st.toArray()
+            val regKinds = ByteArray(cb.numRegs) { ta.regKind(pc, it) }
+            val inl = inl
+            root.exits.add {
+                mv.visitLabel(l)
+                val temps = IntArray(stack.size)
+                for (k in stack.indices.reversed()) temps[k] = storeTemp(stack[k])
+                if (inl == null) {
+                    frame()
+                    iconst(pc)
+                    values(regKinds, stack, temps)
+                    rt("deopt", "(${FRAME_D}I$CONSTS_D)$OBJ")
+                } else {
+                    val o = outer!!
+                    val belowTemps = IntArray(inl.below.size)
+                    for (k in inl.below.indices.reversed()) belowTemps[k] = storeTemp(inl.below[k])
+                    frame()
+                    iconst(inl.callPc)
+                    o.values(ByteArray(o.cb.numRegs) { o.ta!!.regKind(inl.callPc, it) }, inl.below, belowTemps)
+                    mv.visitVarInsn(ALOAD, inl.fnLocal)
+                    if (inl.thisLocal >= 0) mv.visitVarInsn(ALOAD, inl.thisLocal) else pushUndefined() // never read then
+                    iconst(inl.argLocals.size)
+                    mv.visitTypeInsn(ANEWARRAY, "java/lang/Object")
+                    for (i in inl.argLocals.indices) {
+                        mv.visitInsn(DUP)
+                        iconst(i)
+                        loadTemp(inl.argKinds[i], inl.argLocals[i])
+                        box(inl.argKinds[i])
+                        mv.visitInsn(AASTORE)
+                    }
+                    mv.visitVarInsn(ALOAD, inl.envLocal)
+                    iconst(pc)
+                    values(regKinds, stack, temps)
+                    rt("deoptInlined", "(${FRAME_D}I$CONSTS_D$OBJ$OBJ$CONSTS_D${OBJ}I$CONSTS_D)$OBJ")
+                }
+                mv.visitInsn(ARETURN)
+            }
+        }
+
+        /**
+         * Pushes an Object[] of this function's registers, of kinds [regKinds] at the exit, then the stack values in
+         * [temps], of kinds [kinds], all boxed: the interpreter's registers and operand stack there.
+         */
+        private fun values(regKinds: ByteArray, kinds: ByteArray, temps: IntArray) {
+            iconst(cb.numRegs + kinds.size)
+            mv.visitTypeInsn(ANEWARRAY, "java/lang/Object")
+            for (r in 0 until cb.numRegs) {
+                mv.visitInsn(DUP)
+                iconst(r)
+                val k = regKinds[r]
+                when {
+                    storage[r] == JT.ANY -> mv.visitVarInsn(ALOAD, reg(r))
+                    storage[r] == JT.NUM && JT.isNum(k) -> { mv.visitVarInsn(DLOAD, slots[r]); box(JT.NUM) }
+                    storage[r] == JT.INT && k == JT.INT -> { mv.visitVarInsn(ILOAD, slots[r]); box(JT.INT) }
+                    // held unboxed but without a number here: no load reads it before a store (TypeAnalysis), and the
+                    // register is invisible outside the function, so any value will do
+                    else -> pushUndefined()
+                }
+                mv.visitInsn(AASTORE)
+            }
+            for (k in kinds.indices) {
+                mv.visitInsn(DUP)
+                iconst(cb.numRegs + k)
+                loadTemp(kinds[k], temps[k])
+                box(kinds[k])
+                mv.visitInsn(AASTORE)
+            }
         }
 
         /** Whether this (inlined) function reads `this`. */

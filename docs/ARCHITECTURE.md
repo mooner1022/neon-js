@@ -251,7 +251,13 @@ anything else, so a chain of them unwinds innermost first with each frame on the
 pushed on the caller's stack, or its exception thrown in the caller at the `CALL` through the caller's handlers
 (`Frame.pendingThrow`, thrown before anything else, as an `await` rejection is). Code entered by on-stack replacement returns
 `JitRt.DEOPTED` instead of running the interpreter itself, and the interpreter that entered it continues the frame. The
-exit's call lies outside every exception range of the compiled method.
+exit's call lies outside every exception range of the compiled method. Nothing in T1 deoptimizes, but with
+`-Dneonjs.jit.deoptStress=N` (part of the class identity) its code gets exits at its start, its loop headers, the start
+and loop headers of the bodies it inlines and after each inlined call, and takes one in N of those it reaches
+(pseudo-randomly, per agent): that runs Test262 through the runtime. Such an exit boxes what the type analysis has at
+that instruction: unboxed registers whose kind there is a number, and every stack value; a register held as a `double`
+or `int` without a number in it there is passed as `undefined`, since no load reads it before a store (every load of
+such a register sees a number on every path) and registers are invisible outside the function.
 
 Contracts for other code generators (an optimizing tier with its own IR, or front ends other than JS bytecode). The
 present generator follows them, and so must anything added next to it:

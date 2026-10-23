@@ -33,8 +33,9 @@ object Deopt {
         @JvmField val inner: Inlined?,
     )
 
-    /** Exits taken. */
+    /** Exits taken, and those inside calls compiled inlined. */
     @JvmField val count = AtomicLong()
+    @JvmField val inlinedCount = AtomicLong()
 
     /**
      * Continues [f], the frame of an activation of compiled code, in the interpreter: at [pc] with [values] (registers,
@@ -58,6 +59,7 @@ object Deopt {
         write(f, values)
         f.pc = pc
         if (inner != null) {
+            inlinedCount.incrementAndGet()
             f.deoptCall = inner
             // the frame is the agent's top frame already (compiled code or the interpreter runs it)
             finishCall(f)

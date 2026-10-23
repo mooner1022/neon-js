@@ -188,4 +188,58 @@ class DeoptTest {
             assertEquals(expected, ctx.eval(e).asString())
         }
     }
+
+    /**
+     * The deopt stress mode (JvmCompiler.DEOPT_STRESS): compiled code leaves to the interpreter at its start, its loop
+     * headers, inside the bodies it inlines and after inlined calls, one time in N. Compiled and adaptive mode must give
+     * what the interpreter gives.
+     */
+    @Test
+    fun stressExitsOfCompiledCode() {
+        val src = """
+            function sq(x) { return x * x }
+            function add3(a, b, c) { return a + b + c }
+            function op(i) { return i % 3 }
+            function looped(n) { var s = 0; for (var j = 0; j < n; j++) s += j; return s }
+            function check(v) { if (v > 40) throw new RangeError('big ' + v); return v }
+            function Vec(x, y) { this.x = x; this.y = y }
+            Vec.prototype.len2 = function () { return this.x * this.x + this.y * this.y };
+            function run(n) {
+              var s = 0, t = 0.5, k = 0, str = '', caught = 0, v = new Vec(3, 4);
+              for (var i = 0; i < n; i++) {
+                s = (s + op(i)) | 0;                  // an inlined call with a value below it
+                t = t * 1.0001 + sq(i % 5);           // an unboxed result
+                k = add3(k, i, looped(i % 4)) % 100003;  // an inlined body with a loop
+                try { check(i % 50) } catch (e) { caught++ }
+                if (i % 997 === 0) str += String.fromCharCode(65 + i % 26) + v.len2();
+              }
+              return [s, t.toFixed(3), k, caught, str].join(' ')
+            }
+            function deep(n) { return n === 0 ? new Error('x').stack.split('\n').length : deep(n - 1) }
+        """.trimIndent()
+        // many activations: each runs compiled code up to the first exit it takes (the interpreter goes on with it)
+        val e = "[run(3000), deep(20)].concat(Array.from({ length: 300 }, (_, k) => run(20 + k % 30))).join('|')"
+        val expected = interpreted(src, e)
+        val before = JvmCompiler.DEOPT_STRESS
+        try {
+            for (n in intArrayOf(1, 2, 5)) {
+                JvmCompiler.DEOPT_STRESS = n
+                for (mode in listOf(ExecutionMode.COMPILED, ExecutionMode.ADAPTIVE)) {
+                    val exits = Deopt.count.get()
+                    val inlined = Deopt.inlinedCount.get()
+                    val b = NeonEngine.builder().executionMode(mode).backgroundCompilation(false).console(null)
+                    if (mode == ExecutionMode.ADAPTIVE) b.jitThreshold(2)
+                    b.build().newContext().use { ctx ->
+                        ctx.eval(src)
+                        assertEquals(expected, ctx.eval(e).asString(), "$mode, every ${n}th exit")
+                    }
+                    assertTrue(Deopt.count.get() - exits > 100, "$mode: ${Deopt.count.get() - exits} exits taken")
+                    // every exit taken: the first one, at the start, leaves the whole activation to the interpreter
+                    if (n > 1) assertTrue(Deopt.inlinedCount.get() - inlined > 10, "$mode: ${Deopt.inlinedCount.get() - inlined} in inlined calls")
+                }
+            }
+        } finally {
+            JvmCompiler.DEOPT_STRESS = before
+        }
+    }
 }
