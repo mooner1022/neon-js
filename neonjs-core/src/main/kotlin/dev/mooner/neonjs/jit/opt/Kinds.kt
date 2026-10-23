@@ -30,8 +30,11 @@ internal class Kinds(private val ints: Boolean, private val elems: Boolean) {
         return when (op) {
             Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD, Op.EXP, Op.BAND, Op.BOR, Op.BXOR, Op.SHL, Op.SAR, Op.SHR,
             Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.SEQ, Op.SNE ->
-                JT.binaryResult(op, JT.binaryClass(op, of(inp[0]), of(inp[1])), intKind)
-            Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC -> unaryResult(op, of(inp[0]))
+                // int32 arithmetic speculated (Ir.intArith): an int of ints
+                if (i.state != null && Ir.intArith(op) && of(inp[0]) == JT.INT && of(inp[1]) == JT.INT) JT.INT
+                else JT.binaryResult(op, JT.binaryClass(op, of(inp[0]), of(inp[1])), intKind)
+            Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC ->
+                if (i.state != null && Ir.intArith(op) && of(inp[0]) == JT.INT) JT.INT else unaryResult(op, of(inp[0]))
             Op.TO_NUMBER -> when (of(inp[0])) {
                 JT.INT -> JT.INT
                 JT.BOOL -> intKind

@@ -120,6 +120,11 @@ class Inst(
     @JvmField var virtual = false
     /** For an instruction LICM moved out of its loop: the code block it was made from (its exits note failures there). */
     @JvmField var origin: dev.mooner.neonjs.compiler.CodeBlock? = null
+    /**
+     * For int32 arithmetic whose every use truncates to 32 bits (ADD, SUB, SHR: IrBuilder.intArith): the int result
+     * wraps around, with no exit.
+     */
+    @JvmField var wraps = false
     /** For INLINE_ENTER and INLINE_EXIT: the call they enter and leave. */
     @JvmField var callee: InlineSite? = null
 
@@ -237,6 +242,12 @@ object Ir {
     const val SWITCH = 1105
 
     fun isTerminator(op: Int) = op >= GOTO
+
+    /**
+     * The arithmetic that gives an int of int inputs where the builder gave it a state (Kinds): an exit to that state,
+     * before the instruction, where the result is not an int32 (or is -0).
+     */
+    fun intArith(op: Int) = op == Op.ADD || op == Op.SUB || op == Op.MUL || op == Op.MOD || op == Op.INC || op == Op.DEC || op == Op.NEG
 
     fun name(op: Int): String = when (op) {
         PARAM -> "Param"

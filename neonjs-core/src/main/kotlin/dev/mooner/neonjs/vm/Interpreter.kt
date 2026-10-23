@@ -295,8 +295,12 @@ object Interpreter {
                             val nk = code[pc++]
                             if (v === Uninitialized) throw tdzError(k[nk] as String)
                             s[sp++] = v
+                            prof?.record(opStart, v)
                         }
-                        Op.LOAD_GLOBAL -> s[sp++] = GlobalCache.load(realm, k[code[pc++]] as GlobalSite, false)
+                        Op.LOAD_GLOBAL -> {
+                            s[sp++] = GlobalCache.load(realm, k[code[pc++]] as GlobalSite, false)
+                            prof?.record(opStart, s[sp - 1])
+                        }
                         Op.LOAD_THIS -> s[sp++] = f.thisValue
                         Op.LOAD_FUNCTION -> s[sp++] = f.fn ?: Undefined
                         Op.LOAD_ARG -> {

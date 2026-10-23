@@ -905,6 +905,7 @@ internal class IrCodegen(
             Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD, Op.EXP, Op.BAND, Op.BOR, Op.BXOR, Op.SHL, Op.SAR, Op.SHR,
             Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.SEQ, Op.SNE -> if (binary(i)) return
             Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC -> {
+                if (i.kind == JT.INT && Ir.intArith(op)) return intUnary(i)
                 val t = kindOf(i.inputs[0])
                 if (JT.isNum(t)) {
                     val result = kinds.unaryResult(op, t)
@@ -1042,6 +1043,10 @@ internal class IrCodegen(
         val kr = kindOf(r)
         val cls = JT.binaryClass(op, kl, kr)
         if (cls == JT.GENERIC) return false
+        if (i.kind == JT.INT && (Ir.intArith(op) || i.wraps)) {
+            intBinary(i)
+            return true
+        }
         val result = JT.binaryResult(op, cls, intKind)
         if (JT.isBitwise(op) && cls == JT.NN && ints) {
             load(l, kl)
@@ -1119,6 +1124,117 @@ internal class IrCodegen(
         if (intResult && cls != JT.NN && result == JT.NUM) mv.visitInsn(I2D)
         done(i, result)
         return true
+    }
+
+    /** [v] (a number) as an int in a new local. */
+    private fun intLocal(v: Value): Int {
+        val t = temp()
+        val k = kindOf(v)
+        load(v, k)
+        toInt32(k)
+        mv.visitVarInsn(ISTORE, t)
+        return t
+    }
+
+    /**
+     * Int32 arithmetic of ints (Ir.intArith, Kinds): an exit before the instruction where the result is not an int32
+     * or is -0, the int otherwise; an ADD, SUB or `>>>` that wraps (Inst.wraps) has no exit.
+     */
+    private fun intBinary(i: Inst) {
+        val a = intLocal(i.inputs[0])
+        val b = intLocal(i.inputs[1])
+        val l = Label()
+        val r = temp()
+        fun ab() {
+            mv.visitVarInsn(ILOAD, a)
+            mv.visitVarInsn(ILOAD, b)
+        }
+        when (i.op) {
+            Op.SHR -> { ab(); mv.visitInsn(IUSHR) }
+            Op.ADD, Op.SUB -> {
+                ab()
+                mv.visitInsn(if (i.op == Op.ADD) IADD else ISUB)
+                if (!i.wraps) {
+                    // overflow: for a + b, a and b of one sign and r of the other; for a - b, a and b of different signs
+                    // and r of b's
+                    mv.visitVarInsn(ISTORE, r)
+                    mv.visitVarInsn(ILOAD, a)
+                    mv.visitVarInsn(ILOAD, r)
+                    mv.visitInsn(IXOR)
+                    mv.visitVarInsn(ILOAD, if (i.op == Op.ADD) b else a)
+                    if (i.op == Op.ADD) mv.visitVarInsn(ILOAD, r) else mv.visitVarInsn(ILOAD, b)
+                    mv.visitInsn(IXOR)
+                    mv.visitInsn(IAND)
+                    mv.visitJumpInsn(IFLT, l)
+                    mv.visitVarInsn(ILOAD, r)
+                }
+            }
+            Op.MUL -> {
+                // the exact product as a long: an int32 that is not -0 (0 of a negative operand)
+                val p = tempD()
+                mv.visitVarInsn(ILOAD, a)
+                mv.visitInsn(I2L)
+                mv.visitVarInsn(ILOAD, b)
+                mv.visitInsn(I2L)
+                mv.visitInsn(LMUL)
+                mv.visitVarInsn(LSTORE, p)
+                mv.visitVarInsn(LLOAD, p)
+                mv.visitInsn(L2I)
+                mv.visitVarInsn(ISTORE, r)
+                mv.visitVarInsn(ILOAD, r)
+                mv.visitInsn(I2L)
+                mv.visitVarInsn(LLOAD, p)
+                mv.visitInsn(LCMP)
+                mv.visitJumpInsn(IFNE, l)
+                val ok = Label()
+                mv.visitVarInsn(ILOAD, r)
+                mv.visitJumpInsn(IFNE, ok)
+                ab()
+                mv.visitInsn(IOR)
+                mv.visitJumpInsn(IFLT, l)
+                mv.visitLabel(ok)
+                mv.visitVarInsn(ILOAD, r)
+            }
+            else -> {
+                // MOD: NaN for a divisor 0, -0 for a remainder 0 of a negative dividend (MIN_VALUE % -1 included)
+                mv.visitVarInsn(ILOAD, b)
+                mv.visitJumpInsn(IFEQ, l)
+                ab()
+                mv.visitInsn(IREM)
+                mv.visitVarInsn(ISTORE, r)
+                val ok = Label()
+                mv.visitVarInsn(ILOAD, r)
+                mv.visitJumpInsn(IFNE, ok)
+                mv.visitVarInsn(ILOAD, a)
+                mv.visitJumpInsn(IFLT, l)
+                mv.visitLabel(ok)
+                mv.visitVarInsn(ILOAD, r)
+            }
+        }
+        done(i, JT.INT)
+        if (i.state != null) exits.add(specExit(l, i))
+        else if (!i.wraps) throw JitBailout("int arithmetic without its exit")
+    }
+
+    /** INC, DEC and NEG of an int (Ir.intArith): an exit before the instruction where the result leaves the int32 range or is -0. */
+    private fun intUnary(i: Inst) {
+        val a = intLocal(i.inputs[0])
+        val l = Label()
+        mv.visitVarInsn(ILOAD, a)
+        when (i.op) {
+            Op.INC -> { mv.visitLdcInsn(Int.MAX_VALUE); mv.visitJumpInsn(IF_ICMPEQ, l) }
+            Op.DEC -> { mv.visitLdcInsn(Int.MIN_VALUE); mv.visitJumpInsn(IF_ICMPEQ, l) }
+            // -0 and -MIN_VALUE: 0 and MIN_VALUE are those with no bit but the sign's
+            else -> { mv.visitLdcInsn(Int.MAX_VALUE); mv.visitInsn(IAND); mv.visitJumpInsn(IFEQ, l) }
+        }
+        mv.visitVarInsn(ILOAD, a)
+        when (i.op) {
+            Op.INC -> { mv.visitInsn(ICONST_1); mv.visitInsn(IADD) }
+            Op.DEC -> { mv.visitInsn(ICONST_1); mv.visitInsn(ISUB) }
+            else -> mv.visitInsn(INEG)
+        }
+        done(i, JT.INT)
+        exits.add(specExit(l, i))
     }
 
     companion object {

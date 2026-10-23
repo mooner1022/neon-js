@@ -51,10 +51,12 @@ class IrTest {
     fun loopCountersArePhis() {
         val g = build("function f(n) { var s = 0; for (var i = 0; i < n; i++) s = (s + i) | 0; return s }")
         val text = IrPrinter.print(g)
-        // the loop header merges the counter and the sum, kept unboxed: an int for the sum, a double for the counter
+        // the loop header merges the counter and the sum, kept unboxed as ints: the sum's add wraps (its use truncates),
+        // the counter's increment exits where it would leave the int32 range
         val header = g.blocks.first { it.loopHeader }
         assertEquals(2, header.phis.size, text)
-        assertEquals(setOf(" :int", " :num"), header.phis.map { if (it.kind == dev.mooner.neonjs.jit.JT.INT) " :int" else " :num" }.toSet(), text)
+        assertTrue(header.phis.all { it.kind == dev.mooner.neonjs.jit.JT.INT }, text)
+        assertTrue(text.contains("wraps") && g.blocks.any { b -> b.insts.any { it.op == dev.mooner.neonjs.compiler.Op.INC && it.state != null } }, text)
         assertTrue(text.contains("Branch(JUMP_IF_FALSE)"), text)
     }
 

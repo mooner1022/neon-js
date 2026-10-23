@@ -27,6 +27,7 @@ object IrPrinter {
                 if (i.targets.isNotEmpty()) sb.append(" -> ").append(i.targets.joinToString(", "))
                 if (i.hasResult) sb.append(kind(i))
                 if (i.virtual) sb.append(" virtual")
+                if (i.wraps) sb.append(" wraps")
                 if (i.callee?.quiet == true) sb.append(" quiet")
                 sb.append('\n')
             }

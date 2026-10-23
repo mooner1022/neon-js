@@ -419,6 +419,53 @@ class T2Test {
     }
 
     @Test
+    fun int32ArithmeticExitsWhereItLeavesTheRange() {
+        // arithmetic of values the profiles saw as int32s stays on ints, exiting before the instruction where the
+        // result is not an int32 or is -0; an ADD or `>>>` whose uses are all bitwise wraps around instead
+        val src = """
+            function sum(n) { var s = 0; for (var i = 0; i < n; i++) s += i; return s }
+            function prod(a, b) { return a * b }
+            function rem(a, b) { return a % b }
+            function neg(a) { return -a }
+            function dec(a) { return a - 1 }
+            function inc(a) { var x = a; x++; return x }
+            function hash(n) { var h = 0; for (var i = 0; i < n; i++) h = (h * 31 + i) | 0; return h }
+            function bits(n) { var s = 0; for (var i = 0; i < n; i++) s = (s + ((i * i) ^ (i >>> 3))) | 0; return s }
+            function shr(a) { return (a >>> 0) ^ 1 }
+            function wrap(a, b) { return (a + b) | 0 }
+            var z = v => Object.is(v, -0) ? '-0' : String(v);
+            """.trimIndent()
+        val warm = "for (var w = 0; w < 30; w++) { sum(10); prod(w, 3); rem(w, 7); neg(w + 1); dec(w); inc(w); hash(5); bits(5); shr(w); wrap(w, 2) }"
+        val expr = "[sum(100), sum(100000), prod(6, 7), prod(0, -5), prod(-3, 0), prod(65536, 65536), prod(-2147483648, -1), rem(17, 5)," +
+            " rem(5, 0), rem(-4, 2), rem(-2147483648, -1), rem(-7, 3), neg(5), neg(0), neg(-2147483648), dec(0), dec(-2147483648)," +
+            " inc(41), inc(2147483647), hash(1000), bits(1000), shr(-1), shr(5), wrap(2147483647, 1), wrap(-2147483648, -1)].map(z).join('|')"
+        val expected = interpreted(src, "$warm; $expr")
+        for (stress in intArrayOf(0, 2)) {
+            JvmCompiler.DEOPT_STRESS = stress
+            try {
+                NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
+                    .build().newContext().use { ctx ->
+                        ctx.agent.config.tier2 = true
+                        ctx.eval(src)
+                        ctx.eval(warm)
+                        for (n in listOf("sum", "prod", "rem", "neg", "dec", "inc", "hash", "bits", "shr", "wrap")) {
+                            val cb: CodeBlock = (ctx.eval(n).raw as JSClosure).code
+                            if (stress == 0 && n in listOf("bits", "wrap")) {
+                                val ir = dev.mooner.neonjs.jit.opt.IrPrinter.print(IrBuilder(cb, ints = true, elems = true).build())
+                                assertTrue(ir.contains("wraps"), ir)
+                            }
+                            cb.baseline ?: JvmCompiler.compile(cb)!!.also { cb.baseline = it; cb.compiled = it }
+                            Jit.install(cb, T2.compile(cb, CodeDefiners.default) ?: fail("$n not compiled"))
+                        }
+                        assertEquals(expected, ctx.eval(expr).asString())
+                    }
+            } finally {
+                JvmCompiler.DEOPT_STRESS = 0
+            }
+        }
+    }
+
+    @Test
     fun invariantGuardsAndLoadsLeaveLoops() {
         // LICM: the callback's guard and the loads of Math.PI move before repeatf's loop; a load stays where the loop
         // stores into its slot, or calls a function, or does not read it on every iteration; their exits resume at the

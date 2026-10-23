@@ -72,6 +72,7 @@ internal class IrBuilder(
         val kinds = Kinds(ints, elems)
         kinds.infer(g)
         if (preferDoubles()) kinds.infer(g)
+        intArith(kinds)
         if (speculate) Licm.run(g, kinds)
         QuietInlines.run(g, kinds)
         number()
@@ -91,6 +92,7 @@ internal class IrBuilder(
             for (i in b.insts) when {
                 JT.isBitwise(i.op) || i.op == Op.BNOT -> asInt.addAll(i.inputs)
                 JT.isCompare(i.op) -> if (i.inputs[0].kind == JT.INT && i.inputs[1].kind == JT.INT) asInt.addAll(i.inputs)
+                Ir.intArith(i.op) && i.kind == JT.INT -> asInt.addAll(i.inputs)
                 i.op == Op.GET_ELEM || i.op == Op.PUT_ELEM -> asInt.add(i.inputs[1])
             }
         }
@@ -100,6 +102,33 @@ internal class IrBuilder(
             changed = true
         }
         return changed
+    }
+
+    /**
+     * After the kinds: the int32 arithmetic that stays on doubles needs no exit (its state goes); an int ADD or SUB whose
+     * every use is a bitwise operator (which takes its operands to 32 bits) wraps around instead of exiting, as its
+     * exact result would be truncated the same way; and so does `>>>` of numbers whose uses all are bitwise: its uint32
+     * stays the int of the same bits (Inst.wraps).
+     */
+    private fun intArith(kinds: Kinds) {
+        val uses = HashMap<Value, ArrayList<Any>>()
+        for (b in g.blocks) {
+            for (p in b.phis) for (v in p.inputs) uses.getOrPut(v) { ArrayList() }.add(p)
+            for (i in b.insts) for (v in i.inputs) uses.getOrPut(v) { ArrayList() }.add(i)
+        }
+        fun truncated(v: Inst) = uses[v]?.all { it is Inst && JT.isBitwise(it.op) } == true
+        for (b in g.blocks) for (i in b.insts) {
+            if (Ir.intArith(i.op) && i.state != null) {
+                if (i.kind != JT.INT) i.state = null
+                else if ((i.op == Op.ADD || i.op == Op.SUB) && truncated(i)) {
+                    i.wraps = true
+                    i.state = null
+                }
+            } else if (i.op == Op.SHR && ints && i.inputs.all { JT.isNum(kinds.of(it)) } && truncated(i)) {
+                i.kind = JT.INT
+                i.wraps = true
+            }
+        }
     }
 
     private fun newBlock(pc: Int, site: InlineSite?): Block = Block(-1, pc, site).also { made.add(it) }
@@ -592,13 +621,17 @@ internal class IrBuilder(
                     else -> {
                         val n = arity(bc, op, pc)
                         if (stack.size < n) throw JitBailout("operand stack underflow at $pc")
+                        // arithmetic that may stay on ints (Kinds): an exit before it, its operands on the stack, where the
+                        // result is not an int32 (not where that failed before)
+                        val before = if (speculate && ints && Ir.intArith(op) && !code.t2FailedAt(pc)) state(pc) else null
                         val inputs = Array(n) { stack[stack.size - n + it] }
                         repeat(n) { stack.removeAt(stack.size - 1) }
-                        inst(op, inputs, result = pushes(op))
+                        inst(op, inputs, result = pushes(op)).state = before
                     }
                 }
                 // a load whose values were only numbers: a number from here on, or an exit after the load
-                if (speculate && (op == Op.GET_PROP || op == Op.GET_ELEM || op == Op.LOAD_ENV || op == Op.CALL) && !code.t2FailedAt(pc)) {
+                if (speculate && (op == Op.GET_PROP || op == Op.GET_ELEM || op == Op.LOAD_ENV || op == Op.LOAD_ENV_TDZ ||
+                        op == Op.LOAD_GLOBAL || op == Op.CALL) && !code.t2FailedAt(pc)) {
                     val top = stack.lastOrNull()
                     val bits = code.profile?.values?.get(pc)?.toInt()?.and(0xFF) ?: 0
                     if (top is Inst && top.pc == pc && top.block?.site == site) numberCheck(bits)?.let { check ->
