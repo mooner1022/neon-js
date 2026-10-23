@@ -606,17 +606,24 @@ internal class IrCodegen(
         shapeCheckWith(obj, t, exit)
     }
 
-    /** [shapeCheck] with the shape in local [shape]. */
+    /**
+     * [shapeCheck] with the shape in local [shape]: the shape of the object's property map, or of an object without
+     * one (an empty array, say) the empty shape of its prototype and class, as the caches compare (PropCache.shapeOf).
+     */
     private fun shapeCheckWith(obj: Int, shape: Int, exit: Label) {
         mv.visitVarInsn(ALOAD, obj)
         mv.visitFieldInsn(GETFIELD, "dev/mooner/neonjs/runtime/JSObject", "props", PMAP_D)
         mv.visitInsn(DUP)
-        val ok = Label()
-        mv.visitJumpInsn(IFNONNULL, ok)
+        val has = Label()
+        val cmp = Label()
+        mv.visitJumpInsn(IFNONNULL, has)
         mv.visitInsn(POP)
-        mv.visitJumpInsn(GOTO, exit)
-        mv.visitLabel(ok)
+        mv.visitVarInsn(ALOAD, obj)
+        mv.visitMethodInsn(INVOKESTATIC, "dev/mooner/neonjs/runtime/PropCache", "shapeOf", "(Ldev/mooner/neonjs/runtime/JSObject;)Ldev/mooner/neonjs/runtime/Shape;", false)
+        mv.visitJumpInsn(GOTO, cmp)
+        mv.visitLabel(has)
         mv.visitFieldInsn(GETFIELD, PMAP, "shape", "Ldev/mooner/neonjs/runtime/Shape;")
+        mv.visitLabel(cmp)
         mv.visitVarInsn(ALOAD, shape)
         mv.visitJumpInsn(IF_ACMPNE, exit)
     }

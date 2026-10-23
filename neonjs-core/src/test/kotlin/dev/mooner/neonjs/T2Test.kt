@@ -419,6 +419,27 @@ class T2Test {
     }
 
     @Test
+    fun objectsWithoutPropertyMapsPassShapeChecks() {
+        // a new array has no property map: its shape is its prototype's empty one, as the caches compare, so a method
+        // read through it (push on Array.prototype) does not exit
+        val src = "function fill(n) { var a = []; for (var i = 0; i < n; i++) a.push(i); return a.length }"
+        NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
+            .build().newContext().use { ctx ->
+                ctx.agent.config.tier2 = true
+                ctx.eval(src)
+                ctx.eval("for (var w = 0; w < 30; w++) fill(10)")
+                val cb: CodeBlock = (ctx.eval("fill").raw as JSClosure).code
+                val ir = dev.mooner.neonjs.jit.opt.IrPrinter.print(IrBuilder(cb, ints = true, elems = true).build())
+                assertTrue(ir.contains("LoadSlot"), ir)
+                cb.baseline ?: JvmCompiler.compile(cb)!!.also { cb.baseline = it; cb.compiled = it }
+                Jit.install(cb, T2.compile(cb, CodeDefiners.default) ?: fail("not compiled"))
+                val exits = dev.mooner.neonjs.jit.Deopt.count.get()
+                assertEquals("100,0", ctx.eval("[fill(100), fill(0)].join()").asString())
+                assertEquals(exits, dev.mooner.neonjs.jit.Deopt.count.get(), "exits")
+            }
+    }
+
+    @Test
     fun int32ArithmeticExitsWhereItLeavesTheRange() {
         // arithmetic of values the profiles saw as int32s stays on ints, exiting before the instruction where the
         // result is not an int32 or is -0; an ADD or `>>>` whose uses are all bitwise wraps around instead
