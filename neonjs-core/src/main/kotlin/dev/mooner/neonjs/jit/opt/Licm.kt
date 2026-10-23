@@ -8,8 +8,9 @@ import dev.mooner.neonjs.jit.JT
  * it, and whose result nothing in the loop can change, move to a block of their own before the loop's header (its
  * [Block.loopEntry]), which runs once each time the loop is entered instead of once per iteration.
  *
- * - Moved: shape-guarded slot loads, global loads, number checks, closure guards and closure environments, and loads of
- *   the header's own environment, from the blocks that run on every iteration (those dominating every back edge).
+ * - Moved: shape-guarded slot loads, global loads, number checks, closure guards, closure environments and `this` bound
+ *   without allocating, and loads of the header's own environment, from the blocks that run on every iteration (those
+ *   dominating every back edge).
  * - Loads move only out of loops whose instructions cannot run code of their own nor write anything but slots through
  *   a shape ([clean]): there, shapes do not change, so a slot load stays only where the loop stores into the same slot
  *   of the same shape, and an environment load where the loop stores into any environment.
@@ -64,6 +65,8 @@ internal object Licm {
         fun stored(shape: Any?, slot: Int) = stores.any { it.first === shape && it.second == slot }
         fun movable(i: Inst, b: Block): Boolean = when (i.op) {
             Ir.CHECK_CLOSURE, Ir.CHECK_NUMBER, Ir.CHECK_INT32, Ir.CLOSURE_ENV -> true
+            // (after its call's guard, in the same block: moved together)
+            Ir.INLINE_THIS -> i.a == 1
             Ir.LOAD_GLOBAL_LEX -> !opaque
             Ir.LOAD_GLOBAL_SLOT -> !opaque && !stored(g.data[i.a], i.b)
             Ir.LOAD_SLOT -> !opaque && !stored(if (i.c < 0) g.data[i.a] else (g.data[i.c] as Array<*>).last(), i.b)

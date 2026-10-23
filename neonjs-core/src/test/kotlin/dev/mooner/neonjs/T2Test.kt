@@ -431,10 +431,15 @@ class T2Test {
             function bump() { K = { v: K.v + 1 } }
             function calls(n) { var s = 0; for (var i = 0; i < n; i++) { s += K.v; if (i === 5) bump() } return s }
             function sometimes(o, n) { var s = 0; for (var i = 0; i < n; i++) if (o) s += o.p; return s }
+            class P { constructor(x) { this.x = x } twice() { return this.x * 2 } }
+            function viaMethod(p, n) { var s = 0; for (var i = 0; i < n; i++) s += p.twice(); return s }
+            Number.prototype.self = function () { return this };
+            function wrappers(n) { var a = []; for (var i = 0; i < n; i++) a.push((5).self()); return a[0] === a[1] }
             """.trimIndent()
-        val warm = "for (var w = 0; w < 30; w++) { repeatf(20, radius); writes({ x: 1 }, 5); calls(3); sometimes({ p: 2 }, 5) }"
+        val warm = "for (var w = 0; w < 30; w++) { repeatf(20, radius); writes({ x: 1 }, 5); calls(3); sometimes({ p: 2 }, 5); viaMethod(new P(w), 5); wrappers(2) }"
+        // a strict method's `this` moves with the loads through it; a sloppy one's (a new wrapper each call) does not
         val expr = "[repeatf(100, radius), repeatf(0, 5), repeatf(3, x => x), writes({ x: 1 }, 10), calls(10), sometimes(null, 5)," +
-            " sometimes({ p: 3 }, 4), (Math.PI = 3, repeatf(4, radius))].join('|')"
+            " sometimes({ p: 3 }, 4), viaMethod(new P(4), 10), viaMethod({ twice: () => 1 }, 3), wrappers(3), (Math.PI = 3, repeatf(4, radius))].join('|')"
         val expected = interpreted(src, "$warm; $expr")
         for (stress in intArrayOf(0, 2)) {
             JvmCompiler.DEOPT_STRESS = stress
@@ -445,7 +450,7 @@ class T2Test {
                         ctx.eval(src)
                         ctx.eval(warm)
                         val moved = HashMap<String, List<String>>()
-                        for (n in listOf("repeatf", "writes", "calls", "sometimes")) {
+                        for (n in listOf("repeatf", "writes", "calls", "sometimes", "viaMethod", "wrappers")) {
                             val cb: CodeBlock = (ctx.eval(n).raw as JSClosure).code
                             val g = IrBuilder(cb, ints = true, elems = true).build()
                             dev.mooner.neonjs.jit.opt.IrVerifier.verify(g)
@@ -458,6 +463,8 @@ class T2Test {
                             assertFalse(moved["writes"]!!.contains("LoadSlot"), "$moved")
                             assertFalse(moved["calls"]!!.contains("LoadGlobalLex"), "$moved")
                             assertFalse(moved["sometimes"]!!.contains("LoadSlot"), "$moved")
+                            assertTrue(moved["viaMethod"]!!.containsAll(listOf("InlineThis", "LoadSlot")), "$moved")
+                            assertFalse(moved["wrappers"]!!.contains("InlineThis"), "$moved")
                         }
                         assertEquals(expected, ctx.eval(expr).asString())
                     }

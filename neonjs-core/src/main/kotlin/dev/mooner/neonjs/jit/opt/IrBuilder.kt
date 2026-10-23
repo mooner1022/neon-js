@@ -667,7 +667,8 @@ internal class IrBuilder(
             val enter = add(cur, Inst(Ir.INLINE_ENTER, arrayOf(fn), pc, 0, 0, pc, stmt))
             val env = add(cur, Inst(Ir.CLOSURE_ENV, arrayOf(fn), 0, 0, 0, pc, stmt).also { it.hasResult = true })
             val thisValue = if (readsThis(target)) {
-                add(cur, Inst(Ir.INLINE_THIS, arrayOf(fn, ops[1]), 0, 0, 0, pc, stmt).also { it.hasResult = true })
+                val bound = if (target.flags and (CodeBlock.STRICT or CodeBlock.ARROW) != 0) 1 else 0
+                add(cur, Inst(Ir.INLINE_THIS, arrayOf(fn, ops[1]), bound, 0, 0, pc, stmt).also { it.hasResult = true })
             } else undefined()
             val args = Array(argc) { ops[2 + it] }
             val calleeSite = InlineSite(site, target, pc, callerState, fn, thisValue, args, env)

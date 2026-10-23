@@ -189,7 +189,10 @@ object Ir {
     /** (fn) entering the body of a call compiled inlined at the CALL at [Inst.a] (JitRt.inlineEnter), and leaving it. */
     const val INLINE_ENTER = 1004
     const val INLINE_EXIT = 1005
-    /** (fn, this) `this` as a call of fn binds it (JitRt.inlineThis); (fn) its environment. */
+    /**
+     * (fn, this) `this` as a call of fn binds it (JitRt.inlineThis), [Inst.a] 1 where that is the value given or the
+     * closure's own (strict code, arrows: nothing allocated, LICM may move it); (fn) its environment.
+     */
     const val INLINE_THIS = 1006
     const val CLOSURE_ENV = 1007
     /**
