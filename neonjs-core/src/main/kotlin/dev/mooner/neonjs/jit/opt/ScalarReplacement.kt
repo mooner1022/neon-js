@@ -29,7 +29,8 @@ internal object ScalarReplacement {
         val reads = HashMap<Inst, Inst>() // read -> the literal it reads
         for (b in g.blocks) {
             for (p in b.phis) for (v in p.inputs) if (v is Inst && v in candidates) escaped.add(v)
-            b.entryRegs?.let { regs -> for (v in regs) if (v is Inst && v in candidates) escaped.add(v) }
+            // a register on-stack replacement loads
+            if (b.site == null) b.entryRegs?.let { regs -> for (v in regs) if (v is Inst && v in candidates) escaped.add(v) }
             for (i in b.insts) for ((k, v) in i.inputs.withIndex()) {
                 if (v !is Inst || v !in candidates) continue
                 val key = if (k == 0) readKey(g, i) else null
@@ -73,6 +74,7 @@ internal object ScalarReplacement {
                     resolveSite(s.site)
                 }
             }
+            b.entryRegs?.let { e -> for (k in e.indices) e[k] = r(e[k]) }
             resolveSite(b.site)
         }
         return true

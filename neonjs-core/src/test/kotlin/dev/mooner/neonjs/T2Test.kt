@@ -419,6 +419,95 @@ class T2Test {
     }
 
     @Test
+    fun invariantGuardsAndLoadsLeaveLoops() {
+        // LICM: the callback's guard and the loads of Math.PI move before repeatf's loop; a load stays where the loop
+        // stores into its slot, or calls a function, or does not read it on every iteration; their exits resume at the
+        // loop header (a callback of another function, none at all on a loop run zero times)
+        val src = """
+            function radius(r) { return 0.5 * r * r * Math.PI }
+            function repeatf(n, block) { var s = 0; for (var i = 0; i < n; i++) s += block(i); return s }
+            function writes(o, n) { var s = 0; for (var i = 0; i < n; i++) { s += o.x; o.x = i } return s }
+            var K = { v: 1 };
+            function bump() { K = { v: K.v + 1 } }
+            function calls(n) { var s = 0; for (var i = 0; i < n; i++) { s += K.v; if (i === 5) bump() } return s }
+            function sometimes(o, n) { var s = 0; for (var i = 0; i < n; i++) if (o) s += o.p; return s }
+            """.trimIndent()
+        val warm = "for (var w = 0; w < 30; w++) { repeatf(20, radius); writes({ x: 1 }, 5); calls(3); sometimes({ p: 2 }, 5) }"
+        val expr = "[repeatf(100, radius), repeatf(0, 5), repeatf(3, x => x), writes({ x: 1 }, 10), calls(10), sometimes(null, 5)," +
+            " sometimes({ p: 3 }, 4), (Math.PI = 3, repeatf(4, radius))].join('|')"
+        val expected = interpreted(src, "$warm; $expr")
+        for (stress in intArrayOf(0, 2)) {
+            JvmCompiler.DEOPT_STRESS = stress
+            try {
+                NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
+                    .build().newContext().use { ctx ->
+                        ctx.agent.config.tier2 = true
+                        ctx.eval(src)
+                        ctx.eval(warm)
+                        val moved = HashMap<String, List<String>>()
+                        for (n in listOf("repeatf", "writes", "calls", "sometimes")) {
+                            val cb: CodeBlock = (ctx.eval(n).raw as JSClosure).code
+                            val g = IrBuilder(cb, ints = true, elems = true).build()
+                            dev.mooner.neonjs.jit.opt.IrVerifier.verify(g)
+                            moved[n] = g.blocks.mapNotNull { it.loopEntry }.flatMap { e -> e.insts.map { dev.mooner.neonjs.jit.opt.Ir.name(it.op) } }
+                            cb.baseline ?: JvmCompiler.compile(cb)!!.also { cb.baseline = it; cb.compiled = it }
+                            Jit.install(cb, T2.compile(cb, CodeDefiners.default) ?: fail("$n not compiled"))
+                        }
+                        if (stress == 0) {
+                            assertTrue(moved["repeatf"]!!.containsAll(listOf("CheckClosure", "LoadGlobalSlot", "LoadSlot", "CheckNumber")), "$moved")
+                            assertFalse(moved["writes"]!!.contains("LoadSlot"), "$moved")
+                            assertFalse(moved["calls"]!!.contains("LoadGlobalLex"), "$moved")
+                            assertFalse(moved["sometimes"]!!.contains("LoadSlot"), "$moved")
+                        }
+                        assertEquals(expected, ctx.eval(expr).asString())
+                    }
+            } finally {
+                JvmCompiler.DEOPT_STRESS = 0
+            }
+        }
+    }
+
+    @Test
+    fun runningLoopsEnterCodeWithInvariantsMovedOut() {
+        // on-stack replacement at a header whose invariants LICM moved out (the inner loops: no call there) makes them
+        // again from the registers; a guard failing there (the global object changed) resumes the loop in the interpreter
+        val src = """
+            function f(n) { var s = 0; for (var k = 0; k < 2; k++) { if (k === 1) install('f'); for (var i = 0; i < n; i++) s += Math.PI * (i % 3) } return s.toFixed(3) }
+            function g(n, tag) { var s = 0; for (var k = 0; k < 2; k++) { if (k === 1) { install('g'); globalThis['extra' + tag] = k } for (var i = 0; i < n; i++) s += Math.E } return s.toFixed(3) }
+            """.trimIndent()
+        // the interpreter fills the caches and profiles first
+        val warm = "f(100); g(100, 1)"
+        val expr = "[f(20000), g(20000, 2)].join('|')"
+        val expected = interpreted("function install() {}\n$src", "$warm; $expr")
+        val tierUps = dev.mooner.neonjs.jit.Deopt.tierUps.get()
+        var armed = false
+        NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
+            .build().newContext().use { ctx ->
+                ctx.agent.config.tier2 = true
+                ctx.setFunction("install") { args ->
+                    if (armed) {
+                        val cb: CodeBlock = (ctx.eval(args[0].asString()).raw as JSClosure).code
+                        val g = IrBuilder(cb, ints = true, elems = true).build()
+                        assertTrue(g.blocks.any { it.loopEntry != null }, dev.mooner.neonjs.jit.opt.IrPrinter.print(g))
+                        Jit.install(cb, T2.compile(cb, CodeDefiners.default) ?: fail("not compiled"))
+                    }
+                    null
+                }
+                ctx.eval(src)
+                ctx.eval(warm)
+                armed = true
+                // the loops start in T1 code that looks for the tier's code at its back edges
+                for (n in listOf("f", "g")) {
+                    val cb: CodeBlock = (ctx.eval(n).raw as JSClosure).code
+                    cb.baseline ?: JvmCompiler.compileAll(listOf(cb), CodeDefiners.default, tierUp = true)[0]!!.also { cb.baseline = it; cb.compiled = it }
+                    cb.compiled = cb.baseline
+                }
+                assertEquals(expected, ctx.eval(expr).asString())
+            }
+        assertTrue(dev.mooner.neonjs.jit.Deopt.tierUps.get() - tierUps >= 2, "loops moved: ${dev.mooner.neonjs.jit.Deopt.tierUps.get() - tierUps}")
+    }
+
+    @Test
     fun quietCallsAreNotRecorded() {
         // bodies that cannot throw, call, loop or catch are entered without the frame's record of inlined calls; their
         // exits still give the call a frame, so an error thrown there after an exit has the callee in its stack

@@ -50,6 +50,8 @@ class Block(@JvmField var id: Int, @JvmField val pc: Int, @JvmField val site: In
      */
     @JvmField var entryRegs: Array<Value>? = null
     @JvmField var entryDepth = 0
+    /** For a loop header: the block before it holding what LICM moved out of the loop (null: none). */
+    @JvmField var loopEntry: Block? = null
     /**
      * The exception entry of the innermost handler whose range covers this block (null: none): what an exception
      * thrown by its code goes to. [catchEntry] marks such entries, which no other block jumps to.
@@ -116,6 +118,8 @@ class Inst(
      * from its inputs.
      */
     @JvmField var virtual = false
+    /** For an instruction LICM moved out of its loop: the code block it was made from (its exits note failures there). */
+    @JvmField var origin: dev.mooner.neonjs.compiler.CodeBlock? = null
     /** For INLINE_ENTER and INLINE_EXIT: the call they enter and leave. */
     @JvmField var callee: InlineSite? = null
 

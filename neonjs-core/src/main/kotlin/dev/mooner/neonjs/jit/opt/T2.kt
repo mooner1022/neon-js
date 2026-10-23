@@ -28,6 +28,8 @@ object T2 {
 
     /** Debugging: `-Dneonjs.jit.t2Print=name` prints the IR of every block compiled whose name contains `name`. */
     private val PRINT: String? = System.getProperty("neonjs.jit.t2Print")
+    /** Testing: `-Dneonjs.jit.t2Verify` checks every graph (IrVerifier) before its code is generated. */
+    private val VERIFY = System.getProperty("neonjs.jit.t2Verify") != null
 
     private val counter = AtomicLong()
     private val debugShown = AtomicLong()
@@ -44,6 +46,7 @@ object T2 {
         try {
             if (cb.t2Off) throw JitBailout("deoptimized too often")
             val g = IrBuilder(cb, JvmCompiler.INT32, JvmCompiler.ELEMS, stressExits = JvmCompiler.DEOPT_STRESS > 0).build()
+            if (VERIFY) IrVerifier.verify(g)
             if (PRINT != null && cb.name.contains(PRINT)) System.err.println("T2 ${cb.name}:\n${IrPrinter.print(g)}")
             val name = "dev/mooner/neonjs/jit/T2$" + JvmCompiler.sanitize(cb.name) + "$" + counter.incrementAndGet()
             val bytes = try {

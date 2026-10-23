@@ -57,7 +57,7 @@ internal class IrCodegen(
 
     /** The exit of a speculation [i] makes (counted, and noted where it failed: T2Code.exit). */
     private fun specExit(l: Label, i: Inst): Exit {
-        val code = i.block!!.site?.code ?: g.code
+        val code = i.origin ?: i.block!!.site?.code ?: g.code
         return Exit(l, i.state!!, counted = true, spec = g.dataIndex(Speculation(code, if (i.op == Ir.CHECK_NUMBER || i.op == Ir.CHECK_INT32) (if (i.pc < 0) code.code.size else i.pc) else i.pc)))
     }
     private val exits = ArrayList<Exit>()
@@ -383,8 +383,12 @@ internal class IrCodegen(
         val live = liveIn()
         val entries = g.blocks.filter { b ->
             val regs = b.entryRegs
-            regs != null && b.entryDepth == 0 && java.util.Arrays.binarySearch(targets, b.pc) >= 0 &&
-                live[b]!!.all { v -> regs.any { it === v } }
+            // the values LICM moved before the loop are made again (below), from registers
+            val e = b.loopEntry
+            fun ok(v: Value) = regs!!.any { it === v } || (e != null && v is Inst && v.block === e)
+            b.site == null && regs != null && b.entryDepth == 0 && java.util.Arrays.binarySearch(targets, b.pc) >= 0 &&
+                live[b]!!.all { ok(it) } &&
+                (e == null || (e.insts.all { i -> i.inputs.all { it is Const || ok(it) } } && regs.all { it is Const || local[it] != null }))
         }.sortedBy { it.pc }
         g.osrPcs = entries.map { it.pc }.distinct().toIntArray()
         val normal = Label()
@@ -436,6 +440,16 @@ internal class IrCodegen(
                         }
                     }
                     store(v)
+                }
+                // what LICM moved before the loop, its exits resuming at the header with the registers loaded
+                b.loopEntry?.let { e ->
+                    val state = FrameState(b.pc, b.entryRegs!!.copyOf(), b.site)
+                    for (i in e.insts) if (!i.isTerminator) {
+                        val s = i.state
+                        if (s != null) i.state = state
+                        inst(i)
+                        i.state = s
+                    }
                 }
                 mv.visitJumpInsn(GOTO, label[b])
             }

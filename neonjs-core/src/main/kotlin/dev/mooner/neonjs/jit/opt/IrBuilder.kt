@@ -72,6 +72,7 @@ internal class IrBuilder(
         val kinds = Kinds(ints, elems)
         kinds.infer(g)
         if (preferDoubles()) kinds.infer(g)
+        if (speculate) Licm.run(g, kinds)
         QuietInlines.run(g, kinds)
         number()
         return g
@@ -376,8 +377,9 @@ internal class IrBuilder(
                 for (r in 0 until nregs) regs[r] = Phi(b).also { b.phis.add(it) }
                 for (i in 0 until depth) stack.add(Phi(b).also { b.phis.add(it) })
             }
-            if (b.loopHeader && site == null) {
-                // where on-stack replacement may enter
+            if (b.loopHeader) {
+                // where on-stack replacement may enter (the function's own loops), and the state where LICM's exits
+                // resume
                 b.entryRegs = Array(nregs) { regs[it]!! }
                 b.entryDepth = stack.size
             }
