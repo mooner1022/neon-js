@@ -319,6 +319,26 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
     from those values. A write, any other use, a phi or an on-stack replacement register keeps the allocation. On
     the API 34 emulator a `{x, y}` literal in a loop went 376-474 -> 4.1-4.4 ms, the same as the loop written
     without it (the bound above).
+  - global variables (P3's global cells): a LOAD_GLOBAL whose site's cache holds an entry is read inline through
+    it (LOAD_GLOBAL_LEX: the realm's token, then the binding's value and a TDZ check; LOAD_GLOBAL_SLOT: the lexical
+    epoch and the global object's shape, then the slot), exiting before the read otherwise.
+  - quiet inlined calls (`QuietInlines`): a body (with the calls inlined in it) that neither throws, calls, loops nor
+    catches is entered and left without the frame's record of inlined calls (InlineEnter/InlineExit generate
+    nothing): no stack trace, depth limit or handler can look for it. Its exits still give it a frame; only the calls
+    recorded give back depth there. Back edges keep their own interrupt checks.
+  - LICM (`Licm`): closure guards, number checks, closure environments, `this` bound without allocating (strict
+    code, arrows), and shape-guarded slot and global loads whose inputs come from outside a loop move into a block
+    before its header ([Block.loopEntry]), from the blocks every iteration runs. Loads move only out of loops whose
+    instructions cannot run code of their own (numbers only in arithmetic, no calls or generic operations), and not
+    where the loop stores into the same slot of the same shape (or into any environment, for environment loads). Such
+    an exit resumes the interpreter at the header as the loop is entered; on-stack replacement at the header makes
+    those values again from the registers it loads. A value used by such a loop that is not checked as a number (no
+    profile: compiled mode) keeps its loads in the loop.
+  - API 34 emulator, tier on against off, 3 interleaved runs: the user's StarLight benchmark 341-348 -> 145-156 ms per
+    loop (its 1e7-call loop of `0.5 * r * r * Math.PI` 164 -> 5-6 ms; fib(30) 170-176 -> 134-146 ms is the rest);
+    4 property loads in a loop 217-229 -> 5.5 ms; a method using `this` 257-265 -> 22 ms; nested calls 617-711 ->
+    3.5 ms; NeonBench mono +65-85%, float +25-40%, call +15-35%, int/alloc/closure unchanged; basic.js `classes`
+    5% slower.
 - **P5: tiering and tuning** (~1.5K). T1 -> T2 counters, OSR from T1 into T2 at loop headers, background T2 queue,
   thresholds, profiling T1 if compiled mode needs it, the builder option, Android measurement. Exit: StarLight's
   NeonBench and the user's benchmark gain on ART, first run included; default stays off until a release cycle has
