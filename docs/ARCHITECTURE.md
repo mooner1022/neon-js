@@ -261,6 +261,17 @@ that instruction: unboxed registers whose kind there is a number, and every stac
 or `int` without a number in it there is passed as `undefined`, since no load reads it before a store (every load of
 such a register sees a number on every path) and registers are invisible outside the function.
 
+Optimizing tier (`jit/opt/`, being built: docs/OPTIMIZING_TIER.md). `IrBuilder` turns a code block into a control
+flow graph in SSA form (`Ir.kt`): registers and operand stack slots become values, with a phi for each of them at every
+merge, then phis merging one value are replaced by it and unused ones dropped; `Kinds` gives every value the kind
+T1's type analysis would, by the same rules; `IrVerifier` checks terminators, predecessors and dominance. `IrCodegen`
+gives each value used a JVM local of its kind and copies phi inputs at the end of each predecessor (loaded, then
+stored: a parallel copy), so the JVM operand stack is empty at every block boundary, and emits T1's code for each
+instruction (`JvmEmitter`); its on-stack replacement entries load each register into the local of the value it holds
+at the loop header. Blocks with exception handlers or instructions the IR does not have yet keep their baseline.
+Nothing uses it yet but `-Dneonjs.jit.t2Stress`, which compiles every block right after its baseline is installed and
+installs the result over it (`Jit.install`); Test262 passes that way in every mode.
+
 Contracts for other code generators (an optimizing tier with its own IR, or front ends other than JS bytecode). The
 present generator follows them, and so must anything added next to it:
 

@@ -77,6 +77,11 @@ fun main(args: Array<String>) {
         System.err.println("JIT inlined calls=${dev.mooner.neonjs.jit.JvmCompiler.inlinedCalls}")
         System.err.println("JIT loops entered compiled (OSR)=${dev.mooner.neonjs.jit.Jit.osrEntered} without an entry=${dev.mooner.neonjs.jit.Jit.osrMissed}")
         System.err.println("JIT deoptimizations=${dev.mooner.neonjs.jit.Deopt.count} inside inlined calls=${dev.mooner.neonjs.jit.Deopt.inlinedCount}")
+        val t2 = dev.mooner.neonjs.jit.opt.T2
+        if (t2.compiledCount.get() + t2.failedCount.get() > 0) {
+            System.err.println("T2 compiled=${t2.compiledCount} not compiled=${t2.failedCount}")
+            t2.failureReasons.entries.sortedByDescending { it.value.get() }.take(15).forEach { System.err.println("  ${it.value} ${it.key}") }
+        }
         dev.mooner.neonjs.jit.JvmCompiler.notInlinedReasons.entries.sortedByDescending { it.value.get() }.take(15).forEach { System.err.println("  ${it.value} compiled without inlined calls: ${it.key}") }
     }
     // exit status 1 when a test failed that the --known list does not expect

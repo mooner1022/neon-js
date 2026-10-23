@@ -2,7 +2,6 @@ package dev.mooner.neonjs.jit
 
 import dev.mooner.neonjs.compiler.CodeBlock
 import dev.mooner.neonjs.compiler.Op
-import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.Label
 import org.objectweb.asm.MethodVisitor
 import org.objectweb.asm.Opcodes.*
@@ -269,16 +268,12 @@ object JvmCompiler {
         }
     }
 
-    private class CW : ClassWriter(COMPUTE_FRAMES or COMPUTE_MAXS) {
-        override fun getCommonSuperClass(type1: String, type2: String): String = "java/lang/Object"
-    }
-
     /** Binary name of the class [CodeDefiners.isUsable] defines to test a definer. */
     const val PROBE_CLASS = "dev.mooner.neonjs.jit.JSProbe"
 
     /** A trivial [CompiledCode] class (its run returns null) for testing a definer. */
     fun probeClass(version: Int): ByteArray {
-        val cw = CW()
+        val cw = JitClassWriter()
         cw.visit(version, ACC_PUBLIC or ACC_FINAL or ACC_SUPER, PROBE_CLASS.replace('.', '/'), null, "java/lang/Object", arrayOf("dev/mooner/neonjs/jit/CompiledCode"))
         val init = cw.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null)
         init.visitCode()
@@ -361,7 +356,7 @@ object JvmCompiler {
     @JvmField @Volatile var DEOPT_STRESS: Int = System.getProperty("neonjs.jit.deoptStress")?.let { it.toIntOrNull() ?: 3 } ?: 0
 
     /** Debugging: `-Dneonjs.jit.dump=DIR` writes every generated class there. */
-    private val DUMP_DIR: String? = System.getProperty("neonjs.jit.dump")
+    internal val DUMP_DIR: String? = System.getProperty("neonjs.jit.dump")
 
     private fun reason(e: Exception) = if (e is JitBailout) (e.message ?: "bailout").take(120) else "method too large"
 
@@ -375,7 +370,7 @@ object JvmCompiler {
     @JvmField val untypedReasons = java.util.concurrent.ConcurrentHashMap<String, AtomicLong>()
 
     private fun classBytes(input: JitInput, name: String, version: Int, typed: Boolean, inline: Boolean): ByteArray {
-        val cw = CW()
+        val cw = JitClassWriter()
         cw.visit(version, ACC_PUBLIC or ACC_FINAL or ACC_SUPER, name, null, "java/lang/Object", arrayOf("dev/mooner/neonjs/jit/CompiledCode"))
         input.sourceName?.let { cw.visitSource(it, null) }
         val init = cw.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null)
@@ -493,18 +488,6 @@ object JvmCompiler {
         fun pcField() = if (inl != null) "inlinePc" else "pc"
 
         /** Value on the stack is [dev.mooner.neonjs.vm.Interpreter.TAIL]: return it so the caller performs the tail call. */
-
-        fun interruptCheck() {
-            val ok = Label()
-            mv.visitIincInsn(L_BUDGET, -1)
-            mv.visitVarInsn(ILOAD, L_BUDGET)
-            mv.visitJumpInsn(IFGT, ok)
-            mv.visitVarInsn(ALOAD, L_AGENT)
-            mv.visitMethodInsn(INVOKEVIRTUAL, "dev/mooner/neonjs/runtime/Agent", "checkInterrupt", "()V", false)
-            iconst(4096)
-            mv.visitVarInsn(ISTORE, L_BUDGET)
-            mv.visitLabel(ok)
-        }
 
         fun emit() {
             collectJumpLabels()

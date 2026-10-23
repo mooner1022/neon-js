@@ -1,0 +1,554 @@
+package dev.mooner.neonjs.jit.opt
+
+import dev.mooner.neonjs.compiler.Op
+import dev.mooner.neonjs.jit.*
+import dev.mooner.neonjs.runtime.Null
+import dev.mooner.neonjs.runtime.Undefined
+import org.objectweb.asm.Label
+import org.objectweb.asm.MethodVisitor
+import org.objectweb.asm.Opcodes.*
+
+/**
+ * Generates `CompiledCode.run` for a [Graph]: every value used gets a JVM local of its kind (a `double`, an `int`, or an
+ * Object), blocks become labels, and a phi's inputs are copied into its local at the end of each predecessor (all
+ * loaded, then all stored: a parallel copy through the JVM stack). The JVM operand stack is empty at every block
+ * boundary. Instructions get the present compiler's code for their kinds (the same JVM operations and `JitRt`
+ * helpers, [JvmEmitter.emitHelper] for those not specialized), so the code does what the baseline does.
+ *
+ * Like the baseline, the code takes a frame made for compiled code from the start, and an interpreted one at a loop
+ * header with an empty operand stack (on-stack replacement), where each register's value is loaded from the frame's
+ * slots into the local of the value the register holds there; `f.pc` is the current statement whenever something can
+ * throw or call; loop back edges count down the interrupt budget.
+ */
+internal class IrCodegen(private val g: Graph, mv: MethodVisitor, private val kinds: Kinds, private val ints: Boolean) : JvmEmitter(mv) {
+    private var next = L_REGS
+    override fun alloc(n: Int): Int = next.also { next += n }
+
+    private val local = HashMap<Value, Int>()
+    private val label = HashMap<Block, Label>()
+    private val index = HashMap<Block, Int>()
+    private val intKind = if (ints) JT.INT else JT.NUM
+    /** The statement position stored in Frame.pc since the current block started (-2: none). */
+    private var storedPc = -2
+
+    fun emit() {
+        for ((k, b) in g.blocks.withIndex()) {
+            index[b] = k
+            label[b] = Label()
+        }
+        allocate()
+        prologue()
+        osrEntries()
+        for (b in g.blocks) emitBlock(b)
+    }
+
+    // ------------------------------------------------------------------ values
+
+    private fun allocate() {
+        val used = HashSet<Value>()
+        for (b in g.blocks) {
+            for (p in b.phis) used.addAll(p.inputs)
+            for (i in b.insts) used.addAll(i.inputs)
+        }
+        for (b in g.blocks) {
+            for (p in b.phis) local[p] = slotFor(p.kind)
+            for (i in b.insts) if (i.hasResult && i in used) local[i] = slotFor(i.kind)
+        }
+    }
+
+    private fun slotFor(kind: Byte): Int = if (kind == JT.NUM) tempD() else temp()
+
+    private fun kindOf(v: Value): Byte = kinds.of(v)
+
+    /** Pushes [v] as kind [want]: unchanged, an int widened, or boxed. */
+    private fun load(v: Value, want: Byte) {
+        if (v is Const) return pushConst(v, want)
+        val l = local[v] ?: throw JitBailout("v${v.id} has no local")
+        val k = v.kind
+        mv.visitVarInsn(when (k) { JT.NUM -> DLOAD; JT.INT, JT.BOOL -> ILOAD; else -> ALOAD }, l)
+        convert(k, want)
+    }
+
+    private fun pushConst(c: Const, want: Byte) {
+        val v = c.value
+        val k = kinds.constKind(v)
+        if (want == JT.ANY) {
+            when {
+                v === Undefined -> pushUndefined()
+                v === Null -> getstatic("dev/mooner/neonjs/runtime/Null", "INSTANCE", "Ldev/mooner/neonjs/runtime/Null;")
+                v == true -> getstatic("java/lang/Boolean", "TRUE", "Ljava/lang/Boolean;")
+                v == false -> getstatic("java/lang/Boolean", "FALSE", "Ljava/lang/Boolean;")
+                c.k >= 0 -> constant(c.k)
+                v is Double -> {
+                    // PUSH_INT: an int32, boxed as the baseline boxes it
+                    iconst(v.toInt())
+                    mv.visitMethodInsn(INVOKESTATIC, "dev/mooner/neonjs/runtime/Ops", "num", "(I)$OBJ", false)
+                }
+                else -> throw JitBailout("constant $v")
+            }
+            return
+        }
+        when (want) {
+            JT.BOOL -> if (k == JT.BOOL) iconst(if (v == true) 1 else 0) else throw JitBailout("constant $v as a boolean")
+            JT.INT -> if (k == JT.INT) iconst((v as Double).toInt()) else throw JitBailout("constant $v as an int")
+            JT.NUM -> if (JT.isNum(k)) {
+                val d = v as Double
+                when {
+                    d == 0.0 && 1.0 / d > 0 -> mv.visitInsn(DCONST_0)
+                    d == 1.0 -> mv.visitInsn(DCONST_1)
+                    else -> mv.visitLdcInsn(d)
+                }
+            } else throw JitBailout("constant $v as a number")
+        }
+    }
+
+    /** Stores the value of kind [k] on the JVM stack as [i]'s result, or drops it when nothing uses [i]. */
+    private fun done(i: Inst, k: Byte) {
+        if (k != i.kind) throw JitBailout("${Ir.name(i.op)} gives kind $k, not ${i.kind}")
+        val l = local[i]
+        if (l == null) mv.visitInsn(if (k == JT.NUM) POP2 else POP)
+        else mv.visitVarInsn(when (k) { JT.NUM -> DSTORE; JT.INT, JT.BOOL -> ISTORE; else -> ASTORE }, l)
+    }
+
+    private fun store(v: Value) {
+        mv.visitVarInsn(when (v.kind) { JT.NUM -> DSTORE; JT.INT, JT.BOOL -> ISTORE; else -> ASTORE }, local[v]!!)
+    }
+
+    // ------------------------------------------------------------------ entries
+
+    private fun prologue() {
+        frame()
+        mv.visitFieldInsn(GETFIELD, FRAME, "code", CODEBLOCK_D)
+        mv.visitFieldInsn(GETFIELD, CODEBLOCK, "constants", CONSTS_D)
+        mv.visitVarInsn(ASTORE, L_CONSTS)
+        frame()
+        mv.visitFieldInsn(GETFIELD, FRAME, "realm", REALM_D)
+        mv.visitFieldInsn(GETFIELD, "dev/mooner/neonjs/runtime/Realm", "agent", AGENT_D)
+        mv.visitVarInsn(ASTORE, L_AGENT)
+        iconst(4096)
+        mv.visitVarInsn(ISTORE, L_BUDGET)
+    }
+
+    /**
+     * On-stack replacement: an interpreted frame continues at the loop header in its pc. Entries are the loop headers
+     * the interpreter may stop at (targets of backward jumps) with an empty operand stack whose live values are all in
+     * registers there (always so in bytecode, checked anyway); elsewhere the code returns JitRt.NO_OSR.
+     */
+    private fun osrEntries() {
+        val targets = JvmCompiler.backEdgeTargets(g.code.code)
+        if (targets.isEmpty()) return
+        val live = liveIn()
+        val entries = g.blocks.filter { b ->
+            val regs = b.entryRegs
+            regs != null && b.entryDepth == 0 && java.util.Arrays.binarySearch(targets, b.pc) >= 0 &&
+                live[b]!!.all { v -> regs.any { it === v } }
+        }.sortedBy { it.pc }
+        val normal = Label()
+        val none = Label()
+        frame()
+        mv.visitFieldInsn(GETFIELD, FRAME, "slots", CONSTS_D)
+        getstatic(FRAME, "NO_SLOTS", CONSTS_D)
+        mv.visitJumpInsn(IF_ACMPEQ, normal)
+        if (entries.isNotEmpty()) {
+            val starts = Array(entries.size) { Label() }
+            frame()
+            mv.visitFieldInsn(GETFIELD, FRAME, "pc", "I")
+            mv.visitLookupSwitchInsn(none, IntArray(entries.size) { entries[it].pc }, starts)
+            for ((k, b) in entries.withIndex()) {
+                mv.visitLabel(starts[k])
+                for ((r, v) in b.entryRegs!!.withIndex()) {
+                    if (v is Const || local[v] == null) continue
+                    frame()
+                    mv.visitFieldInsn(GETFIELD, FRAME, "slots", CONSTS_D)
+                    iconst(r)
+                    mv.visitInsn(AALOAD)
+                    // the interpreter computed the same values: a number where the kind says so
+                    when (v.kind) {
+                        JT.NUM -> unboxNum()
+                        JT.INT -> { unboxNum(); rt("exactInt", "(D)I") }
+                        JT.BOOL -> {
+                            mv.visitTypeInsn(CHECKCAST, "java/lang/Boolean")
+                            mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Boolean", "booleanValue", "()Z", false)
+                        }
+                    }
+                    store(v)
+                }
+                mv.visitJumpInsn(GOTO, label[b])
+            }
+        }
+        mv.visitLabel(none)
+        getstatic(RT, "NO_OSR", OBJ)
+        mv.visitInsn(ARETURN)
+        mv.visitLabel(normal)
+    }
+
+    /** The values live when each block starts (its phis included), but constants. */
+    private fun liveIn(): Map<Block, Set<Value>> {
+        val liveIn = HashMap<Block, HashSet<Value>>()
+        for (b in g.blocks) liveIn[b] = HashSet()
+        var changed = true
+        while (changed) {
+            changed = false
+            for (b in g.blocks.asReversed()) {
+                val live = HashSet<Value>()
+                for (s in b.succs) {
+                    for (v in liveIn[s]!!) if (!(v is Phi && v.block === s)) live.add(v)
+                    val k = s.preds.indexOf(b)
+                    for (p in s.phis) p.inputs[k].let { if (it !is Const) live.add(it) }
+                }
+                for (i in b.insts.asReversed()) {
+                    live.remove(i)
+                    for (v in i.inputs) if (v !is Const) live.add(v)
+                }
+                live.addAll(b.phis)
+                if (live != liveIn[b]) {
+                    liveIn[b] = live
+                    changed = true
+                }
+            }
+        }
+        return liveIn
+    }
+
+    // ------------------------------------------------------------------ blocks
+
+    private fun emitBlock(b: Block) {
+        mv.visitLabel(label[b])
+        storedPc = -2
+        for (i in b.insts) {
+            if (i.isTerminator) terminator(b, i) else inst(i)
+        }
+    }
+
+    /** The edge from [b] to [s]: the interrupt check of a back edge, the copies into [s]'s phis, the jump. */
+    private fun edge(b: Block, s: Block) {
+        if (index[s]!! <= index[b]!!) interruptCheck()
+        if (s.phis.isNotEmpty()) {
+            val k = s.preds.indexOf(b)
+            for (p in s.phis) load(p.inputs[k], p.kind)
+            for (p in s.phis.asReversed()) store(p)
+        }
+        mv.visitJumpInsn(GOTO, label[s])
+    }
+
+    private fun trivialEdge(b: Block, s: Block) = s.phis.isEmpty() && index[s]!! > index[b]!!
+
+    private fun terminator(b: Block, i: Inst) {
+        when (i.op) {
+            Ir.GOTO -> edge(b, i.targets[0])
+            Ir.BRANCH -> {
+                val cond = i.inputs[0]
+                val jump = when (i.a) {
+                    Op.JUMP_IF_TRUE, Op.JUMP_IF_FALSE -> {
+                        val k = kindOf(cond)
+                        load(cond, k)
+                        truth(k)
+                        if (i.a == Op.JUMP_IF_TRUE) IFNE else IFEQ
+                    }
+                    Op.JUMP_IF_NULLISH, Op.JUMP_IF_NOT_NULLISH -> {
+                        load(cond, JT.ANY)
+                        rt("isNullish", "($OBJ)Z")
+                        if (i.a == Op.JUMP_IF_NULLISH) IFNE else IFEQ
+                    }
+                    else -> {
+                        load(cond, JT.ANY)
+                        rt("isUndefined", "($OBJ)Z")
+                        if (i.a == Op.JUMP_IF_UNDEFINED) IFNE else IFEQ
+                    }
+                }
+                val (taken, notTaken) = i.targets
+                if (trivialEdge(b, taken)) {
+                    mv.visitJumpInsn(jump, label[taken])
+                    edge(b, notTaken)
+                } else {
+                    val t = Label()
+                    mv.visitJumpInsn(jump, t)
+                    edge(b, notTaken)
+                    mv.visitLabel(t)
+                    edge(b, taken)
+                }
+            }
+            Ir.RETURN -> {
+                load(i.inputs[0], JT.ANY)
+                mv.visitInsn(ARETURN)
+            }
+            Ir.THROW -> {
+                storePc(i)
+                load(i.inputs[0], JT.ANY)
+                rt("throwValue", "($OBJ)Ljava/lang/Throwable;")
+                mv.visitInsn(ATHROW)
+            }
+            Ir.THROW_ERROR -> {
+                storePc(i)
+                iconst(i.a)
+                iconst(i.b)
+                consts()
+                rt("throwError", "(II$CONSTS_D)Ljava/lang/Throwable;")
+                mv.visitInsn(ATHROW)
+            }
+            else -> throw JitBailout("terminator ${Ir.name(i.op)}")
+        }
+    }
+
+    /** Frame.pc = the statement of [i], before something that can throw or call (stack traces and errors read it). */
+    private fun storePc(i: Inst) {
+        if (i.stmt < 0 || i.stmt == storedPc) return
+        frame()
+        iconst(i.stmt)
+        mv.visitFieldInsn(PUTFIELD, FRAME, "pc", "I")
+        storedPc = i.stmt
+    }
+
+    // ------------------------------------------------------------------ instructions
+
+    private fun inst(i: Inst) {
+        val op = i.op
+        when (op) {
+            Ir.PARAM -> {
+                frame()
+                iconst(i.a)
+                rt("arg", "(${FRAME_D}I)$OBJ")
+                done(i, JT.ANY)
+                return
+            }
+            Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD, Op.EXP, Op.BAND, Op.BOR, Op.BXOR, Op.SHL, Op.SAR, Op.SHR,
+            Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.SEQ, Op.SNE -> if (binary(i)) return
+            Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC -> {
+                val t = kindOf(i.inputs[0])
+                if (JT.isNum(t)) {
+                    val result = kinds.unaryResult(op, t)
+                    when (op) {
+                        Op.NEG -> { load(i.inputs[0], JT.NUM); mv.visitInsn(DNEG) } // -0 for 0
+                        Op.BNOT -> if (result == JT.INT) {
+                            load(i.inputs[0], t)
+                            toInt32(t)
+                            mv.visitInsn(ICONST_M1)
+                            mv.visitInsn(IXOR)
+                        } else {
+                            load(i.inputs[0], JT.NUM)
+                            rt("bnotD", "(D)D")
+                        }
+                        Op.INC -> { load(i.inputs[0], JT.NUM); mv.visitInsn(DCONST_1); mv.visitInsn(DADD) }
+                        Op.DEC -> { load(i.inputs[0], JT.NUM); mv.visitInsn(DCONST_1); mv.visitInsn(DSUB) }
+                        else -> load(i.inputs[0], t) // TO_NUMERIC of a number
+                    }
+                    done(i, result)
+                    return
+                }
+            }
+            Op.TO_NUMBER -> {
+                val t = kindOf(i.inputs[0])
+                if (t != JT.ANY) {
+                    val result = kinds.result(i)
+                    load(i.inputs[0], t)
+                    if (t == JT.BOOL && result == JT.NUM) mv.visitInsn(I2D)
+                    done(i, result)
+                } else {
+                    storePc(i)
+                    load(i.inputs[0], JT.ANY)
+                    rt("toNumberD", "($OBJ)D")
+                    done(i, JT.NUM)
+                }
+                return
+            }
+            Op.NOT -> {
+                val t = kindOf(i.inputs[0])
+                load(i.inputs[0], t)
+                truth(t, normalized = true)
+                mv.visitInsn(ICONST_1)
+                mv.visitInsn(IXOR)
+                done(i, JT.BOOL)
+                return
+            }
+            Op.GET_ELEM -> {
+                val key = kindOf(i.inputs[1])
+                if (JT.isNum(key)) {
+                    storePc(i)
+                    load(i.inputs[0], JT.ANY)
+                    load(i.inputs[1], key)
+                    frame()
+                    if (key == JT.INT) rt("getElemI", "(${OBJ}I$FRAME_D)$OBJ") else rt("getElemD", "(${OBJ}D$FRAME_D)$OBJ")
+                    done(i, JT.ANY)
+                    return
+                }
+            }
+            Op.PUT_ELEM -> {
+                val key = kindOf(i.inputs[1])
+                val value = kindOf(i.inputs[2])
+                val stored = kinds.result(i)
+                if (JT.isNum(stored)) {
+                    storePc(i)
+                    load(i.inputs[0], JT.ANY)
+                    load(i.inputs[1], key)
+                    load(i.inputs[2], value)
+                    frame()
+                    val k = if (key == JT.INT) "I" else "D"
+                    val v = if (stored == JT.INT) "I" else "D"
+                    rt("setElem$k$v", "($OBJ$k$v$FRAME_D)$v")
+                    done(i, stored)
+                    return
+                }
+                if (JT.isNum(key)) {
+                    storePc(i)
+                    val vNum = key == JT.NUM && value == JT.NUM
+                    load(i.inputs[0], JT.ANY)
+                    load(i.inputs[1], key)
+                    load(i.inputs[2], if (vNum) JT.NUM else JT.ANY)
+                    frame()
+                    when {
+                        key == JT.INT -> rt("putElemIA", "(${OBJ}I$OBJ$FRAME_D)$OBJ")
+                        vNum -> rt("putElemDD", "(${OBJ}DD$FRAME_D)$OBJ")
+                        else -> rt("putElemDA", "(${OBJ}D$OBJ$FRAME_D)$OBJ")
+                    }
+                    done(i, JT.ANY)
+                    return
+                }
+            }
+            Ir.CHECK_TDZ -> {
+                storePc(i)
+                load(i.inputs[0], JT.ANY)
+                iconst(i.a)
+                consts()
+                rt("tdz", "(${OBJ}I$CONSTS_D)$OBJ")
+                if (i.hasResult) done(i, JT.ANY) else mv.visitInsn(POP)
+                return
+            }
+            Op.TO_KEY_FOR_BASE -> {
+                storePc(i)
+                load(i.inputs[0], JT.ANY)
+                load(i.inputs[1], JT.ANY)
+                rt("keyForBase", "($OBJ$OBJ)$OBJ")
+                done(i, JT.ANY)
+                return
+            }
+            Op.SET_FUNCTION_NAME -> {
+                storePc(i)
+                load(i.inputs[0], JT.ANY)
+                load(i.inputs[1], JT.ANY)
+                iconst(i.a)
+                consts()
+                rt("setFunctionName", "($OBJ${OBJ}I$CONSTS_D)V")
+                return
+            }
+        }
+        // the baseline's code for the instruction, with Object operands
+        storePc(i)
+        for (v in i.inputs) load(v, JT.ANY)
+        if (!emitHelper(op, i.pc, i.a, i.b, i.c)) throw JitBailout("no code for ${Ir.name(op)}")
+        if (i.hasResult) done(i, JT.ANY)
+    }
+
+    /**
+     * A binary operator with at least one number operand, as the baseline compiles it (Gen.emitBinary): bitwise
+     * operators on two numbers on ToInt32 ints, comparisons of two ints on ints, the rest on doubles or through the
+     * mixed helpers. False when neither operand is a number (the generic code then).
+     */
+    private fun binary(i: Inst): Boolean {
+        val op = i.op
+        val l = i.inputs[0]
+        val r = i.inputs[1]
+        val kl = kindOf(l)
+        val kr = kindOf(r)
+        val cls = JT.binaryClass(op, kl, kr)
+        if (cls == JT.GENERIC) return false
+        val result = JT.binaryResult(op, cls, intKind)
+        if (JT.isBitwise(op) && cls == JT.NN && ints) {
+            load(l, kl)
+            toInt32(kl)
+            load(r, kr)
+            toInt32(kr)
+            // the JVM masks shift counts to 5 bits, as JS does
+            when (op) {
+                Op.BAND -> mv.visitInsn(IAND)
+                Op.BOR -> mv.visitInsn(IOR)
+                Op.BXOR -> mv.visitInsn(IXOR)
+                Op.SHL -> mv.visitInsn(ISHL)
+                Op.SAR -> mv.visitInsn(ISHR)
+                else -> {
+                    // >>>: the uint32 as a double
+                    mv.visitInsn(IUSHR)
+                    mv.visitInsn(I2L)
+                    mv.visitLdcInsn(0xFFFFFFFFL)
+                    mv.visitInsn(LAND)
+                    mv.visitInsn(L2D)
+                }
+            }
+            done(i, result)
+            return true
+        }
+        if (JT.isCompare(op) && kl == JT.INT && kr == JT.INT) {
+            load(l, JT.INT)
+            load(r, JT.INT)
+            compareInts(op)
+            done(i, JT.BOOL)
+            return true
+        }
+        val base = when (op) {
+            Op.ADD -> "add"; Op.SUB -> "sub"; Op.MUL -> "mul"; Op.DIV -> "div"; Op.MOD -> "mod"; Op.EXP -> "exp"
+            Op.BAND -> "band"; Op.BOR -> "bor"; Op.BXOR -> "bxor"; Op.SHL -> "shl"; Op.SAR -> "sar"; Op.SHR -> "shr"
+            Op.LT -> "lt"; Op.GT -> "gt"; Op.LE -> "le"; Op.GE -> "ge"; Op.EQ -> "eq"; Op.NE -> "ne"
+            Op.SEQ -> "seq"; else -> "sne"
+        }
+        // the helpers of the bitwise operators (but >>>) return the int32
+        val intResult = JT.isBitwise(op) && op != Op.SHR
+        val ret = when {
+            JT.isCompare(op) -> "Z"
+            op == Op.ADD && cls != JT.NN -> OBJ
+            intResult -> "I"
+            else -> "D"
+        }
+        when (cls) {
+            JT.NN -> {
+                load(l, JT.NUM)
+                load(r, JT.NUM)
+                when (op) {
+                    Op.ADD -> mv.visitInsn(DADD)
+                    Op.SUB -> mv.visitInsn(DSUB)
+                    Op.MUL -> mv.visitInsn(DMUL)
+                    Op.DIV -> mv.visitInsn(DDIV)
+                    Op.MOD -> mv.visitInsn(DREM) // fmod: the sign of the dividend, as JS %
+                    Op.EXP -> rt("powDD", "(DD)D") // not Math.pow: 1 ** Infinity is NaN in JS
+                    // bitwise ones without INT
+                    else -> if (JT.isCompare(op)) compareDoubles(op) else rt(base + "DD", "(DD)D")
+                }
+            }
+            JT.NA -> {
+                storePc(i)
+                load(l, JT.NUM)
+                load(r, JT.ANY)
+                if (JT.isCompare(op)) compareMixed(op, base, numLeft = true) else rt(base + "DA", "(D$OBJ)$ret")
+            }
+            else -> {
+                storePc(i)
+                load(l, JT.ANY)
+                load(r, JT.NUM)
+                if (JT.isCompare(op)) compareMixed(op, base, numLeft = false) else rt(base + "AD", "(${OBJ}D)$ret")
+            }
+        }
+        if (intResult && cls != JT.NN && result == JT.NUM) mv.visitInsn(I2D)
+        done(i, result)
+        return true
+    }
+
+    companion object {
+        /** The class [name] (internal form) implementing CompiledCode with [g]'s code, for class file [version]. */
+        fun generate(g: Graph, name: String, version: Int, ints: Boolean, elems: Boolean): ByteArray {
+            val cw = JitClassWriter()
+            cw.visit(version, ACC_PUBLIC or ACC_FINAL or ACC_SUPER, name, null, "java/lang/Object", arrayOf("dev/mooner/neonjs/jit/CompiledCode"))
+            val init = cw.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null)
+            init.visitCode()
+            init.visitVarInsn(ALOAD, 0)
+            init.visitMethodInsn(INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false)
+            init.visitInsn(RETURN)
+            init.visitMaxs(0, 0)
+            init.visitEnd()
+            val mv = cw.visitMethod(ACC_PUBLIC or ACC_FINAL, "run", "($FRAME_D)$OBJ", null, null)
+            mv.visitCode()
+            IrCodegen(g, mv, Kinds(ints, elems), ints).emit()
+            mv.visitMaxs(0, 0)
+            mv.visitEnd()
+            cw.visitEnd()
+            return cw.toByteArray()
+        }
+    }
+}

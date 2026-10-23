@@ -26,6 +26,14 @@ internal const val L_BUDGET = 4
 internal const val L_REGS = 5
 
 /**
+ * Writes the classes of generated code: frames and stack sizes computed, every class merged into Object (the generated
+ * code never needs a more precise common supertype, and loading classes to find one could fail in a definer's loader).
+ */
+internal class JitClassWriter : org.objectweb.asm.ClassWriter(COMPUTE_FRAMES or COMPUTE_MAXS) {
+    override fun getCommonSuperClass(type1: String, type2: String): String = "java/lang/Object"
+}
+
+/**
  * What the code generators of the JIT tiers emit alike: constants, `JitRt` calls, conversions of unboxed values, and
  * the helper call of every instruction whose operands are Objects on the JVM stack ([emitHelper]): the code an
  * instruction gets when nothing about it is specialized. [JvmCompiler]'s generator extends it, as does the optimizing
@@ -225,6 +233,19 @@ internal abstract class JvmEmitter(@JvmField val mv: MethodVisitor) {
             JT.NUM -> rt("truthyD", "(D)Z")
             else -> rt("truthy", "($OBJ)Z")
         }
+    }
+
+    /** A loop back edge: counts down the interrupt budget (L_BUDGET) and checks for interrupts when it runs out. */
+    fun interruptCheck() {
+        val ok = Label()
+        mv.visitIincInsn(L_BUDGET, -1)
+        mv.visitVarInsn(ILOAD, L_BUDGET)
+        mv.visitJumpInsn(IFGT, ok)
+        mv.visitVarInsn(ALOAD, L_AGENT)
+        mv.visitMethodInsn(INVOKEVIRTUAL, "dev/mooner/neonjs/runtime/Agent", "checkInterrupt", "()V", false)
+        iconst(4096)
+        mv.visitVarInsn(ISTORE, L_BUDGET)
+        mv.visitLabel(ok)
     }
 
     /**

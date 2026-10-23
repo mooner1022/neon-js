@@ -1,6 +1,7 @@
 # Optimizing tier (T2): design and plan
 
-Status: P0 in progress (started 2026-10-23). Nothing here is enabled by default; `RuntimeConfig.tier2` (default off)
+Status (2026-10-23): P0 done; P1 done but for inlining, which moves to P2 (the IR and its code run Test262 in every
+mode with `-Dneonjs.jit.t2Stress`); P2 next. Nothing here is enabled by default; `RuntimeConfig.tier2` (default off)
 gates every part that costs anything.
 
 This document is the plan for a second compiler tier that speculates on profiled types, inlines deeply, removes
@@ -168,8 +169,9 @@ the optimizations below (V8's Maglev and Turboshaft, JavaScriptCore's DFG and B3
 - `Value` (instruction): an operation, inputs, a type (a set of JS kinds, as profiled), a representation (Object,
   double, int32, boolean as int), effects (reads/writes of abstract heaps: object fields by shape and slot, array
   elements, globals, environments, "anything" for a generic helper), and for those that can exit a `FrameState`.
-- `FrameState`: code block, pc, register values, stack values, and the caller's state for an inlined call (which also
-  records the callee closure, `this`, arguments, environment as values). Shared between exits with the same state.
+- `FrameState` (P3, with the first exits): code block, pc, register values, stack values, and the caller's state for
+  an inlined call (which also records the callee closure, `this`, arguments, environment as values). Shared between
+  exits with the same state. The builder has the register and stack values at every instruction already.
 
 The builder walks the bytecode as `TypeAnalysis` does, keeping an abstract stack and registers of SSA values; it
 creates phis at merges and FrameStates at every instruction that may exit. Initially T2 compiles functions without
@@ -250,10 +252,14 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
   inlined frames, pending throws, the OSR sentinel); T1 deopt stress exits.
   Exit: Test262 0 failures in the three modes, and with `deoptStress` (compiled, adaptive, and adaptive with
   `osrStress`); fuzzer clean; no change with `tier2` off (`MethodSizeTest`, NeonBench within noise).
-- **P1: IR at parity** (~4K). `jit/opt/`: IR, builder, verifier (SSA dominance, FrameState completeness), printer,
-  codegen without speculation (generic operations only, T1's unboxing rules), T2 compile queue and installation,
-  `-Dneonjs.jit.t2Stress` (every block that can be is compiled by T2 at its second call). Exit: Test262 0 failures with
-  `t2Stress` in compiled and adaptive mode; T2 code within 10% of T1 on jsbench (it does the same).
+- **P1: IR at parity** (~2K, done). `jit/opt/`: IR, builder, kinds, verifier (terminators, predecessors, SSA
+  dominance), printer, codegen with T1's unboxing rules and helper calls (`JvmEmitter`, shared with T1), on-stack
+  replacement entries, `-Dneonjs.jit.t2Stress` (every block compiled by T2 right after its baseline, when it can be).
+  Result: Test262 0 failures with `t2Stress` in compiled, adaptive and adaptive + `osrStress` mode (691K blocks
+  compiled by T2 in compiled mode; blocks with exception handlers, `for-in`, class definitions stay T1); the IR of
+  127K Test262 functions verified. On HotSpot, T2 code matches T1 but where T1 inlines calls (fib, closures: 25-40%
+  slower until P2), and runs NeonBench's int case 30x faster, since HotSpot can OSR-compile its loops (T1 keeps
+  values on the JVM stack below inlined loops). The T2 compile queue moves to P5.
 - **P2: inlining** (~2K). Multi-level inlining in the builder, inlined frames in FrameStates and stack traces
   (a position per level in the frame), constructor calls. Exit: nested-calls bound reached within 2x; Test262 with
   `t2Stress` + `deoptStress`.

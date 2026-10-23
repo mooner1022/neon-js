@@ -573,7 +573,8 @@ java -Xss64m -cp "neonjs-test262/build/install/neonjs-test262/lib/*" dev.mooner.
 With `--mode adaptive` it compares the interpreter with adaptive mode instead; add `-Dneonjs.jit.osrStress` so that
 every loop continues in compiled code after its first iteration. The Test262 runner takes the same property, and
 `-Dneonjs.jit.deoptStress=N`, which gives compiled code exits to the interpreter (at its start, its loops, inside and
-after the calls it inlines) and takes one in N of them, so that programs run through deoptimization
+after the calls it inlines) and takes one in N of them, so that programs run through deoptimization, and
+`-Dneonjs.jit.t2Stress`, which runs every function the optimizing tier can compile in its code
 ([docs/OPTIMIZING_TIER.md](docs/OPTIMIZING_TIER.md)).
 
 The runner executes each test in strict and sloppy mode as required, supports `$262` (including
