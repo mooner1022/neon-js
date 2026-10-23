@@ -32,6 +32,11 @@ class RuntimeConfig {
     /** dev.mooner.neonjs.ExecutionMode ordinal: 0 interpreter, 1 compiled, 2 adaptive. */
     @JvmField var executionMode = 0
     @JvmField var jitThreshold = 1000
+    /**
+     * Whether the optimizing tier is on (docs/OPTIMIZING_TIER.md; `-Dneonjs.jit.tier2=true` by default for tests). For
+     * now it only makes the interpreter record value profiles (CodeBlock.profile) in adaptive mode.
+     */
+    @JvmField var tier2 = java.lang.Boolean.getBoolean("neonjs.jit.tier2")
     /** Whether code is compiled by background threads (dev.mooner.neonjs.jit.JitQueue) rather than the calling thread. */
     @JvmField var backgroundJit = true
     /** Defines generated classes (JIT code, Java.extend adapters); null = dev.mooner.neonjs.jit.CodeDefiners.default. */

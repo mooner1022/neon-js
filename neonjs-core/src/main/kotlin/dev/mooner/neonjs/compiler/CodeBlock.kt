@@ -112,6 +112,59 @@ class CallFeedback {
     }
 }
 
+/**
+ * Kinds of the values the interpreter saw a code block produce, for the optimizing tier's speculation
+ * (docs/OPTIMIZING_TIER.md, "Feedback"): at the pc of each GET_PROP, GET_ELEM, CALL and LOAD_ENV, and for each formal
+ * parameter at entry, a set of [kindOf] bits. Written without synchronization: a lost bit only means a speculation
+ * that fails and deoptimizes.
+ */
+class ValueProfile(codeSize: Int, params: Int) {
+    @JvmField val values = ByteArray(codeSize)
+    @JvmField val params = ByteArray(params)
+
+    fun record(pc: Int, v: Any?) {
+        val k = kindOf(v)
+        val old = values[pc].toInt()
+        if (old and k != k) values[pc] = (old or k).toByte()
+    }
+
+    fun recordArgs(args: Array<Any?>) {
+        for (i in params.indices) {
+            val k = kindOf(if (i < args.size) args[i] else dev.mooner.neonjs.runtime.Undefined)
+            val old = params[i].toInt()
+            if (old and k != k) params[i] = (old or k).toByte()
+        }
+    }
+
+    companion object {
+        /** A number that is an int32 (not -0). */
+        const val INT = 1
+        /** Any other number. */
+        const val DOUBLE = 2
+        const val STRING = 4
+        const val BOOLEAN = 8
+        /** `undefined` or `null`. */
+        const val NULLISH = 16
+        /** An object that is not callable. */
+        const val OBJECT = 32
+        const val FUNCTION = 64
+        /** BigInt, Symbol, anything else. */
+        const val OTHER = 128
+
+        @JvmStatic
+        fun kindOf(v: Any?): Int = when (v) {
+            is Double -> {
+                val i = v.toInt()
+                if (i.toDouble() == v && (i != 0 || 1.0 / v > 0)) INT else DOUBLE
+            }
+            is CharSequence -> STRING
+            is Boolean -> BOOLEAN
+            is dev.mooner.neonjs.runtime.JSObject -> if (v.special and dev.mooner.neonjs.runtime.JSObject.CALLABLE != 0) FUNCTION else OBJECT
+            else -> if (v === dev.mooner.neonjs.runtime.Undefined || v === dev.mooner.neonjs.runtime.Null) NULLISH else OTHER
+        }
+    }
+}
+
 /** Compiled function template (bytecode + metadata). */
 class CodeBlock(@JvmField val name: String, @JvmField val kind: FunctionKind) {
     @JvmField var flags = 0
@@ -144,6 +197,8 @@ class CodeBlock(@JvmField val name: String, @JvmField val kind: FunctionKind) {
      * heuristic only: the generated code checks its target at every call).
      */
     @JvmField var callFeedback: Array<CallFeedback?>? = null
+    /** Value kinds the interpreter saw, with the optimizing tier on (adaptive mode); created on first use. */
+    @JvmField var profile: ValueProfile? = null
     /**
      * Static call targets, for the JIT's inlining where there is no feedback (compiled mode): the pcs of CALLs whose
      * callee is a name that a function declaration, or a `var`/`let`/`const` declaration with a function or arrow,

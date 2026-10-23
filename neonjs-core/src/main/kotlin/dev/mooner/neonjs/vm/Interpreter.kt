@@ -4,6 +4,7 @@ import dev.mooner.neonjs.compiler.CallFeedback
 import dev.mooner.neonjs.compiler.CodeBlock
 import dev.mooner.neonjs.compiler.Op
 import dev.mooner.neonjs.compiler.ScopeInfo
+import dev.mooner.neonjs.compiler.ValueProfile
 import dev.mooner.neonjs.runtime.*
 
 /** Return value of a derived constructor frame: the returned value and the final `this` binding. */
@@ -180,6 +181,8 @@ object Interpreter {
         return -1
     }
 
+    private fun newProfile(cb: CodeBlock): ValueProfile = ValueProfile(cb.code.size, cb.formalCount).also { cb.profile = it }
+
     /** Notes that the CALL at [pc] in [cb] called a closure of [callee] (feedback for the JIT's inlining). */
     private fun recordCall(cb: CodeBlock, pc: Int, callee: CodeBlock) {
         val fb = cb.callFeedback ?: arrayOfNulls<CallFeedback>(cb.code.size).also { cb.callFeedback = it }
@@ -195,6 +198,9 @@ object Interpreter {
         val realm = f.realm
         // feedback for code that the adaptive mode may compile later, with calls inlined
         val recordCalls = dev.mooner.neonjs.jit.Inlining.ENABLED && realm.agent.config.executionMode == dev.mooner.neonjs.jit.Jit.MODE_ADAPTIVE
+        // and the kinds of values, for the optimizing tier's speculation
+        val config = realm.agent.config
+        val prof = if (config.tier2 && config.executionMode == dev.mooner.neonjs.jit.Jit.MODE_ADAPTIVE) cb.profile ?: newProfile(cb) else null
         val strict = cb.flags and CodeBlock.STRICT != 0
         val base = cb.numRegs
         var sp = f.sp
@@ -202,6 +208,7 @@ object Interpreter {
         var opStart = pc
         var budget = dev.mooner.neonjs.jit.Jit.LOOP_CHECK
         var pendingThrow: Throwable? = null
+        if (prof != null && pc == 0) prof.recordArgs(f.args)
         val ext = f.ext
         if (ext != null) {
             if (ext.resumeMode == Frame.MODE_THROW && ext.suspendKind == Frame.SUSPEND_AWAIT) {
@@ -265,6 +272,7 @@ object Interpreter {
                             var h = code[pc++]
                             while (h-- > 0) e = e!!.parent
                             s[sp++] = (e as DeclEnv).slots[code[pc++]]
+                            prof?.record(opStart, s[sp - 1])
                         }
                         Op.STORE_ENV -> {
                             var e = f.env
@@ -301,6 +309,7 @@ object Interpreter {
                             val o = s[sp - 1]
                             val site = k[code[pc++]] as PropSite
                             s[sp - 1] = if (o is JSObject) PropCache.get(o, site) else Rt.getPrimitiveProp(realm, o, site.key)
+                            prof?.record(opStart, s[sp - 1])
                         }
                         Op.PUT_PROP -> {
                             val v = s[--sp]
@@ -317,6 +326,7 @@ object Interpreter {
                             s[sp] = null
                             val o = s[sp - 1]
                             s[sp - 1] = Rt.getElem(realm, o, key)
+                            prof?.record(opStart, s[sp - 1])
                         }
                         Op.PUT_ELEM -> {
                             val v = s[--sp]
@@ -464,6 +474,7 @@ object Interpreter {
                             if (recordCalls && fnv is JSClosure) recordCall(cb, opStart, fnv.code)
                             s[sp - 1] = if (fnv is JSObject && fnv.special and JSObject.CALLABLE != 0) fnv.call(thisV, args)
                             else throw Rt.notCallable(fnv, cb, opStart)
+                            prof?.record(opStart, s[sp - 1])
                         }
                         Op.TAIL_CALL -> {
                             val argc = code[pc++]
