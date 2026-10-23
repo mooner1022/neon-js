@@ -56,6 +56,7 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
         cfg.executionMode = engine.executionMode.ordinal
         cfg.jitThreshold = engine.jitThreshold
         cfg.backgroundJit = engine.backgroundCompilation
+        cfg.tier2 = engine.optimizingTier
         agent = Agent(cfg)
         p.randomSeed?.let { agent.randomSource = java.util.Random(it) }
         p.fixedTimeMillis?.let { t -> agent.clock = { t.toDouble() } }

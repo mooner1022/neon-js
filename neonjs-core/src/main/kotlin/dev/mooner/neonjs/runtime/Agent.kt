@@ -33,8 +33,9 @@ class RuntimeConfig {
     @JvmField var executionMode = 0
     @JvmField var jitThreshold = 1000
     /**
-     * Whether the optimizing tier is on (docs/OPTIMIZING_TIER.md; `-Dneonjs.jit.tier2=true` by default for tests). For
-     * now it only makes the interpreter record value profiles (CodeBlock.profile) in adaptive mode.
+     * Whether the optimizing tier is on (docs/OPTIMIZING_TIER.md; NeonEngine.Builder.optimizingTier, or
+     * `-Dneonjs.jit.tier2=true`): the interpreter records value profiles (CodeBlock.profile) in adaptive mode, and each
+     * block whose baseline is installed is compiled again by the tier in the background (JitQueue).
      */
     @JvmField var tier2 = java.lang.Boolean.getBoolean("neonjs.jit.tier2")
     /** Whether code is compiled by background threads (dev.mooner.neonjs.jit.JitQueue) rather than the calling thread. */

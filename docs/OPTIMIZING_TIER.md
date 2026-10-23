@@ -1,8 +1,9 @@
 # Optimizing tier (T2): design and plan
 
-Status (2026-10-23): P0, P1 and P2 done (the IR, its code, its exits and inlining run Test262 in every mode with
-`-Dneonjs.jit.t2Stress`, with and without `-Dneonjs.jit.deoptStress`); P3 next. Nothing here is enabled by default;
-`RuntimeConfig.tier2` (default off) gates every part that costs anything.
+Status (2026-10-23): P0, P1 and P2 done; P3 under way (number and shape speculation, exception handlers and iteration,
+and a first tier-up: `NeonEngine.Builder.optimizingTier`). Test262 passes in every mode with `-Dneonjs.jit.t2Stress`,
+with and without `-Dneonjs.jit.deoptStress`. Nothing here is enabled by default; `RuntimeConfig.tier2` (default off)
+gates every part that costs anything.
 
 This document is the plan for a second compiler tier that speculates on profiled types, inlines deeply, removes
 allocations and hoists loads, and deoptimizes to the interpreter when a speculation fails. It complements
@@ -282,7 +283,20 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
     not inlined yet.
 - **P3: speculation** (~3K). Profile-driven guards, typed arithmetic with overflow exits, shape-guarded loads and
   stores, global cells, intrinsics, deopt counters and invalidation. Exit: property-load and nbody bounds within 1.5x;
-  no deopt loops in jsbench and NeonBench (counters).
+  no deopt loops in jsbench and NeonBench (counters). Done so far:
+  - numbers: a GET_PROP, GET_ELEM, CALL or LOAD_ENV result, or a parameter, whose profile only saw numbers (int32s)
+    is checked once (CHECK_NUMBER / CHECK_INT32, exiting after the instruction) and used unboxed; on-stack
+    replacement checks such registers and declines the entry otherwise;
+  - shapes: monomorphic PropSites become shape checks (the receiver's, the prototypes' for an inherited property)
+    and slot reads and writes (LOAD_SLOT / STORE_SLOT, exiting before the instruction);
+  - coverage: exception handlers (catch entry blocks, register homes, an exception table entry per covered block),
+    for-of, for-in, destructuring and the finally dispatch; the blocks T2 leaves in compiled mode went from 166K to
+    15K (class definitions);
+  - tier-up: with `optimizingTier`, a block is compiled again by T2 on a thread of its own once its baseline is
+    installed. The activation running then stays in T1 code (T1 -> T2 on-stack replacement is P5).
+  - API 34 emulator, adaptive with the tier against without: 4 property loads in a loop 237-273 -> 47-56 ms, a
+    method using `this` 307-325 -> 60-71 ms, nested calls 704-750 -> 180-208 ms, NeonBench mono +65%; object
+    literals in a loop unchanged (allocation: P4).
 - **P4: optimization passes** (~3K). GVN, guard elimination, LICM, escape analysis and scalar replacement, partial
   escape analysis. Exit: literal-in-loop bound within 2x; fuzzer clean with every pass on and with each pass off.
 - **P5: tiering and tuning** (~1.5K). T1 -> T2 counters, OSR from T1 into T2 at loop headers, background T2 queue,

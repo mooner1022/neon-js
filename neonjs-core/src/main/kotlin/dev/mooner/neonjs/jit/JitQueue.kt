@@ -120,8 +120,12 @@ object JitQueue {
             if (cb.baseline == null) {
                 cb.baseline = code
                 cb.compiled = code
-                // testing the optimizing tier: its code over every baseline it can compile
-                if (dev.mooner.neonjs.jit.opt.T2.STRESS) (t.backend as? ClassBackend)?.let { dev.mooner.neonjs.jit.opt.T2.compileOver(cb, it.definer) }
+                // the optimizing tier's code over the baseline: at once for its stress mode, else in the background
+                val definer = (t.backend as? ClassBackend)?.definer
+                if (definer != null) {
+                    if (dev.mooner.neonjs.jit.opt.T2.STRESS) dev.mooner.neonjs.jit.opt.T2.compileOver(cb, definer)
+                    else if (t.owner?.config?.tier2 == true) dev.mooner.neonjs.jit.opt.T2.submit(cb, definer)
+                }
             }
         } else if (cb.baseline == null) cb.jitFailed = true
         TASK.compareAndSet(cb, t, null)

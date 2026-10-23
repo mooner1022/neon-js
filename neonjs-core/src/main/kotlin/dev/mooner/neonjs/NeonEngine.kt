@@ -55,6 +55,7 @@ class NeonEngine private constructor(b: Builder) : AutoCloseable {
     val executionMode: ExecutionMode = b.executionMode
     val jitThreshold: Int = b.jitThreshold
     val backgroundCompilation: Boolean = b.backgroundCompilation
+    val optimizingTier: Boolean = b.optimizingTier
     val sandbox: SandboxPolicy = b.sandbox
     val hostAccess: HostAccess = b.hostAccess
     /** Automatically run pending Promise jobs when a top-level evaluation returns. */
@@ -93,6 +94,7 @@ class NeonEngine private constructor(b: Builder) : AutoCloseable {
         var executionMode = ExecutionMode.ADAPTIVE
         var jitThreshold = 1000
         var backgroundCompilation = true
+        var optimizingTier = java.lang.Boolean.getBoolean("neonjs.jit.tier2")
         var sandbox = SandboxPolicy.UNRESTRICTED
         var hostAccess = HostAccess.NONE
         var autoRunJobs = true
@@ -152,6 +154,14 @@ class NeonEngine private constructor(b: Builder) : AutoCloseable {
          * engines (`-Dneonjs.jit.threads=n`, 0 disables them) and their work is not charged to a context's limits.
          */
         fun backgroundCompilation(enabled: Boolean) = apply { backgroundCompilation = enabled }
+
+        /**
+         * Experimental, off by default (`-Dneonjs.jit.tier2=true` turns it on too): compiled functions are compiled again
+         * by the optimizing tier (docs/OPTIMIZING_TIER.md), which speculates on the types the interpreter saw and
+         * inlines calls deeply, and leaves to the interpreter when a speculation fails. The second compilation runs on a
+         * background thread of its own; the first code runs meanwhile.
+         */
+        fun optimizingTier(enabled: Boolean) = apply { optimizingTier = enabled }
         fun sandbox(p: SandboxPolicy) = apply { sandbox = p }
         fun hostAccess(a: HostAccess) = apply { hostAccess = a }
         fun autoRunJobs(b: Boolean) = apply { autoRunJobs = b }

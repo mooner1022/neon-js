@@ -70,6 +70,19 @@ object T2 {
         }
     }
 
+    /** Blocks compiled by [submit]'s thread, one at a time, in order; past 4096 waiting, more are dropped. */
+    private val queue = java.util.concurrent.ThreadPoolExecutor(
+        1, 1, 30, java.util.concurrent.TimeUnit.SECONDS, java.util.concurrent.LinkedBlockingQueue(4096),
+        { r -> Thread(null, r, "neonjs-t2", 16L * 1024 * 1024).also { it.isDaemon = true } },
+        java.util.concurrent.ThreadPoolExecutor.DiscardPolicy(),
+    ).also { it.allowCoreThreadTimeOut(true) }
+
+    /** Compiles [cb] on the tier's background thread and installs the code over its baseline, which runs meanwhile. */
+    fun submit(cb: CodeBlock, definer: CodeDefiner) {
+        if (cb.t2Off || !JvmCompiler.canCompile(cb)) return
+        queue.execute { compileOver(cb, definer) }
+    }
+
     /** Compiles [cb] with [definer] and installs the code over its baseline (the stress mode). */
     fun compileOver(cb: CodeBlock, definer: CodeDefiner) {
         val code = compile(cb, definer) ?: return

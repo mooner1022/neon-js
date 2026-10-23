@@ -149,6 +149,11 @@ Compiled scripts (`engine.compile(source)`) can be evaluated in any context of t
 - `COMPILED`: every function is compiled before its first call; the calling thread waits for its own function only,
   while the functions a script defines are compiled in parallel by the background threads.
 
+`optimizingTier(true)` (experimental, off by default; `-Dneonjs.jit.tier2=true`) compiles each compiled function again,
+on a thread of its own, with the optimizing tier ([docs/OPTIMIZING_TIER.md](docs/OPTIMIZING_TIER.md)): it inlines calls
+several levels deep and speculates on the types and object shapes the interpreter saw, leaving to the interpreter when a
+speculation fails. On the API 34 emulator it runs property-heavy and call-heavy loops 4-5x faster.
+
 Compiled code is shared: functions whose bytecode is the same (they may differ in constants or position) and the same
 code run in many contexts get one class. `backgroundCompilation(false)` compiles on the calling thread instead. The
 background threads are shared by all engines and their work is not charged to a context's sandbox limits; system
