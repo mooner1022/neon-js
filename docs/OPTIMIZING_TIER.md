@@ -339,6 +339,26 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
     4 property loads in a loop 217-229 -> 5.5 ms; a method using `this` 257-265 -> 22 ms; nested calls 617-711 ->
     3.5 ms; NeonBench mono +65-85%, float +25-40%, call +15-35%, int/alloc/closure unchanged; basic.js `classes`
     5% slower.
+  - int32 arithmetic (P3's typed arithmetic): ADD, SUB, MUL, MOD, INC, DEC and NEG of ints give ints, exiting before
+    the instruction where the result is not an int32 or is -0 (noted in `t2Failed`, so the next code keeps doubles
+    there); an ADD or SUB whose uses are all bitwise wraps around without an exit, and so does `>>>` there. Exit
+    states leave out the registers the bytecode writes before reading (undefined there), so that they keep neither
+    values nor phis alive. TDZ-checked environment loads and global loads are profiled and checked as numbers.
+    Shape checks take an object without a property map (a new array) by its prototype's empty shape, as the caches do.
+  - API 34 emulator, tier on against off: NeonBench int 85K -> 221-235K; basic.js `loop` 21 -> 5 ms; StarLight
+    benchmark 345 -> 136-155 ms per loop; in steady state (5 runs after 3) `classes` 103 -> 109 ms and `closures`
+    62 -> 78 ms (see next).
+  - Next:
+    - number checks whose uses all take an Object (a return, a call's argument, a store) cost an unbox and a new box
+      (an allocation on ART): `() => i` returns a new Double per call, the likely cause of `closures`. Drop such
+      checks (with the kinds inferred again).
+    - T2 compiles once, right after T1 is installed: code that had not run then (a function's second loop) gets no
+      feedback, so no inlining or checks there, and nothing recompiles it. Compile later, or again when such code turns
+      hot (P5).
+    - calls: fib(30) is now most of the StarLight benchmark (about 90 ns a call on ART). Inlining recursion deeper made
+      ART slower (depth 2: 141 -> 175 ms; depth 3: 1.3 s, apparently not JIT-compiled by ART), so the cost of the call
+      itself (arguments array, frame, the result's box) is what is left: direct calls between T2 codes.
+    - `new` inlining, MAKE_CLASS (`classes`), environment loads with a TDZ check moved out of loops (module `const`).
 - **P5: tiering and tuning** (~1.5K). T1 -> T2 counters, OSR from T1 into T2 at loop headers, background T2 queue,
   thresholds, profiling T1 if compiled mode needs it, the builder option, Android measurement. Exit: StarLight's
   NeonBench and the user's benchmark gain on ART, first run included; default stays off until a release cycle has
