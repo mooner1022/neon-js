@@ -20,7 +20,15 @@ import org.objectweb.asm.Opcodes.*
  * slots into the local of the value the register holds there; `f.pc` is the current statement whenever something can
  * throw or call; loop back edges count down the interrupt budget.
  */
-internal class IrCodegen(private val g: Graph, mv: MethodVisitor, private val kinds: Kinds, private val ints: Boolean) : JvmEmitter(mv) {
+internal class IrCodegen(
+    private val g: Graph,
+    mv: MethodVisitor,
+    private val kinds: Kinds,
+    private val ints: Boolean,
+    /** The class being generated (its exit methods, [exits], are added to it after `run`). */
+    private val cw: org.objectweb.asm.ClassWriter,
+    private val className: String,
+) : JvmEmitter(mv) {
     private var next = L_REGS
     override fun alloc(n: Int): Int = next.also { next += n }
 
@@ -31,6 +39,10 @@ internal class IrCodegen(private val g: Graph, mv: MethodVisitor, private val ki
     /** The statement position stored in Frame.pc since the current block started (-2: none). */
     private var storedPc = -2
 
+    /** The exits reached from `run`: the label of each, its state, and whether an assumption failed there. */
+    private class Exit(val label: Label, val state: FrameState, val counted: Boolean)
+    private val exits = ArrayList<Exit>()
+
     fun emit() {
         for ((k, b) in g.blocks.withIndex()) {
             index[b] = k
@@ -40,6 +52,97 @@ internal class IrCodegen(private val g: Graph, mv: MethodVisitor, private val ki
         prologue()
         osrEntries()
         for (b in g.blocks) emitBlock(b)
+        for ((n, e) in exits.withIndex()) emitExit(n, e)
+    }
+
+    // ------------------------------------------------------------------ exits
+
+    /**
+     * The code at an exit, after the body: `this.exitN(f, values...)` with the state's values as they are held (its
+     * constants are the method's own), returning what it returns. The method (built after `run`, which stays smaller
+     * for it) boxes them into the interpreter's registers and stack and leaves for the interpreter: T2Code.exit for an
+     * assumption that failed (counted against the code), JitRt.deopt for the stress mode's.
+     */
+    private fun emitExit(n: Int, e: Exit) {
+        mv.visitLabel(e.label)
+        val params = e.state.values.filter { it !is Const }.distinct()
+        mv.visitVarInsn(ALOAD, 0)
+        frame()
+        for (v in params) load(v, v.kind)
+        val desc = "($FRAME_D" + params.joinToString("") { typeOf(it.kind) } + ")$OBJ"
+        mv.visitMethodInsn(INVOKESPECIAL, className, "exit$n", desc, false)
+        mv.visitInsn(ARETURN)
+        exitMethod(n, e, params, desc)
+    }
+
+    private fun typeOf(kind: Byte) = when (kind) {
+        JT.NUM -> "D"
+        JT.INT, JT.BOOL -> "I"
+        else -> OBJ
+    }
+
+    private fun exitMethod(n: Int, e: Exit, params: List<Value>, desc: String) {
+        val m = cw.visitMethod(ACC_PRIVATE or ACC_FINAL, "exit$n", desc, null, null)
+        m.visitCode()
+        val slot = HashMap<Value, Int>()
+        var next = 2 // this, the frame
+        for (v in params) {
+            slot[v] = next
+            next += if (v.kind == JT.NUM) 2 else 1
+        }
+        val firstFree = next
+        val em = object : JvmEmitter(m) {
+            var top = firstFree
+            override fun alloc(n: Int): Int = top.also { top += n }
+            // the constants of the frame's code block
+            override fun consts() {
+                m.visitVarInsn(ALOAD, L_FRAME)
+                m.visitFieldInsn(GETFIELD, FRAME, "code", CODEBLOCK_D)
+                m.visitFieldInsn(GETFIELD, CODEBLOCK, "constants", CONSTS_D)
+            }
+        }
+        val values = e.state.values
+        em.iconst(values.size)
+        m.visitTypeInsn(ANEWARRAY, "java/lang/Object")
+        for ((j, v) in values.withIndex()) {
+            m.visitInsn(DUP)
+            em.iconst(j)
+            if (v is Const) constObject(em, v)
+            else {
+                m.visitVarInsn(when (v.kind) { JT.NUM -> DLOAD; JT.INT, JT.BOOL -> ILOAD; else -> ALOAD }, slot[v]!!)
+                em.box(v.kind)
+            }
+            m.visitInsn(AASTORE)
+        }
+        val arr = em.temp()
+        m.visitVarInsn(ASTORE, arr)
+        if (e.counted) m.visitVarInsn(ALOAD, 0)
+        m.visitVarInsn(ALOAD, L_FRAME)
+        em.iconst(e.state.pc)
+        m.visitVarInsn(ALOAD, arr)
+        if (e.counted) {
+            m.visitMethodInsn(INVOKESTATIC, SUPER, "exit", "(L$SUPER;${FRAME_D}I$CONSTS_D)$OBJ", false)
+        } else em.rt("deopt", "(${FRAME_D}I$CONSTS_D)$OBJ")
+        m.visitInsn(ARETURN)
+        m.visitMaxs(0, 0)
+        m.visitEnd()
+    }
+
+    /** Pushes constant [c] as the Object the interpreter holds (as [pushConst] does with an Object wanted). */
+    private fun constObject(em: JvmEmitter, c: Const) {
+        val v = c.value
+        when {
+            v === Undefined -> em.pushUndefined()
+            v === Null -> em.getstatic("dev/mooner/neonjs/runtime/Null", "INSTANCE", "Ldev/mooner/neonjs/runtime/Null;")
+            v == true -> em.getstatic("java/lang/Boolean", "TRUE", "Ljava/lang/Boolean;")
+            v == false -> em.getstatic("java/lang/Boolean", "FALSE", "Ljava/lang/Boolean;")
+            c.k >= 0 -> em.constant(c.k)
+            v is Double -> {
+                em.iconst(v.toInt())
+                em.mv.visitMethodInsn(INVOKESTATIC, "dev/mooner/neonjs/runtime/Ops", "num", "(I)$OBJ", false)
+            }
+            else -> throw JitBailout("constant $v")
+        }
     }
 
     // ------------------------------------------------------------------ values
@@ -48,7 +151,10 @@ internal class IrCodegen(private val g: Graph, mv: MethodVisitor, private val ki
         val used = HashSet<Value>()
         for (b in g.blocks) {
             for (p in b.phis) used.addAll(p.inputs)
-            for (i in b.insts) used.addAll(i.inputs)
+            for (i in b.insts) {
+                used.addAll(i.inputs)
+                i.state?.let { used.addAll(it.values) } // an exit reads them
+            }
         }
         for (b in g.blocks) {
             for (p in b.phis) local[p] = slotFor(p.kind)
@@ -199,6 +305,7 @@ internal class IrCodegen(private val g: Graph, mv: MethodVisitor, private val ki
                 for (i in b.insts.asReversed()) {
                     live.remove(i)
                     for (v in i.inputs) if (v !is Const) live.add(v)
+                    i.state?.values?.forEach { v -> if (v !is Const) live.add(v) }
                 }
                 live.addAll(b.phis)
                 if (live != liveIn[b]) {
@@ -309,6 +416,14 @@ internal class IrCodegen(private val g: Graph, mv: MethodVisitor, private val ki
                 iconst(i.a)
                 rt("arg", "(${FRAME_D}I)$OBJ")
                 done(i, JT.ANY)
+                return
+            }
+            Ir.STRESS_EXIT -> {
+                val l = Label()
+                mv.visitVarInsn(ALOAD, L_AGENT)
+                rt("stressExit", "($AGENT_D)Z")
+                mv.visitJumpInsn(IFNE, l)
+                exits.add(Exit(l, i.state!!, counted = false))
                 return
             }
             Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD, Op.EXP, Op.BAND, Op.BOR, Op.BXOR, Op.SHL, Op.SAR, Op.SHR,
@@ -532,19 +647,28 @@ internal class IrCodegen(private val g: Graph, mv: MethodVisitor, private val ki
 
     companion object {
         /** The class [name] (internal form) implementing CompiledCode with [g]'s code, for class file [version]. */
+        private const val SUPER = "dev/mooner/neonjs/jit/opt/T2Code"
+        private const val INIT_D = "([Ljava/lang/Object;$CODEBLOCK_D)V"
+
+        /**
+         * The class [name] (internal form): a T2Code with [g]'s code, constructed with the graph's data and the code
+         * block, for class file [version].
+         */
         fun generate(g: Graph, name: String, version: Int, ints: Boolean, elems: Boolean): ByteArray {
             val cw = JitClassWriter()
-            cw.visit(version, ACC_PUBLIC or ACC_FINAL or ACC_SUPER, name, null, "java/lang/Object", arrayOf("dev/mooner/neonjs/jit/CompiledCode"))
-            val init = cw.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null)
+            cw.visit(version, ACC_PUBLIC or ACC_FINAL or ACC_SUPER, name, null, SUPER, null)
+            val init = cw.visitMethod(ACC_PUBLIC, "<init>", INIT_D, null, null)
             init.visitCode()
             init.visitVarInsn(ALOAD, 0)
-            init.visitMethodInsn(INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false)
+            init.visitVarInsn(ALOAD, 1)
+            init.visitVarInsn(ALOAD, 2)
+            init.visitMethodInsn(INVOKESPECIAL, SUPER, "<init>", INIT_D, false)
             init.visitInsn(RETURN)
             init.visitMaxs(0, 0)
             init.visitEnd()
             val mv = cw.visitMethod(ACC_PUBLIC or ACC_FINAL, "run", "($FRAME_D)$OBJ", null, null)
             mv.visitCode()
-            IrCodegen(g, mv, Kinds(ints, elems), ints).emit()
+            IrCodegen(g, mv, Kinds(ints, elems), ints, cw, name).emit()
             mv.visitMaxs(0, 0)
             mv.visitEnd()
             cw.visitEnd()

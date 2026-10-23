@@ -23,6 +23,7 @@ object IrPrinter {
                     if (Op.operands[i.op] > 1) sb.append(' ').append(i.b)
                 } else if (i.op == Ir.PARAM || i.op == Ir.CHECK_TDZ) sb.append(' ').append(i.a)
                 if (i.inputs.isNotEmpty()) sb.append(' ').append(i.inputs.joinToString(", "))
+                i.state?.let { s -> sb.append(" [pc ").append(s.pc).append(": ").append(s.values.joinToString(", ")).append(']') }
                 if (i.targets.isNotEmpty()) sb.append(" -> ").append(i.targets.joinToString(", "))
                 if (i.hasResult) sb.append(kind(i))
                 sb.append('\n')
@@ -86,7 +87,7 @@ object IrVerifier {
             }
             val seen = HashSet<Value>()
             for (i in b.insts) {
-                for (v in i.inputs) {
+                for (v in i.inputs + (i.state?.values ?: emptyArray())) {
                     if (v is Const) continue
                     val d = defined[v] ?: fail("$i uses $v, defined nowhere")
                     if (d === b) {

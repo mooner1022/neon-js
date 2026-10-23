@@ -86,6 +86,31 @@ class T2Test {
     }
 
     @Test
+    fun stressExitsLeaveForTheInterpreter() {
+        // exits at the start and the loop headers (JvmCompiler.DEOPT_STRESS), taken one time in 2 or every time
+        val src = """
+            function loops(n) { var s = 0, t = '', k = 0.5; for (var i = 0; i < n; i++) { s = (s + i) | 0; k = k * 1.5 % 7; if (i % 2000 === 0) t += i } return [s, t, k.toFixed(3)] }
+            function nested(n) { var c = 0; for (var i = 0; i < n; i++) for (var j = 0; j < 30; j++) c += (i ^ j) & 1; return c }
+            function cond(c, a) { return 10 + (c ? a : 2) }
+            """.trimIndent()
+        val expr = "[loops(20000), nested(500), cond(1, 3), cond(0, 3)].join('|')"
+        val expected = interpreted(src, expr)
+        val before = JvmCompiler.DEOPT_STRESS
+        try {
+            for (n in intArrayOf(1, 2)) {
+                JvmCompiler.DEOPT_STRESS = n
+                val exits = dev.mooner.neonjs.jit.Deopt.count.get()
+                val (actual, runs) = withT2(src, listOf("loops", "nested", "cond"), expr)
+                assertEquals(expected, actual, "every ${n}th exit")
+                assertTrue(runs > 0)
+                assertTrue(dev.mooner.neonjs.jit.Deopt.count.get() - exits > 3, "exits taken")
+            }
+        } finally {
+            JvmCompiler.DEOPT_STRESS = before
+        }
+    }
+
+    @Test
     fun errorsAndTdz() {
         same(
             """

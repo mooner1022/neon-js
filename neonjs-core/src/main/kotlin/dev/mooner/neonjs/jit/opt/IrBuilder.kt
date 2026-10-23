@@ -14,7 +14,13 @@ import dev.mooner.neonjs.runtime.Undefined
  * Code blocks with exception handlers, and instructions the IR does not have yet ([arity] -1), are not built
  * ([JitBailout]): such blocks keep their baseline code.
  */
-internal class IrBuilder(private val cb: CodeBlock, private val ints: Boolean, private val elems: Boolean) {
+internal class IrBuilder(
+    private val cb: CodeBlock,
+    private val ints: Boolean,
+    private val elems: Boolean,
+    /** Whether the code gets the deopt stress mode's exits: at its start and its loop headers. */
+    private val stressExits: Boolean = false,
+) {
     private val code = cb.code
     private val nregs = cb.numRegs
     private val g = Graph(cb)
@@ -170,6 +176,10 @@ internal class IrBuilder(private val cb: CodeBlock, private val ints: Boolean, p
             b.entryRegs = Array(nregs) { regs[it]!! }
             b.entryDepth = stack.size
         }
+        if (stressExits && (b.pc == 0 || b.loopHeader)) {
+            val e = add(b, Inst(Ir.STRESS_EXIT, NO_VALUES, 0, 0, 0, b.pc, stmtOf[b.pc]))
+            e.state = FrameState(b.pc, Array(nregs + stack.size) { if (it < nregs) regs[it]!! else stack[it - nregs] })
+        }
         var pc = b.pc
         while (true) {
             val op = code[pc]
@@ -323,7 +333,10 @@ internal class IrBuilder(private val cb: CodeBlock, private val ints: Boolean, p
         for (b in g.blocks) {
             b.phis.removeAll { replaced.containsKey(it) }
             for (p in b.phis) for (k in p.inputs.indices) p.inputs[k] = resolve(p.inputs[k])
-            for (i in b.insts) for (k in i.inputs.indices) i.inputs[k] = resolve(i.inputs[k])
+            for (i in b.insts) {
+                for (k in i.inputs.indices) i.inputs[k] = resolve(i.inputs[k])
+                i.state?.values?.let { s -> for (k in s.indices) s[k] = resolve(s[k]) }
+            }
             b.entryRegs?.let { e -> for (k in e.indices) e[k] = resolve(e[k]) }
         }
     }
@@ -331,7 +344,10 @@ internal class IrBuilder(private val cb: CodeBlock, private val ints: Boolean, p
     private fun removeDeadPhis() {
         val live = HashSet<Phi>()
         val work = ArrayDeque<Phi>()
-        for (b in g.blocks) for (i in b.insts) for (v in i.inputs) if (v is Phi && live.add(v)) work.add(v)
+        for (b in g.blocks) for (i in b.insts) {
+            for (v in i.inputs) if (v is Phi && live.add(v)) work.add(v)
+            i.state?.values?.forEach { v -> if (v is Phi && live.add(v)) work.add(v) }
+        }
         while (work.isNotEmpty()) {
             val p = work.removeLast()
             for (v in p.inputs) if (v is Phi && live.add(v)) work.add(v)

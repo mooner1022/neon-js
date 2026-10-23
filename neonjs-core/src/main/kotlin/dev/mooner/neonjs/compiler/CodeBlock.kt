@@ -229,6 +229,8 @@ class CodeBlock(@JvmField val name: String, @JvmField val kind: FunctionKind) {
     @JvmField @Volatile var compiled: Any? = null
     /** The first compiled code (dev.mooner.neonjs.jit.JvmCompiler's), once installed: never replaced. */
     @JvmField @Volatile var baseline: Any? = null
+    /** Whether the optimizing tier's code for this block deoptimized too often: it is not compiled by that tier again. */
+    @JvmField var t2Off = false
     @JvmField var invocationCount = 0
     @JvmField @Volatile var jitFailed = false
     /** The pending dev.mooner.neonjs.jit.JitTask while the block is queued or being compiled. */

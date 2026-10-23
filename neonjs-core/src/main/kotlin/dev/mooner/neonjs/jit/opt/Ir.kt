@@ -12,6 +12,16 @@ import dev.mooner.neonjs.jit.JT
 class Graph(@JvmField val code: CodeBlock) {
     /** Blocks in reverse post order; the first is the entry. */
     @JvmField val blocks = ArrayList<Block>()
+    /** Objects the code needs at run time (T2Code.data), each once. */
+    @JvmField val data = ArrayList<Any?>()
+
+    /** The index of [o] in [data], added if needed. */
+    fun dataIndex(o: Any?): Int {
+        val i = data.indexOfFirst { it === o }
+        if (i >= 0) return i
+        data.add(o)
+        return data.size - 1
+    }
     private var nextId = 0
 
     val entry: Block get() = blocks[0]
@@ -88,11 +98,19 @@ class Inst(
     @JvmField var targets: List<Block> = emptyList()
     /** Whether the instruction produces a value (otherwise [kind] is meaningless). */
     @JvmField var hasResult = false
+    /** For an instruction that can leave the code for the interpreter (an exit): the interpreter's state there. */
+    @JvmField var state: FrameState? = null
 
     val isTerminator: Boolean get() = Ir.isTerminator(op)
 
     override fun toString() = "v$id"
 }
+
+/**
+ * The interpreter's state at an exit (Deopt): where it resumes, [pc], and the values of the registers then the operand
+ * stack there ([values]). Its values are uses of them, as instruction inputs are.
+ */
+class FrameState(@JvmField val pc: Int, @JvmField val values: Array<Value>)
 
 /** The operations of the IR that are not bytecode instructions, and facts about all of them. */
 object Ir {
@@ -100,6 +118,8 @@ object Ir {
     const val PARAM = 1000
     /** (value) a TDZ check of a register's value: ReferenceError if uninitialized, [Inst.a] the name's constant. */
     const val CHECK_TDZ = 1001
+    /** The deopt stress mode's exit (JvmCompiler.DEOPT_STRESS), taken one time in N, to its [Inst.state]. */
+    const val STRESS_EXIT = 1002
     /** Terminators. GOTO; BRANCH(value): [Inst.a] is the bytecode jump tested (JUMP_IF_TRUE and the like). */
     const val GOTO = 1100
     const val BRANCH = 1101
@@ -113,6 +133,7 @@ object Ir {
     fun name(op: Int): String = when (op) {
         PARAM -> "Param"
         CHECK_TDZ -> "CheckTdz"
+        STRESS_EXIT -> "StressExit"
         GOTO -> "Goto"
         BRANCH -> "Branch"
         RETURN -> "Return"

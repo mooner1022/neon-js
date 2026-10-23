@@ -21,20 +21,22 @@ object T2 {
     @JvmField val STRESS: Boolean = System.getProperty("neonjs.jit.t2Stress").let { it != null && it != "false" }
 
     private val counter = AtomicLong()
-    /** Blocks compiled, and those that could not be, by reason. */
+    /** Blocks compiled, and those that could not be, by reason; code that deoptimized too often (T2Code.exit). */
     @JvmField val compiledCount = AtomicLong()
+    @JvmField val reverted = AtomicLong()
     @JvmField val failedCount = AtomicLong()
     @JvmField val failureReasons = ConcurrentHashMap<String, AtomicLong>()
 
     /** [cb]'s code, compiled by this tier and defined by [definer], or null (counted, with the reason) when it cannot be. */
     fun compile(cb: CodeBlock, definer: CodeDefiner): CompiledCode? {
         try {
-            val g = IrBuilder(cb, JvmCompiler.INT32, JvmCompiler.ELEMS).build()
+            if (cb.t2Off) throw JitBailout("deoptimized too often")
+            val g = IrBuilder(cb, JvmCompiler.INT32, JvmCompiler.ELEMS, stressExits = JvmCompiler.DEOPT_STRESS > 0).build()
             val name = "dev/mooner/neonjs/jit/T2$" + JvmCompiler.sanitize(cb.name) + "$" + counter.incrementAndGet()
             val bytes = IrCodegen.generate(g, name, definer.classFileVersion, JvmCompiler.INT32, JvmCompiler.ELEMS)
             JvmCompiler.DUMP_DIR?.let { dir -> runCatching { java.io.File(dir, name.substringAfterLast('/') + ".class").writeBytes(bytes) } }
             val cls = definer.define(name.replace('/', '.'), bytes, JvmCompiler::class.java.classLoader)
-            val code = cls.getDeclaredConstructor().newInstance() as CompiledCode
+            val code = cls.getDeclaredConstructor(Array<Any?>::class.java, CodeBlock::class.java).newInstance(g.data.toTypedArray(), cb) as CompiledCode
             compiledCount.incrementAndGet()
             return code
         } catch (e: Throwable) {

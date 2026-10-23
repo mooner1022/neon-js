@@ -79,7 +79,7 @@ fun main(args: Array<String>) {
         System.err.println("JIT deoptimizations=${dev.mooner.neonjs.jit.Deopt.count} inside inlined calls=${dev.mooner.neonjs.jit.Deopt.inlinedCount}")
         val t2 = dev.mooner.neonjs.jit.opt.T2
         if (t2.compiledCount.get() + t2.failedCount.get() > 0) {
-            System.err.println("T2 compiled=${t2.compiledCount} not compiled=${t2.failedCount}")
+            System.err.println("T2 compiled=${t2.compiledCount} not compiled=${t2.failedCount} reverted to the baseline=${t2.reverted}")
             t2.failureReasons.entries.sortedByDescending { it.value.get() }.take(15).forEach { System.err.println("  ${it.value} ${it.key}") }
         }
         dev.mooner.neonjs.jit.JvmCompiler.notInlinedReasons.entries.sortedByDescending { it.value.get() }.take(15).forEach { System.err.println("  ${it.value} compiled without inlined calls: ${it.key}") }
