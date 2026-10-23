@@ -94,7 +94,7 @@ class Phi(@JvmField val block: Block) : Value() {
  * operands as in the bytecode; [pc] its position, [stmt] that of the statement it belongs to (stack traces).
  */
 class Inst(
-    @JvmField val op: Int,
+    @JvmField var op: Int,
     @JvmField var inputs: Array<Value>,
     @JvmField val a: Int,
     @JvmField val b: Int,

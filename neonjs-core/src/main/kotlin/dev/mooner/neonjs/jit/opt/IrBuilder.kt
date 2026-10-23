@@ -3,6 +3,7 @@ package dev.mooner.neonjs.jit.opt
 import dev.mooner.neonjs.compiler.CodeBlock
 import dev.mooner.neonjs.compiler.Op
 import dev.mooner.neonjs.jit.Inlining
+import dev.mooner.neonjs.jit.JT
 import dev.mooner.neonjs.jit.JitBailout
 import dev.mooner.neonjs.compiler.ValueProfile
 import dev.mooner.neonjs.runtime.Null
@@ -65,9 +66,35 @@ internal class IrBuilder(
         order(start)
         removeTrivialPhis()
         removeDeadPhis()
-        Kinds(ints, elems).infer(g)
+        val kinds = Kinds(ints, elems)
+        kinds.infer(g)
+        if (preferDoubles()) kinds.infer(g)
         number()
         return g
+    }
+
+    /**
+     * A value checked as an int32 (CHECK_INT32) is held as an int, which pays only where it is used as one: a bitwise
+     * operand, an element key, a comparison with another int, an int phi. Where it is only used as a double, it would be
+     * widened at every use (in a loop, every iteration), so it is checked as a number instead, once. Returns whether a
+     * check changed (kinds are inferred again then).
+     */
+    private fun preferDoubles(): Boolean {
+        val asInt = HashSet<Value>()
+        for (b in g.blocks) {
+            for (p in b.phis) if (p.kind == JT.INT) asInt.addAll(p.inputs)
+            for (i in b.insts) when {
+                JT.isBitwise(i.op) || i.op == Op.BNOT -> asInt.addAll(i.inputs)
+                JT.isCompare(i.op) -> if (i.inputs[0].kind == JT.INT && i.inputs[1].kind == JT.INT) asInt.addAll(i.inputs)
+                i.op == Op.GET_ELEM || i.op == Op.PUT_ELEM -> asInt.add(i.inputs[1])
+            }
+        }
+        var changed = false
+        for (b in g.blocks) for (i in b.insts) if (i.op == Ir.CHECK_INT32 && i !in asInt) {
+            i.op = Ir.CHECK_NUMBER
+            changed = true
+        }
+        return changed
     }
 
     private fun newBlock(pc: Int, site: InlineSite?): Block = Block(-1, pc, site).also { made.add(it) }
