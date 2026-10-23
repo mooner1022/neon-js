@@ -20,6 +20,12 @@ object T2 {
      */
     @JvmField val STRESS: Boolean = System.getProperty("neonjs.jit.t2Stress").let { it != null && it != "false" }
 
+    /**
+     * Whether the code speculates on the interpreter's value profiles (numbers) and on monomorphic property caches
+     * (shapes); `-Dneonjs.jit.t2Speculate=false` turns that off.
+     */
+    @JvmField val SPECULATE: Boolean = System.getProperty("neonjs.jit.t2Speculate") != "false"
+
     private val counter = AtomicLong()
     /** Blocks compiled, and those that could not be, by reason; code that deoptimized too often (T2Code.exit). */
     @JvmField val compiledCount = AtomicLong()

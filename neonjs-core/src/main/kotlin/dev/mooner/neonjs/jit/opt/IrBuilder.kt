@@ -4,7 +4,11 @@ import dev.mooner.neonjs.compiler.CodeBlock
 import dev.mooner.neonjs.compiler.Op
 import dev.mooner.neonjs.jit.Inlining
 import dev.mooner.neonjs.jit.JitBailout
+import dev.mooner.neonjs.compiler.ValueProfile
 import dev.mooner.neonjs.runtime.Null
+import dev.mooner.neonjs.runtime.PropCache
+import dev.mooner.neonjs.runtime.PropIC
+import dev.mooner.neonjs.runtime.PropSite
 import dev.mooner.neonjs.runtime.Undefined
 
 /**
@@ -28,6 +32,8 @@ internal class IrBuilder(
     private val stressExits: Boolean = false,
     /** Calls compiled inlined into one another at most (0: none). */
     private val maxInlineDepth: Int = if (Inlining.ENABLED) MAX_INLINE_DEPTH else 0,
+    /** Whether the code speculates on the interpreter's value profiles and the property caches (T2.SPECULATE). */
+    private val speculate: Boolean = T2.SPECULATE,
 ) {
     private val g = Graph(cb)
     /** Every block made, in the order made; the graph keeps those reachable, in reverse post order. */
@@ -42,6 +48,18 @@ internal class IrBuilder(
         val regs = Array<Value>(cb.numRegs) { undefined() }
         cb.paramRegs?.forEachIndexed { i, r ->
             if (r >= 0) regs[r] = add(start, Inst(Ir.PARAM, NO_VALUES, i, 0, 0, -1, -1).also { it.hasResult = true })
+        }
+        // parameters that only ever received numbers are taken as numbers, leaving at the start otherwise
+        val params = cb.profile?.params
+        if (speculate && params != null) {
+            val entry = FrameState(0, regs.copyOf())
+            cb.paramRegs?.forEachIndexed { i, r ->
+                if (r >= 0 && i < params.size) numberCheck(params[i].toInt() and 0xFF)?.let { op ->
+                    val check = add(start, Inst(op, arrayOf(regs[r]), 0, 0, 0, -1, -1).also { it.hasResult = true })
+                    check.state = entry
+                    regs[r] = check
+                }
+            }
         }
         root.build(start, regs)
         order(start)
@@ -236,6 +254,11 @@ internal class IrBuilder(
                     if (result) stack.add(i)
                     return i
                 }
+                /** An exit to the interpreter before this instruction, with its operands on the stack. */
+                fun before(i: Inst): Inst {
+                    i.state = state(pc)
+                    return i
+                }
                 when (op) {
                     Op.NOP -> {}
                     Op.PUSH_UNDEF -> stack.add(undefined())
@@ -309,6 +332,36 @@ internal class IrBuilder(
                         end()
                         return
                     }
+                    Op.GET_PROP -> {
+                        val ic = monomorphic(code.constants[a], PropCache.DATA)
+                        if (ic == null) inst(op, arrayOf(pop()), result = true)
+                        else {
+                            // the receiver's shape (and its prototypes', for an inherited property) as the cache saw it,
+                            // then the slot; anything else leaves before the instruction
+                            val obj = stack.last()
+                            val chain = ic.chain
+                            val load = before(Inst(Ir.LOAD_SLOT, arrayOf(obj), g.dataIndex(ic.shape), ic.slot,
+                                if (chain == null) -1 else g.dataIndex(chain), pc, stmt))
+                            pop()
+                            add(cur, load).hasResult = true
+                            stack.add(load)
+                        }
+                    }
+                    Op.PUT_PROP -> {
+                        val ic = monomorphic(code.constants[a], PropCache.STORE)
+                        if (ic == null) {
+                            val v = pop()
+                            inst(op, arrayOf(pop(), v), result = true)
+                        } else {
+                            // (obj v -- v): a writable own data property of the shape the cache saw
+                            val store = before(Inst(Ir.STORE_SLOT, arrayOf(stack[stack.size - 2], stack[stack.size - 1]),
+                                g.dataIndex(ic.shape), ic.slot, -1, pc, stmt))
+                            val v = pop()
+                            pop()
+                            add(cur, store)
+                            stack.add(v)
+                        }
+                    }
                     Op.CALL -> {
                         val target = inlineTarget(pc)
                         if (target == null) {
@@ -327,6 +380,18 @@ internal class IrBuilder(
                         val inputs = Array(n) { stack[stack.size - n + it] }
                         repeat(n) { stack.removeAt(stack.size - 1) }
                         inst(op, inputs, result = pushes(op))
+                    }
+                }
+                // a load whose values were only numbers: a number from here on, or an exit after the load
+                if (speculate && (op == Op.GET_PROP || op == Op.GET_ELEM || op == Op.LOAD_ENV || op == Op.CALL)) {
+                    val top = stack.lastOrNull()
+                    val bits = code.profile?.values?.get(pc)?.toInt()?.and(0xFF) ?: 0
+                    if (top is Inst && top.pc == pc && top.block?.site == site) numberCheck(bits)?.let { check ->
+                        val i = Inst(check, arrayOf(top), 0, 0, 0, pc, stmt)
+                        i.state = state(pc + len)
+                        i.hasResult = true
+                        add(cur, i)
+                        stack[stack.size - 1] = i
                     }
                 }
                 pc += len
@@ -413,6 +478,28 @@ internal class IrBuilder(
             stack.add(result)
             return join
         }
+    }
+
+    /**
+     * The check that makes a value of profile kinds [bits] (ValueProfile) a number: CHECK_INT32 when it was always an
+     * int32, CHECK_NUMBER when always a number, null when something else was seen or nothing was.
+     */
+    private fun numberCheck(bits: Int): Int? = when {
+        bits == 0 || bits and (ValueProfile.INT or ValueProfile.DOUBLE).inv() != 0 -> null
+        bits == ValueProfile.INT && ints -> Ir.CHECK_INT32
+        else -> Ir.CHECK_NUMBER
+    }
+
+    /**
+     * The entry of property site [site] (a PropSite) when it is monomorphic with the one [kind] the optimizing tier
+     * compiles: an own or inherited data property to read (DATA), a writable own data property to write (STORE).
+     */
+    private fun monomorphic(site: Any?, kind: Int): PropIC? {
+        if (!speculate || site !is PropSite) return null
+        val e = site.entry ?: return null
+        if (e.link != null || e.kind != kind || !e.shape.cacheable) return null
+        if (kind == PropCache.STORE && e.chain != null) return null
+        return e
     }
 
     private fun readsThis(target: CodeBlock): Boolean {

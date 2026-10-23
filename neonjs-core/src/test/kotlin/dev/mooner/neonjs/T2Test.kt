@@ -179,6 +179,42 @@ class T2Test {
     }
 
     @Test
+    fun speculationOnProfilesAndShapes() {
+        // the interpreter fills the value profiles (tier2) and the property caches; T2 code then reads numbers and
+        // slots directly, and leaves when a value, a receiver's shape or a prototype's shape is another
+        val src = """
+            function Vec(x, y) { this.x = x; this.y = y }
+            Vec.prototype.k = function () { return this.x + 1 }
+            function len2(v) { return v.x * v.x + v.y * v.y }
+            function sumLen(a) { var s = 0; for (var i = 0; i < a.length; i++) s += len2(a[i]); return s }
+            function viaProto(o) { return o.k() }
+            function setX(v, x) { v.x = x; return v.x * 2 }
+            function half(n) { return n / 2 }
+            var vs = []; for (var i = 0; i < 20; i++) vs.push(new Vec(i, i + 0.5));
+            """.trimIndent()
+        val warm = "for (var r = 0; r < 30; r++) { sumLen(vs); viaProto(vs[r % 20]); setX(new Vec(1, 2), r); half(r) }"
+        val expr = "[sumLen(vs), sumLen([{ x: 1, y: 2 }, new Vec('3', 4)]), viaProto(vs[3]), (Vec.prototype.extra = 1, viaProto(vs[4]))," +
+            " viaProto({ k: () => 'own' }), setX(new Vec(5, 6), 7), setX({ x: 1 }, 2), setX(new Vec(1, 2), 'str'), half(9), half('8'), half(undefined)].join('|')"
+        val expected = interpreted(src, "$warm; $expr")
+        val exits = dev.mooner.neonjs.jit.Deopt.count.get()
+        NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
+            .build().newContext().use { ctx ->
+                ctx.agent.config.tier2 = true
+                ctx.eval(src)
+                ctx.eval(warm)
+                for (n in listOf("len2", "sumLen", "viaProto", "setX", "half")) {
+                    val cb: CodeBlock = (ctx.eval(n).raw as JSClosure).code
+                    assertNotNull(cb.profile, "$n has no profile")
+                    cb.baseline ?: JvmCompiler.compile(cb)!!.also { cb.baseline = it; cb.compiled = it }
+                    val t2 = T2.compile(cb, CodeDefiners.default) ?: fail("$n not compiled: ${T2.failureReasons.keys}")
+                    Jit.install(cb, t2)
+                }
+                assertEquals(expected, ctx.eval(expr).asString())
+            }
+        assertTrue(dev.mooner.neonjs.jit.Deopt.count.get() - exits >= 5, "speculations that failed exited")
+    }
+
+    @Test
     fun guardsLeaveWhenAnotherFunctionIsCalled() {
         // the interpreter's feedback names sq at apply's call; then cube is called there: the guard exits, the
         // interpreter calls cube, and after enough exits the block goes back to its baseline for good

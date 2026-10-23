@@ -487,6 +487,12 @@ object JitRt {
      * int. Anything else would be a compiler bug: it fails here, as a failed `checkcast` would, instead of reading as a
      * different number.
      */
+    /** Whether [d] is an int32 (not -0): the optimizing tier's check of a value profiled as one. */
+    @JvmStatic fun isInt32(d: Double): Boolean {
+        val i = d.toInt()
+        return i.toDouble() == d && (i != 0 || 1.0 / d > 0)
+    }
+
     @JvmStatic fun exactInt(d: Double): Int {
         val i = d.toInt()
         if (i.toDouble() != d || i == 0 && 1.0 / d < 0) throw notInt32(d)

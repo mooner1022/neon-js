@@ -171,6 +171,19 @@ object Ir {
     /** (fn, this) `this` as a call of fn binds it (JitRt.inlineThis); (fn) its environment. */
     const val INLINE_THIS = 1006
     const val CLOSURE_ENV = 1007
+    /**
+     * (value) the value as a number (CHECK_NUMBER, a double) or an int32 (CHECK_INT32, not -0), where the profile only
+     * saw such values: anything else exits to [Inst.state], after the instruction that produced it.
+     */
+    const val CHECK_NUMBER = 1008
+    const val CHECK_INT32 = 1009
+    /**
+     * (obj) a property read through the shapes a monomorphic cache saw: [Inst.a] indexes the receiver's shape in the
+     * graph's data, [Inst.c] the shapes of the prototypes up to the holder (or -1: an own property), [Inst.b] the slot.
+     * (obj, value) STORE_SLOT writes an own property so. Another shape exits to [Inst.state], before the instruction.
+     */
+    const val LOAD_SLOT = 1010
+    const val STORE_SLOT = 1011
     /** Terminators. GOTO; BRANCH(value): [Inst.a] is the bytecode jump tested (JUMP_IF_TRUE and the like). */
     const val GOTO = 1100
     const val BRANCH = 1101
@@ -190,6 +203,10 @@ object Ir {
         INLINE_EXIT -> "InlineExit"
         INLINE_THIS -> "InlineThis"
         CLOSURE_ENV -> "ClosureEnv"
+        CHECK_NUMBER -> "CheckNumber"
+        CHECK_INT32 -> "CheckInt32"
+        LOAD_SLOT -> "LoadSlot"
+        STORE_SLOT -> "StoreSlot"
         GOTO -> "Goto"
         BRANCH -> "Branch"
         RETURN -> "Return"

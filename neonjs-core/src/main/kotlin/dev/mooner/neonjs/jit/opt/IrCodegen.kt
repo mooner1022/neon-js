@@ -329,6 +329,8 @@ internal class IrCodegen(
             frame()
             mv.visitFieldInsn(GETFIELD, FRAME, "pc", "I")
             mv.visitLookupSwitchInsn(none, IntArray(entries.size) { entries[it].pc }, starts)
+            val obj = temp()
+            val d = tempD()
             for ((k, b) in entries.withIndex()) {
                 mv.visitLabel(starts[k])
                 for ((r, v) in b.entryRegs!!.withIndex()) {
@@ -337,11 +339,29 @@ internal class IrCodegen(
                     mv.visitFieldInsn(GETFIELD, FRAME, "slots", CONSTS_D)
                     iconst(r)
                     mv.visitInsn(AALOAD)
-                    // the interpreter computed the same values: a number where the kind says so
+                    if (v.kind == JT.ANY) {
+                        store(v)
+                        continue
+                    }
+                    // a kind may rest on a speculation the interpreter did not make (a profiled load, say): a register
+                    // without a value of it there means no entry this time (the frame is not changed before)
+                    mv.visitVarInsn(ASTORE, obj)
+                    mv.visitVarInsn(ALOAD, obj)
+                    mv.visitTypeInsn(INSTANCEOF, if (v.kind == JT.BOOL) "java/lang/Boolean" else "java/lang/Double")
+                    mv.visitJumpInsn(IFEQ, none)
+                    mv.visitVarInsn(ALOAD, obj)
                     when (v.kind) {
                         JT.NUM -> unboxNum()
-                        JT.INT -> { unboxNum(); rt("exactInt", "(D)I") }
-                        JT.BOOL -> {
+                        JT.INT -> {
+                            unboxNum()
+                            mv.visitVarInsn(DSTORE, d)
+                            mv.visitVarInsn(DLOAD, d)
+                            rt("isInt32", "(D)Z")
+                            mv.visitJumpInsn(IFEQ, none)
+                            mv.visitVarInsn(DLOAD, d)
+                            mv.visitInsn(D2I)
+                        }
+                        else -> {
                             mv.visitTypeInsn(CHECKCAST, "java/lang/Boolean")
                             mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Boolean", "booleanValue", "()Z", false)
                         }
@@ -470,6 +490,31 @@ internal class IrCodegen(
         }
     }
 
+    /** Jumps to [exit] unless the object in local [obj] has a property map whose shape is the graph's data [shapeIndex]. */
+    private fun shapeCheck(obj: Int, shapeIndex: Int, exit: Label) {
+        val t = temp()
+        mv.visitVarInsn(ALOAD, dataLocal)
+        iconst(shapeIndex)
+        mv.visitInsn(AALOAD)
+        mv.visitVarInsn(ASTORE, t)
+        shapeCheckWith(obj, t, exit)
+    }
+
+    /** [shapeCheck] with the shape in local [shape]. */
+    private fun shapeCheckWith(obj: Int, shape: Int, exit: Label) {
+        mv.visitVarInsn(ALOAD, obj)
+        mv.visitFieldInsn(GETFIELD, "dev/mooner/neonjs/runtime/JSObject", "props", PMAP_D)
+        mv.visitInsn(DUP)
+        val ok = Label()
+        mv.visitJumpInsn(IFNONNULL, ok)
+        mv.visitInsn(POP)
+        mv.visitJumpInsn(GOTO, exit)
+        mv.visitLabel(ok)
+        mv.visitFieldInsn(GETFIELD, PMAP, "shape", "Ldev/mooner/neonjs/runtime/Shape;")
+        mv.visitVarInsn(ALOAD, shape)
+        mv.visitJumpInsn(IF_ACMPNE, exit)
+    }
+
     /** Frame.pc = the statement of [i], before something that can throw or call (stack traces and errors read it). */
     private fun storePc(i: Inst) {
         if (i.stmt < 0 || i.stmt == storedPc) return
@@ -544,6 +589,73 @@ internal class IrCodegen(
                 load(i.inputs[1], JT.ANY)
                 rt("inlineThis", "($CLOSURE_D$OBJ)$OBJ")
                 done(i, JT.ANY)
+                return
+            }
+            Ir.CHECK_NUMBER, Ir.CHECK_INT32 -> {
+                val v = i.inputs[0]
+                val l = Label()
+                load(v, JT.ANY)
+                mv.visitTypeInsn(INSTANCEOF, "java/lang/Double")
+                mv.visitJumpInsn(IFEQ, l)
+                load(v, JT.ANY)
+                unboxNum()
+                if (op == Ir.CHECK_INT32) {
+                    val t = tempD()
+                    mv.visitVarInsn(DSTORE, t)
+                    mv.visitVarInsn(DLOAD, t)
+                    rt("isInt32", "(D)Z")
+                    mv.visitJumpInsn(IFEQ, l)
+                    mv.visitVarInsn(DLOAD, t)
+                    mv.visitInsn(D2I)
+                    done(i, JT.INT)
+                } else done(i, JT.NUM)
+                exits.add(Exit(l, i.state!!, counted = true))
+                return
+            }
+            Ir.LOAD_SLOT, Ir.STORE_SLOT -> {
+                // the receiver's property map has the shape the cache saw (then the prototypes' do), else an exit
+                val l = Label()
+                val obj = i.inputs[0]
+                load(obj, JT.ANY)
+                mv.visitTypeInsn(INSTANCEOF, "dev/mooner/neonjs/runtime/JSObject")
+                mv.visitJumpInsn(IFEQ, l)
+                load(obj, JT.ANY)
+                mv.visitTypeInsn(CHECKCAST, "dev/mooner/neonjs/runtime/JSObject")
+                val holder = temp()
+                mv.visitVarInsn(ASTORE, holder)
+                shapeCheck(holder, i.a, l)
+                if (i.c >= 0) {
+                    // the prototypes up to the holder, each with the shape the cache saw
+                    val chain = g.data[i.c] as Array<*>
+                    for (k in chain.indices) {
+                        mv.visitVarInsn(ALOAD, holder)
+                        mv.visitFieldInsn(GETFIELD, "dev/mooner/neonjs/runtime/JSObject", "proto", "Ldev/mooner/neonjs/runtime/JSObject;")
+                        mv.visitInsn(DUP)
+                        mv.visitVarInsn(ASTORE, holder)
+                        mv.visitJumpInsn(IFNULL, l)
+                        mv.visitVarInsn(ALOAD, dataLocal)
+                        iconst(i.c)
+                        mv.visitInsn(AALOAD)
+                        mv.visitTypeInsn(CHECKCAST, "[Ljava/lang/Object;")
+                        iconst(k)
+                        mv.visitInsn(AALOAD)
+                        val t = temp()
+                        mv.visitVarInsn(ASTORE, t)
+                        shapeCheckWith(holder, t, l)
+                    }
+                }
+                mv.visitVarInsn(ALOAD, holder)
+                mv.visitFieldInsn(GETFIELD, "dev/mooner/neonjs/runtime/JSObject", "props", PMAP_D)
+                mv.visitFieldInsn(GETFIELD, PMAP, "values", CONSTS_D)
+                iconst(i.b)
+                if (op == Ir.LOAD_SLOT) {
+                    mv.visitInsn(AALOAD)
+                    done(i, JT.ANY)
+                } else {
+                    load(i.inputs[1], JT.ANY)
+                    mv.visitInsn(AASTORE)
+                }
+                exits.add(Exit(l, i.state!!, counted = true))
                 return
             }
             Ir.STRESS_EXIT -> {
@@ -776,6 +888,8 @@ internal class IrCodegen(
     companion object {
         /** The class [name] (internal form) implementing CompiledCode with [g]'s code, for class file [version]. */
         private const val SUPER = "dev/mooner/neonjs/jit/opt/T2Code"
+        private const val PMAP = "dev/mooner/neonjs/runtime/PropertyMap"
+        private const val PMAP_D = "L$PMAP;"
         private const val INIT_D = "([Ljava/lang/Object;$CODEBLOCK_D)V"
 
         /**

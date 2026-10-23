@@ -38,6 +38,8 @@ internal class Kinds(private val ints: Boolean, private val elems: Boolean) {
                 else -> JT.NUM
             }
             Op.NOT -> JT.BOOL
+            Ir.CHECK_NUMBER -> JT.NUM
+            Ir.CHECK_INT32 -> JT.INT
             Op.PUT_ELEM -> {
                 val k = of(inp[1])
                 val v = of(inp[2])
