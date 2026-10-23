@@ -293,10 +293,23 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
     for-of, for-in, destructuring and the finally dispatch; the blocks T2 leaves in compiled mode went from 166K to
     15K (class definitions);
   - tier-up: with `optimizingTier`, a block is compiled again by T2 on a thread of its own once its baseline is
-    installed. The activation running then stays in T1 code (T1 -> T2 on-stack replacement is P5).
-  - API 34 emulator, adaptive with the tier against without: 4 property loads in a loop 237-273 -> 47-56 ms, a
-    method using `this` 307-325 -> 60-71 ms, nested calls 704-750 -> 180-208 ms, NeonBench mono +65%; object
-    literals in a loop unchanged (allocation: P4).
+    installed. T1 code compiled with the tier on looks at its block's code at each loop back edge when the interrupt
+    budget runs out: once T2 code with an entry at that header is installed, the loop leaves through an exit with the
+    registers boxed and enters the T2 code at once (`Deopt.tierUp`), so a long first call or a script's top-level
+    loop gets it too. T1 classes are unchanged with the tier off.
+  - deopt feedback: an exit where a speculation failed notes its pc on the code block it was made in
+    (`CodeBlock.t2Failed`); after 16 exits the code gives way to the baseline and the block is compiled again without
+    those speculations (3 times at most, then it stays at the baseline). A callback site that gets another function
+    loses its inlined call, not the tier.
+  - representation: a value the profile saw as int32s only stays an int where something uses it as one (bitwise,
+    element keys, int comparisons, int phis); elsewhere it is checked as a double once, instead of being widened at
+    every use (on ART: hoisted loads 14 -> 2.8 ms).
+  - API 34 emulator, adaptive mode with the tier against without, 3 interleaved runs: the user's StarLight benchmark
+    (5 loops of a 1e7-call loop and fib(30)) 343-401 -> 265-276 ms per loop, first loop included; 4 property loads in
+    a loop 200-235 -> 20-29 ms; a method using `this` 239-274 -> 46-48 ms; nested calls 576-699 -> 164-172 ms;
+    NeonBench mono +80-90%, call +15-30%, float +17%, int/alloc/closure unchanged; object literals in a loop
+    360-420 -> 275-307 ms (the allocation stays: P4); basic.js `classes` 7% slower (class definitions stay T1, `new`
+    is not inlined yet).
 - **P4: optimization passes** (~3K). GVN, guard elimination, LICM, escape analysis and scalar replacement, partial
   escape analysis. Exit: literal-in-loop bound within 2x; fuzzer clean with every pass on and with each pass off.
 - **P5: tiering and tuning** (~1.5K). T1 -> T2 counters, OSR from T1 into T2 at loop headers, background T2 queue,
