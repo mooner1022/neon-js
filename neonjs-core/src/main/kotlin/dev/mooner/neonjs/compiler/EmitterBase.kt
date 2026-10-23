@@ -46,6 +46,10 @@ internal abstract class EmitterBase(
     protected val handlers = ArrayList<IntArray>()
     protected val lineTable = ArrayList<Int>()
     protected val callSites = ArrayList<Int>()
+    /** Static call targets to look up once the source is compiled: the pc of a CALL, then its callee's Binding or global name. */
+    protected val callTargetSites = ArrayList<Any>()
+    /** The code block of the function the last function or arrow expression made (Binding.template). */
+    protected var lastFunction: CodeBlock? = null
     private var lastPos = -1
     protected var nextReg = 0
     private var maxReg = 0
@@ -62,6 +66,25 @@ internal abstract class EmitterBase(
 
     private fun markStrict() {
         if (strictDepth > 0 && !fi.strict) (strictPcs ?: java.util.BitSet().also { strictPcs = it }).set(pc)
+    }
+
+    /** Notes the CALL about to be emitted at pc, through the name [c], for its static target (CodeBlock.callHintPcs). */
+    protected fun noteCallTarget(c: Identifier) {
+        when (val ref = c.ref) {
+            is LocalRef -> { callTargetSites.add(pc); callTargetSites.add(ref.binding) }
+            is GlobalRef -> { callTargetSites.add(pc); callTargetSites.add(ref.name) }
+            else -> {}
+        }
+    }
+
+    /** Records that the declaration of [id] binds it to the function [cb] (the static target of calls through it). */
+    protected fun bindTemplate(id: Identifier, cb: CodeBlock?) {
+        if (cb == null) return
+        when (val ref = id.ref) {
+            is LocalRef -> ref.binding.template = cb
+            is GlobalRef -> analyzer.globalTemplates[ref.name] = cb
+            else -> {}
+        }
     }
 
     /** Register holding the completion value (script/eval code), or -1. */

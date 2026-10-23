@@ -145,6 +145,22 @@ class CodeBlock(@JvmField val name: String, @JvmField val kind: FunctionKind) {
      */
     @JvmField var callFeedback: Array<CallFeedback?>? = null
     /**
+     * Static call targets, for the JIT's inlining where there is no feedback (compiled mode): the pcs of CALLs whose
+     * callee is a name that a function declaration, or a `var`/`let`/`const` declaration with a function or arrow,
+     * binds, sorted, and the code blocks of those functions ([callHintTargets]). Written by the compiler once the
+     * whole source is compiled. A hint only, as the feedback: the binding may be assigned something else, and the
+     * generated code checks its target at every call.
+     */
+    @JvmField var callHintPcs: IntArray? = null
+    @JvmField var callHintTargets: Array<CodeBlock>? = null
+
+    /** The static call target of the CALL at [pc] ([callHintPcs]), or null. */
+    fun callHint(pc: Int): CodeBlock? {
+        val pcs = callHintPcs ?: return null
+        val i = java.util.Arrays.binarySearch(pcs, pc)
+        return if (i >= 0) callHintTargets!![i] else null
+    }
+    /**
      * The code blocks the compiled code inlines, by site: the generated code inlines site k's body when the function
      * called is a closure of exactly `inlineTargets[k]`. Set before the compiled code is installed, never changed after.
      */

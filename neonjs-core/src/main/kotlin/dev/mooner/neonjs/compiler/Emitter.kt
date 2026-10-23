@@ -43,6 +43,7 @@ internal class Emitter(fi: FnInfo, source: Source, analyzer: ScopeAnalyzer) :
         // only regions with an instruction that behaves differently in strict code matter (and keep the block from
         // being JIT-compiled): a plain `class C {}` in sloppy code needs none
         cb.strictPcs = strictPcs?.takeIf { bits -> bits.stream().anyMatch { isStrictSensitive(code[it]) } }
+        if (callTargetSites.isNotEmpty()) analyzer.addCallSites(cb, ArrayList(callTargetSites))
     }
 
     /** Instructions whose semantics depend on the strictness of the code (the `strict` argument at run time). */
@@ -135,6 +136,7 @@ internal class Emitter(fi: FnInfo, source: Source, analyzer: ScopeAnalyzer) :
         val names = ArrayList<String>()
         for ((name, f) in fnByName) {
             val cb = compileNested(f.function, name)
+            an.globalTemplates[name] = cb
             emit(Op.MAKE_CLOSURE, const(cb))
             templates.add(cb)
             names.add(name)
@@ -166,6 +168,7 @@ internal class Emitter(fi: FnInfo, source: Source, analyzer: ScopeAnalyzer) :
             val name = d.function.id?.name ?: "*default*"
             val b = s.bindings[name] ?: fi.varScope.bindings[name] ?: continue
             val cb = compileNested(d.function, if (d.function.id == null) "default" else name)
+            b.template = cb
             emit(Op.MAKE_CLOSURE, const(cb))
             emitInitBinding(b)
             seen.add(name)
@@ -812,12 +815,14 @@ internal class Emitter(fi: FnInfo, source: Source, analyzer: ScopeAnalyzer) :
                     continue
                 }
                 exprNamed(init, if (id is Identifier) StaticName(id.name) else null)
+                if (init is FunctionNode && id is Identifier) bindTemplate(id, lastFunction)
                 pattern(id, BindMode.ASSIGN)
             } else {
                 if (init == null) emit(Op.PUSH_UNDEF)
                 else {
                     val id = d.id
                     exprNamed(init, if (id is Identifier) StaticName(id.name) else null)
+                    if (init is FunctionNode && id is Identifier) bindTemplate(id, lastFunction)
                 }
                 pattern(d.id, BindMode.INIT)
             }
@@ -1204,14 +1209,14 @@ object Compiler {
     fun compileScript(prog: Program, source: Source): CodeBlock {
         val an = ScopeAnalyzer(CodeMode.SCRIPT)
         val fi = an.analyze(prog)
-        return Emitter(fi, source, an).compileProgram(prog, CodeMode.SCRIPT)
+        return Emitter(fi, source, an).compileProgram(prog, CodeMode.SCRIPT).also { an.resolveCallSites() }
     }
 
     fun compileEval(prog: Program, source: Source, direct: Boolean): CodeBlock {
         val mode = if (direct) CodeMode.EVAL_DIRECT else CodeMode.EVAL_INDIRECT
         val an = ScopeAnalyzer(mode, evalStrict = prog.strict)
         val fi = an.analyze(prog)
-        return Emitter(fi, source, an).compileProgram(prog, mode)
+        return Emitter(fi, source, an).compileProgram(prog, mode).also { an.resolveCallSites() }
     }
 
     fun compileModule(prog: Program, source: Source): CompiledModule {
@@ -1221,6 +1226,7 @@ object Compiler {
         val tla = ModuleInfo.hasTopLevelAwait(prog)
         val init = Emitter(fi, source, an).compileModuleInit(prog)
         val body = Emitter(fi, source, an).compileModuleBody(prog, tla)
+        an.resolveCallSites()
         val (requests, imports, exports) = ModuleInfo.requestsAndEntries(prog)
         val importedLocal = imports.associateBy { it.localName }
         val local = ArrayList<ExportEntry>()
@@ -1241,6 +1247,6 @@ object Compiler {
         val an = ScopeAnalyzer(CodeMode.FUNCTION_CTOR)
         an.analyzeFunction(fn)
         val fi = (fn.scope as Scope).fn
-        return Emitter(fi, source, an).compileFunction(fn, "anonymous", false)
+        return Emitter(fi, source, an).compileFunction(fn, "anonymous", false).also { an.resolveCallSites() }
     }
 }

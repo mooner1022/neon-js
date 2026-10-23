@@ -8,8 +8,9 @@ import dev.mooner.neonjs.compiler.Op
  * Which calls compiled code inlines (docs/ARCHITECTURE.md, section JIT, "Inlined calls").
  *
  * The interpreter records, at each CALL, the code block of the JS function called most ([CallFeedback], a majority
- * vote). When the caller is compiled, a call whose recorded callee is small and simple enough gets the callee's body
- * compiled into the caller behind a guard: the function called is a [dev.mooner.neonjs.vm.JSClosure] whose code block
+ * vote); without such feedback, the compiler's static targets stand in (CodeBlock.callHintPcs). When the caller is
+ * compiled, a call whose recorded callee is small and simple enough gets the callee's body compiled into the caller
+ * behind a guard: the function called is a [dev.mooner.neonjs.vm.JSClosure] whose code block
  * is that very block (`CodeBlock.inlineTargets`, an object identity) in the caller's realm. Anything else takes the
  * ordinary call. Nothing is assumed beyond the guard, and inlined bodies never inline further.
  */
@@ -81,18 +82,22 @@ internal object Inlining {
         return true
     }
 
-    /** The calls of [cb] to inline: (pc of the CALL, callee), from the interpreter's feedback, at most [MAX_SITES]. */
+    /**
+     * The calls of [cb] to inline: (pc of the CALL, callee), at most [MAX_SITES]. From the interpreter's feedback; for a
+     * block that has none (compiled mode records no calls, and adaptive mode may compile a loop before any call), from
+     * the compiler's static targets (CodeBlock.callHint). The generated code checks the target either way.
+     */
     fun plan(cb: CodeBlock): List<Pair<Int, CodeBlock>> {
         if (!ENABLED) return emptyList()
-        val fb = cb.callFeedback ?: return emptyList()
+        val fb = cb.callFeedback
+        if (fb == null && cb.callHintPcs == null) return emptyList()
         val code = cb.code
         val out = ArrayList<Pair<Int, CodeBlock>>()
         var pc = 0
         while (pc < code.size && out.size < MAX_SITES) {
-            if (code[pc] == Op.CALL && pc < fb.size) {
-                val r = fb[pc]
-                val target = r?.target
-                if (target != null && r.count >= MIN_COUNT && eligible(cb, target)) out.add(pc to target)
+            if (code[pc] == Op.CALL) {
+                val target = if (fb == null) cb.callHint(pc) else fb.getOrNull(pc)?.takeIf { it.count >= MIN_COUNT }?.target
+                if (target != null && eligible(cb, target)) out.add(pc to target)
             }
             pc += Op.length(code, pc)
         }

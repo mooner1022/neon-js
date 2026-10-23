@@ -972,7 +972,10 @@ internal abstract class ExprEmitter(fi: FnInfo, source: Source, analyzer: ScopeA
         val argc = arguments(n.arguments)
         mark(n)
         markCallee(c)
-        if (argc >= 0) emit(if (tail) Op.TAIL_CALL else Op.CALL, argc) else emit(Op.CALL_SPREAD)
+        if (argc >= 0) {
+            if (!tail && c is Identifier) noteCallTarget(c)
+            emit(if (tail) Op.TAIL_CALL else Op.CALL, argc)
+        } else emit(Op.CALL_SPREAD)
     }
 
     private fun superCall(n: CallExpression) {
@@ -1168,6 +1171,7 @@ internal abstract class ExprEmitter(fi: FnInfo, source: Source, analyzer: ScopeA
         }
         val cb = compileNested(fn, staticName)
         emit(Op.MAKE_CLOSURE, const(cb))
+        lastFunction = cb
     }
 
     // ================================================================== classes

@@ -172,21 +172,26 @@ range analysis that removes those checks. Here int arithmetic is never done, so 
 Inlined calls (`jit/Inlining.kt`): in adaptive mode the interpreter records, at each `CALL`, the code block of the JS
 function called most (`CodeBlock.callFeedback`, a majority vote). When the caller is compiled, a call whose recorded
 callee ran at least 16 times there (`-Dneonjs.jit.inlineMinCount`) and is small and simple enough gets the callee's
-body compiled into the caller, at most 8 calls per function and never further inside an inlined body. The callee must
-be an ordinary function (not a generator, async function or class constructor) of at most 96 bytecode ints, with no
-exception handlers, its parameters in registers and only instructions from a closed list: none
-reads the callee's own frame (`arguments`, `new.target`, the function), creates scopes or closures, or resolves names
-dynamically. `this` is bound when the body is entered (`JitRt.inlineThis`), by the same `Interpreter.thisFor` that
-binds it for a call (the closure's lexical `this` for an arrow, the receiver as is in strict code, the global `this`
-for `undefined` and `null` in sloppy code, a wrapper object for a primitive there). The inlined body runs behind a guard: the function called is a `JSClosure` whose code block
-is that very block (`CodeBlock.inlineTargets[k]`, an object identity) and whose realm is the caller's; anything else
-takes the ordinary call, which is compiled next to it. Nothing is assumed beyond the guard, so nothing deoptimizes.
-The callee's registers become JVM locals of the caller (missing arguments are `undefined`, extra ones are evaluated and
-dropped), its constants are read from the closure's code block and its variables from the closure's environment, and
-the kinds of the arguments flow into its type analysis, so a number argument stays unboxed. `RETURN` stores into a
-result local and jumps to the end of the body; when every return gives a number of one kind and the caller uses the
-result as a number, the instructions after the call are compiled twice as for `GET_ELEM` above, the fast copy with the
-result unboxed. The rules that keep calls the same as before:
+body compiled into the caller. A block without feedback (compiled mode records no calls; adaptive mode may compile a
+loop before any call) uses the compiler's static targets instead (`CodeBlock.callHintPcs`): a `CALL` whose callee is a
+name that a function declaration, or a `var`/`let`/`const` declaration with a function or arrow, binds (the emitter
+records the call sites and `ScopeAnalyzer.resolveCallSites` looks the bindings up once the whole source is compiled,
+so a function declared after its caller is found too). At most 8 calls per function are inlined, and never further
+inside an inlined body. The callee must be an ordinary function (not a generator, async function or class constructor)
+of at most 96 bytecode ints, with no exception handlers, its parameters in registers and only instructions from a
+closed list: none reads the callee's own frame (`arguments`, `new.target`, the function), creates scopes or closures,
+or resolves names dynamically. `this` is bound when the body is entered (`JitRt.inlineThis`), by the same
+`Interpreter.thisFor` that binds it for a call (the closure's lexical `this` for an arrow, the receiver as is in
+strict code, the global `this` for `undefined` and `null` in sloppy code, a wrapper object for a primitive there). The
+inlined body runs behind a guard: the function called is a `JSClosure` whose code block is that very block
+(`CodeBlock.inlineTargets[k]`, an object identity) and whose realm is the caller's; anything else takes the ordinary
+call, which is compiled next to it. Nothing is assumed beyond the guard, so nothing deoptimizes. The callee's
+registers become JVM locals of the caller (missing arguments are `undefined`, extra ones are evaluated and dropped),
+its constants are read from the closure's code block and its variables from the closure's environment, and the kinds
+of the arguments flow into its type analysis, so a number argument stays unboxed. `RETURN` stores into a result local
+and jumps to the end of the body; when every return gives a number of one kind and the caller uses the result as a
+number, the instructions after the call are compiled twice as for `GET_ELEM` above, the fast copy with the result
+unboxed. The rules that keep calls the same as before:
 
 - Depth and interrupts: `JitRt.inlineEnter` counts the call against the depth limit and the interrupt budget as
   `Interpreter.execute` would, and the depth is given back on the way out of the body: by `inlineExit`, by
@@ -204,8 +209,7 @@ result unboxed. The rules that keep calls the same as before:
 - Identity: the inlined sites and the callees' own `JitInput`s are part of the caller's `JitInput`, and
   `CodeBlock.inlineTargets` is set before the code is installed through the volatile `compiled` field. A block whose
   code with inlined calls would exceed the JVM method size limit is compiled without them
-  (`JvmCompiler.notInlinedReasons`). `COMPILED` mode records no calls and inlines nothing;
-  `-Dneonjs.jit.inline=false` turns inlining off.
+  (`JvmCompiler.notInlinedReasons`). `-Dneonjs.jit.inline=false` turns inlining off.
 
 V8 (TurboFan), JavaScriptCore (DFG/FTL) and SpiderMonkey (Warp) inline from the same kind of call target feedback,
 behind a check of the closure or its code; a failing check deoptimizes, and their inlining bugs come from frame states

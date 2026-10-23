@@ -217,6 +217,28 @@ class InliningTest {
         )
     }
 
+    /** [code] interpreted and in compiled mode, which inlines the calls the compiler knows the target of. */
+    private fun sameCompiledMode(code: String) {
+        val inlined = JvmCompiler.inlinedCalls.get()
+        assertEquals(run(code, ExecutionMode.INTERPRETER), run(code, ExecutionMode.COMPILED), "compiled: $code")
+        assertTrue(JvmCompiler.inlinedCalls.get() > inlined, "nothing inlined: $code")
+    }
+
+    @Test
+    fun compiledModeInlinesStaticTargets() {
+        // declarations (one declared after its caller), a const arrow, a var function expression, a nested function's own
+        sameCompiledMode(
+            "function caller(n) { var s = 0; for (var k = 0; k < n; k++) s += later(k) + sq(k) + half(k); return s } const sq = (x) => x * x; var half = function (x) { return x / 2 };" +
+                "function later(x) { return x + 1 } function outer(n) { function local(x) { return x * 3 } var s = 0; for (var k = 0; k < n; k++) s += local(k); return s } all(caller(10), outer(10))",
+        )
+        // the binding assigned another function: the guard takes the ordinary call; a local name shadowing a global one
+        sameCompiledMode(
+            "var f = function (x) { return x + 1 }; function g(x) { return x * 2 } function caller(n) { var s = 0; for (var k = 0; k < n; k++) s += f(k) + g(k); return s }" +
+                "var before = caller(5); f = function (x) { return x - 1 }; function shadow(n) { function g(x) { return -x } var s = 0; for (var k = 0; k < n; k++) s += g(k); return s }" +
+                "all(before, caller(5), shadow(5))",
+        )
+    }
+
     @Test
     fun typedArraysAndConversions() {
         same(

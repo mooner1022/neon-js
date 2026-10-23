@@ -27,6 +27,11 @@ class Binding(val name: String, var kind: BKind, val scope: Scope) {
     /** For private names: the private-name kind ("field", "method", "get", "set", "getset", "accessor"), static flag. */
     var privateKind: String? = null
     var privateStatic = false
+    /**
+     * The code block of the function the binding's declaration binds it to (a function declaration, or a declaration
+     * with a function or arrow): the static target of calls through it (CodeBlock.callHintPcs).
+     */
+    var template: CodeBlock? = null
     val inEnv get() = slot >= 0
     val needsTdz get() = kind.isLexical || tdz
     override fun toString() = "$name:$kind${if (inEnv) "@env$slot" else "@r$reg"}"
@@ -113,6 +118,36 @@ class ScopeAnalyzer(val mode: CodeMode, val evalStrict: Boolean = false, val eva
     val globalLexNames = LinkedHashMap<String, Boolean>() // name -> isConst
     /** Annex B function names hoisted to the global/eval var scope. */
     val annexBGlobalNames = LinkedHashSet<String>()
+
+    /** Top-level functions bound by name in the global scope ([Binding.template] for global names). */
+    val globalTemplates = HashMap<String, CodeBlock>()
+    /** CALLs whose targets are known once the whole source is compiled: code block, then pc and Binding or global name pairs. */
+    private val callSites = ArrayList<Pair<CodeBlock, List<Any>>>()
+
+    fun addCallSites(cb: CodeBlock, sites: List<Any>) {
+        callSites.add(cb to sites)
+    }
+
+    /** Sets the static call targets of the code blocks compiled ([CodeBlock.callHintPcs]): bindings are all bound now. */
+    fun resolveCallSites() {
+        for ((cb, sites) in callSites) {
+            val pcs = ArrayList<Int>()
+            val targets = ArrayList<CodeBlock>()
+            for (i in sites.indices step 2) {
+                val key = sites[i + 1]
+                val t = if (key is Binding) key.template else globalTemplates[key as String]
+                if (t != null) {
+                    pcs.add(sites[i] as Int)
+                    targets.add(t)
+                }
+            }
+            if (pcs.isNotEmpty()) {
+                cb.callHintPcs = pcs.toIntArray()
+                cb.callHintTargets = targets.toTypedArray()
+            }
+        }
+        callSites.clear()
+    }
 
     private lateinit var cur: Scope
     private lateinit var curFn: FnInfo

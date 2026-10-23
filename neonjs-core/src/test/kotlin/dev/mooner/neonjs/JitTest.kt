@@ -138,7 +138,8 @@ class JitTest {
     @Test
     fun contextsOfAnEngineShareCompiledCode() {
         val d = CountingDefiner()
-        val engine = NeonEngine.builder().executionMode(ExecutionMode.COMPILED).codeDefiner(d).console(null).build()
+        // on the calling thread: g is inlined into the script, so nothing would wait for its own class otherwise
+        val engine = NeonEngine.builder().executionMode(ExecutionMode.COMPILED).backgroundCompilation(false).codeDefiner(d).console(null).build()
         val src = "function g(x) { return x * 2 } g(21)"
         engine.newContext().use { assertEquals(42, it.eval(src).asInt()) }
         val afterFirst = d.defined.get()
