@@ -312,6 +312,13 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
     is not inlined yet).
 - **P4: optimization passes** (~3K). GVN, guard elimination, LICM, escape analysis and scalar replacement, partial
   escape analysis. Exit: literal-in-loop bound within 2x; fuzzer clean with every pass on and with each pass off.
+  Done so far:
+  - scalar replacement of object literals (`ScalarReplacement`): a NEW_OBJECT_LITERAL whose object is only read, by
+    GET_PROP or an own LOAD_SLOT of keys it has (in the function or in bodies inlined into it), is not allocated; its
+    reads are the values it was made of, and it stays in the IR as a virtual instruction that an exit allocates once
+    from those values. A write, any other use, a phi or an on-stack replacement register keeps the allocation. On
+    the API 34 emulator a `{x, y}` literal in a loop went 376-474 -> 4.1-4.4 ms, the same as the loop written
+    without it (the bound above).
 - **P5: tiering and tuning** (~1.5K). T1 -> T2 counters, OSR from T1 into T2 at loop headers, background T2 queue,
   thresholds, profiling T1 if compiled mode needs it, the builder option, Android measurement. Exit: StarLight's
   NeonBench and the user's benchmark gain on ART, first run included; default stays off until a release cycle has
