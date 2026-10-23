@@ -41,6 +41,15 @@ object T2 {
     @JvmField val failedCount = AtomicLong()
     @JvmField val failureReasons = ConcurrentHashMap<String, AtomicLong>()
 
+    init {
+        // Debugging: `-Dneonjs.jit.t2Stats` prints the counters when the process exits
+        if (System.getProperty("neonjs.jit.t2Stats") != null) Runtime.getRuntime().addShutdownHook(Thread {
+            System.err.println("T2 compiled=$compiledCount not compiled=$failedCount reverted=$reverted calls inlined=$inlinedCalls" +
+                " exits=${dev.mooner.neonjs.jit.Deopt.count} inlined exits=${dev.mooner.neonjs.jit.Deopt.inlinedCount}" +
+                " tier-ups=${dev.mooner.neonjs.jit.Deopt.tierUps} reasons=$failureReasons")
+        })
+    }
+
     /** [cb]'s code, compiled by this tier and defined by [definer], or null (counted, with the reason) when it cannot be. */
     fun compile(cb: CodeBlock, definer: CodeDefiner): CompiledCode? {
         try {
