@@ -76,7 +76,7 @@ object IrVerifier {
             while (x != null) {
                 if (x === a) return true
                 val d = idom[x]
-                x = if (d === x) null else d
+                x = if (d === x || d == null) null else d
             }
             return false
         }
@@ -99,16 +99,22 @@ object IrVerifier {
         }
     }
 
-    /** Immediate dominators (Cooper, Harvey and Kennedy); the entry's is itself. */
-    fun dominators(g: Graph, index: Map<Block, Int>): Map<Block, Block> {
+    /**
+     * Immediate dominators (Cooper, Harvey and Kennedy). The entry and the catch entries (which exceptions reach) hang
+     * from a root that is no block ([ROOT], index -1).
+     */
+    fun dominators(g: Graph, index0: Map<Block, Int>): Map<Block, Block> {
+        val index = HashMap(index0)
+        index[ROOT] = -1
         val idom = HashMap<Block, Block>()
-        val entry = g.entry
-        idom[entry] = entry
+        idom[ROOT] = ROOT
+        val roots = g.blocks.filter { it === g.entry || it.preds.isEmpty() }
+        for (r in roots) idom[r] = ROOT
         var changed = true
         while (changed) {
             changed = false
             for (b in g.blocks) {
-                if (b === entry) continue
+                if (b in roots) continue
                 var d: Block? = null
                 for (p in b.preds) {
                     if (idom[p] == null) continue
@@ -122,6 +128,8 @@ object IrVerifier {
         }
         return idom
     }
+
+    private val ROOT = Block(-1, -1)
 
     private fun intersect(a0: Block, b0: Block, idom: Map<Block, Block>, index: Map<Block, Int>): Block {
         var a = a0

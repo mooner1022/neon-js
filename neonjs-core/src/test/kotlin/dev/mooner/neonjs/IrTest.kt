@@ -75,7 +75,7 @@ class IrTest {
 
     @Test
     fun unsupportedCodeIsNotBuilt() {
-        assertThrows<JitBailout> { build("function f(o) { try { return o.x } catch (e) { return 1 } }") }
-        assertThrows<JitBailout> { build("function f(a) { var s = 0; for (const x of a) s += x; return s }") }
+        assertThrows<JitBailout> { build("function f(o) { return class { m() { return o } } }") }
+        assertThrows<JitBailout> { build("function* f() { yield 1 }") }
     }
 }

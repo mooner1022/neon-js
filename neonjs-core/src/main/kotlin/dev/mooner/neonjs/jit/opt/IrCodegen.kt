@@ -53,10 +53,23 @@ internal class IrCodegen(
     private class Exit(val label: Label, val state: FrameState, val counted: Boolean)
     private val exits = ArrayList<Exit>()
 
+    /** The end of each block's code, and the local and kind of each register's home (exception handlers). */
+    private val endLabel = HashMap<Block, Label>()
+    private val homeLocal = HashMap<Int, Int>()
+    private val homeKind = HashMap<Int, Byte>()
+
     fun emit() {
         for ((k, b) in g.blocks.withIndex()) {
             index[b] = k
             label[b] = Label()
+            endLabel[b] = Label()
+        }
+        // each block a handler's range covers is in the JVM's exception table (an inlined body's: its call's handler);
+        // exits come after the body, out of every range
+        for (b in g.blocks) b.handler?.let { h -> mv.visitTryCatchBlock(label[b], endLabel[b], label[h], "java/lang/Throwable") }
+        for (b in g.blocks) for (i in b.insts) if (i.op == Ir.SET_HOME) {
+            val k = kindOf(i.inputs[0])
+            homeKind[i.a] = homeKind[i.a]?.let { JT.join(it, k) } ?: k
         }
         allocate()
         prologue()
@@ -212,7 +225,7 @@ internal class IrCodegen(
     /** Pushes [v] as kind [want]: unchanged, an int widened, or boxed. */
     private fun load(v: Value, want: Byte) {
         if (v is Const) return pushConst(v, want)
-        val l = local[v] ?: throw JitBailout("v${v.id} has no local")
+        val l = local[v] ?: throw JitBailout("v${v.id} has no local (${v.javaClass.simpleName} ${(v as? Inst)?.let { Ir.name(it.op) + " result " + it.hasResult } ?: ""})")
         val k = v.kind
         mv.visitVarInsn(when (k) { JT.NUM -> DLOAD; JT.INT, JT.BOOL -> ILOAD; else -> ALOAD }, l)
         convert(k, want)
@@ -281,6 +294,16 @@ internal class IrCodegen(
         mv.visitVarInsn(ASTORE, L_AGENT)
         iconst(4096)
         mv.visitVarInsn(ISTORE, L_BUDGET)
+        // homes start with a value of their kind (the verifier wants them assigned where a handler reads them)
+        for ((r, k) in homeKind) {
+            val l = slotFor(k)
+            homeLocal[r] = l
+            when (k) {
+                JT.NUM -> { mv.visitInsn(DCONST_0); mv.visitVarInsn(DSTORE, l) }
+                JT.INT, JT.BOOL -> { mv.visitInsn(ICONST_0); mv.visitVarInsn(ISTORE, l) }
+                else -> { pushUndefined(); mv.visitVarInsn(ASTORE, l) }
+            }
+        }
         constsLocal[g.code] = L_CONSTS
         val codes = LinkedHashSet<dev.mooner.neonjs.compiler.CodeBlock>()
         for (b in g.blocks) {
@@ -418,6 +441,7 @@ internal class IrCodegen(
         for (i in b.insts) {
             if (i.isTerminator) terminator(b, i) else inst(i)
         }
+        mv.visitLabel(endLabel[b])
     }
 
     /** The edge from [b] to [s]: the interrupt check of a back edge, the copies into [s]'s phis, the jump. */
@@ -436,9 +460,32 @@ internal class IrCodegen(
     private fun terminator(b: Block, i: Inst) {
         when (i.op) {
             Ir.GOTO -> edge(b, i.targets[0])
+            Ir.SWITCH -> {
+                load(i.inputs[0], JT.ANY)
+                rt("toIntIndex", "($OBJ)I")
+                val stubs = Array(i.targets.size) { Label() }
+                if (i.targets.size == 1) {
+                    mv.visitInsn(POP)
+                    mv.visitJumpInsn(GOTO, stubs[0])
+                } else mv.visitTableSwitchInsn(0, i.targets.size - 2, stubs.last(), *stubs.copyOf(i.targets.size - 1))
+                for ((k, t) in i.targets.withIndex()) {
+                    mv.visitLabel(stubs[k])
+                    edge(b, t)
+                }
+            }
             Ir.BRANCH -> {
                 val cond = i.inputs[0]
                 val jump = when (i.a) {
+                    // the next value of an iteration: NotFound or null when it is done
+                    Op.ITER_STEP -> {
+                        load(cond, JT.ANY)
+                        rt("isNotFound", "($OBJ)Z")
+                        IFNE
+                    }
+                    Op.FOR_IN_NEXT -> {
+                        load(cond, JT.ANY)
+                        IFNULL
+                    }
                     Op.JUMP_IF_TRUE, Op.JUMP_IF_FALSE -> {
                         val k = kindOf(cond)
                         load(cond, k)
@@ -656,6 +703,65 @@ internal class IrCodegen(
                     mv.visitInsn(AASTORE)
                 }
                 exits.add(Exit(l, i.state!!, counted = true))
+                return
+            }
+            Ir.CATCH_VALUE -> {
+                // a catch entry: the JVM's exception on the stack becomes the JS value caught (and inlined calls end)
+                frame()
+                rt("catchValue", "(Ljava/lang/Throwable;$FRAME_D)$OBJ")
+                done(i, JT.ANY)
+                return
+            }
+            Ir.SET_HOME -> {
+                val k = homeKind[i.a]!!
+                load(i.inputs[0], k)
+                mv.visitVarInsn(when (k) { JT.NUM -> DSTORE; JT.INT, JT.BOOL -> ISTORE; else -> ASTORE }, homeLocal[i.a]!!)
+                return
+            }
+            Ir.LOAD_HOME -> {
+                val k = homeKind[i.a] ?: JT.ANY
+                val l = homeLocal[i.a]
+                if (l == null) pushUndefined() // never set: the register keeps its initial value
+                else mv.visitVarInsn(when (k) { JT.NUM -> DLOAD; JT.INT, JT.BOOL -> ILOAD; else -> ALOAD }, l)
+                done(i, if (l == null) JT.ANY else k)
+                return
+            }
+            Op.ITER_STEP, Op.ITER_STEP_U -> {
+                storePc(i)
+                load(i.inputs[0], JT.ANY)
+                rt(if (op == Op.ITER_STEP) "iterStep" else "iterStepU", "($OBJ)$OBJ")
+                done(i, JT.ANY)
+                return
+            }
+            Op.FOR_IN_NEXT -> {
+                storePc(i)
+                load(i.inputs[0], JT.ANY)
+                rt("forInNext", "($OBJ)$OBJ")
+                done(i, JT.ANY)
+                return
+            }
+            Op.ITER_REST -> {
+                storePc(i)
+                load(i.inputs[0], JT.ANY)
+                frame()
+                rt("iterRest", "($OBJ$FRAME_D)$OBJ")
+                done(i, JT.ANY)
+                return
+            }
+            Op.ITER_CLOSE, Op.ITER_CLOSE_THROW -> {
+                storePc(i)
+                load(i.inputs[0], JT.ANY)
+                rt(if (op == Op.ITER_CLOSE) "iterClose" else "iterCloseThrow", "($OBJ)V")
+                return
+            }
+            Op.MAKE_METHOD -> {
+                storePc(i)
+                load(i.inputs[0], JT.ANY)
+                frame()
+                consts()
+                iconst(i.a)
+                rt("makeMethod", "($OBJ$FRAME_D${CONSTS_D}I)$OBJ")
+                done(i, JT.ANY)
                 return
             }
             Ir.STRESS_EXIT -> {

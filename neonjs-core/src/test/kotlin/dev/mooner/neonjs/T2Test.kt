@@ -246,6 +246,34 @@ class T2Test {
     }
 
     @Test
+    fun exceptionHandlersAndIteration() {
+        val src = """
+            function boom(v) { if (v % 5 === 2) throw new RangeError('boom ' + v); return v * 2 }
+            function caught(n) { var s = 0, c = 0, last = ''; for (var i = 0; i < n; i++) { try { s += boom(i) } catch (e) { c++; last = e.message } } return [s, c, last] }
+            function fin(n) { var log = []; for (var i = 0; i < n; i++) { try { if (i === 1) continue; if (i === 3) break; log.push('t' + i) } finally { log.push('f' + i) } } return log.join() }
+            function ret(x) { try { if (x) return 'early'; } finally { ret.count = (ret.count | 0) + 1 } return 'late' }
+            function nested(n) { var out = []; for (var i = 0; i < n; i++) { try { try { if (i & 1) throw i; out.push('a' + i) } catch (e) { out.push('c' + e); if (e === 3) throw 'up' } } catch (e) { out.push('o' + e) } } return out.join() }
+            function ofs(a) { var s = 0; for (const x of a) { if (x === 7) break; s += x } return s }
+            function ofSet(n) { const st = new Set(); for (var i = 0; i < n; i++) st.add(i % 7); var t = 0; for (const v of st) t += v; return t }
+            function ins(o) { var ks = []; for (const k in o) ks.push(k + o[k]); return ks.join() }
+            function destr(p) { const [a, b, ...rest] = p; const { x, y = 9 } = { x: a }; return [a, b, rest.length, x, y].join() }
+            function hot(n) { var s = 0.5; try { for (var i = 0; i < n; i++) s = s * 1.0001 + i % 3 } catch (e) { s = -1 } return s.toFixed(3) }
+            """.trimIndent()
+        val names = listOf("caught", "fin", "ret", "nested", "ofs", "ofSet", "ins", "destr", "hot")
+        val expr = "[caught(40), fin(6), ret(1), ret(0), ret.count, nested(6), ofs([1, 2, 3, 7, 9]), ofs([4, 5]), ofSet(30)," +
+            " ins({ a: 1, b: 2 }), destr([1, 2, 3, 4]), hot(5000)].join('|')"
+        val before = JvmCompiler.DEOPT_STRESS
+        try {
+            for (stress in intArrayOf(0, 2)) {
+                JvmCompiler.DEOPT_STRESS = stress
+                same(src, names, expr)
+            }
+        } finally {
+            JvmCompiler.DEOPT_STRESS = before
+        }
+    }
+
+    @Test
     fun errorsAndTdz() {
         same(
             """

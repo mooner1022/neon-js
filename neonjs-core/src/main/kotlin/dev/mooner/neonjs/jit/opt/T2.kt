@@ -27,6 +27,7 @@ object T2 {
     @JvmField val SPECULATE: Boolean = System.getProperty("neonjs.jit.t2Speculate") != "false"
 
     private val counter = AtomicLong()
+    private val debugShown = AtomicLong()
     /** Blocks compiled, and those that could not be, by reason; code that deoptimized too often (T2Code.exit). */
     @JvmField val compiledCount = AtomicLong()
     @JvmField val reverted = AtomicLong()
@@ -41,7 +42,14 @@ object T2 {
             if (cb.t2Off) throw JitBailout("deoptimized too often")
             val g = IrBuilder(cb, JvmCompiler.INT32, JvmCompiler.ELEMS, stressExits = JvmCompiler.DEOPT_STRESS > 0).build()
             val name = "dev/mooner/neonjs/jit/T2$" + JvmCompiler.sanitize(cb.name) + "$" + counter.incrementAndGet()
-            val bytes = IrCodegen.generate(g, name, definer.classFileVersion, JvmCompiler.INT32, JvmCompiler.ELEMS)
+            val bytes = try {
+                IrCodegen.generate(g, name, definer.classFileVersion, JvmCompiler.INT32, JvmCompiler.ELEMS)
+            } catch (e: JitBailout) {
+                if (System.getProperty("neonjs.jit.t2Debug") != null && e.message!!.contains("no local") && debugShown.incrementAndGet() <= 2) {
+                    System.err.println("T2DEBUG ${cb.name}: ${e.message}\n${cb.sourceText()?.take(800)}\n${IrPrinter.print(g)}")
+                }
+                throw e
+            }
             JvmCompiler.DUMP_DIR?.let { dir -> runCatching { java.io.File(dir, name.substringAfterLast('/') + ".class").writeBytes(bytes) } }
             val cls = definer.define(name.replace('/', '.'), bytes, JvmCompiler::class.java.classLoader)
             val code = cls.getDeclaredConstructor(Array<Any?>::class.java, CodeBlock::class.java).newInstance(g.data.toTypedArray(), cb) as CompiledCode

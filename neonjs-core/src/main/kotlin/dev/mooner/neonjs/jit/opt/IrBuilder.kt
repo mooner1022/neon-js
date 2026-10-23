@@ -89,7 +89,7 @@ internal class IrBuilder(
      * Its bytecode blocks become blocks (an inlined call splits one: the instructions after the call continue in the
      * block where the callee's returns meet).
      */
-    private inner class Body(val code: CodeBlock, val site: InlineSite?) {
+    private inner class Body(val code: CodeBlock, val site: InlineSite?, /** For an inlined body: the handler around its call. */ val outerHandler: Block? = null) {
         val bc = code.code
         val nregs = code.numRegs
         /** The block of each bytecode block, by its first pc. */
@@ -105,23 +105,125 @@ internal class IrBuilder(
         /** For an inlined body: the block its returns jump to, and the values they return, by predecessor of it. */
         var join: Block? = null
         val returned = ArrayList<Value>()
+        /** The state on the edge to [Pair.first] where it differs from [stateOut] (ITER_STEP's: without the value). */
+        val edgeOut = HashMap<Block, Pair<Block, Array<Value>>>()
+        /** The exception entry of each handler, by its pc; the registers some handler may read (kept in homes). */
+        val catchEntries = HashMap<Int, Block>()
+        var homeRegs = IntArray(0)
 
         /** Builds the body entered from [from] (which jumps to its first block) with registers [regs]. */
         fun build(from: Block, regs: Array<Value>) {
-            if (code.handlers.isNotEmpty()) throw JitBailout("exception handlers")
+            if (site != null && code.handlers.isNotEmpty()) throw JitBailout("exception handlers in an inlined body")
             scan()
-            order = reversePostOrder(blockAt[0]!!)
-            val first = order[0]
+            val h = code.handlers
+            for (k in h.indices step 4) catchEntries.getOrPut(h[k + 2]) { newBlock(h[k + 2], site).also { it.catchEntry = true } }
+            // the code reached from the start, then the handlers (reached by exceptions only)
+            order = reversePostOrder(listOf(blockAt[0]!!) + catchEntries.keys.sorted().map { blockAt[it]!! })
+            val first = blockAt[0]!!
             // every predecessor, before any block is built: a block with more than one gets phis
             first.preds.add(from)
             for (b in order) for (s in successors(b.pc)) blockAt[s]!!.preds.add(b)
+            for ((pc, e) in catchEntries) blockAt[pc]!!.preds.add(e)
+            for (b in order) b.handler = coverOf(b.pc) ?: outerHandler
+            if (catchEntries.isNotEmpty()) homeRegs = homes()
             goto(from, first)
             stateOut[from] = regs
             depthOut[from] = 0
+            for ((pc, e) in catchEntries) buildCatchEntry(e, pc)
             for (b in order) buildBlock(b)
             for (b in order) fillPhis(b)
             // the edges out of a bytecode block leave from its last block
             for (b in order) for (k in b.preds.indices) b.preds[k] = tail[b.preds[k]] ?: b.preds[k]
+        }
+
+        /** The exception entry of the innermost handler whose range covers [pc] (handlers list inner ones first). */
+        private fun coverOf(pc: Int): Block? {
+            val h = code.handlers
+            for (k in h.indices step 4) if (pc >= h[k] && pc < h[k + 1]) return catchEntries[h[k + 2]]
+            return null
+        }
+
+        /**
+         * A handler's entry: the exception's value on the stack (the JVM empties it, as T1's code does: handlers whose
+         * code needs values below it are not built) and the registers the handler may read from their homes.
+         */
+        private fun buildCatchEntry(e: Block, pc: Int) {
+            val caught = add(e, Inst(Ir.CATCH_VALUE, NO_VALUES, 0, 0, 0, pc, stmtOf[pc]).also { it.hasResult = true })
+            val live = liveIn[pc]
+            val regs = Array<Value>(nregs) { r ->
+                if (live[r]) add(e, Inst(Ir.LOAD_HOME, NO_VALUES, r, 0, 0, pc, -1).also { it.hasResult = true }) else undefined()
+            }
+            goto(e, blockAt[pc]!!)
+            stateOut[e] = arrayOf(*regs, caught)
+            depthOut[e] = 1
+        }
+
+        /** Registers live before each instruction, exceptions included (computed by [homes]). */
+        lateinit var liveIn: Array<BooleanArray>
+
+        /** The registers live at some handler's start: those kept in homes. */
+        private fun homes(): IntArray {
+            val pcs = ArrayList<Int>()
+            var p = 0
+            while (p < bc.size) {
+                pcs.add(p)
+                p += Op.length(bc, p)
+            }
+            liveIn = Array(bc.size) { BooleanArray(nregs) }
+            var changed = true
+            while (changed) {
+                changed = false
+                for (pc in pcs.asReversed()) {
+                    val op = bc[pc]
+                    val live = BooleanArray(nregs)
+                    for (s in instSuccessors(pc)) {
+                        val l = liveIn[s]
+                        for (r in 0 until nregs) if (l[r]) live[r] = true
+                    }
+                    val (use, def) = regUse(pc, op)
+                    if (def >= 0) live[def] = false
+                    if (use >= 0) live[use] = true
+                    // an exception before the instruction ends goes to the handler with the registers as they are
+                    coverOf(pc)?.let { _ -> handlerOf(pc)?.let { hp -> val l = liveIn[hp]; for (r in 0 until nregs) if (l[r]) live[r] = true } }
+                    if (!live.contentEquals(liveIn[pc])) {
+                        liveIn[pc] = live
+                        changed = true
+                    }
+                }
+            }
+            val out = ArrayList<Int>()
+            for (r in 0 until nregs) if (catchEntries.keys.any { liveIn[it][r] }) out.add(r)
+            return out.toIntArray()
+        }
+
+        private fun handlerOf(pc: Int): Int? {
+            val h = code.handlers
+            for (k in h.indices step 4) if (pc >= h[k] && pc < h[k + 1]) return h[k + 2]
+            return null
+        }
+
+        /** The pcs control goes to after the instruction at [pc] (exceptions aside). */
+        private fun instSuccessors(pc: Int): List<Int> {
+            val op = bc[pc]
+            val next = pc + Op.length(bc, pc)
+            return when {
+                op == Op.JUMP -> listOf(bc[pc + 1])
+                isJumpOp(op) -> listOf(bc[pc + 1], next)
+                op == Op.ITER_STEP || op == Op.FOR_IN_NEXT -> listOf(bc[pc + 2], next)
+                op == Op.JUMP_TABLE -> List(bc[pc + 2] + 1) { bc[pc + 3 + it] }
+                op == Op.RETURN || op == Op.THROW || op == Op.THROW_ERROR -> emptyList()
+                next < bc.size -> listOf(next)
+                else -> emptyList()
+            }
+        }
+
+        /** The register the instruction at [pc] reads (or -1), and the one it writes (or -1). */
+        private fun regUse(pc: Int, op: Int): Pair<Int, Int> = when (op) {
+            Op.LOAD_REG, Op.LOAD_REG_TDZ, Op.CHECK_REG_TDZ, Op.ITER_STEP, Op.ITER_STEP_U, Op.ITER_REST, Op.ITER_CLOSE,
+            Op.ITER_CLOSE_THROW, Op.FOR_IN_NEXT, Op.JUMP_TABLE -> bc[pc + 1] to -1
+            Op.MAKE_METHOD -> bc[pc + 2] to -1
+            Op.STORE_REG -> -1 to bc[pc + 1]
+            else -> -1 to -1
         }
 
         private fun scan() {
@@ -131,16 +233,30 @@ internal class IrBuilder(
             while (pc < bc.size) {
                 val op = bc[pc]
                 val len = Op.length(bc, pc)
-                if (!isJumpOp(op) && op != Op.RETURN && op != Op.THROW && op != Op.THROW_ERROR && arity(bc, op, pc) < 0) {
+                if (!isJumpOp(op) && op != Op.RETURN && op != Op.THROW && op != Op.THROW_ERROR && arity(bc, op, pc) < 0 &&
+                    op !in BUILT_OPS) {
                     throw JitBailout("unsupported op ${Op.names[op]}")
                 }
                 if (isJumpOp(op)) {
                     leader[bc[pc + 1]] = true
                     leader[pc + len] = true
+                } else if (op == Op.ITER_STEP || op == Op.FOR_IN_NEXT) {
+                    leader[bc[pc + 2]] = true
+                    leader[pc + len] = true
+                } else if (op == Op.JUMP_TABLE) {
+                    for (k in 0..bc[pc + 2]) leader[bc[pc + 3 + k]] = true
+                    leader[pc + len] = true
                 } else if (op == Op.RETURN || op == Op.THROW || op == Op.THROW_ERROR) leader[pc + len] = true
                 pc += len
             }
-            for (p in 0 until bc.size) if (leader[p]) blockAt[p] = Block(-1, p, site)
+            // a handler's range starts and ends blocks, so that each block is in a range or not
+            val h = code.handlers
+            for (k in h.indices step 4) {
+                leader[h[k]] = true
+                leader[h[k + 1]] = true
+                leader[h[k + 2]] = true
+            }
+            for (p in 0 until bc.size) if (leader[p] && isInstStart(p)) blockAt[p] = Block(-1, p, site)
             val lt = code.lineTable
             var stmt = -1
             var k = 0
@@ -166,6 +282,8 @@ internal class IrBuilder(
                 when {
                     op == Op.JUMP -> return listOf(bc[pc + 1])
                     isJumpOp(op) -> return if (bc[pc + 1] == next) listOf(next) else listOf(bc[pc + 1], next)
+                    op == Op.ITER_STEP || op == Op.FOR_IN_NEXT -> return listOf(bc[pc + 2], next)
+                    op == Op.JUMP_TABLE -> return List(bc[pc + 2] + 1) { bc[pc + 3 + it] }
                     op == Op.RETURN || op == Op.THROW || op == Op.THROW_ERROR -> return emptyList()
                 }
                 if (next >= bc.size) throw JitBailout("control flow leaves the code")
@@ -174,10 +292,12 @@ internal class IrBuilder(
             }
         }
 
-        private fun reversePostOrder(first: Block): List<Block> {
+        private fun reversePostOrder(roots: List<Block>): List<Block> {
             val post = ArrayList<Block>()
             val state = HashMap<Block, Int>() // 1 on the DFS stack, 2 done
             val stack = ArrayDeque<Pair<Block, Iterator<Int>>>()
+            for (first in roots.asReversed()) {
+            if (state.containsKey(first)) continue
             state[first] = 1
             stack.addLast(first to successors(first.pc).iterator())
             while (stack.isNotEmpty()) {
@@ -197,9 +317,16 @@ internal class IrBuilder(
                     post.add(b)
                 }
             }
+            }
             post.reverse()
             for (b in post) made.add(b)
             return post
+        }
+
+        private fun isInstStart(p: Int): Boolean {
+            var pc = 0
+            while (pc < p) pc += Op.length(bc, pc)
+            return pc == p
         }
 
         private fun buildBlock(b: Block) {
@@ -208,9 +335,9 @@ internal class IrBuilder(
             val preds = b.preds
             // the state of its one predecessor (built before it), or a phi per register and stack slot
             val built = preds.firstOrNull { stateOut.containsKey(it) } ?: throw JitBailout("block at ${b.pc} has no predecessor built before it")
-            val depth = depthOut[built]!!
+            val depth = stateOn(built, b).size - nregs
             if (preds.size == 1) {
-                val e = stateOut[built]!!
+                val e = stateOn(built, b)
                 regs = Array(nregs) { e[it] }
                 for (i in 0 until depth) stack.add(e[nregs + i])
             } else {
@@ -225,6 +352,12 @@ internal class IrBuilder(
             }
             var cur = b
             fun state(pc: Int) = FrameState(pc, Array(nregs + stack.size) { if (it < nregs) regs[it]!! else stack[it - nregs] }, site)
+            // in a handler's range: the registers it may read where it finds them
+            val homed = site == null && b.handler != null && homeRegs.isNotEmpty()
+            fun home(r: Int) {
+                if (homed && r in homeRegs) add(cur, Inst(Ir.SET_HOME, arrayOf(regs[r]!!), r, 0, 0, -1, -1))
+            }
+            if (homed) for (r in homeRegs) home(r)
             if (stressExits && (b.pc == 0 || b.loopHeader)) {
                 add(cur, Inst(Ir.STRESS_EXIT, NO_VALUES, 0, 0, 0, b.pc, stmtOf[b.pc])).state = state(b.pc)
             }
@@ -275,7 +408,10 @@ internal class IrBuilder(
                     Op.ROT3 -> permute(3, intArrayOf(2, 0, 1))
                     Op.ROT4 -> permute(4, intArrayOf(3, 0, 1, 2))
                     Op.LOAD_REG -> stack.add(regs[a]!!)
-                    Op.STORE_REG -> regs[a] = pop()
+                    Op.STORE_REG -> {
+                        regs[a] = pop()
+                        home(a)
+                    }
                     Op.LOAD_REG_TDZ -> stack.add(add(cur, Inst(Ir.CHECK_TDZ, arrayOf(regs[a]!!), bb, 0, 0, pc, stmt).also { it.hasResult = true }))
                     Op.CHECK_REG_TDZ -> add(cur, Inst(Ir.CHECK_TDZ, arrayOf(regs[a]!!), bb, 0, 0, pc, stmt))
                     // an inlined body's `this` was bound when it was entered
@@ -297,6 +433,27 @@ internal class IrBuilder(
                         goto(cur, blockAt[a]!!)
                         return
                     }
+                    Op.ITER_STEP, Op.FOR_IN_NEXT -> {
+                        // the next value (ITER_STEP: NotFound when done; FOR_IN_NEXT: null), pushed where it goes on
+                        val v = add(cur, Inst(op, arrayOf(regs[a]!!), a, bb, 0, pc, stmt).also { it.hasResult = true })
+                        val done = blockAt[bb]!!
+                        edgeOut[b] = done to Array(nregs + stack.size) { if (it < nregs) regs[it]!! else stack[it - nregs] }
+                        stack.add(v)
+                        end()
+                        add(cur, Inst(Ir.BRANCH, arrayOf(v), op, 0, 0, pc, stmt)).targets = listOf(done, blockAt[pc + len]!!)
+                        return
+                    }
+                    Op.JUMP_TABLE -> {
+                        // reg count t0..t(count-1) default: operands the fixed decoding above does not read
+                        val reg = bc[pc + 1]
+                        val count = bc[pc + 2]
+                        end()
+                        add(cur, Inst(Ir.SWITCH, arrayOf(regs[reg]!!), 0, 0, 0, pc, stmt)).targets = List(count + 1) { blockAt[bc[pc + 3 + it]]!! }
+                        return
+                    }
+                    Op.ITER_STEP_U, Op.ITER_REST -> inst(op, arrayOf(regs[a]!!), result = true)
+                    Op.ITER_CLOSE, Op.ITER_CLOSE_THROW -> inst(op, arrayOf(regs[a]!!), result = false)
+                    Op.MAKE_METHOD -> inst(op, arrayOf(regs[bb]!!), result = true)
                     Op.JUMP_IF_TRUE, Op.JUMP_IF_FALSE, Op.JUMP_IF_NULLISH, Op.JUMP_IF_NOT_NULLISH, Op.JUMP_IF_UNDEFINED,
                     Op.JUMP_IF_NOT_UNDEFINED -> {
                         val cond = pop()
@@ -404,11 +561,15 @@ internal class IrBuilder(
             }
         }
 
+        /** The state on the edge from [p] to [b]. */
+        private fun stateOn(p: Block, b: Block): Array<Value> = edgeOut[p]?.takeIf { it.first === b }?.second ?: stateOut[p]!!
+
         private fun fillPhis(b: Block) {
             if (b.phis.isEmpty()) return
             val depth = b.phis.size - nregs
             for (p in b.preds) {
-                val e = stateOut[p] ?: throw JitBailout("unbuilt predecessor of the block at ${b.pc}")
+                if (!stateOut.containsKey(p)) throw JitBailout("unbuilt predecessor of the block at ${b.pc}")
+                val e = stateOn(p, b)
                 if (e.size != nregs + depth) throw JitBailout("operand stack depth differs at ${b.pc}")
                 for ((k, phi) in b.phis.withIndex()) phi.inputs.add(e[k])
             }
@@ -463,8 +624,9 @@ internal class IrBuilder(
             val args = Array(argc) { ops[2 + it] }
             val calleeSite = InlineSite(site, target, pc, callerState, fn, thisValue, args, env)
             g.dataIndex(target.constants)
-            val body = Body(target, calleeSite)
+            val body = Body(target, calleeSite, cur.handler)
             val join = newBlock(pc, site)
+            join.handler = cur.handler
             body.join = join
             val calleeRegs = Array<Value>(target.numRegs) { undefined() }
             target.paramRegs?.forEachIndexed { i, r -> if (r >= 0 && i < argc) calleeRegs[r] = args[i] }
@@ -522,9 +684,12 @@ internal class IrBuilder(
         val post = ArrayList<Block>()
         val state = HashMap<Block, Int>()
         val stack = ArrayDeque<Pair<Block, Iterator<Block>>>()
-        state[start] = 1
-        stack.addLast(start to start.succs.iterator())
         for (b in made) b.loopHeader = false
+        // from the start, and from each exception entry (which only exceptions reach)
+        for (root in (listOf(start) + made.filter { it.catchEntry }).asReversed()) {
+        if (state.containsKey(root)) continue
+        state[root] = 1
+        stack.addLast(root to root.succs.iterator())
         while (stack.isNotEmpty()) {
             val (b, succ) = stack.last()
             if (succ.hasNext()) {
@@ -541,6 +706,7 @@ internal class IrBuilder(
                 state[b] = 2
                 post.add(b)
             }
+        }
         }
         post.reverse()
         for ((k, b) in post.withIndex()) b.id = k
@@ -589,12 +755,19 @@ internal class IrBuilder(
             }
         }
         val sites = HashSet<InlineSite>()
+        lateinit var resolveSite: (InlineSite?) -> Unit
         fun resolveState(s: FrameState) {
             for (k in s.values.indices) s.values[k] = resolve(s.values[k])
-            var site = s.site
+            resolveSite(s.site)
+        }
+        resolveSite = { s0 ->
+            var site = s0
             while (site != null && sites.add(site)) {
                 resolveState(site.callerState)
                 for (k in site.args.indices) site.args[k] = resolve(site.args[k])
+                site.fn = resolve(site.fn)
+                site.thisValue = resolve(site.thisValue)
+                site.env = resolve(site.env)
                 site = site.parent
             }
         }
@@ -606,6 +779,8 @@ internal class IrBuilder(
                 i.state?.let { resolveState(it) }
             }
             b.entryRegs?.let { e -> for (k in e.indices) e[k] = resolve(e[k]) }
+            // an inlined body reads its site's values (its environment) even where no exit is
+            resolveSite(b.site)
         }
     }
 
@@ -639,6 +814,10 @@ internal class IrBuilder(
 
     companion object {
         private val NO_VALUES = arrayOf<Value>()
+
+        /** Instructions with no [arity] that the builder builds itself (iteration, the finally dispatch, methods). */
+        private val BUILT_OPS = setOf(Op.ITER_STEP, Op.FOR_IN_NEXT, Op.JUMP_TABLE, Op.ITER_STEP_U, Op.ITER_REST,
+            Op.ITER_CLOSE, Op.ITER_CLOSE_THROW, Op.MAKE_METHOD)
 
         /** Calls compiled inlined into one another at most; bytecode ints of one callee and of all of them, at most. */
         const val MAX_INLINE_DEPTH = 3

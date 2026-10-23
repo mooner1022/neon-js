@@ -67,9 +67,18 @@ internal class Kinds(private val ints: Boolean, private val elems: Boolean) {
             for (p in b.phis) p.kind = none
             for (i in b.insts) i.kind = if (i.hasResult) none else JT.ANY
         }
+        // a register's home holds every value SET_HOME stores in it: their join
+        val homes = HashMap<Int, Byte>()
         var changed = true
         while (changed) {
             changed = false
+            homes.clear()
+            for (b in g.blocks) for (i in b.insts) if (i.op == Ir.SET_HOME) {
+                val k = of(i.inputs[0])
+                if (k == none) continue
+                val h = homes[i.a]
+                homes[i.a] = if (h == null) k else JT.join(h, k)
+            }
             for (b in g.blocks) {
                 for (p in b.phis) {
                     var k = none
@@ -87,7 +96,7 @@ internal class Kinds(private val ints: Boolean, private val elems: Boolean) {
                     if (!i.hasResult) continue
                     // an input without a kind yet (a phi of a loop not seen through): wait for it
                     if (i.inputs.any { of(it) == none }) continue
-                    val k = result(i)
+                    val k = if (i.op == Ir.LOAD_HOME) homes[i.a] ?: JT.ANY else result(i)
                     if (k != i.kind) {
                         i.kind = k
                         changed = true

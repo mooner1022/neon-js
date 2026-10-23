@@ -48,6 +48,12 @@ class Block(@JvmField var id: Int, @JvmField val pc: Int, @JvmField val site: In
      */
     @JvmField var entryRegs: Array<Value>? = null
     @JvmField var entryDepth = 0
+    /**
+     * The exception entry of the innermost handler whose range covers this block (null: none): what an exception
+     * thrown by its code goes to. [catchEntry] marks such entries, which no other block jumps to.
+     */
+    @JvmField var handler: Block? = null
+    @JvmField var catchEntry = false
 
     val term: Inst get() = insts.last()
 
@@ -128,10 +134,10 @@ class InlineSite(
     @JvmField val code: CodeBlock,
     @JvmField val callPc: Int,
     @JvmField val callerState: FrameState,
-    @JvmField val fn: Value,
-    @JvmField val thisValue: Value,
+    @JvmField var fn: Value,
+    @JvmField var thisValue: Value,
     @JvmField val args: Array<Value>,
-    @JvmField val env: Value,
+    @JvmField var env: Value,
 ) {
     /** 1 for a call in the function compiled, 2 for a call in that callee's body, and so on. */
     @JvmField val depth: Int = (parent?.depth ?: 0) + 1
@@ -184,6 +190,15 @@ object Ir {
      */
     const val LOAD_SLOT = 1010
     const val STORE_SLOT = 1011
+    /**
+     * Exception handlers: CATCH_VALUE, the first instruction of a catch entry, is the caught exception's value
+     * (JitRt.catchValue); SET_HOME(value) keeps register [Inst.a]'s value where a handler reads it when an exception
+     * comes (LOAD_HOME, in the catch entry): each register a handler may read is set at the start of every block a range
+     * covers and wherever it changes there.
+     */
+    const val CATCH_VALUE = 1012
+    const val SET_HOME = 1013
+    const val LOAD_HOME = 1014
     /** Terminators. GOTO; BRANCH(value): [Inst.a] is the bytecode jump tested (JUMP_IF_TRUE and the like). */
     const val GOTO = 1100
     const val BRANCH = 1101
@@ -191,6 +206,8 @@ object Ir {
     const val RETURN = 1102
     const val THROW = 1103
     const val THROW_ERROR = 1104
+    /** SWITCH(index) the finally dispatch (JUMP_TABLE): to target k for index k, else to the last. */
+    const val SWITCH = 1105
 
     fun isTerminator(op: Int) = op >= GOTO
 
@@ -207,6 +224,10 @@ object Ir {
         CHECK_INT32 -> "CheckInt32"
         LOAD_SLOT -> "LoadSlot"
         STORE_SLOT -> "StoreSlot"
+        CATCH_VALUE -> "CatchValue"
+        SET_HOME -> "SetHome"
+        LOAD_HOME -> "LoadHome"
+        SWITCH -> "Switch"
         GOTO -> "Goto"
         BRANCH -> "Branch"
         RETURN -> "Return"
