@@ -139,25 +139,6 @@ object JvmCompiler {
         return null
     }
 
-    private const val FRAME = "dev/mooner/neonjs/vm/Frame"
-    private const val RT = "dev/mooner/neonjs/jit/JitRt"
-    private const val OBJ = "Ljava/lang/Object;"
-    private const val FRAME_D = "Ldev/mooner/neonjs/vm/Frame;"
-    private const val AGENT = "dev/mooner/neonjs/runtime/Agent"
-    private const val CLOSURE = "dev/mooner/neonjs/vm/JSClosure"
-    private const val CLOSURE_D = "Ldev/mooner/neonjs/vm/JSClosure;"
-    private const val CODEBLOCK = "dev/mooner/neonjs/compiler/CodeBlock"
-    private const val CODEBLOCK_D = "Ldev/mooner/neonjs/compiler/CodeBlock;"
-    private const val REALM_D = "Ldev/mooner/neonjs/runtime/Realm;"
-    private const val AGENT_D = "Ldev/mooner/neonjs/runtime/Agent;"
-    private const val CONSTS_D = "[Ljava/lang/Object;"
-
-    private const val L_FRAME = 1
-    private const val L_CONSTS = 2
-    private const val L_AGENT = 3
-    private const val L_BUDGET = 4
-    private const val L_REGS = 5
-
     /** Most instructions after a GET_ELEM compiled twice (Gen.planSplit). */
     private const val MAX_SPLIT = 6
 
@@ -431,14 +412,14 @@ object JvmCompiler {
 
     private class Gen(
         val cb: JitInput,
-        val mv: MethodVisitor,
+        mv: MethodVisitor,
         val typed: Boolean,
         /** For the body of a callee inlined into another function: that function's generator (whose method it is). */
         val outer: Gen? = null,
         argKinds: ByteArray? = null,
         /** Whether [JitInput.inlineSites] are compiled inlined. */
         inlining: Boolean = false,
-    ) {
+    ) : JvmEmitter(mv) {
         val code = cb.code
         val labels = HashMap<Int, Label>()
         val handlerLabels = HashMap<Int, Label>()
@@ -499,62 +480,19 @@ object JvmCompiler {
         fun label(pc: Int): Label = labels.getOrPut(pc) { Label() }
 
         /** [n] new JVM locals, from the outermost generator (the method's). */
-        fun alloc(n: Int): Int = if (outer != null) outer.alloc(n) else nextTemp.also { nextTemp += n }
-
-        fun temp(): Int = alloc(1)
-        fun tempD(): Int = alloc(2)
+        override fun alloc(n: Int): Int = if (outer != null) outer.alloc(n) else nextTemp.also { nextTemp += n }
 
         fun reg(r: Int) = regBase + r
 
-        fun rt(name: String, desc: String) = mv.visitMethodInsn(INVOKESTATIC, RT, name, desc, false)
-
-        fun iconst(v: Int) {
-            when (v) {
-                in -1..5 -> mv.visitInsn(ICONST_0 + v)
-                in Byte.MIN_VALUE..Byte.MAX_VALUE -> mv.visitIntInsn(BIPUSH, v)
-                in Short.MIN_VALUE..Short.MAX_VALUE -> mv.visitIntInsn(SIPUSH, v)
-                else -> mv.visitLdcInsn(v)
-            }
-        }
-
-        fun frame() = mv.visitVarInsn(ALOAD, L_FRAME)
-        fun consts() = mv.visitVarInsn(ALOAD, inl?.constsLocal ?: L_CONSTS)
+        override fun consts() = mv.visitVarInsn(ALOAD, inl?.constsLocal ?: L_CONSTS)
+        override fun inlinedEnv(): Int = inl?.envLocal ?: -1
+        override fun inlinedThis(): Int = inl?.thisLocal ?: -1
+        override val inInlinedBody: Boolean get() = inl != null
 
         /** The Frame field recording the position: an inlined body's is inlinePc ([Frame.pc] stays at its call). */
         fun pcField() = if (inl != null) "inlinePc" else "pc"
 
-        fun constant(k: Int) {
-            consts()
-            iconst(k)
-            mv.visitInsn(AALOAD)
-        }
-
-        fun getstatic(owner: String, field: String, desc: String) = mv.visitFieldInsn(GETSTATIC, owner, field, desc)
-
-        fun pushUndefined() = getstatic("dev/mooner/neonjs/runtime/Undefined", "INSTANCE", "Ldev/mooner/neonjs/runtime/Undefined;")
-
         /** Value on the stack is [dev.mooner.neonjs.vm.Interpreter.TAIL]: return it so the caller performs the tail call. */
-        fun returnIfTail() {
-            mv.visitInsn(DUP)
-            getstatic("dev/mooner/neonjs/vm/Interpreter", "TAIL", OBJ)
-            val cont = Label()
-            mv.visitJumpInsn(IF_ACMPNE, cont)
-            mv.visitInsn(ARETURN)
-            mv.visitLabel(cont)
-        }
-
-        fun packArray(n: Int) {
-            val temps = IntArray(n) { temp() }
-            for (i in n - 1 downTo 0) mv.visitVarInsn(ASTORE, temps[i])
-            iconst(n)
-            mv.visitTypeInsn(ANEWARRAY, "java/lang/Object")
-            for (i in 0 until n) {
-                mv.visitInsn(DUP)
-                iconst(i)
-                mv.visitVarInsn(ALOAD, temps[i])
-                mv.visitInsn(AASTORE)
-            }
-        }
 
         fun interruptCheck() {
             val ok = Label()
@@ -1238,47 +1176,14 @@ object JvmCompiler {
         // ------------------------------------------------------------------ unboxed values
 
         /** Boxes the value of [kind] on top of the JVM stack into the Object the generic code expects. */
-        private fun box(kind: Byte) {
-            when (kind) {
-                JT.NUM -> mv.visitMethodInsn(INVOKESTATIC, "dev/mooner/neonjs/runtime/Ops", "num", "(D)$OBJ", false)
-                JT.INT -> mv.visitMethodInsn(INVOKESTATIC, "dev/mooner/neonjs/runtime/Ops", "num", "(I)$OBJ", false)
-                JT.BOOL -> mv.visitMethodInsn(INVOKESTATIC, "java/lang/Boolean", "valueOf", "(Z)Ljava/lang/Boolean;", false)
-            }
-        }
 
         /** Converts the value of kind [from] on top of the JVM stack to kind [to]: unchanged, an int widened, or boxed. */
-        private fun convert(from: Byte, to: Byte) {
-            when {
-                from == to -> {}
-                to == JT.ANY -> box(from)
-                from == JT.INT && to == JT.NUM -> mv.visitInsn(I2D)
-                else -> throw JitBailout("cannot narrow a stack value")
-            }
-        }
-
-        private fun popValue(kind: Byte) = mv.visitInsn(if (kind == JT.NUM) POP2 else POP)
 
         /** The int on top of the JVM stack as a double (unchanged if [kind] is NUM). */
-        private fun toDouble(kind: Byte) = convert(kind, JT.NUM)
 
         /** ToInt32 of the number of [kind] on top of the JVM stack. */
-        private fun toInt32(kind: Byte) {
-            if (kind == JT.NUM) rt("toInt32D", "(D)I")
-        }
 
         /** The Object on top of the JVM stack is a Double (TypeAnalysis says so): its double value. */
-        private fun unboxNum() {
-            mv.visitTypeInsn(CHECKCAST, "java/lang/Double")
-            mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Double", "doubleValue", "()D", false)
-        }
-
-        private fun storeTemp(kind: Byte): Int = when (kind) {
-            JT.NUM -> tempD().also { mv.visitVarInsn(DSTORE, it) }
-            JT.BOOL, JT.INT -> temp().also { mv.visitVarInsn(ISTORE, it) }
-            else -> temp().also { mv.visitVarInsn(ASTORE, it) }
-        }
-
-        private fun loadTemp(kind: Byte, t: Int) = mv.visitVarInsn(when (kind) { JT.NUM -> DLOAD; JT.BOOL, JT.INT -> ILOAD; else -> ALOAD }, t)
 
         /**
          * Makes the stack kinds [want] (same depth): every slot is unchanged, an int widened to a double, or boxed. Slots
@@ -1323,26 +1228,6 @@ object JvmCompiler {
         }
 
         /** Pushes 0 or 1 for the comparison of the two doubles on the stack. */
-        private fun compareDoubles(op: Int) {
-            // NaN: DCMPG gives 1 (so < and <= are false), DCMPL -1 (so > and >= are false); == and != use DCMPL
-            val (cmp, jump) = when (op) {
-                Op.LT -> DCMPG to IFLT
-                Op.LE -> DCMPG to IFLE
-                Op.GT -> DCMPL to IFGT
-                Op.GE -> DCMPL to IFGE
-                Op.EQ, Op.SEQ -> DCMPL to IFEQ
-                else -> DCMPL to IFNE // NE, SNE
-            }
-            mv.visitInsn(cmp)
-            val yes = Label()
-            val done = Label()
-            mv.visitJumpInsn(jump, yes)
-            mv.visitInsn(ICONST_0)
-            mv.visitJumpInsn(GOTO, done)
-            mv.visitLabel(yes)
-            mv.visitInsn(ICONST_1)
-            mv.visitLabel(done)
-        }
 
         /** Jumps to [target] if the int on the stack satisfies [jump], boxing on the way what the target expects. */
         private fun branch(jump: Int, target: Int, ta: TypeAnalysis) {
@@ -1563,26 +1448,6 @@ object JvmCompiler {
         }
 
         /**
-         * The truth value of the value of [kind] on the stack, as an int that is 0 for false: 0 or 1, or (for INT, unless
-         * [normalized]) the int itself.
-         */
-        private fun truth(kind: Byte, normalized: Boolean = false) {
-            when (kind) {
-                JT.BOOL -> {}
-                JT.INT -> if (normalized) {
-                    // (x | -x) >>> 31: 1 for every int but 0
-                    mv.visitInsn(DUP)
-                    mv.visitInsn(INEG)
-                    mv.visitInsn(IOR)
-                    iconst(31)
-                    mv.visitInsn(IUSHR)
-                }
-                JT.NUM -> rt("truthyD", "(D)Z")
-                else -> rt("truthy", "($OBJ)Z")
-            }
-        }
-
-        /**
          * A binary operator with at least one number operand ([cls] NN, NA or AN) giving [result]; booleans are boxed
          * first. With INT, bitwise operators on two numbers are JVM int operations on their ToInt32s and comparisons of two
          * ints are int comparisons; everything else is done on doubles (ints are widened).
@@ -1675,59 +1540,6 @@ object JvmCompiler {
         }
 
         /** Pushes 0 or 1 for the comparison of the two ints on the stack. */
-        private fun compareInts(op: Int) {
-            val jump = when (op) {
-                Op.LT -> IF_ICMPLT
-                Op.LE -> IF_ICMPLE
-                Op.GT -> IF_ICMPGT
-                Op.GE -> IF_ICMPGE
-                Op.EQ, Op.SEQ -> IF_ICMPEQ
-                else -> IF_ICMPNE // NE, SNE
-            }
-            val yes = Label()
-            val done = Label()
-            mv.visitJumpInsn(jump, yes)
-            mv.visitInsn(ICONST_0)
-            mv.visitJumpInsn(GOTO, done)
-            mv.visitLabel(yes)
-            mv.visitInsn(ICONST_1)
-            mv.visitLabel(done)
-        }
-
-        /**
-         * A comparison of a number with a value of unknown type: compares inline when the value is a number, and calls
-         * the `xxDA` / `xxAD` helper (the generic operator) otherwise.
-         */
-        private fun compareMixed(op: Int, base: String, numLeft: Boolean) {
-            val slow = Label()
-            val done = Label()
-            if (numLeft) {
-                // number, value
-                mv.visitInsn(DUP)
-                mv.visitTypeInsn(INSTANCEOF, "java/lang/Double")
-                mv.visitJumpInsn(IFEQ, slow)
-                unboxNum()
-                compareDoubles(op)
-                mv.visitJumpInsn(GOTO, done)
-                mv.visitLabel(slow)
-                rt(base + "DA", "(D$OBJ)Z")
-            } else {
-                // value, number
-                val t = tempD()
-                mv.visitVarInsn(DSTORE, t)
-                mv.visitInsn(DUP)
-                mv.visitTypeInsn(INSTANCEOF, "java/lang/Double")
-                mv.visitJumpInsn(IFEQ, slow)
-                unboxNum()
-                mv.visitVarInsn(DLOAD, t)
-                compareDoubles(op)
-                mv.visitJumpInsn(GOTO, done)
-                mv.visitLabel(slow)
-                mv.visitVarInsn(DLOAD, t)
-                rt(base + "AD", "(${OBJ}D)Z")
-            }
-            mv.visitLabel(done)
-        }
 
         /** Stack effect of [op] at [pc] (as TypeAnalysis computes it). */
         private fun effectOf(op: Int, pc: Int): Int {
@@ -1751,16 +1563,6 @@ object JvmCompiler {
             val b = if (Op.operands[op] >= 2) code[pc + 2] else 0
             val c = if (Op.operands[op] >= 3) code[pc + 3] else 0
             when (op) {
-                Op.NOP -> {}
-                Op.PUSH_UNDEF -> pushUndefined()
-                Op.PUSH_NULL -> getstatic("dev/mooner/neonjs/runtime/Null", "INSTANCE", "Ldev/mooner/neonjs/runtime/Null;")
-                Op.PUSH_TRUE -> getstatic("java/lang/Boolean", "TRUE", "Ljava/lang/Boolean;")
-                Op.PUSH_FALSE -> getstatic("java/lang/Boolean", "FALSE", "Ljava/lang/Boolean;")
-                Op.PUSH_CONST -> constant(a)
-                Op.PUSH_INT -> {
-                    iconst(a)
-                    mv.visitMethodInsn(INVOKESTATIC, "dev/mooner/neonjs/runtime/Ops", "num", "(I)$OBJ", false)
-                }
                 Op.POP -> mv.visitInsn(POP)
                 Op.DUP -> mv.visitInsn(DUP)
                 Op.DUP2 -> mv.visitInsn(DUP2)
@@ -1785,129 +1587,12 @@ object JvmCompiler {
                     rt("tdz", "(${OBJ}I$CONSTS_D)$OBJ")
                     if (op == Op.CHECK_REG_TDZ) mv.visitInsn(POP)
                 }
-                Op.PUSH_SCOPE -> { frame(); consts(); iconst(a); rt("pushScope", "(${FRAME_D}${CONSTS_D}I)V") }
-                Op.POP_SCOPE -> { frame(); rt("popScope", "($FRAME_D)V") }
-                Op.COPY_SCOPE -> { frame(); rt("copyScope", "($FRAME_D)V") }
-                Op.GET_ENV -> { frame(); mv.visitFieldInsn(GETFIELD, FRAME, "env", "Ldev/mooner/neonjs/runtime/Env;") }
-                Op.SET_ENV -> { frame(); rt("setEnv", "($OBJ$FRAME_D)V") }
-                Op.PUSH_WITH -> { frame(); rt("pushWith", "($OBJ$FRAME_D)V") }
-                // an inlined body's environment is its closure's
-                Op.LOAD_ENV -> if (inl != null) {
-                    mv.visitVarInsn(ALOAD, inl!!.envLocal); iconst(a); iconst(b); rt("loadEnvE", "(${OBJ}II)$OBJ")
-                } else { frame(); iconst(a); iconst(b); rt("loadEnv", "(${FRAME_D}II)$OBJ") }
-                Op.STORE_ENV -> if (inl != null) {
-                    mv.visitVarInsn(ALOAD, inl!!.envLocal); iconst(a); iconst(b); rt("storeEnvE", "($OBJ${OBJ}II)V")
-                } else { frame(); iconst(a); iconst(b); rt("storeEnv", "($OBJ${FRAME_D}II)V") }
-                Op.LOAD_IMPORT -> {
-                    frame(); iconst(a); iconst(b); rt("loadEnv", "(${FRAME_D}II)$OBJ")
-                    mv.visitMethodInsn(INVOKESTATIC, "dev/mooner/neonjs/vm/Modules", "deref", "($OBJ)$OBJ", false)
-                }
-                Op.LOAD_ENV_TDZ, Op.CHECK_ENV_TDZ -> {
-                    if (inl != null) {
-                        mv.visitVarInsn(ALOAD, inl!!.envLocal); iconst(a); iconst(b); iconst(c); consts()
-                        rt("loadEnvTdzE", "(${OBJ}III$CONSTS_D)$OBJ")
-                    } else {
-                        frame(); iconst(a); iconst(b); iconst(c); consts()
-                        rt("loadEnvTdz", "(${FRAME_D}III$CONSTS_D)$OBJ")
-                    }
-                    if (op == Op.CHECK_ENV_TDZ) mv.visitInsn(POP)
-                }
-                Op.LOAD_NAME -> { frame(); constant(a); rt("loadName", "($FRAME_D$OBJ)$OBJ") }
-                Op.LOAD_NAME_TYPEOF -> { frame(); constant(a); rt("loadNameTypeof", "($FRAME_D$OBJ)$OBJ") }
-                Op.LOAD_NAME_CALL -> {
-                    frame(); constant(a); rt("loadNameCall", "($FRAME_D$OBJ)$CONSTS_D")
-                    mv.visitInsn(DUP)
-                    iconst(0)
-                    mv.visitInsn(AALOAD)
-                    mv.visitInsn(SWAP)
-                    iconst(1)
-                    mv.visitInsn(AALOAD)
-                }
-                Op.STORE_NAME -> { frame(); constant(a); rt("storeName", "($OBJ$FRAME_D$OBJ)V") }
-                Op.STORE_NAME_VAR -> { frame(); constant(a); rt("storeNameVar", "($OBJ$FRAME_D$OBJ)V") }
-                Op.DELETE_NAME -> { frame(); constant(a); rt("deleteName", "($FRAME_D$OBJ)$OBJ") }
-                Op.INIT_NAME -> { frame(); constant(a); rt("initName", "($OBJ$FRAME_D$OBJ)V") }
-                Op.LOAD_GLOBAL -> { frame(); constant(a); rt("loadGlobal", "($FRAME_D$OBJ)$OBJ") }
-                Op.LOAD_GLOBAL_TYPEOF -> { frame(); constant(a); rt("loadGlobalTypeof", "($FRAME_D$OBJ)$OBJ") }
-                Op.STORE_GLOBAL -> { frame(); constant(a); rt("storeGlobal", "($OBJ$FRAME_D$OBJ)V") }
-                Op.INIT_GLOBAL_LEX -> { frame(); constant(a); rt("initGlobalLex", "($OBJ$FRAME_D$OBJ)V") }
-                Op.RESOLVE_NAME -> { frame(); constant(a); rt("resolveName", "($FRAME_D$OBJ)$OBJ") }
-                Op.GET_REF -> { frame(); rt("getRef", "($OBJ$FRAME_D)$OBJ") }
-                Op.PUT_REF -> { frame(); rt("putRef", "($OBJ$OBJ$FRAME_D)$OBJ") }
-                // an inlined body's `this` was bound when it was entered
-                Op.LOAD_THIS -> if (inl != null) mv.visitVarInsn(ALOAD, inl!!.thisLocal) else { frame(); mv.visitFieldInsn(GETFIELD, FRAME, "thisValue", OBJ) }
-                Op.LOAD_FUNCTION -> { frame(); rt("loadFunction", "($FRAME_D)$OBJ") }
-                Op.LOAD_NEW_TARGET -> { frame(); mv.visitFieldInsn(GETFIELD, FRAME, "newTarget", OBJ) }
-                Op.LOAD_HOME -> { frame(); rt("loadHome", "($FRAME_D)$OBJ") }
-                Op.CREATE_ARGUMENTS -> { frame(); iconst(a); rt("createArguments", "(${FRAME_D}I)$OBJ") }
-                Op.CREATE_REST -> { frame(); iconst(a); rt("createRest", "(${FRAME_D}I)$OBJ") }
-                Op.LOAD_ARG -> { frame(); iconst(a); rt("arg", "(${FRAME_D}I)$OBJ") }
                 Op.INIT_THIS_REG -> {
                     mv.visitVarInsn(ALOAD, reg(a))
                     frame()
                     rt("initThisReg", "($OBJ$OBJ$FRAME_D)$OBJ")
                     mv.visitVarInsn(ASTORE, reg(a))
                 }
-                Op.INIT_THIS_ENV -> { frame(); iconst(a); iconst(b); rt("initThisEnv", "($OBJ${FRAME_D}II)V") }
-                Op.INIT_THIS_NAME -> { frame(); rt("initThisName", "($OBJ$FRAME_D)V") }
-                Op.THROW -> { rt("throwValue", "($OBJ)Ljava/lang/Throwable;"); mv.visitInsn(ATHROW) }
-                Op.THROW_ERROR -> { iconst(a); iconst(b); consts(); rt("throwError", "(II$CONSTS_D)Ljava/lang/Throwable;"); mv.visitInsn(ATHROW) }
-                Op.GET_PROP -> { constant(a); frame(); rt("getProp", "($OBJ$OBJ$FRAME_D)$OBJ") }
-                Op.PUT_PROP -> { constant(a); frame(); rt("putProp", "($OBJ$OBJ$OBJ$FRAME_D)$OBJ") }
-                Op.GET_ELEM -> { frame(); rt("getElem", "($OBJ$OBJ$FRAME_D)$OBJ") }
-                Op.PUT_ELEM -> { frame(); rt("putElem", "($OBJ$OBJ$OBJ$FRAME_D)$OBJ") }
-                Op.DELETE_PROP -> { constant(a); frame(); rt("deleteProp", "($OBJ$OBJ$FRAME_D)$OBJ") }
-                Op.DELETE_ELEM -> { frame(); rt("deleteElem", "($OBJ$OBJ$FRAME_D)$OBJ") }
-                Op.TO_PROPERTY_KEY -> rt("toPropertyKey", "($OBJ)$OBJ")
-                Op.TO_KEY_FOR_BASE -> {
-                    // (obj key -- obj key')
-                    mv.visitInsn(DUP2)
-                    rt("keyForBase", "($OBJ$OBJ)$OBJ")
-                    mv.visitInsn(SWAP)
-                    mv.visitInsn(POP)
-                }
-                Op.GET_SUPER -> { frame(); rt("getSuper", "($OBJ$OBJ$OBJ$FRAME_D)$OBJ") }
-                Op.PUT_SUPER -> { frame(); rt("putSuper", "($OBJ$OBJ$OBJ$OBJ$FRAME_D)$OBJ") }
-                Op.GET_SUPER_BASE -> rt("superBase", "($OBJ)$OBJ")
-                Op.GET_PRIVATE -> rt("getPrivate", "($OBJ$OBJ)$OBJ")
-                Op.PUT_PRIVATE -> rt("putPrivate", "($OBJ$OBJ$OBJ)$OBJ")
-                Op.HAS_PRIVATE -> rt("hasPrivate", "($OBJ$OBJ)$OBJ")
-                Op.ADD -> rt("add", "($OBJ$OBJ)$OBJ")
-                Op.SUB -> rt("sub", "($OBJ$OBJ)$OBJ")
-                Op.MUL -> rt("mul", "($OBJ$OBJ)$OBJ")
-                Op.DIV -> rt("div", "($OBJ$OBJ)$OBJ")
-                Op.MOD -> rt("mod", "($OBJ$OBJ)$OBJ")
-                Op.EXP -> rt("exp", "($OBJ$OBJ)$OBJ")
-                Op.SHL -> rt("shl", "($OBJ$OBJ)$OBJ")
-                Op.SAR -> rt("sar", "($OBJ$OBJ)$OBJ")
-                Op.SHR -> rt("shr", "($OBJ$OBJ)$OBJ")
-                Op.BAND -> rt("band", "($OBJ$OBJ)$OBJ")
-                Op.BOR -> rt("bor", "($OBJ$OBJ)$OBJ")
-                Op.BXOR -> rt("bxor", "($OBJ$OBJ)$OBJ")
-                Op.EQ -> rt("eq", "($OBJ$OBJ)$OBJ")
-                Op.NE -> rt("ne", "($OBJ$OBJ)$OBJ")
-                Op.SEQ -> rt("seq", "($OBJ$OBJ)$OBJ")
-                Op.SNE -> rt("sne", "($OBJ$OBJ)$OBJ")
-                Op.LT -> rt("lt", "($OBJ$OBJ)$OBJ")
-                Op.GT -> rt("gt", "($OBJ$OBJ)$OBJ")
-                Op.LE -> rt("le", "($OBJ$OBJ)$OBJ")
-                Op.GE -> rt("ge", "($OBJ$OBJ)$OBJ")
-                Op.INSTANCEOF -> rt("instanceOf", "($OBJ$OBJ)$OBJ")
-                Op.IN -> rt("inOp", "($OBJ$OBJ)$OBJ")
-                Op.NEG -> rt("neg", "($OBJ)$OBJ")
-                Op.TO_NUMBER -> rt("toNumber", "($OBJ)$OBJ")
-                Op.NOT -> rt("not", "($OBJ)$OBJ")
-                Op.BNOT -> rt("bnot", "($OBJ)$OBJ")
-                Op.TYPEOF -> rt("typeOf", "($OBJ)$OBJ")
-                Op.TO_NUMERIC -> rt("toNumeric", "($OBJ)$OBJ")
-                Op.INC -> rt("inc", "($OBJ)$OBJ")
-                Op.DEC -> rt("dec", "($OBJ)$OBJ")
-                Op.TO_STRING -> rt("toStr", "($OBJ)$OBJ")
-                Op.CONCAT -> rt("concat", "($OBJ$OBJ)$OBJ")
-                Op.TO_OBJECT -> { frame(); rt("toObject", "($OBJ$FRAME_D)$OBJ") }
-                Op.REQUIRE_COERCIBLE -> rt("requireCoercible", "($OBJ)$OBJ")
-                Op.CHECK_OBJECT -> { iconst(a); consts(); rt("checkObject", "(${OBJ}I$CONSTS_D)$OBJ") }
-                Op.DERIVED_RETURN -> rt("derivedReturn", "($OBJ$OBJ)$OBJ")
                 Op.JUMP -> {
                     if (a <= pc) interruptCheck()
                     mv.visitJumpInsn(GOTO, label(a))
@@ -1937,86 +1622,7 @@ object JvmCompiler {
                     } else mv.visitTableSwitchInsn(0, n - 1, label(code[pc + 3 + n]), *targets)
                 }
                 Op.RETURN -> mv.visitInsn(ARETURN)
-                Op.CALL -> {
-                    // from an inlined body: the frame's pc stays at the inlined call (icall* record the body's pc)
-                    val c = if (inl != null) "icall" else "call"
-                    when (a) {
-                        0 -> { frame(); iconst(pc); rt(c + "0", "($OBJ$OBJ${FRAME_D}I)$OBJ") }
-                        1 -> { frame(); iconst(pc); rt(c + "1", "($OBJ$OBJ$OBJ${FRAME_D}I)$OBJ") }
-                        2 -> { frame(); iconst(pc); rt(c + "2", "($OBJ$OBJ$OBJ$OBJ${FRAME_D}I)$OBJ") }
-                        3 -> { frame(); iconst(pc); rt(c + "3", "($OBJ$OBJ$OBJ$OBJ$OBJ${FRAME_D}I)$OBJ") }
-                        4 -> { frame(); iconst(pc); rt(c + "4", "($OBJ$OBJ$OBJ$OBJ$OBJ$OBJ${FRAME_D}I)$OBJ") }
-                        else -> { packArray(a); frame(); iconst(pc); rt(c, "($OBJ$OBJ$CONSTS_D${FRAME_D}I)$OBJ") }
-                    }
-                }
-                Op.CALL_SPREAD -> { frame(); iconst(pc); rt("callSpread", "($OBJ$OBJ$OBJ${FRAME_D}I)$OBJ") }
-                Op.NEW -> { packArray(a); frame(); iconst(pc); rt(if (inl != null) "iconstruct" else "construct", "($OBJ$CONSTS_D${FRAME_D}I)$OBJ") }
-                Op.NEW_SPREAD -> { frame(); iconst(pc); rt("newSpread", "($OBJ$OBJ${FRAME_D}I)$OBJ") }
-                Op.CALL_EVAL -> {
-                    packArray(a); frame(); iconst(b); iconst(pc); rt("callEval", "($OBJ$OBJ$CONSTS_D${FRAME_D}II)$OBJ")
-                    if (b and 2 != 0) returnIfTail()
-                }
-                Op.TAIL_CALL -> {
-                    packArray(a); frame(); iconst(pc); rt("tailCall", "($OBJ$OBJ$CONSTS_D${FRAME_D}I)$OBJ")
-                    returnIfTail()
-                }
-                Op.CALL_EVAL_SPREAD -> { frame(); iconst(a); iconst(pc); rt("callEvalSpread", "($OBJ$OBJ$OBJ${FRAME_D}II)$OBJ") }
-                Op.SUPER_CALL -> { packArray(a); frame(); iconst(pc); rt("superCall", "($OBJ$OBJ$CONSTS_D${FRAME_D}I)$OBJ") }
-                Op.SUPER_CALL_SPREAD -> { frame(); iconst(pc); rt("superCallSpread", "($OBJ$OBJ$OBJ${FRAME_D}I)$OBJ") }
-                Op.GET_PROTO_OF -> rt("getProtoOf", "($OBJ)$OBJ")
-                Op.INIT_INSTANCE -> rt("initInstance", "($OBJ$OBJ)$OBJ")
-                Op.NEW_OBJECT -> { frame(); rt("newObject", "($FRAME_D)$OBJ") }
-                Op.NEW_OBJECT_LITERAL -> {
-                    // (v1..vn -- obj): move the values into an Object[] that becomes the object's values array
-                    iconst(b)
-                    mv.visitTypeInsn(ANEWARRAY, "java/lang/Object")
-                    for (i in b - 1 downTo 0) {
-                        mv.visitInsn(DUP_X1)   // .. arr v arr
-                        mv.visitInsn(SWAP)     // .. arr arr v
-                        iconst(i)
-                        mv.visitInsn(SWAP)     // .. arr arr i v
-                        mv.visitInsn(AASTORE)  // .. arr
-                    }
-                    constant(a)
-                    frame()
-                    rt("newObjectLiteral", "([$OBJ$OBJ$FRAME_D)$OBJ")
-                }
-                Op.NEW_ARRAY -> { frame(); rt("newArray", "($FRAME_D)$OBJ") }
-                Op.ARRAY_PUSH -> rt("arrayPush", "($OBJ$OBJ)$OBJ")
-                Op.ARRAY_HOLE -> rt("arrayHole", "($OBJ)$OBJ")
-                Op.ARRAY_SPREAD -> { frame(); rt("arraySpread", "($OBJ$OBJ$FRAME_D)$OBJ") }
-                Op.DEFINE_FIELD -> { constant(a); rt("defineField", "($OBJ$OBJ$OBJ)$OBJ") }
-                Op.DEFINE_FIELD_ELEM -> rt("defineFieldElem", "($OBJ$OBJ$OBJ)$OBJ")
-                Op.DEFINE_GETTER, Op.DEFINE_SETTER, Op.DEFINE_METHOD -> { iconst(op); iconst(a); rt("defineMethod", "($OBJ$OBJ${OBJ}II)$OBJ") }
-                Op.COPY_DATA_PROPS -> rt("copyDataProps", "($OBJ$OBJ)$OBJ")
-                Op.COPY_DATA_PROPS_EXCL -> { packArray(a); rt("copyDataPropsExcl", "($OBJ$OBJ$CONSTS_D)$OBJ") }
-                Op.SET_PROTO -> rt("setProto", "($OBJ$OBJ)$OBJ")
-                Op.SET_FUNCTION_NAME -> { mv.visitInsn(DUP2); iconst(a); consts(); rt("setFunctionName", "($OBJ${OBJ}I$CONSTS_D)V") }
-                Op.MAKE_CLOSURE -> { frame(); consts(); iconst(a); rt("makeClosure", "($FRAME_D${CONSTS_D}I)$OBJ") }
                 Op.MAKE_METHOD -> { mv.visitVarInsn(ALOAD, reg(b)); frame(); consts(); iconst(a); rt("makeMethod", "($OBJ$FRAME_D${CONSTS_D}I)$OBJ") }
-                Op.MAKE_CLASS -> {
-                    // stack: [heritage]? [name]? -> proto ctor
-                    val hasName = b and 2 != 0
-                    val hasHeritage = b and 1 != 0
-                    val tn = temp()
-                    if (hasName) mv.visitVarInsn(ASTORE, tn) else { mv.visitInsn(ACONST_NULL); mv.visitVarInsn(ASTORE, tn) }
-                    if (!hasHeritage) getstatic("dev/mooner/neonjs/runtime/NotFound", "INSTANCE", "Ldev/mooner/neonjs/runtime/NotFound;")
-                    mv.visitVarInsn(ALOAD, tn)
-                    frame(); consts(); iconst(a)
-                    rt("makeClass", "($OBJ$OBJ$FRAME_D${CONSTS_D}I)$CONSTS_D")
-                    mv.visitInsn(DUP)
-                    iconst(0)
-                    mv.visitInsn(AALOAD)
-                    mv.visitInsn(SWAP)
-                    iconst(1)
-                    mv.visitInsn(AALOAD)
-                }
-                Op.NEW_PRIVATE_NAME -> { constant(a); rt("newPrivateName", "($OBJ)$OBJ") }
-                Op.ADD_FIELD -> rt("addField", "($OBJ$OBJ$OBJ)V")
-                Op.ADD_PRIVATE_METHOD -> { iconst(a); rt("addPrivateMethod", "($OBJ$OBJ${OBJ}I)V") }
-                Op.STATIC_PRIVATE_METHOD -> { iconst(a); rt("staticPrivateMethod", "($OBJ$OBJ${OBJ}I)V") }
-                Op.RUN_FIELD -> { frame(); iconst(pc); rt("runField", "($OBJ$OBJ$OBJ${FRAME_D}I)V") }
-                Op.GET_ITERATOR -> { frame(); rt("getIterator", "($OBJ$FRAME_D)$OBJ") }
                 Op.ITER_STEP -> {
                     mv.visitVarInsn(ALOAD, reg(a))
                     rt("iterStep", "($OBJ)$OBJ")
@@ -2032,7 +1638,6 @@ object JvmCompiler {
                 Op.ITER_REST -> { mv.visitVarInsn(ALOAD, reg(a)); frame(); rt("iterRest", "($OBJ$FRAME_D)$OBJ") }
                 Op.ITER_CLOSE -> { mv.visitVarInsn(ALOAD, reg(a)); rt("iterClose", "($OBJ)V") }
                 Op.ITER_CLOSE_THROW -> { mv.visitVarInsn(ALOAD, reg(a)); rt("iterCloseThrow", "($OBJ)V") }
-                Op.FOR_IN_START -> { frame(); rt("forInStart", "($OBJ$FRAME_D)$OBJ") }
                 Op.FOR_IN_NEXT -> {
                     mv.visitVarInsn(ALOAD, reg(a))
                     rt("forInNext", "($OBJ)$OBJ")
@@ -2043,23 +1648,7 @@ object JvmCompiler {
                     mv.visitJumpInsn(GOTO, label(b))
                     mv.visitLabel(cont)
                 }
-                Op.DEBUGGER -> { frame(); rt("debugger", "($FRAME_D)V") }
-                Op.DISPOSE_NEW -> rt("disposeNew", "()$OBJ")
-                Op.ADD_DISPOSABLE -> { iconst(a); frame(); rt("addDisposable", "($OBJ${OBJ}I$FRAME_D)V") }
-                Op.DISPOSE_SYNC -> { frame(); rt("disposeSync", "($OBJ$OBJ$OBJ$FRAME_D)V") }
-                Op.TEMPLATE_OBJECT -> { frame(); consts(); iconst(a); rt("templateObject", "($FRAME_D${CONSTS_D}I)$OBJ") }
-                Op.NEW_REGEXP -> { frame(); consts(); iconst(a); rt("newRegExp", "($FRAME_D${CONSTS_D}I)$OBJ") }
-                Op.IMPORT_META -> { frame(); rt("importMeta", "($FRAME_D)$OBJ") }
-                Op.DYNAMIC_IMPORT -> { frame(); rt("dynamicImport", "($OBJ$OBJ$FRAME_D)$OBJ") }
-                Op.CLASS_DEF_NEW -> rt("classDefNew", "($OBJ$OBJ)$OBJ")
-                Op.CLASS_ELEMENT -> { iconst(a); rt("classElement", "($OBJ$OBJ$OBJ${OBJ}I)V") }
-                Op.CLASS_FINISH -> rt("classFinish", "($OBJ)V")
-                Op.CLASS_DECORATE -> rt("classDecorate", "($OBJ$OBJ)$OBJ")
-                Op.CLASS_STATIC_INIT -> rt("classStaticInit", "($OBJ)V")
-                Op.DYNAMIC_IMPORT_PHASE -> { frame(); constant(a); rt("dynamicImportPhase", "($OBJ$OBJ$FRAME_D$OBJ)$OBJ") }
-                Op.DECLARE_GLOBALS -> { packArray(b); frame(); consts(); iconst(a); iconst(pc); rt("declareGlobals", "($CONSTS_D$FRAME_D${CONSTS_D}II)V") }
-                Op.DECLARE_EVAL -> { packArray(b); frame(); consts(); iconst(a); iconst(pc); rt("declareEval", "($CONSTS_D$FRAME_D${CONSTS_D}II)V") }
-                else -> throw JitBailout("unsupported op ${Op.names[op]}")
+                else -> if (!emitHelper(op, pc, a, b, c)) throw JitBailout("unsupported op ${Op.names[op]}")
             }
         }
     }

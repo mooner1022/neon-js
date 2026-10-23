@@ -87,7 +87,9 @@ bound functions) are called directly in the calling function's realm.
 `JvmCompiler` translates a `CodeBlock` to one JVM hidden class implementing `CompiledCode.run(Frame)`. The IR stack
 maps to the JVM operand stack and registers map to JVM locals; exception handlers become JVM try/catch blocks
 converting the throwable with the same `catchValue` logic as the interpreter; loop back-edges count down an
-interrupt budget. Operations call static helpers in `JitRt`, which HotSpot inlines. Generators/async functions
+interrupt budget. Operations call static helpers in `JitRt`, which HotSpot inlines; the call each instruction gets
+when nothing about it is specialized is emitted by `JvmEmitter` (`jit/JvmEmitter.kt`), which every code generator
+extends. Generators/async functions
 (and the rare unsupported instruction or oversized function) stay in the interpreter.
 
 Generated classes (JIT code and `Java.extend` adapters) become classes through a `CodeDefiner`
