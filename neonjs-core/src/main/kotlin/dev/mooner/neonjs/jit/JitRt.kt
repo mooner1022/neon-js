@@ -15,6 +15,9 @@ import dev.mooner.neonjs.vm.*
  * frame's result, or returns [JitRt.NO_OSR] before doing anything when it has no entry at that pc. Code whose block
  * has no backward jump may assume it is never given an interpreted frame. Any code generator (a later tier included)
  * follows this contract, whichever entries it supports.
+ *
+ * Code may also leave the frame to the interpreter midway ([Deopt]): run then returns what the interpreter returns for
+ * the frame, or, for a frame it was given interpreted, [JitRt.DEOPTED] (the interpreter continues it).
  */
 interface CompiledCode {
     fun run(f: Frame): Any?
@@ -29,6 +32,24 @@ interface CompiledCode {
 object JitRt {
     /** Returned by [CompiledCode.run] given an interpreted frame at a pc it cannot be entered at. */
     @JvmField val NO_OSR = Any()
+
+    /**
+     * Returned by [CompiledCode.run] given an interpreted frame, when the code deoptimized ([Deopt.resume]): the frame
+     * holds the interpreter state to continue with.
+     */
+    @JvmField val DEOPTED = Any()
+
+    /** An exit of compiled code running [f] ([Deopt.resume]): [values] are its registers, then its operand stack, at [pc]. */
+    @JvmStatic fun deopt(f: Frame, pc: Int, values: Array<Any?>): Any? = Deopt.resume(f, pc, values, null)
+
+    /**
+     * An exit inside a call compiled inlined ([Deopt.resume]): [f] is at its CALL at [pc] with [values] below the
+     * call's operands; the callee [fn] (called with [thisV] bound and [args], in [env]) is at [calleePc] with
+     * [calleeValues].
+     */
+    @JvmStatic fun deoptInlined(
+        f: Frame, pc: Int, values: Array<Any?>, fn: Any?, thisV: Any?, args: Array<Any?>, env: Any?, calleePc: Int, calleeValues: Array<Any?>,
+    ): Any? = Deopt.resume(f, pc, values, Deopt.Inlined(fn.cast<JSClosure>(), thisV, args, env as Env?, calleePc, calleeValues, null))
 
     private fun tdzError(name: String) = JSException.referenceError(
         if (name == "this") "Must call super constructor in derived class before accessing 'this' or returning from derived constructor"

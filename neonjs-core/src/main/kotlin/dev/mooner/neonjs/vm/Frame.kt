@@ -19,7 +19,11 @@ class Frame(
      */
     compiled: dev.mooner.neonjs.jit.CompiledCode? = code.compiled as dev.mooner.neonjs.jit.CompiledCode?,
 ) {
-    @JvmField val slots: Array<Any?> = if (compiled != null) NO_SLOTS else arrayOfNulls(code.numRegs + code.maxStack)
+    /**
+     * Registers, then the operand stack, of an interpreted frame; [NO_SLOTS] for a frame compiled code runs, until a
+     * deoptimization gives it slots and the interpreter continues it (dev.mooner.neonjs.jit.Deopt).
+     */
+    @JvmField var slots: Array<Any?> = if (compiled != null) NO_SLOTS else arrayOfNulls(code.numRegs + code.maxStack)
     @JvmField var sp: Int = code.numRegs
     @JvmField var pc: Int = 0
 
@@ -64,6 +68,21 @@ class Frame(
         get() = ext?.tailPending ?: false
         set(v) { ext().tailPending = v }
 
+    /**
+     * Deoptimization (dev.mooner.neonjs.jit.Deopt): a call that compiled code ran inlined and that this frame, now
+     * interpreted, completes first when the interpreter continues it (a Deopt.Inlined); then an exception to throw at
+     * [throwPc] before anything else (one that call threw).
+     */
+    var deoptCall: Any?
+        get() = ext?.deoptCall
+        set(v) { ext().deoptCall = v }
+    var pendingThrow: Throwable?
+        get() = ext?.pendingThrow
+        set(v) { ext().pendingThrow = v }
+    var throwPc: Int
+        get() = ext?.throwPc ?: 0
+        set(v) { ext().throwPc = v }
+
     /** Home object for scripts/eval executed in a method context (unused for functions: taken from fn). */
     var homeObject: JSObject?
         get() = ext?.homeObject
@@ -81,7 +100,7 @@ class Frame(
         if (compiled == null) initSlots()
     }
 
-    /** Whether compiled code runs this frame: `code.compiled`, installed before the frame was made. */
+    /** Whether compiled code runs this frame: it was made for compiled code and not deoptimized since. */
     val isCompiled: Boolean get() = slots === NO_SLOTS
 
     private fun initSlots() {
@@ -109,6 +128,9 @@ class Frame(
         @JvmField var tailArgs: Array<Any?>? = null
         @JvmField var tailPending = false
         @JvmField var homeObject: JSObject? = null
+        @JvmField var deoptCall: Any? = null
+        @JvmField var pendingThrow: Throwable? = null
+        @JvmField var throwPc = 0
     }
 
     companion object {

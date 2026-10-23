@@ -201,19 +201,34 @@ object Interpreter {
         var pc = f.pc
         var opStart = pc
         var budget = dev.mooner.neonjs.jit.Jit.LOOP_CHECK
-        var pendingThrow: Any? = null
-        if (f.resumeMode == Frame.MODE_THROW && f.suspendKind == Frame.SUSPEND_AWAIT) {
-            // resumed from await with a rejection: throw at the await instruction
-            f.resumeMode = Frame.MODE_NEXT
-            pendingThrow = s[--sp]
-            opStart = f.awaitPc
+        var pendingThrow: Throwable? = null
+        val ext = f.ext
+        if (ext != null) {
+            if (ext.resumeMode == Frame.MODE_THROW && ext.suspendKind == Frame.SUSPEND_AWAIT) {
+                // resumed from await with a rejection: throw at the await instruction
+                ext.resumeMode = Frame.MODE_NEXT
+                pendingThrow = JSException(s[--sp])
+                opStart = ext.awaitPc
+            }
+            // a deoptimized frame (dev.mooner.neonjs.jit.Deopt): the call compiled code ran inlined completes first
+            if (ext.deoptCall != null) {
+                dev.mooner.neonjs.jit.Deopt.finishCall(f)
+                sp = f.sp
+                pc = f.pc
+            }
+            val t = ext.pendingThrow
+            if (t != null) {
+                ext.pendingThrow = null
+                pendingThrow = t
+                opStart = ext.throwPc
+            }
         }
         while (true) {
             try {
                 if (pendingThrow != null) {
                     val t = pendingThrow
                     pendingThrow = null
-                    throw JSException(t)
+                    throw t
                 }
                 dispatch@ while (true) {
                     opStart = pc
@@ -575,6 +590,19 @@ object Interpreter {
             f.pc = pc
             f.sp = sp
             val r = dev.mooner.neonjs.jit.Jit.osr(f)
+            if (r === dev.mooner.neonjs.jit.JitRt.DEOPTED) {
+                // the compiled code deoptimized (dev.mooner.neonjs.jit.Deopt): the frame continues here, where it left
+                // it, with the exception a call it completed threw, if any
+                pc = f.pc
+                sp = f.sp
+                val e = f.ext
+                if (e != null && e.pendingThrow != null) {
+                    pendingThrow = e.pendingThrow
+                    e.pendingThrow = null
+                    opStart = e.throwPc
+                }
+                continue
+            }
             if (r !== dev.mooner.neonjs.jit.JitRt.NO_OSR) return r
         }
     }

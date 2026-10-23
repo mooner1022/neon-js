@@ -243,6 +243,16 @@ of them. Only functions and classic scripts (`CodeBlock.SCRIPT`) are compiled fr
 stay interpreted, as before. `-Dneonjs.jit.osrStress` enters every loop after its first iteration (compiling on the
 calling thread) to test this; interrupt checks then run at every back-edge, so statement limits run out sooner.
 
+Deoptimization (`jit/Deopt.kt`): compiled code can also leave an activation to the interpreter midway, at an exit, with
+the interpreter state of every frame live there (`Deopt.resume`; docs/OPTIMIZING_TIER.md has the protocol). The
+frame becomes interpreted in place (`Frame.slots` is replaced, its identity kept); a call compiled inlined that is live
+at the exit gets a frame of its own and completes first (`Frame.deoptCall`, which `Interpreter.run` finishes before
+anything else, so a chain of them unwinds innermost first with each frame on the agent's frame chain), its result
+pushed on the caller's stack, or its exception thrown in the caller at the `CALL` through the caller's handlers
+(`Frame.pendingThrow`, thrown before anything else, as an `await` rejection is). Code entered by on-stack replacement returns
+`JitRt.DEOPTED` instead of running the interpreter itself, and the interpreter that entered it continues the frame. The
+exit's call lies outside every exception range of the compiled method.
+
 Contracts for other code generators (an optimizing tier with its own IR, or front ends other than JS bytecode). The
 present generator follows them, and so must anything added next to it:
 
