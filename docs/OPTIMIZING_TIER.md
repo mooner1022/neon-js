@@ -330,6 +330,8 @@ Total about 15K lines over several months; P0 and P1 are pure infrastructure wit
 
 - Modes: `-Dneonjs.jit.tier2`, `-Dneonjs.jit.t2Stress` (P1), `-Dneonjs.jit.deoptStress=N`, combined with Test262's
   `--mode compiled|adaptive` and `-Dneonjs.jit.osrStress`. The runner prints deoptimization counts next to the OSR line.
+  `-Dneonjs.jit.t2Print=name` prints the IR of each block compiled whose name contains `name`;
+  `-Dneonjs.jit.t2Speculate=false` compiles without speculations.
 - Fuzzer (`neonjs-test262` `Fuzz.kt`): differential against the interpreter in each mode, then with the stress flags.
 - Unit tests: deopt chains built by hand (P0); IR dumps for small functions (golden text); one test per pass on the
   shapes it should and should not change.

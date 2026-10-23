@@ -26,6 +26,9 @@ object T2 {
      */
     @JvmField val SPECULATE: Boolean = System.getProperty("neonjs.jit.t2Speculate") != "false"
 
+    /** Debugging: `-Dneonjs.jit.t2Print=name` prints the IR of every block compiled whose name contains `name`. */
+    private val PRINT: String? = System.getProperty("neonjs.jit.t2Print")
+
     private val counter = AtomicLong()
     private val debugShown = AtomicLong()
     /** Blocks compiled, and those that could not be, by reason; code that deoptimized too often (T2Code.exit). */
@@ -41,6 +44,7 @@ object T2 {
         try {
             if (cb.t2Off) throw JitBailout("deoptimized too often")
             val g = IrBuilder(cb, JvmCompiler.INT32, JvmCompiler.ELEMS, stressExits = JvmCompiler.DEOPT_STRESS > 0).build()
+            if (PRINT != null && cb.name.contains(PRINT)) System.err.println("T2 ${cb.name}:\n${IrPrinter.print(g)}")
             val name = "dev/mooner/neonjs/jit/T2$" + JvmCompiler.sanitize(cb.name) + "$" + counter.incrementAndGet()
             val bytes = try {
                 IrCodegen.generate(g, name, definer.classFileVersion, JvmCompiler.INT32, JvmCompiler.ELEMS)
