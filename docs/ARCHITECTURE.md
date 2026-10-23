@@ -118,7 +118,8 @@ instead of calling a helper: HotSpot compiles a boolean helper inlined into a lo
 times slower. Values are boxed where paths with different kinds meet and before every instruction that is not
 specialised. The rules that keep this sound:
 
-- No speculation. Kinds come from what instructions produce (number constants, arithmetic results), never from
+- No speculation in this tier (T1; the optimizing tier planned in `docs/OPTIMIZING_TIER.md` speculates under rules of
+  its own). Kinds come from what instructions produce (number constants, arithmetic results), never from
   profiles; no check is removed because of a kind and nothing deoptimizes. A wrong kind could only surface as a JVM
   `ClassCastException` (every unbox is a `checkcast`, and every double taken as an INT goes through `exactInt`, which
   throws unless it is an int32 and not -0) or a verifier error, never as one value read as another.
@@ -256,9 +257,11 @@ present generator follows them, and so must anything added next to it:
   code that uses one checks it where it runs.
 - Semantics: an instruction's meaning lives in the runtime (`runtime/`, `vm/Rt`, the `JitRt` helpers), shared by every
   tier; where a tier does a step itself, it shares the definition (`Interpreter.thisFor`, `PropCache` entries).
-- No speculation: kinds come from what instructions produce; a guard falls back to the generic code compiled next to
-  it, and nothing deoptimizes. A tier with an IR keeps this by versioning (a guard, then a specialized and a generic
-  copy, as `GET_ELEM` and inlined calls do now); deoptimization would be a separate decision, against the reasons above.
+- Speculation: T1 and other front ends' code generators do not speculate: kinds come from what instructions produce,
+  and a guard falls back to the generic code compiled next to it. The optimizing tier (T2, `docs/OPTIMIZING_TIER.md`)
+  speculates on profiles and deoptimizes to the interpreter when a guard fails, under the rules that document sets:
+  eager exits only, every assumption guarded at its use, a complete interpreter state at every exit, and T1 as the code
+  a block returns to.
 - TypeScript: types are erased with the syntax and never become kinds, since any value can arrive at run time; TS code
   gets the bytecode its JavaScript would get.
 - WebAssembly: functions typed by validation would not go through the code block pipeline (`JitInput`, `TypeAnalysis`,

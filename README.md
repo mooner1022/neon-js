@@ -548,7 +548,8 @@ their context).
 | `neonjs-cli` | command-line runner and REPL |
 | `neonjs-test262` | Test262, web-platform-tests and Node.js test runners |
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the internals.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the internals, and [docs/OPTIMIZING_TIER.md](docs/OPTIMIZING_TIER.md) for
+the optimizing compiler tier being built (off, and mostly not there yet).
 
 ## Testing
 
