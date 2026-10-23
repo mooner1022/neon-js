@@ -9,6 +9,7 @@ import dev.mooner.neonjs.compiler.ValueProfile
 import dev.mooner.neonjs.runtime.Null
 import dev.mooner.neonjs.runtime.PropCache
 import dev.mooner.neonjs.runtime.PropIC
+import dev.mooner.neonjs.runtime.GlobalSite
 import dev.mooner.neonjs.runtime.PropSite
 import dev.mooner.neonjs.runtime.Undefined
 
@@ -529,6 +530,20 @@ internal class IrBuilder(
                             val load = before(Inst(Ir.LOAD_SLOT, arrayOf(obj), g.dataIndex(ic.shape), ic.slot,
                                 if (chain == null) -1 else g.dataIndex(chain), pc, stmt))
                             pop()
+                            add(cur, load).hasResult = true
+                            stack.add(load)
+                        }
+                    }
+                    Op.LOAD_GLOBAL -> {
+                        val ic = if (speculate && !code.t2FailedAt(pc)) (code.constants[a] as? GlobalSite)?.cache else null
+                        if (ic == null) inst(op, NO_VALUES, result = true)
+                        else {
+                            // the binding, or the global object's slot, the cache saw; anything else leaves before the
+                            // instruction
+                            val load = before(
+                                if (ic.shape == null) Inst(Ir.LOAD_GLOBAL_LEX, NO_VALUES, g.dataIndex(ic.token), ic.index, 0, pc, stmt)
+                                else Inst(Ir.LOAD_GLOBAL_SLOT, NO_VALUES, g.dataIndex(ic.shape), ic.slot, ic.epoch, pc, stmt),
+                            )
                             add(cur, load).hasResult = true
                             stack.add(load)
                         }

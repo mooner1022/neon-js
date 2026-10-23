@@ -8,6 +8,9 @@ import org.objectweb.asm.Label
 import org.objectweb.asm.MethodVisitor
 import org.objectweb.asm.Opcodes.*
 
+private const val GLOBAL_ENV = "dev/mooner/neonjs/runtime/GlobalEnv"
+private const val GLOBAL_ENV_D = "L$GLOBAL_ENV;"
+
 /**
  * Generates `CompiledCode.run` for a [Graph]: every value used gets a JVM local of its kind (a `double`, an `int`, or an
  * Object), blocks become labels, and a phi's inputs are copied into its local at the end of each predecessor (all
@@ -765,6 +768,54 @@ internal class IrCodegen(
                     load(i.inputs[1], JT.ANY)
                     mv.visitInsn(AASTORE)
                 }
+                exits.add(specExit(l, i))
+                return
+            }
+            Ir.LOAD_GLOBAL_LEX, Ir.LOAD_GLOBAL_SLOT -> {
+                // the checks GlobalCache.load makes, against the entry the site's cache held; else an exit
+                val l = Label()
+                val ge = temp()
+                frame()
+                mv.visitFieldInsn(GETFIELD, FRAME, "realm", REALM_D)
+                mv.visitFieldInsn(GETFIELD, "dev/mooner/neonjs/runtime/Realm", "globalEnv", GLOBAL_ENV_D)
+                mv.visitVarInsn(ASTORE, ge)
+                if (op == Ir.LOAD_GLOBAL_LEX) {
+                    mv.visitVarInsn(ALOAD, ge)
+                    mv.visitFieldInsn(GETFIELD, GLOBAL_ENV, "token", OBJ)
+                    mv.visitVarInsn(ALOAD, dataLocal)
+                    iconst(i.a)
+                    mv.visitInsn(AALOAD)
+                    mv.visitJumpInsn(IF_ACMPNE, l)
+                    mv.visitVarInsn(ALOAD, ge)
+                    mv.visitFieldInsn(GETFIELD, GLOBAL_ENV, "lexicalList", "Ljava/util/ArrayList;")
+                    iconst(i.b)
+                    mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/ArrayList", "get", "(I)$OBJ", false)
+                    mv.visitTypeInsn(CHECKCAST, "dev/mooner/neonjs/runtime/GlobalBinding")
+                    mv.visitFieldInsn(GETFIELD, "dev/mooner/neonjs/runtime/GlobalBinding", "value", OBJ)
+                    mv.visitInsn(DUP)
+                    mv.visitFieldInsn(GETSTATIC, "dev/mooner/neonjs/runtime/Uninitialized", "INSTANCE", "Ldev/mooner/neonjs/runtime/Uninitialized;")
+                    val ok = Label()
+                    mv.visitJumpInsn(IF_ACMPNE, ok)
+                    mv.visitInsn(POP)
+                    mv.visitJumpInsn(GOTO, l)
+                    mv.visitLabel(ok)
+                } else {
+                    mv.visitVarInsn(ALOAD, ge)
+                    mv.visitFieldInsn(GETFIELD, GLOBAL_ENV, "lexicalEpoch", "I")
+                    iconst(i.c)
+                    mv.visitJumpInsn(IF_ICMPNE, l)
+                    val g0 = temp()
+                    mv.visitVarInsn(ALOAD, ge)
+                    mv.visitFieldInsn(GETFIELD, GLOBAL_ENV, "global", "Ldev/mooner/neonjs/runtime/JSObject;")
+                    mv.visitVarInsn(ASTORE, g0)
+                    shapeCheck(g0, i.a, l)
+                    mv.visitVarInsn(ALOAD, g0)
+                    mv.visitFieldInsn(GETFIELD, "dev/mooner/neonjs/runtime/JSObject", "props", PMAP_D)
+                    mv.visitFieldInsn(GETFIELD, PMAP, "values", CONSTS_D)
+                    iconst(i.b)
+                    mv.visitInsn(AALOAD)
+                }
+                done(i, JT.ANY)
                 exits.add(specExit(l, i))
                 return
             }

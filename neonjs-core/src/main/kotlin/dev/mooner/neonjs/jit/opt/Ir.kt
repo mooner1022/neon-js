@@ -206,6 +206,15 @@ object Ir {
     const val CATCH_VALUE = 1012
     const val SET_HOME = 1013
     const val LOAD_HOME = 1014
+    /**
+     * (no inputs) a global variable read through the entry its site's cache held (GlobalCache.load): LOAD_GLOBAL_LEX
+     * reads a lexical binding, [Inst.a] indexing the global environment's token in the graph's data and [Inst.b] being
+     * the binding's index; LOAD_GLOBAL_SLOT reads a data property of the global object, [Inst.a] indexing its shape,
+     * [Inst.b] being the slot and [Inst.c] the environment's lexical epoch. Anything else (another realm, a binding
+     * not initialized, another shape or epoch) exits to [Inst.state], before the instruction.
+     */
+    const val LOAD_GLOBAL_LEX = 1015
+    const val LOAD_GLOBAL_SLOT = 1016
     /** Terminators. GOTO; BRANCH(value): [Inst.a] is the bytecode jump tested (JUMP_IF_TRUE and the like). */
     const val GOTO = 1100
     const val BRANCH = 1101
@@ -234,6 +243,8 @@ object Ir {
         CATCH_VALUE -> "CatchValue"
         SET_HOME -> "SetHome"
         LOAD_HOME -> "LoadHome"
+        LOAD_GLOBAL_LEX -> "LoadGlobalLex"
+        LOAD_GLOBAL_SLOT -> "LoadGlobalSlot"
         SWITCH -> "Switch"
         GOTO -> "Goto"
         BRANCH -> "Branch"

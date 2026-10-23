@@ -390,4 +390,38 @@ class T2Test {
                 " deep(3), catcher(strictAssign)].join('|')",
         )
     }
+
+    @Test
+    fun globalsAreReadThroughTheirCaches() {
+        // the caches are filled before T2 compiles: a global object's property (its shape and the lexical epoch
+        // checked), a lexical binding (the realm's token, then its value: TDZ); later a lexical declaration shadows a
+        // property, a property is added and one deleted
+        val src = """
+            var gv = 1; let lex = 10; globalThis.shadowed = 'property';
+            function pi(n) { let s = 0; for (let i = 0; i < n; i++) s += Math.PI; return s }
+            function both() { return gv + lex }
+            function late() { return shadowed }
+            pi(3); both(); late();
+            """.trimIndent()
+        val expr = "var r = [pi(4), both()]; gv = 2; lex = 20; r.push(both()); globalThis.added = 1; r.push(both(), pi(2));" +
+            " try { late() } catch (e) { r.push(e.name) } let shadowed = 'lexical'; r.push(late()); delete globalThis.Math;" +
+            " try { pi(1) } catch (e) { r.push(e.name) } r.join()"
+        for (stress in intArrayOf(0, 2)) {
+            JvmCompiler.DEOPT_STRESS = stress
+            try {
+                same(src, listOf("pi", "both", "late"), expr)
+            } finally {
+                JvmCompiler.DEOPT_STRESS = 0
+            }
+        }
+        assertTrue(irOf(src, "pi").contains("LoadGlobalSlot"), irOf(src, "pi"))
+        assertTrue(irOf(src, "both").contains("LoadGlobalLex"), irOf(src, "both"))
+    }
+
+    /** The IR of function [name] after [src] ran in the interpreter (its caches and profiles filled). */
+    private fun irOf(src: String, name: String): String =
+        NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).console(null).build().newContext().use { ctx ->
+            ctx.eval(src)
+            dev.mooner.neonjs.jit.opt.IrPrinter.print(IrBuilder((ctx.eval(name).raw as JSClosure).code, ints = true, elems = true).build())
+        }
 }
