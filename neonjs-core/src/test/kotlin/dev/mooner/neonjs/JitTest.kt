@@ -184,7 +184,8 @@ class JitTest {
 
     @Test
     fun aClassTheDefinerRejectsFailsAlone() {
-        val d = BatchRecorder(reject = "bad")
+        // the function name part of the class name: its hash is hex, and could contain "bad" too
+        val d = BatchRecorder(reject = "JS\$bad\$")
         val r = JvmCompiler.compileAll(listOf(function("function good(x) { return x }", "good"), function("function bad(x) { return -x }", "bad")), d)
         assertNotNull(r[0])
         assertNull(r[1])
