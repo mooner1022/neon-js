@@ -222,7 +222,7 @@ object Interpreter {
         (fb[pc] ?: CallFeedback().also { fb[pc] = it }).recordIntrinsic(id)
     }
 
-    /** Notes that the CALL at [pc] in [cb] called a closure of [callee] (feedback for the JIT's inlining). */
+    /** Notes that the CALL or NEW at [pc] in [cb] called a closure of [callee] (feedback for the JIT's inlining). */
     private fun recordCall(cb: CodeBlock, pc: Int, callee: CodeBlock) {
         val fb = cb.callFeedback ?: arrayOfNulls<CallFeedback>(cb.code.size).also { cb.callFeedback = it }
         (fb[pc] ?: CallFeedback().also { fb[pc] = it }).record(callee)
@@ -541,6 +541,7 @@ object Interpreter {
                             val fnv = s[sp - 1]
                             f.pc = opStart
                             if (fnv !is JSObject || fnv.special and JSObject.CONSTRUCTOR == 0) throw JSException.typeError("${Rt.calleeText(cb, opStart, fnv)} is not a constructor")
+                            if (recordCalls && fnv is JSClosure) recordCall(cb, opStart, fnv.code)
                             s[sp - 1] = fnv.construct(args, fnv)
                         }
                         Op.NEW_OBJECT -> s[sp++] = JSObject(realm.objectPrototype)

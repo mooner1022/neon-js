@@ -114,7 +114,9 @@ internal object Licm {
         Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC, Op.TO_NUMBER, Ir.MATH ->
             i.inputs.all { JT.isNum(kinds.of(it)) }
         // (a TDZ check throws, which leaves the loop: no write)
-        Op.SEQ, Op.SNE, Op.NOT, Op.LOAD_ENV, Op.LOAD_ENV_TDZ, Op.NEW_OBJECT_LITERAL -> true
+        Op.SEQ, Op.SNE, Op.NOT, Op.LOAD_ENV, Op.LOAD_ENV_TDZ, Op.NEW_OBJECT_LITERAL, Ir.CONSTRUCT_RESULT -> true
+        // (a class's fields are defined by code)
+        Ir.NEW_THIS -> i.a == 0
         Ir.CHECK_NUMBER, Ir.CHECK_INT32, Ir.CHECK_CLOSURE, Ir.LOAD_SLOT, Ir.LENGTH, Ir.LOAD_GLOBAL_LEX, Ir.LOAD_GLOBAL_SLOT,
         Ir.STRESS_EXIT, Ir.CLOSURE_ENV, Ir.IS_CLOSURE, Ir.CHECK_INTRINSIC, Ir.INLINE_THIS, Ir.INLINE_ENTER, Ir.INLINE_EXIT, Ir.SET_HOME, Ir.GOTO, Ir.BRANCH,
         Ir.SWITCH, Ir.RETURN -> true

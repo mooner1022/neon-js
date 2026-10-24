@@ -387,7 +387,7 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
       invariant closure test would keep the first loop's code. The loop where the block is compiled again takes 40 ms
       more: the compilation itself (the IR, D8 on the device, then ART's JIT), not T1 running meanwhile (keeping the
       old code until the new one was there changed nothing).
-    - `new` inlining, MAKE_CLASS (`classes`), environment loads with a TDZ check moved out of loops (module `const`).
+    - MAKE_CLASS (`classes`), environment loads with a TDZ check moved out of loops (module `const`).
   - Math builtins (P3's intrinsics): abs, sqrt, sin, cos, tan, atan, exp, log, floor, ceil, atan2 and pow carry an
     intrinsic id (`NativeFunction.intrinsic`) the interpreter notes at their call sites (`CallFeedback.intrinsic`); T2
     computes such a call with the Java method the builtin calls, behind a guard on the function's intrinsic id
@@ -402,11 +402,22 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
   - arrays: with an int key, a JS array's dense elements are read and written in place (the helpers otherwise), and
     `.length` (int32s in the profile) of an array or a string is read in place (`Length`, exiting for other objects:
     a typed array's length is a prototype getter, which may be replaced). On ART: NeonBench mono 39K -> 240K.
+  - constructions: the interpreter notes the closure a `NEW` constructs as it does at a `CALL`, and a site whose
+    feedback names a constructor that is neither a derived class's nor a class's default one gets its body inlined
+    behind the call's guard. `NewThis` makes `this` as `Interpreter.constructClosure` does (from the constructor's
+    prototype, a class's fields defined first), a `return` of anything but `this` gives `ConstructResult` (the value
+    where it is an object, else `this`), and an exit inside the body resumes it as a construction (Deopt: `new.target`
+    is the constructor, the result `this` unless the body returns an object). A site that gets another constructor
+    after its first compilation constructs that one on a branch, as calls do.
   - callees of the other strictness are inlined (class constructors and methods are strict, scripts mostly sloppy):
     the helpers of writes that may fail read the strictness of the innermost call the frame records (`JitRt.strict`),
     and a body that runs one is not quiet, so it records its call.
   - a plain object's empty shape is found without a lookup where a prototype's objects are of several classes
     (Object.prototype: each `{}` given its properties one by one looked its root up in a HashMap).
+  - On ART: NeonBench alloc 5.2-5.4K -> 6.3-6.6K; a loop of `new` of a two-property class 73-84 -> 54-58 ms (the same
+    objects as literals: 34-43 ms). The rest is the object model: each property added through a transition
+    (`AddSlot`) writes the map's layout, values and shape again where a literal's map is made once with its layout
+    (V8 folds a constructor's adds into the allocation with the function's final map).
 - **P5: tiering and tuning** (~1.5K). T1 -> T2 counters, OSR from T1 into T2 at loop headers, background T2 queue,
   thresholds, profiling T1 if compiled mode needs it, the builder option, Android measurement. Exit: StarLight's
   NeonBench and the user's benchmark gain on ART, first run included; default stays off until a release cycle has

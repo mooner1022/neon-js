@@ -10,6 +10,7 @@ import dev.mooner.neonjs.runtime.Null
 import dev.mooner.neonjs.runtime.PropCache
 import dev.mooner.neonjs.runtime.PropIC
 import dev.mooner.neonjs.runtime.GlobalSite
+import dev.mooner.neonjs.runtime.JSObject
 import dev.mooner.neonjs.runtime.PropSite
 import dev.mooner.neonjs.runtime.Undefined
 
@@ -273,7 +274,7 @@ internal class IrBuilder(
         Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC, Op.TO_NUMBER, Ir.MATH ->
             i.inputs.all { JT.isNum(kinds.of(it)) }
         Op.SEQ, Op.SNE, Op.NOT, Op.LOAD_ENV, Ir.CHECK_NUMBER, Ir.CHECK_INT32, Ir.LOAD_SLOT, Ir.LOAD_GLOBAL_LEX,
-        Ir.LOAD_GLOBAL_SLOT, Ir.CLOSURE_ENV, Ir.LENGTH -> true
+        Ir.LOAD_GLOBAL_SLOT, Ir.CLOSURE_ENV, Ir.LENGTH, Ir.CONSTRUCT_RESULT -> true
         else -> false
     }
 
@@ -686,7 +687,13 @@ internal class IrBuilder(
                         return
                     }
                     Op.RETURN -> {
-                        val v = pop()
+                        var v = pop()
+                        val s = site
+                        if (s != null && s.construct && v !== s.thisValue) {
+                            // a construction gives `this` unless the body returns an object
+                            v = if (v is Const && v.value !is JSObject) s.thisValue
+                            else add(cur, Inst(Ir.CONSTRUCT_RESULT, arrayOf(v, s.thisValue), 0, 0, 0, pc, stmt).also { it.hasResult = true })
+                        }
                         end()
                         val j = join
                         if (j == null) add(cur, Inst(Ir.RETURN, arrayOf(v), 0, 0, 0, pc, stmt))
@@ -769,6 +776,18 @@ internal class IrBuilder(
                             stack.add(v)
                         }
                     }
+                    Op.NEW -> {
+                        val target = inlineTarget(pc, construct = true)
+                        if (target == null || stack.size < a + 1) {
+                            val n = a + 1
+                            if (stack.size < n) throw JitBailout("operand stack underflow at $pc")
+                            val inputs = Array(n) { stack[stack.size - n + it] }
+                            repeat(n) { stack.removeAt(stack.size - 1) }
+                            inst(op, inputs, result = true)
+                        } else {
+                            cur = inline(cur, target, pc, a, stmt, regs, stack, construct = true)
+                        }
+                    }
                     Op.CALL -> {
                         val target = inlineTarget(pc)
                         val intrinsic = if (target == null) intrinsicAt(pc, a) else 0
@@ -842,17 +861,19 @@ internal class IrBuilder(
 
         // -------------------------------------------------------------- inlined calls
 
-        /** The code block to compile the CALL at [pc] inlined with, or null. */
-        private fun inlineTarget(pc: Int): CodeBlock? {
+        /** The code block to compile the CALL at [pc] (or, [construct], the NEW) inlined with, or null. */
+        private fun inlineTarget(pc: Int, construct: Boolean = false): CodeBlock? {
             val depth = site?.depth ?: 0
             // (where a call made there was another function before, CodeBlock.t2Failed, the call is made as a call when
             // it is another again: inline)
             if (depth >= maxInlineDepth) return null
             val fb = code.callFeedback
-            val target = (if (fb == null) code.callHint(pc) else fb.getOrNull(pc)?.takeIf { it.count >= Inlining.MIN_COUNT }?.target) ?: return null
+            val target = (if (fb == null) (if (construct) null else code.callHint(pc))
+            else fb.getOrNull(pc)?.takeIf { it.count >= Inlining.MIN_COUNT }?.target) ?: return null
             // (helpers read the strictness of the innermost call the frame records, JitRt.strict: a body that runs one is
             // not quiet, QuietInlines, and records its call)
-            if (!Inlining.eligible(cb, target, MAX_CALLEE_CODE, anyStrictness = true)) return null
+            if (if (construct) !Inlining.constructible(cb, target, MAX_CALLEE_CODE)
+                else !Inlining.eligible(cb, target, MAX_CALLEE_CODE, anyStrictness = true)) return null
             // recursion is inlined once, at the function compiled (as the baseline does): further copies only grow it
             if (depth > 0) {
                 if (target === cb) return null
@@ -874,12 +895,14 @@ internal class IrBuilder(
         }
 
         /**
-         * The CALL at [pc] of [argc] arguments with [target]'s body built in place, from block [cur], with the caller's
-         * [regs] and [stack] (the call's operands on top, its result there after). Returns the block where the body's
-         * returns meet, where the caller goes on.
+         * The CALL at [pc] of [argc] arguments (or, [construct], the NEW) with [target]'s body built in place, from block
+         * [cur], with the caller's [regs] and [stack] (the call's operands on top, its result there after). Returns the
+         * block where the body's returns meet, where the caller goes on.
          */
-        private fun inline(cur: Block, target: CodeBlock, pc: Int, argc: Int, stmt: Int, regs: Array<Value?>, stack: ArrayList<Value>): Block {
-            val n = argc + 2
+        private fun inline(cur: Block, target: CodeBlock, pc: Int, argc: Int, stmt: Int, regs: Array<Value?>, stack: ArrayList<Value>,
+                           construct: Boolean = false): Block {
+            // (fn, this, args) or (fn, args)
+            val n = if (construct) argc + 1 else argc + 2
             if (stack.size < n) throw JitBailout("operand stack underflow at $pc")
             inlined += target.code.size
             T2.inlinedCalls.incrementAndGet()
@@ -905,14 +928,19 @@ internal class IrBuilder(
             repeat(n) { stack.removeAt(stack.size - 1) }
             // (where the caller goes on after the call: what is live at the call is)
             val callerState = FrameState(pc, Array(nregs + stack.size) { if (it < nregs) regAt(pc, it, regs[it]!!) else stack[it - nregs] }, site)
+            // a construction's `this`, made before the body is entered (as Interpreter.constructClosure makes it)
+            val made = if (!construct) null else {
+                val cls = if (target.flags and CodeBlock.CLASS_CTOR != 0) 1 else 0
+                add(start, Inst(Ir.NEW_THIS, arrayOf(fn), cls, 0, 0, pc, stmt).also { it.hasResult = true })
+            }
             val enter = add(start, Inst(Ir.INLINE_ENTER, arrayOf(fn), pc, 0, 0, pc, stmt))
             val env = add(start, Inst(Ir.CLOSURE_ENV, arrayOf(fn), 0, 0, 0, pc, stmt).also { it.hasResult = true })
-            val thisValue = if (readsThis(target)) {
+            val thisValue = if (made != null) made else if (readsThis(target)) {
                 val bound = if (target.flags and (CodeBlock.STRICT or CodeBlock.ARROW) != 0) 1 else 0
                 add(start, Inst(Ir.INLINE_THIS, arrayOf(fn, ops[1]), bound, 0, 0, pc, stmt).also { it.hasResult = true })
             } else undefined()
-            val args = Array(argc) { ops[2 + it] }
-            val calleeSite = InlineSite(site, target, pc, callerState, fn, thisValue, args, env)
+            val args = Array(argc) { ops[n - argc + it] }
+            val calleeSite = InlineSite(site, target, pc, callerState, fn, thisValue, args, env, construct)
             enter.callee = calleeSite
             g.dataIndex(target.constants)
             val body = Body(target, calleeSite, cur.handler)
@@ -933,7 +961,7 @@ internal class IrBuilder(
                 stack.add(result)
                 return end
             }
-            val called = add(other, Inst(Op.CALL, ops.toTypedArray(), argc, 0, 0, pc, stmt).also { it.hasResult = true })
+            val called = add(other, Inst(if (construct) Op.NEW else Op.CALL, ops.toTypedArray(), argc, 0, 0, pc, stmt).also { it.hasResult = true })
             val join = newBlock(pc, site)
             join.handler = cur.handler
             if (body.returned.isNotEmpty()) {
@@ -1088,7 +1116,7 @@ internal class IrBuilder(
     /** Whether [i] takes all its operands as Objects, whatever their kinds. */
     private fun takesObject(i: Inst): Boolean = when (i.op) {
         Ir.RETURN, Ir.THROW, Op.CALL, Op.NEW, Op.STORE_ENV, Op.STORE_GLOBAL, Op.PUT_PROP, Ir.STORE_SLOT, Ir.ADD_SLOT,
-        Op.NEW_OBJECT_LITERAL, Op.ARRAY_PUSH -> true
+        Op.NEW_OBJECT_LITERAL, Op.ARRAY_PUSH, Ir.NEW_THIS, Ir.CONSTRUCT_RESULT -> true
         else -> false
     }
 

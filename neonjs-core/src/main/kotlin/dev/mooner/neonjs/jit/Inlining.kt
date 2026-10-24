@@ -67,6 +67,22 @@ internal object Inlining {
     fun eligible(caller: CodeBlock, callee: CodeBlock, maxCode: Int = MAX_CALLEE_CODE, anyStrictness: Boolean = false): Boolean {
         val f = callee.flags
         if (f and (CodeBlock.GENERATOR or CodeBlock.ASYNC or CodeBlock.CLASS_CTOR or CodeBlock.DERIVED or CodeBlock.NO_JIT) != 0) return false
+        return bodyEligible(caller, callee, maxCode, anyStrictness)
+    }
+
+    /**
+     * Whether a construction (`new`) of [callee] can be inlined into [caller] (the optimizing tier): a constructor whose
+     * `this` is made before its body runs (not a derived class's: Interpreter.constructClosure) and that has a body (not
+     * a class's default one), whose body [eligible] would inline (a class constructor's too: it is constructed here).
+     */
+    fun constructible(caller: CodeBlock, callee: CodeBlock, maxCode: Int): Boolean {
+        val f = callee.flags
+        if (f and CodeBlock.CONSTRUCTOR == 0 || f and (CodeBlock.DERIVED or CodeBlock.DEFAULT_CTOR or CodeBlock.NO_JIT) != 0) return false
+        return bodyEligible(caller, callee, maxCode, anyStrictness = true)
+    }
+
+    private fun bodyEligible(caller: CodeBlock, callee: CodeBlock, maxCode: Int, anyStrictness: Boolean): Boolean {
+        val f = callee.flags
         val sameStrictness = anyStrictness || (f and CodeBlock.STRICT) == (caller.flags and CodeBlock.STRICT)
         if (callee.strictPcs != null || callee.handlers.isNotEmpty()) return false
         val code = callee.code

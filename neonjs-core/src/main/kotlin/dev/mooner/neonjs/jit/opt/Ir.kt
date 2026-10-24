@@ -156,6 +156,8 @@ class InlineSite(
     @JvmField var thisValue: Value,
     @JvmField val args: Array<Value>,
     @JvmField var env: Value,
+    /** A construction (`new`): [thisValue] is the object made for it (Ir.NEW_THIS), its result that unless the body returns an object. */
+    @JvmField val construct: Boolean = false,
 ) {
     /** 1 for a call in the function compiled, 2 for a call in that callee's body, and so on. */
     @JvmField val depth: Int = (parent?.depth ?: 0) + 1
@@ -256,6 +258,13 @@ object Ir {
      * exits to [Inst.state], before the instruction.
      */
     const val LENGTH = 1021
+    /**
+     * (fn) the object a construction (`new`) of fn compiled inlined gives its body as `this` (JitRt.newThis), [Inst.a]
+     * 1 for a class constructor (its fields are defined first: code runs); (value, obj) CONSTRUCT_RESULT, the result of
+     * such a body's return: the value where it is an object, else obj.
+     */
+    const val NEW_THIS = 1022
+    const val CONSTRUCT_RESULT = 1023
     /** Terminators. GOTO; BRANCH(value): [Inst.a] is the bytecode jump tested (JUMP_IF_TRUE and the like). */
     const val GOTO = 1100
     const val BRANCH = 1101
@@ -297,6 +306,8 @@ object Ir {
         MATH -> "Math"
         ADD_SLOT -> "AddSlot"
         LENGTH -> "Length"
+        NEW_THIS -> "NewThis"
+        CONSTRUCT_RESULT -> "ConstructResult"
         SWITCH -> "Switch"
         GOTO -> "Goto"
         BRANCH -> "Branch"

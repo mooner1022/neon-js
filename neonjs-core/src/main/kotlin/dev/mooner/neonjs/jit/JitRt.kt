@@ -248,6 +248,20 @@ object JitRt {
     // ------------------------------------------------------------------ inlined calls (Inlining)
 
     /**
+     * The object a construction of [fn] (a base constructor) compiled inlined gives its body as `this` (Ir.NEW_THIS),
+     * made as Interpreter.constructClosure makes it: from the constructor's prototype, a class's fields defined.
+     */
+    @JvmStatic fun newThis(fn: Any?): Any? {
+        val c = fn as JSClosure
+        val o = JSObject(Ops.getPrototypeFromConstructor(c) { it.objectPrototype })
+        if (c.code.flags and CodeBlock.CLASS_CTOR != 0) Rt.initializeInstanceElements(o, c)
+        return o
+    }
+
+    /** A property added to [o] through the transition to [next] (Ir.ADD_SLOT, its checks made): one call where there were two. */
+    @JvmStatic fun addSlot(o: JSObject, next: Shape, v: Any?) = o.ensureProps().addTransition(next, v)
+
+    /**
      * Entering the body of [fn] inlined at the call at [pc]: the steps of a call that matter without a frame of its
      * own (Interpreter.execute's depth limit and call budget, in the same order), then the frame records the call for
      * stack traces. The realm is the caller's (the generated guard checks it). An exception leaving the body is

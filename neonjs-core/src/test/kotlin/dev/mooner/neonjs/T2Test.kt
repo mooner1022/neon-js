@@ -828,6 +828,73 @@ class T2Test {
             "[tryIt(viaStrict, Object.freeze(new Box(1))), tryIt(viaSloppy, Object.freeze({ w: 1 })), tryIt(viaStrict, boxes[1]), tryIt(viaSloppy, plain[2])].join('|')")
     }
 
+    @Test
+    fun constructionsAreInlined() {
+        // `new` of a constructor compiled inlined: classes (with a field, whose initializer runs first), functions, a body
+        // returning an object or a primitive, an error thrown in the body (its stack names the constructor), an exit in
+        // the body after a property was added (the interpreter finishes the construction: its result is `this`), at a
+        // construction inlined in an inlined call too
+        val src = """
+            class P { constructor(x, y) { this.x = x; this.y = y } }
+            class F { a = 1; constructor(x) { this.b = x + this.a } }
+            function Fn(x) { this.v = x * 2 }
+            function Ret(x) { this.v = x; if (x > 100) return { big: x }; return 5 }
+            function Chk(x) { if (x < 0) throw new RangeError('neg ' + x); this.x = x }
+            function Two(o) { this.a = 1; this.b = o.k + 1; this.c = 3 }
+            function makeP(n) { var s = 0; for (var i = 0; i < n; i++) { var p = new P(i, i + 1); s += p.x * p.y } return s }
+            function makeF(n) { var s = 0; for (var i = 0; i < n; i++) s += new F(i).b; return s }
+            function makeFn(x) { return new Fn(x).v }
+            function makeRet(x) { return JSON.stringify(new Ret(x)) }
+            function makeChk(x) { try { return new Chk(x).x } catch (e) { return e.message + ' ' + e.stack.split('\n').length } }
+            function makeTwo(o) { return JSON.stringify(new Two(o)) }
+            function wrapTwo(x) { var t = new Two({ k: x }); return t }
+            function viaWrap(x) { return JSON.stringify(wrapTwo(x)) }
+            for (var r = 0; r < 40; r++) { makeP(3); makeF(3); makeFn(r); makeRet(r); makeChk(r); makeTwo({ k: r }); viaWrap(r) }
+            """.trimIndent()
+        val names = listOf("makeP", "makeF", "makeFn", "makeRet", "makeChk", "makeTwo", "viaWrap")
+        for (n in names) assertTrue(irOf(src, n).contains("NewThis"), n)
+        val expr = "[makeP(100), makeF(10), makeFn(2.5), makeRet(3), makeRet(500), makeChk(4), makeChk(-1), makeTwo({ k: 2 }), " +
+            "makeTwo({ k: 'z' }), viaWrap(5), viaWrap('w')].join('|')"
+        val expected = interpreted(src, expr)
+        for (stress in intArrayOf(0, 2)) {
+            JvmCompiler.DEOPT_STRESS = stress
+            try {
+                val (actual, runs) = withT2(src, names, expr)
+                assertEquals(expected, actual, "stress $stress")
+                assertTrue(runs > 0)
+            } finally {
+                JvmCompiler.DEOPT_STRESS = 0
+            }
+        }
+    }
+
+    @Test
+    fun constructionSitesOfSeveralConstructors() {
+        // a site the feedback saw construct one constructor, then another: compiled again, it constructs the other as a
+        // construction made as one (CodeBlock.t2Failed)
+        val src = """
+            function build(n, C) { var s = 0; for (var i = 0; i < n; i++) s += new C(i).v; return s }
+            function A(x) { this.v = x * 2 }
+            class B { constructor(x) { this.v = x + 1 } }
+            """.trimIndent()
+        val warm = "for (var w = 0; w < 30; w++) build(20, A)"
+        val expr = "var t = 0; for (var k = 0; k < 200; k++) t += build(10, k % 2 ? A : B); String(t)"
+        val expected = interpreted(src, "$warm; $expr")
+        NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
+            .build().newContext().use { ctx ->
+                ctx.agent.config.tier2 = true
+                ctx.eval(src)
+                ctx.eval(warm)
+                val cb: CodeBlock = (ctx.eval("build").raw as JSClosure).code
+                cb.baseline ?: JvmCompiler.compile(cb)!!.also { cb.baseline = it; cb.compiled = it }
+                Jit.install(cb, T2.compile(cb, CodeDefiners.default) ?: fail("not compiled"))
+                assertEquals(expected, ctx.eval(expr).asString())
+                assertEquals(1, cb.t2Recompiles, "compiled again once")
+                val ir = dev.mooner.neonjs.jit.opt.IrPrinter.print(IrBuilder(cb, ints = true, elems = true).build())
+                assertTrue(ir.contains("IsClosure") && ir.contains("NEW ") && ir.contains("NewThis"), ir)
+            }
+    }
+
     /** The IR of function [name] after [src] ran in the interpreter (its caches and profiles filled). */
     private fun irOf(src: String, name: String): String =
         NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).console(null).build().newContext().use { ctx ->

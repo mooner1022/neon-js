@@ -2,6 +2,7 @@ package dev.mooner.neonjs.jit
 
 import dev.mooner.neonjs.compiler.Op
 import dev.mooner.neonjs.runtime.Env
+import dev.mooner.neonjs.runtime.JSObject
 import dev.mooner.neonjs.runtime.Undefined
 import dev.mooner.neonjs.vm.Frame
 import dev.mooner.neonjs.vm.Interpreter
@@ -15,7 +16,9 @@ import java.util.concurrent.atomic.AtomicLong
  * The frame compiled code runs becomes an interpreted frame in place (it keeps its identity, which error objects,
  * frame chains and the agent's top frame hold). A call compiled inlined that is live at the exit becomes a frame of
  * its own: the innermost runs first, its result goes on its caller's operand stack and the caller continues after the
- * CALL; an exception it throws is thrown in the caller at the CALL, through the caller's handlers.
+ * CALL; an exception it throws is thrown in the caller at the CALL, through the caller's handlers. A construction (at a
+ * NEW) is resumed as one: the frame's `new.target` is the constructor, and the result is `this` unless the body
+ * returned an object.
  */
 object Deopt {
     /**
@@ -94,7 +97,7 @@ object Deopt {
         f.deoptCall = null
         val callPc = f.pc
         try {
-            val r = call(c)
+            val r = call(c, f.code.code[callPc] == Op.NEW)
             f.slots[f.sp++] = r
         } catch (t: Throwable) {
             f.pendingThrow = t
@@ -103,15 +106,17 @@ object Deopt {
         f.pc = callPc + Op.length(f.code.code, callPc)
     }
 
-    private fun call(c: Inlined): Any? {
+    private fun call(c: Inlined, construct: Boolean): Any? {
         val fn = c.fn
-        val g = Frame(fn, fn.code, fn.realm, c.thisValue, c.args, Undefined, c.env, null)
+        val g = Frame(fn, fn.code, fn.realm, c.thisValue, c.args, if (construct) fn else Undefined, c.env, null)
         write(g, c.values)
         g.pc = c.pc
         // a call of its own completes once the frame is on the agent's frame chain (Interpreter.run)
         if (c.inner != null) g.deoptCall = c.inner
-        val r = Interpreter.execute(g, null)
-        return if (r === Interpreter.TAIL) Interpreter.callClosure(g.tailFn!!, g.tailThis, g.tailArgs!!) else r
+        val r0 = Interpreter.execute(g, null)
+        val r = if (r0 === Interpreter.TAIL) Interpreter.callClosure(g.tailFn!!, g.tailThis, g.tailArgs!!) else r0
+        // (as Interpreter.constructClosure)
+        return if (construct) r as? JSObject ?: c.thisValue else r
     }
 
     /** Gives [f] slots (it keeps them if it has some) holding [values]: its registers, then its operand stack. */

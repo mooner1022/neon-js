@@ -727,6 +727,26 @@ internal class IrCodegen(
                 done(i, JT.NUM)
                 return
             }
+            Ir.NEW_THIS -> {
+                // (a class's field initializers run code: the position first)
+                storePc(i)
+                load(i.inputs[0], JT.ANY)
+                rt("newThis", "($OBJ)$OBJ")
+                done(i, JT.ANY)
+                return
+            }
+            Ir.CONSTRUCT_RESULT -> {
+                val end = Label()
+                load(i.inputs[0], JT.ANY)
+                mv.visitInsn(DUP)
+                mv.visitTypeInsn(INSTANCEOF, "dev/mooner/neonjs/runtime/JSObject")
+                mv.visitJumpInsn(IFNE, end)
+                mv.visitInsn(POP)
+                load(i.inputs[1], JT.ANY)
+                mv.visitLabel(end)
+                done(i, JT.ANY)
+                return
+            }
             Ir.IS_CLOSURE -> {
                 // CHECK_CLOSURE's test, as a boolean
                 val fn = i.inputs[0]
@@ -912,13 +932,12 @@ internal class IrCodegen(
                     }
                 }
                 mv.visitVarInsn(ALOAD, o)
-                mv.visitMethodInsn(INVOKEVIRTUAL, "dev/mooner/neonjs/runtime/JSObject", "ensureProps", "()$PMAP_D", false)
                 mv.visitVarInsn(ALOAD, dataLocal)
                 iconst(i.b)
                 mv.visitInsn(AALOAD)
                 mv.visitTypeInsn(CHECKCAST, "dev/mooner/neonjs/runtime/Shape")
                 load(i.inputs[1], JT.ANY)
-                mv.visitMethodInsn(INVOKEVIRTUAL, PMAP, "addTransition", "(Ldev/mooner/neonjs/runtime/Shape;$OBJ)V", false)
+                rt("addSlot", "(Ldev/mooner/neonjs/runtime/JSObject;Ldev/mooner/neonjs/runtime/Shape;$OBJ)V")
                 exits.add(specExit(l, i))
                 return
             }
