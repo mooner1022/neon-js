@@ -426,7 +426,11 @@ parameter becomes a `Long` when it fits in 64 bits, so 64-bit values round-trip 
 exact long inside a JS number; NeonJS numbers are only doubles). `HostClassInfo` is the reflective view of a
 class under a `HostAccess` policy, cached in the policy (fields, methods, bean
 properties, constructors, nested classes, functional method). Members are what Java code outside the class's package
-can call: an object of a non-public class gets the methods of its public supertypes (`publicVersion`), and the
+can call: a member is reached only through a type JS may use itself, so an object of a class it may not use (not
+public, in a denied package such as the `sun.*` stream `URL.openStream` returns, or rejected by the class filter)
+gets the methods of its supertypes it may use, called through them as in Rhino (`publicVersion`, `usableVersion`),
+while objects of classes denied by name (a `Thread`, a `ClassLoader`, the engine's contexts) and their subclasses stay
+opaque; and the
 bridges through which a method is called by its name are members (javac's for methods inherited from a non-public
 class, Kotlin's for the Java names of mapped types), while covariant and generic bridges are not. `HostObject` and
 `HostClassObject` are exotic objects exposing them. Interface implementations are `java.lang.reflect.Proxy`s whose

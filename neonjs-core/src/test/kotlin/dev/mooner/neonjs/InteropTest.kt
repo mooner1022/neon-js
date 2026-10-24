@@ -41,6 +41,20 @@ class MethodName {
     fun getLabel() = "bean"
 }
 
+interface ApiFace {
+    fun greet(): String
+}
+
+class ApiImpl : ApiFace {
+    override fun greet() = "hi"
+    fun internalOnly() = "secret"
+}
+
+class ExportedImpl : ApiFace {
+    @HostExport override fun greet() = "hi"
+    @HostExport fun other() = "o"
+}
+
 interface Greeter {
     fun greet(who: String): String
     fun twice(who: String): String = greet(who) + "/" + greet(who)
@@ -110,6 +124,38 @@ class InteropTest {
             assertTrue(c.eval("b.name === b.name && n.call && (function (o) { return o.name })(b) === b.name").asBoolean())
             c.eval("a.name = 'changed'")
             assertEquals("changed", c.eval("n(a)").asString())
+        }
+    }
+
+    @Test
+    fun membersReachedThroughUsableTypes() {
+        // an object of a class JS may not use shows the members of the supertypes it may, called through them (as in
+        // Rhino): a stream of a denied package (sun.nio.ch on HotSpot), a jar URL's stream; under a class filter, an
+        // implementation behind an interface the filter accepts and a list of a non-public class
+        val tmp = java.io.File.createTempFile("neon", ".txt").apply { writeText("abc"); deleteOnExit() }
+        val jar = java.io.File.createTempFile("neon", ".jar").apply { deleteOnExit() }
+        java.util.jar.JarOutputStream(jar.outputStream()).use { j ->
+            j.putNextEntry(java.util.zip.ZipEntry("a.txt"))
+            j.write("xyz".toByteArray())
+            j.closeEntry()
+        }
+        ctx().use { c ->
+            c["stream"] = java.nio.file.Files.newInputStream(tmp.toPath())
+            c["url"] = java.net.URL("jar:" + jar.toURI() + "!/a.txt")
+            assertEquals("97,98,120", c.eval("var a = stream.read(), b = stream.read(); stream.close(); var s = url.openStream(); var x = s.read(); s.close(); [a, b, x].join()").asString())
+        }
+        val filtered = HostAccess.builder(HostAccess.Level.ALL).filterClasses { it == ApiFace::class.java || it.name.startsWith("java.") && !it.name.contains('$') }.build()
+        ctx(filtered).use { c ->
+            c["list"] = java.util.Collections.unmodifiableList(arrayListOf(1, 2))
+            c["impl"] = ApiImpl()
+            assertEquals("2,false,hi,undefined", c.eval("[list.size(), list.isEmpty(), impl.greet(), typeof impl.internalOnly].join()").asString())
+        }
+        // under EXPLICIT, an exported method of such a class is reached through the usable type declaring it; one no
+        // usable type declares is not
+        val explicit = HostAccess.builder(HostAccess.Level.EXPLICIT).filterClasses { it == ApiFace::class.java }.build()
+        ctx(explicit).use { c ->
+            c["e"] = ExportedImpl()
+            assertEquals("hi,undefined", c.eval("[e.greet(), typeof e.other].join()").asString())
         }
     }
 

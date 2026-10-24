@@ -193,6 +193,19 @@ class SecurityTest {
     }
 
     @Test
+    fun objectsOfDeniedPackagesShowOnlyUsableTypes() {
+        ctx().use { c ->
+            // a Method: its class, superclasses and interfaces are of a denied package (java.lang.reflect), so it shows
+            // Object's members only (deliberately: they offer nothing)
+            c["m"] = String::class.java.getMethod("length")
+            assertEquals("undefined,undefined,undefined,function", c.eval("[typeof m.invoke, typeof m.getName, typeof m.setAccessible, typeof m.hashCode].join()").asString())
+            // a class denied by name stays opaque in its subclasses: a ClassLoader
+            c["cl"] = object : ClassLoader() {}
+            assertEquals("undefined,undefined", c.eval("[typeof cl.loadClass, typeof cl.hashCode].join()").asString())
+        }
+    }
+
+    @Test
     fun hostFunctionsFollowTheAccessPolicy() {
         ctx().use { c ->
             // a denied class implementing Runnable: neither callable nor showing members
@@ -299,8 +312,9 @@ class SecurityTest {
             // a class of a denied package
             assertEquals(3, c.eval("Java.type('java.lang.reflect.Array').getLength(Java.to([1, 2, 3]))").asInt())
             assertEquals("java.lang:type=Runtime", c.eval("Java.type('java.lang.management.ManagementFactory').RUNTIME_MXBEAN_NAME").asString())
-            // objects are judged by their class: the MXBean is a sun.management class, still denied
-            assertEquals("undefined", c.eval("typeof Java.type('java.lang.management.ManagementFactory').getRuntimeMXBean().getUptime").asString())
+            // an object is reached through the types JS may use: the MXBean is of a sun.management class (denied), its
+            // java.lang.management interface usable once lifted
+            assertEquals("function", c.eval("typeof Java.type('java.lang.management.ManagementFactory').getRuntimeMXBean().getUptime").asString())
             // the rest of the list still applies
             for (cls in listOf("java.lang.Runtime", "java.lang.Class", "java.lang.reflect.Method", "sun.misc.Unsafe")) {
                 assertThrows<NeonException>(cls) { c.eval("Java.type('$cls')") }

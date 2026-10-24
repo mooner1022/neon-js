@@ -99,18 +99,32 @@ class HostAccess private constructor(b: Builder) {
     internal fun isCallDenied(c: Class<*>): Boolean = isDenied(c) { it === Proxy::class.java || it.name.startsWith("kotlin.jvm.internal.") }
 
     /**
-     * Can JS see the instance members of an object of class [c]? Those of a class that is not public (what
-     * `listOf`, `Collections.unmodifiableList`, `Map.of` or `CharBuffer.wrap` return) are the methods of its public
-     * superclasses and interfaces, called through those types, as Java code outside its package would call them. A
-     * proxy shows the methods of its interfaces: its base class `java.lang.reflect.Proxy` has no public instance
-     * methods of its own.
+     * Can JS see the instance members of an object of class [c]? A member is reached only through a type JS may use
+     * itself ([isClassAccessible]): an object of a class it may not use (not public, as what `listOf`,
+     * `Collections.unmodifiableList`, `Map.of` or `CharBuffer.wrap` return; in a denied package, as the streams of
+     * `URL.openStream` and `Files.newInputStream`; not accepted by the class filter, as an implementation behind an
+     * accepted interface) shows the methods of its superclasses and interfaces JS may use, called through those types,
+     * as Java code outside its package would call them, and as Rhino does. No type becomes usable that was not: only
+     * objects become reachable through types that were. Objects of a class denied by name, or extending or
+     * implementing one (a Thread, a ClassLoader, the engine's contexts: classes denied for what they offer), stay
+     * opaque. A proxy shows the methods of its interfaces: its base class `java.lang.reflect.Proxy` has no public
+     * instance methods of its own.
      */
     internal fun isInstanceAccessible(c: Class<*>): Boolean {
         if (level == Level.NONE) return false
         if (c.isArray) return isClassAccessible(c)
-        if (isDenied(c) { it === Proxy::class.java }) return false
-        val f = classFilter
-        return f == null || f(c)
+        return !isDeniedByName(c)
+    }
+
+    /** Whether [c], one of its superclasses or one of its interfaces is denied by name (not by package). */
+    private fun isDeniedByName(c: Class<*>): Boolean {
+        var k: Class<*>? = c
+        while (k != null) {
+            if (isNameDenied(k.name, packages = false)) return true
+            k = k.superclass
+        }
+        for (i in c.interfaces) if (isNameDenied(i.name, packages = false)) return true
+        return false
     }
 
     /** Can JS see members of [c] at all? */
@@ -133,7 +147,13 @@ class HostAccess private constructor(b: Builder) {
      * accepted by the member filter. Synthetic methods are not members, except the bridges through which a method is
      * called by its name (see [isEntryBridge]).
      */
-    fun isMemberAccessible(c: Class<*>, m: Member): Boolean {
+    fun isMemberAccessible(c: Class<*>, m: Member): Boolean = isMemberAccessible(c, m, m.declaringClass)
+
+    /**
+     * [isMemberAccessible] for [m] called through [declarer]: the type that declares the version of [m] JS calls, a
+     * supertype of [m]'s class where [c] is a class JS may not use (see [isInstanceAccessible]).
+     */
+    internal fun isMemberAccessible(c: Class<*>, m: Member, declarer: Class<*>): Boolean {
         if (!Modifier.isPublic(m.modifiers)) return false
         if (m is Method) {
             if (m.name == "getClass" && m.parameterCount == 0) {
@@ -141,7 +161,7 @@ class HostAccess private constructor(b: Builder) {
                 if (isNameDenied("java.lang.Class")) return false
             } else if (m.name in deniedMethods && m.declaringClass == Any::class.java) return false
             if ((m.isSynthetic || m.isBridge) && !isEntryBridge(m)) return false
-            if (isDenied(m.declaringClass) { it === Proxy::class.java }) return false
+            if (isDenied(declarer) { it === Proxy::class.java }) return false
         }
         when (level) {
             Level.NONE -> return false

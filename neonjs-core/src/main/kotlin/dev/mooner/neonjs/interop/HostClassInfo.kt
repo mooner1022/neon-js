@@ -72,9 +72,13 @@ class HostClassInfo private constructor(val cls: Class<*>, val access: HostAcces
      * all at once (HotSpot), keeping those inherited from the other classes of the hierarchy.
      */
     private fun collect() {
+        // a class JS may use shows its public members; one it may not (HostAccess.isInstanceAccessible) shows those of
+        // the supertypes JS may use, called through them
+        val direct = accessible && usable(cls)
         for (f in publicMembers(Class<*>::getFields, Class<*>::getDeclaredFields)) {
             try {
                 if (!access.isMemberAccessible(cls, f) || !isCallable(f) || Modifier.isStatic(f.modifiers) && !accessible) continue
+                if (!direct && !usable(f.declaringClass)) continue
                 f.type // resolves it (ART resolves types when first asked for)
                 val n = jsName(f, f.name)
                 if (Modifier.isStatic(f.modifiers)) staticFields[n] = f else instanceFields[n] = f
@@ -84,10 +88,17 @@ class HostClassInfo private constructor(val cls: Class<*>, val access: HostAcces
         }
         for (m0 in publicMembers(Class<*>::getMethods, Class<*>::getDeclaredMethods)) {
             try {
-                if (!access.isMemberAccessible(cls, m0) || Modifier.isStatic(m0.modifiers) && !accessible) continue
-                val m = publicVersion(m0) ?: continue
-                // reached through a supertype: that type is what JS calls, so it must not be denied either
-                if (m !== m0 && access.isClassDenied(m.declaringClass)) continue
+                if (Modifier.isStatic(m0.modifiers) && !accessible) continue
+                val m: Method
+                if (direct) {
+                    if (!access.isMemberAccessible(cls, m0)) continue
+                    m = publicVersion(m0) ?: continue
+                    // reached through a supertype: that type is what JS calls, so it must not be denied either
+                    if (m !== m0 && access.isClassDenied(m.declaringClass)) continue
+                } else {
+                    m = usableVersion(m0) ?: continue
+                    if (!access.isMemberAccessible(cls, m0, m.declaringClass)) continue
+                }
                 // resolves its types (ART resolves them when first asked for)
                 m.parameterTypes
                 m.returnType
@@ -135,6 +146,33 @@ class HostClassInfo private constructor(val cls: Class<*>, val access: HostAcces
         for (mc in orNone { cls.classes }) {
             if (Modifier.isPublic(mc.modifiers) && Modifier.isStatic(mc.modifiers) && access.isClassAccessible(mc)) memberClasses[mc.simpleName] = mc
         }
+    }
+
+    /** Whether JS may call members through type [t]: a class it may use, public and exported (enclosing class too). */
+    private fun usable(t: Class<*>): Boolean =
+        access.isClassAccessible(t) && isExported(t) && (t.enclosingClass == null || Modifier.isPublic(t.enclosingClass.modifiers))
+
+    /**
+     * The version of [m] declared in a type JS may use ([usable]), searched from [cls] through its superclasses and
+     * interfaces (a method of a class JS may not use is called through the first such type that has it), or null.
+     */
+    private fun usableVersion(m: Method): Method? {
+        if (isCallable(m) && usable(m.declaringClass)) return m
+        val seen = HashSet<Class<*>>()
+        fun search(c: Class<*>?): Method? {
+            if (c == null || !seen.add(c)) return null
+            if (usable(c)) {
+                try {
+                    val cand = c.getMethod(m.name, *m.parameterTypes)
+                    if (isCallable(cand) && usable(cand.declaringClass)) return cand
+                } catch (_: NoSuchMethodException) {
+                    // continue
+                }
+            }
+            for (i in c.interfaces) search(i)?.let { return it }
+            return search(c.superclass)
+        }
+        return search(cls)
     }
 
     private inline fun <T> orNone(get: () -> Array<T>): List<T> = try {
