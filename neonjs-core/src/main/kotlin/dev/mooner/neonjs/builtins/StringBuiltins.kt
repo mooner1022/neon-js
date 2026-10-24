@@ -219,6 +219,10 @@ internal object StringBuiltins {
             proto.method(realm, name, 1) { f, t, args, _ ->
                 Ops.requireObjectCoercible(t)
                 val regexp = args.arg(0)
+                if (RegExpBuiltins.pristine(f.realm, regexp)) {
+                    return@method if (sym === JSSymbol.match) RegExpBuiltins.symbolMatch(f.realm, regexp, t)
+                    else RegExpBuiltins.symbolSearch(f.realm, regexp, t)
+                }
                 if (regexp is JSObject) {
                     val m = Ops.getMethod(regexp, sym)
                     if (m !== Undefined) return@method Ops.call(m, regexp, arrayOf(t))
@@ -231,6 +235,10 @@ internal object StringBuiltins {
         proto.method(realm, "matchAll", 1) { f, t, args, _ ->
             Ops.requireObjectCoercible(t)
             val regexp = args.arg(0)
+            if (RegExpBuiltins.pristine(f.realm, regexp)) {
+                if (RegExpBuiltins.flagsOf(f.realm, regexp as JSObject).indexOf('g') < 0) typeErr("String.prototype.matchAll called with a non-global RegExp argument")
+                return@method RegExpBuiltins.symbolMatchAll(f.realm, regexp, t)
+            }
             if (regexp is JSObject) {
                 if (isRegExp(regexp)) {
                     val flags = regexp.get("flags", regexp)
@@ -293,6 +301,7 @@ internal object StringBuiltins {
             Ops.requireObjectCoercible(t)
             val search = args.arg(0)
             val replace = args.arg(1)
+            if (RegExpBuiltins.pristine(f.realm, search)) return@method RegExpBuiltins.symbolReplace(f.realm, search, t, replace)
             if (search is JSObject) {
                 val m = Ops.getMethod(search, JSSymbol.replace)
                 if (m !== Undefined) return@method Ops.call(m, search, arrayOf(t, replace))
@@ -313,6 +322,10 @@ internal object StringBuiltins {
             Ops.requireObjectCoercible(t)
             val search = args.arg(0)
             val replace = args.arg(1)
+            if (RegExpBuiltins.pristine(f.realm, search)) {
+                if (RegExpBuiltins.flagsOf(f.realm, search as JSObject).indexOf('g') < 0) typeErr("replaceAll must be called with a global RegExp")
+                return@method RegExpBuiltins.symbolReplace(f.realm, search, t, replace)
+            }
             if (search is JSObject) {
                 if (isRegExp(search)) {
                     val flags = search.get("flags", search)
@@ -356,6 +369,7 @@ internal object StringBuiltins {
             Ops.requireObjectCoercible(t)
             val sep = args.arg(0)
             val limit = args.arg(1)
+            if (RegExpBuiltins.pristine(f.realm, sep)) return@method RegExpBuiltins.symbolSplit(f.realm, sep, t, limit)
             if (sep is JSObject) {
                 val m = Ops.getMethod(sep, JSSymbol.split)
                 if (m !== Undefined) return@method Ops.call(m, sep, arrayOf(t, limit))

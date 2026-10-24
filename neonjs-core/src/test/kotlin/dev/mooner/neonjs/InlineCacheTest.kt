@@ -23,6 +23,61 @@ class InlineCacheTest {
     """
 
     @Test
+    fun regExpBuiltinsSeeChangedPrototypes() = check("""
+        // the regexp builtins take a regexp's flags from its program and call each other directly while reading them
+        // would run no code (RegExpBuiltins.pristine): a getter redefined in place, an own property, a replaced or
+        // deleted method, each restored
+        function rep(s) { return s.replace(/o/g, '0') }
+        function once(s) { return s.replace(/o/, '0') }
+        for (var i = 0; i < 40; i++) { eq(rep('ooo'), '000'); eq(once('ooo'), '0oo') }
+        var g = Object.getOwnPropertyDescriptor(RegExp.prototype, 'global');
+        Object.defineProperty(RegExp.prototype, 'global', { get() { return false }, configurable: true });
+        eq(rep('ooo'), '0oo', 'getter redefined');
+        Object.defineProperty(RegExp.prototype, 'global', g);
+        eq(rep('ooo'), '000', 'getter restored');
+        var own = /o/g;
+        Object.defineProperty(own, 'flags', { value: '' });
+        eq('ooo'.replace(own, '0'), '0oo', 'own flags');
+        var calls = 0, exec = RegExp.prototype.exec;
+        RegExp.prototype.exec = function (s) { calls++; return exec.call(this, s) };
+        eq(once('ooo'), '0oo');
+        eq(calls, 1, 'exec replaced');
+        eq(/a/.test('a'), true);
+        eq(calls, 2, 'test calls exec');
+        RegExp.prototype.exec = exec;
+        var f = Object.getOwnPropertyDescriptor(RegExp.prototype, 'flags');
+        delete RegExp.prototype.flags;
+        eq(rep('ooo'), '0oo', 'flags deleted');
+        Object.defineProperty(RegExp.prototype, 'flags', f);
+        eq(rep('ooo'), '000', 'flags restored');
+        var sp = RegExp.prototype[Symbol.split];
+        RegExp.prototype[Symbol.split] = function () { return 'mine' };
+        eq('a,b'.split(/,/), 'mine', 'split replaced');
+        RegExp.prototype[Symbol.split] = sp;
+        eq('a,b'.split(/,/).join('|'), 'a|b');
+        eq('xaxbx'.match(/x(.)/g).join(), 'xa,xb');
+        eq('ab'.search(/b/), 1);
+        eq([...'a1b2'.matchAll(/\d/g)].join(), '1,2');
+        eq('a.b.c'.replaceAll(/\./g, '-'), 'a-b-c');
+        throws(() => 'abc'.replaceAll(/b/, 'x'), 'replaceAll of a non-global regexp');
+        eq(/x/dgimsy.flags, 'dgimsy');
+        var m = /(?<k>b)/d.exec('ab');
+        eq(m.indices.groups.k.join() + ' ' + m.groups.k + ' ' + m.index, '1,2 b 1');
+        // a non-global replace reads a lastIndex that is no number once; a sticky one matches there
+        var li = /o/, reads = 0;
+        li.lastIndex = { valueOf() { reads++; return 0 } };
+        eq('oo'.replace(li, '0'), '0o');
+        eq(reads, 1, 'lastIndex read');
+        var st = /o/y;
+        st.lastIndex = 1;
+        eq('oxo'.replace(st, '0') + st.lastIndex, 'oxo0', 'sticky');
+        var fixed = /o/g;
+        Object.defineProperty(fixed, 'lastIndex', { writable: false });
+        throws(() => 'oo'.replace(fixed, '0'), 'lastIndex not writable');
+        'ok'
+    """)
+
+    @Test
     fun stringPrimitivesReadThroughTheirCache() = check("""
         // a string primitive's properties come from String.prototype and Object.prototype through the site's cache
         // (PropCache.getString): replaced, deleted, a getter (this: the primitive), absent then defined

@@ -31,6 +31,18 @@ class JSRegExp(proto: JSObject?) : JSObject(proto) {
 }
 
 /**
+ * %RegExp.prototype%. It keeps the intrinsic values of the properties a regexp's flags, exec and Symbol methods are read
+ * from, so that the builtins can tell when reading them would run no user code (RegExpBuiltins.pristine).
+ */
+internal class RegExpPrototype(proto: JSObject, @JvmField val realm: Realm) : JSObject(proto) {
+    /** The intrinsic values of RegExpBuiltins.KEYS: an accessor's getter, a method's function. */
+    @JvmField var originals: Array<Any?> = arrayOfNulls(0)
+    /** The shape [slots] were found in (they are found again when this object's shape changes). */
+    @JvmField var shape: Shape? = null
+    @JvmField var slots = IntArray(0)
+}
+
+/**
  * The legacy static slots of a realm's %RegExp% (proposal-regexp-legacy-features): `[[RegExpInput]]`,
  * `[[RegExpLastMatch]]`, `[[RegExpParen1]]`-`[[RegExpParen9]]`, `[[RegExpLastParen]]`, `[[RegExpLeftContext]]` and
  * `[[RegExpRightContext]]`. The match slots are kept as positions into [subject] and only materialized by the accessors,
@@ -107,8 +119,15 @@ internal object RegExpBuiltins {
     private const val PROTO = "%RegExp.prototype%"
     private const val EXEC = "%RegExp.prototype.exec%"
 
+    /** RegExp.prototype's properties [pristine] checks: the flags accessors (the first [ACCESSORS]), then methods. */
+    private val KEYS: Array<Any> = arrayOf(
+        "flags", "hasIndices", "global", "ignoreCase", "multiline", "dotAll", "unicode", "unicodeSets", "sticky",
+        "exec", JSSymbol.match, JSSymbol.matchAll, JSSymbol.replace, JSSymbol.search, JSSymbol.split,
+    )
+    private const val ACCESSORS = 9
+
     fun install(realm: Realm) {
-        val proto = JSObject(realm.objectPrototype)
+        val proto = RegExpPrototype(realm.objectPrototype, realm)
         realm.intrinsics[PROTO] = proto
         val ctor = makeCtor(realm, "RegExp", 2, proto) { f, _, args, nt -> construct(f, args, nt) }
         realm.intrinsics["%RegExp%"] = ctor
@@ -159,7 +178,7 @@ internal object RegExpBuiltins {
         proto.method(realm, "test", 1) { f, t, args, _ ->
             val r = t as? JSObject ?: typeErr("RegExp.prototype.test called on non-object ${Ops.describe(t)}")
             val str = Ops.toString(args.arg(0))
-            if (r is JSRegExp && r.get("exec", r) === f.realm.intrinsics[EXEC]) builtinExec(f.realm, r, str, false) !== Null
+            if (pristine(f.realm, r) || r is JSRegExp && r.get("exec", r) === f.realm.intrinsics[EXEC]) builtinExec(f.realm, r as JSRegExp, str, false) !== Null
             else regExpExec(f.realm, r, str) !== Null
         }
         proto.method(realm, "toString", 0) { _, t, _, _ ->
@@ -193,6 +212,68 @@ internal object RegExpBuiltins {
 
         installLegacyStatics(realm, ctor)
         realm.agent.regexpFactory = ::literal
+        val pm = proto.props!!
+        proto.originals = Array(KEYS.size) {
+            val v = pm.values[pm.find(KEYS[it])]
+            if (it < ACCESSORS) (v as Accessor).getter else v
+        }
+    }
+
+    /**
+     * True if [o] is a regexp of [realm] whose flags, exec and Symbol methods are the intrinsic ones: it has no own
+     * property but lastIndex and RegExp.prototype's flags getters and methods are unchanged. Reading them then runs no
+     * user code, so the builtins may take the flags from the program and call each other directly.
+     */
+    @JvmStatic
+    fun pristine(realm: Realm, o: Any?): Boolean {
+        if (o !is JSRegExp) return false
+        val p = o.proto as? RegExpPrototype ?: return false
+        val own = o.props
+        if (p.realm !== realm || own == null || own.count != 1) return false
+        val pm = p.props ?: return false
+        if (pm.shape !== p.shape && !locate(p, pm)) return false
+        // (redefining a getter changes its Accessor in place, the shape stays: the getters are compared each time)
+        val vs = pm.values
+        val sl = p.slots
+        val og = p.originals
+        for (i in 0 until ACCESSORS) {
+            val v = vs[sl[i]]
+            if (v !is Accessor || v.getter !== og[i]) return false
+        }
+        for (i in ACCESSORS until KEYS.size) if (vs[sl[i]] !== og[i]) return false
+        return true
+    }
+
+    /** Finds the slots of [KEYS] in RegExp.prototype's map [pm]; false if one is missing. */
+    private fun locate(p: RegExpPrototype, pm: PropertyMap): Boolean {
+        val sl = IntArray(KEYS.size)
+        for (i in KEYS.indices) {
+            sl[i] = pm.find(KEYS[i])
+            if (sl[i] < 0) return false
+        }
+        p.slots = sl
+        p.shape = pm.shape
+        return true
+    }
+
+    /** The `flags` strings of the flag sets of programs, made once each. */
+    private val flagStrings = arrayOfNulls<String>(256)
+
+    /** Regexp [rx]'s `flags` (as RegExp.prototype.flags returns them): from its program when that reads the same. */
+    fun flagsOf(realm: Realm, rx: JSObject): String {
+        if (!pristine(realm, rx)) return Ops.toString(rx.get("flags", rx))
+        val bits = (rx as JSRegExp).program?.flags ?: 0
+        flagStrings[bits]?.let { return it }
+        val sb = StringBuilder()
+        if (bits and FLAG_INDICES != 0) sb.append('d')
+        if (bits and FLAG_GLOBAL != 0) sb.append('g')
+        if (bits and FLAG_IGNORECASE != 0) sb.append('i')
+        if (bits and FLAG_MULTILINE != 0) sb.append('m')
+        if (bits and FLAG_DOTALL != 0) sb.append('s')
+        if (bits and FLAG_UNICODE != 0) sb.append('u')
+        if (bits and FLAG_UNICODE_SETS != 0) sb.append('v')
+        if (bits and FLAG_STICKY != 0) sb.append('y')
+        return sb.toString().also { flagStrings[bits] = it }
     }
 
     // ------------------------------------------------------------------ legacy static properties
@@ -397,6 +478,7 @@ internal object RegExpBuiltins {
 
     /** True if [o]'s "exec" is the intrinsic %RegExp.prototype.exec% data property (found without side effects). */
     private fun hasBuiltinExec(realm: Realm, o: JSObject): Boolean {
+        if (pristine(realm, o)) return true
         val exec = realm.intrinsics[EXEC] ?: return false
         var p: JSObject? = o
         while (p != null) {
@@ -481,6 +563,7 @@ internal object RegExpBuiltins {
 
     /** RegExpExec(R, S) */
     fun regExpExec(realm: Realm, r: JSObject, s: String): Any? {
+        if (pristine(realm, r)) return builtinExec(realm, r as JSRegExp, s)
         val exec = r.get("exec", r)
         if (exec === realm.intrinsics[EXEC] && r is JSRegExp) return builtinExec(realm, r, s)
         if (Ops.isCallable(exec)) {
@@ -506,10 +589,10 @@ internal object RegExpBuiltins {
 
     // ------------------------------------------------------------------ Symbol methods
 
-    private fun symbolMatch(realm: Realm, t: Any?, string: Any?): Any? {
+    fun symbolMatch(realm: Realm, t: Any?, string: Any?): Any? {
         val rx = thisObject(t, "Symbol.match")
         val s = Ops.toString(string)
-        val flags = Ops.toString(rx.get("flags", rx))
+        val flags = flagsOf(realm, rx)
         if (flags.indexOf('g') < 0) return regExpExec(realm, rx, s)
         val fullUnicode = hasUnicodeFlag(flags)
         rx.setOrThrow("lastIndex", 0.0)
@@ -546,11 +629,11 @@ internal object RegExpBuiltins {
         }
     }
 
-    private fun symbolMatchAll(realm: Realm, t: Any?, string: Any?): Any? {
+    fun symbolMatchAll(realm: Realm, t: Any?, string: Any?): Any? {
         val r = thisObject(t, "Symbol.matchAll")
         val s = Ops.toString(string)
         val c = Ops.speciesConstructor(r, realm.intrinsic("%RegExp%"))
-        val flags = Ops.toString(r.get("flags", r))
+        val flags = flagsOf(realm, r)
         val matcher = Ops.construct(c, arrayOf(r, flags)) as JSObject
         val lastIndex = Ops.toLength(r.get("lastIndex", r))
         matcher.setOrThrow("lastIndex", lastIndex.toDouble())
@@ -580,21 +663,25 @@ internal object RegExpBuiltins {
         return Iteration.createIterResult(realm, match, false)
     }
 
-    private fun symbolReplace(realm: Realm, t: Any?, string: Any?, replaceValue: Any?): Any? {
+    fun symbolReplace(realm: Realm, t: Any?, string: Any?, replaceValue: Any?): Any? {
         val rx = thisObject(t, "Symbol.replace")
         val s = Ops.toString(string)
         val lengthS = s.length
         val functionalReplace = Ops.isCallable(replaceValue)
         val replaceStr = if (functionalReplace) "" else Ops.toString(replaceValue)
-        val flags = Ops.toString(rx.get("flags", rx))
+        val flags = flagsOf(realm, rx)
         val global = flags.indexOf('g') >= 0
         var fullUnicode = false
         if (global) {
             fullUnicode = hasUnicodeFlag(flags)
             rx.setOrThrow("lastIndex", 0.0)
         }
-        if (global && rx is JSRegExp && programOf(rx).flags and FLAG_GLOBAL != 0 && hasBuiltinExec(realm, rx)) {
-            return fastReplaceAll(realm, rx, s, fullUnicode, if (functionalReplace) replaceValue as JSObject else null, replaceStr)
+        if (rx is JSRegExp && hasBuiltinExec(realm, rx)) {
+            val bits = programOf(rx).flags
+            // (once: the program matches from 0 and lastIndex, a number, is read without effects and not written)
+            if (if (global) bits and FLAG_GLOBAL != 0 else bits and (FLAG_GLOBAL or FLAG_STICKY) == 0 && rx.get("lastIndex", rx) is Double) {
+                return fastReplace(realm, rx, s, global, fullUnicode, if (functionalReplace) replaceValue as JSObject else null, replaceStr)
+            }
         }
         val results = ArrayList<JSObject>()
         var iterations = 0
@@ -655,23 +742,27 @@ internal object RegExpBuiltins {
     }
 
     /**
-     * Global `RegExp.prototype[Symbol.replace]` for a regexp using the builtin exec: same observable behaviour as the
-     * generic algorithm, without materializing the intermediate match objects.
+     * `RegExp.prototype[Symbol.replace]` for a regexp using the builtin exec, of every match if [global], else of the
+     * first: same observable behaviour as the generic algorithm, without materializing the intermediate match objects.
      */
-    private fun fastReplaceAll(realm: Realm, rx: JSRegExp, s: String, fullUnicode: Boolean, fn: JSObject?, template: String): String {
+    private fun fastReplace(realm: Realm, rx: JSRegExp, s: String, global: Boolean, fullUnicode: Boolean, fn: JSObject?, template: String): String {
         val prog = programOf(rx)
         val n = prog.captureCount
         val m = newMatcher(realm, prog, s)
         val matches = ArrayList<IntArray>()
-        var li = 0L
-        while (li <= s.length && guardStack { m.match(li.toInt()) }) {
-            val start = maxOf(m.start(0), li.toInt())
-            val e = m.end(0)
-            matches.add(capturePositions(m, n, start))
-            li = if (e == start) advance(s, e.toLong(), fullUnicode) else e.toLong()
+        if (global) {
+            var li = 0L
+            while (li <= s.length && guardStack { m.match(li.toInt()) }) {
+                val start = maxOf(m.start(0), li.toInt())
+                val e = m.end(0)
+                matches.add(capturePositions(m, n, start))
+                li = if (e == start) advance(s, e.toLong(), fullUnicode) else e.toLong()
+            }
+        } else if (guardStack { m.match(0) }) {
+            matches.add(capturePositions(m, n, m.start(0)))
         }
         if (matches.isNotEmpty()) legacyTarget(realm, rx)?.update(s, matches[matches.size - 1])
-        rx.setOrThrow("lastIndex", 0.0)
+        if (global) rx.setOrThrow("lastIndex", 0.0)
         val names = prog.groupNames
         val simpleTemplate = fn == null && template.indexOf('$') < 0
         val acc = StringBuilder()
@@ -728,7 +819,7 @@ internal object RegExpBuiltins {
         return acc.toString()
     }
 
-    private fun symbolSearch(realm: Realm, t: Any?, string: Any?): Any? {
+    fun symbolSearch(realm: Realm, t: Any?, string: Any?): Any? {
         val rx = thisObject(t, "Symbol.search")
         val s = Ops.toString(string)
         val previousLastIndex = rx.get("lastIndex", rx)
@@ -741,11 +832,11 @@ internal object RegExpBuiltins {
         return result.get("index", result)
     }
 
-    private fun symbolSplit(realm: Realm, t: Any?, string: Any?, limit: Any?): Any? {
+    fun symbolSplit(realm: Realm, t: Any?, string: Any?, limit: Any?): Any? {
         val rx = thisObject(t, "Symbol.split")
         val s = Ops.toString(string)
         val c = Ops.speciesConstructor(rx, realm.intrinsic("%RegExp%"))
-        val flags = Ops.toString(rx.get("flags", rx))
+        val flags = flagsOf(realm, rx)
         val unicodeMatching = hasUnicodeFlag(flags)
         val newFlags = if (flags.indexOf('y') >= 0) flags else flags + "y"
         val splitter = Ops.construct(c, arrayOf(rx, newFlags)) as JSObject
