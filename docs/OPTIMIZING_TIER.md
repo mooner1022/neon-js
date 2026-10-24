@@ -348,16 +348,37 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
   - API 34 emulator, tier on against off: NeonBench int 85K -> 221-235K; basic.js `loop` 21 -> 5 ms; StarLight
     benchmark 345 -> 136-155 ms per loop; in steady state (5 runs after 3) `classes` 103 -> 109 ms and `closures`
     62 -> 78 ms (see next).
+  - ART-driven passes (ART neither inlines the runtime's helpers into these classes nor removes much around an exit's
+    call in a loop):
+    - number checks whose uses all take an Object (a return, a call's operand, a store) go: `() => i` made a new box
+      per call (`closures` 62 -> 78 ms with the tier, now 61);
+    - parameters, global lexical bindings, and entering and leaving inlined calls are bytecode of their own, not helper
+      calls;
+    - results nothing uses are not computed (an unused inlined result's arithmetic stayed behind an exit: 2x);
+    - int32 arithmetic only where its int is used as one (bitwise, element keys, through phis; remainders always):
+      a sum only read as a number stays a double, a counter only compared too;
+    - LICM moves arithmetic of numbers without an exit; a counter's `++` under its loop's `i < n` (n an int) has no
+      overflow check; number checks of numbers fold (a literal's property read: its loop had two exits left).
+  - Speculations that fail:
+    - an exit leaves undefined in registers dead there; on-stack replacement (the baseline's, the tier's) takes any
+      value for a register dead at the header (the baseline's entry threw a ClassCastException after a revert);
+    - where the tier's code declines an on-stack replacement (a sum that overflowed in the interpreter), the baseline
+      takes the loop, and that entry is not offered again (the loop ran to its end in the interpreter: 6 -> 600 ms);
+    - 4 exits of one speculation make the code give way too (`-Dneonjs.jit.t2SpecLimit`), not only 16 in all;
+    - a call inlined where its guard failed before stays inlined for the function the feedback names, other functions
+      being called as calls on a branch (`IsClosure`): StarLight's repeatf, which gets two callbacks, kept its loop
+      past the limit instead of slowing 5x there.
+  - API 34 emulator, tier on against off, 2 interleaved runs: StarLight benchmark 327-331 -> 118-120 ms per loop;
+    NeonBench int 86K -> 243K, mono +70-90%, float +15-25%, call +5-30%, alloc and closure +5-10%; IR bound cases all
+    at or below T1 (literal in a loop 372 -> 8.5 ms, method using `this` 244 -> 2 ms, nested calls 600 -> 3.8 ms);
+    basic.js and the classes/closures/objects cases at or below T1.
   - Next:
-    - number checks whose uses all take an Object (a return, a call's argument, a store) cost an unbox and a new box
-      (an allocation on ART): `() => i` returns a new Double per call, the likely cause of `closures`. Drop such
-      checks (with the kinds inferred again).
     - T2 compiles once, right after T1 is installed: code that had not run then (a function's second loop) gets no
       feedback, so no inlining or checks there, and nothing recompiles it. Compile later, or again when such code turns
       hot (P5).
-    - calls: fib(30) is now most of the StarLight benchmark (about 90 ns a call on ART). Inlining recursion deeper made
-      ART slower (depth 2: 141 -> 175 ms; depth 3: 1.3 s, apparently not JIT-compiled by ART), so the cost of the call
-      itself (arguments array, frame, the result's box) is what is left: direct calls between T2 codes.
+    - calls: fib(30) is now most of the StarLight benchmark (about 90 ns a call on ART: simpleperf shows allocation
+      and its GC, the frame, the arguments array, the result's box). Inlining recursion deeper made ART slower (depth 2:
+      141 -> 175 ms; depth 3: 1.3 s, apparently not JIT-compiled by ART). Direct calls between T2 codes.
     - `new` inlining, MAKE_CLASS (`classes`), environment loads with a TDZ check moved out of loops (module `const`).
 - **P5: tiering and tuning** (~1.5K). T1 -> T2 counters, OSR from T1 into T2 at loop headers, background T2 queue,
   thresholds, profiling T1 if compiled mode needs it, the builder option, Android measurement. Exit: StarLight's
