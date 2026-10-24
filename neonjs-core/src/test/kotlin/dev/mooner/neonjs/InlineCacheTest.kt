@@ -74,6 +74,17 @@ class InlineCacheTest {
         var fixed = /o/g;
         Object.defineProperty(fixed, 'lastIndex', { writable: false });
         throws(() => 'oo'.replace(fixed, '0'), 'lastIndex not writable');
+        // split makes no splitter while its species is %RegExp% and the limit a number
+        eq('a1b22c'.split(/\d+/).join('|') + ' ' + 'a1b2c'.split(/(\d)/, 3).join('|'), 'a|b|c a|1|b');
+        'x1y'.split(/(\d)/);
+        eq(RegExp.$1, '1', 'legacy statics');
+        var species = Object.getOwnPropertyDescriptor(RegExp, Symbol.species), made = 0;
+        class Mine extends RegExp { constructor(p, f) { made++; super(p, f) } }
+        Object.defineProperty(RegExp, Symbol.species, { get() { return Mine }, configurable: true });
+        eq('a,b'.split(/,/).join('|') + made, 'a|b1', 'species');
+        Object.defineProperty(RegExp, Symbol.species, species);
+        var limits = 0;
+        eq('a,b,c'.split(/,/, { valueOf() { limits++; return 2 } }).join('|') + limits, 'a|b1', 'limit');
         'ok'
     """)
 

@@ -37,6 +37,8 @@ class JSRegExp(proto: JSObject?) : JSObject(proto) {
 internal class RegExpPrototype(proto: JSObject, @JvmField val realm: Realm) : JSObject(proto) {
     /** The intrinsic values of RegExpBuiltins.KEYS: an accessor's getter, a method's function. */
     @JvmField var originals: Array<Any?> = arrayOfNulls(0)
+    /** %RegExp%[Symbol.species]'s intrinsic getter. */
+    @JvmField var species: Any? = null
     /** The shape [slots] were found in (they are found again when this object's shape changes). */
     @JvmField var shape: Shape? = null
     @JvmField var slots = IntArray(0)
@@ -122,9 +124,10 @@ internal object RegExpBuiltins {
     /** RegExp.prototype's properties [pristine] checks: the flags accessors (the first [ACCESSORS]), then methods. */
     private val KEYS: Array<Any> = arrayOf(
         "flags", "hasIndices", "global", "ignoreCase", "multiline", "dotAll", "unicode", "unicodeSets", "sticky",
-        "exec", JSSymbol.match, JSSymbol.matchAll, JSSymbol.replace, JSSymbol.search, JSSymbol.split,
+        "exec", JSSymbol.match, JSSymbol.matchAll, JSSymbol.replace, JSSymbol.search, JSSymbol.split, "constructor",
     )
     private const val ACCESSORS = 9
+    private const val CONSTRUCTOR = 15
 
     fun install(realm: Realm) {
         val proto = RegExpPrototype(realm.objectPrototype, realm)
@@ -217,6 +220,8 @@ internal object RegExpBuiltins {
             val v = pm.values[pm.find(KEYS[it])]
             if (it < ACCESSORS) (v as Accessor).getter else v
         }
+        val cm = ctor.props!!
+        proto.species = (cm.values[cm.find(JSSymbol.species)] as Accessor).getter
     }
 
     /**
@@ -242,6 +247,18 @@ internal object RegExpBuiltins {
         }
         for (i in ACCESSORS until KEYS.size) if (vs[sl[i]] !== og[i]) return false
         return true
+    }
+
+    /**
+     * True if SpeciesConstructor of a [pristine] regexp of [p] is %RegExp%, found by reading intrinsics only (its
+     * prototype's constructor is checked by [pristine]).
+     */
+    private fun speciesIntact(p: RegExpPrototype): Boolean {
+        val cm = (p.originals[CONSTRUCTOR] as JSObject).props ?: return false
+        val i = cm.find(JSSymbol.species)
+        if (i < 0) return false
+        val v = cm.values[i]
+        return v is Accessor && v.getter === p.species
     }
 
     /** Finds the slots of [KEYS] in RegExp.prototype's map [pm]; false if one is missing. */
@@ -855,6 +872,14 @@ internal object RegExpBuiltins {
     fun symbolSplit(realm: Realm, t: Any?, string: Any?, limit: Any?): Any? {
         val rx = thisObject(t, "Symbol.split")
         val s = Ops.toString(string)
+        if (s.isNotEmpty() && (limit === Undefined || limit is Double) && pristine(realm, rx) && speciesIntact(rx.proto as RegExpPrototype)) {
+            // the splitter, `new RegExp(rx, flags + 'y')`, would be made by reading intrinsics only and stay unreachable,
+            // and the limit is read without effects: rx's program searches as the splitter's (fastSplit ignores sticky)
+            val lim = if (limit === Undefined) 4294967295L else Ops.toUint32(limit)
+            if (lim == 0L) return Builtins.arrayOf(realm, ArrayList())
+            val prog = programOf(rx as JSRegExp)
+            return fastSplit(realm, prog, s, lim, prog.isUnicode)
+        }
         val c = Ops.speciesConstructor(rx, realm.intrinsic("%RegExp%"))
         val flags = flagsOf(realm, rx)
         val unicodeMatching = hasUnicodeFlag(flags)
@@ -872,7 +897,7 @@ internal object RegExpBuiltins {
         }
         if (c === realm.intrinsic("%RegExp%") && splitter is JSRegExp && hasBuiltinExec(realm, splitter)) {
             // the splitter is not reachable from user code: search directly instead of trying each position
-            return fastSplit(realm, splitter, s, lim, unicodeMatching)
+            return fastSplit(realm, programOf(splitter), s, lim, unicodeMatching)
         }
         var p = 0
         var q = 0L
@@ -907,8 +932,11 @@ internal object RegExpBuiltins {
         return Builtins.arrayOf(realm, out)
     }
 
-    private fun fastSplit(realm: Realm, splitter: JSRegExp, s: String, lim: Long, unicodeMatching: Boolean): JSArray {
-        val prog = programOf(splitter)
+    /**
+     * Splits [s] by the matches of [prog] (a splitter of [realm]'s %RegExp%: its legacy statics follow the matches),
+     * searching from each position instead of trying each one.
+     */
+    private fun fastSplit(realm: Realm, prog: RegExpProgram, s: String, lim: Long, unicodeMatching: Boolean): JSArray {
         val m = newMatcher(realm, prog, s)
         val size = s.length
         val out = ArrayList<Any?>()
@@ -922,7 +950,7 @@ internal object RegExpBuiltins {
             if (qm >= size) break
             if (!matched) {
                 matched = true
-                legacy = legacyTarget(realm, splitter)
+                legacy = statics(realm)
             }
             legacy?.update(s, qm, m.end(0), m, prog.captureCount - 1)
             val e = minOf(m.end(0), size)

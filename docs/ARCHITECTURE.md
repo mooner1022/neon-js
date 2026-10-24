@@ -402,6 +402,8 @@ A regexp whose flags, `exec` and Symbol methods are the intrinsic ones (`RegExpB
 String methods call its Symbol methods directly; the `flags` getter alone made nine property reads and eight calls per
 `replace`. Redefining a getter changes its `Accessor` in place, without a new shape, so the check compares the getters
 each time, not only the prototype's shape. Exec results get `index`, `input` and `groups` from one shared layout.
+`split` by such a regexp, whose species is %RegExp%, makes no splitter regexp: the splitter would be unreachable
+and made by reading intrinsics only, so the regexp's own program searches for it.
 
 The array methods that call back (`map`, `filter`, `forEach`, `some`, `every`, `reduce`) read an element of a dense
 `JSArray` directly and add elements to a result array without a property descriptor (`JSArray.createIndexFast`), the
