@@ -65,12 +65,24 @@ object Interpreter {
                 if (c != null && code.childrenQueued) c as dev.mooner.neonjs.jit.CompiledCode else dev.mooner.neonjs.jit.Jit.prepare(code, realm.agent)
             }
             val thisValue = thisFor(fn, flags, realm, thisArg)
-            val frame = Frame(fn, code, realm, thisValue, args, Undefined, fn.env, compiled)
+            // compiled code's frame from the agent's pool where there is one (Frame.reuse)
+            val agent = realm.agent
+            val frame = if (compiled != null && agent.framePoolSize > 0) {
+                agent.framePool[--agent.framePoolSize]!!.also { it.reuse(fn, code, realm, thisValue, args, fn.env) }
+            } else Frame(fn, code, realm, thisValue, args, Undefined, fn.env, compiled)
             if (flags and (CodeBlock.GENERATOR or CodeBlock.ASYNC) != 0) {
                 return Generators.start(frame)
             }
             val r = runFrame(frame, compiled)
-            if (r !== TAIL) return r
+            if (r !== TAIL) {
+                // back to the pool, unless it has extra state (tail call, deoptimization, inlined calls' stack) or a
+                // debugger hook may have kept it
+                if (compiled != null && frame.ext == null && agent.debuggerHook == null && agent.framePoolSize < FRAME_POOL) {
+                    frame.release()
+                    agent.framePool[agent.framePoolSize++] = frame
+                }
+                return r
+            }
             fn = frame.tailFn!!
             thisArg = frame.tailThis
             args = frame.tailArgs!!

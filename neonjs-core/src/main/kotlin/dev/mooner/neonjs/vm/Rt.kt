@@ -693,7 +693,7 @@ object Rt {
     @JvmStatic
     fun attachStack(t: JSException, f: Frame, pc: Int) {
         val v = t.value as? JSErrorObject ?: return
-        val sameStep = v.capturedAt?.get() === f && v.capturedPc == f.pc
+        val sameStep = v.capturedAt?.get() === f && v.capturedPc == f.pc && v.capturedActivation == f.activation
         if (v.stackTrace == null || sameStep) {
             f.pc = pc
             v.stackTrace = f.realm.agent.captureStack()

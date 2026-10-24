@@ -5,12 +5,12 @@ import dev.mooner.neonjs.runtime.*
 
 /** Activation record of an interpreted function, script or eval. Registers and operand stack share [slots]. */
 class Frame(
-    @JvmField val fn: JSClosure?,
-    @JvmField val code: CodeBlock,
-    @JvmField val realm: Realm,
+    @JvmField var fn: JSClosure?,
+    @JvmField var code: CodeBlock,
+    @JvmField var realm: Realm,
     @JvmField var thisValue: Any?,
-    @JvmField val args: Array<Any?>,
-    @JvmField val newTarget: Any?,
+    @JvmField var args: Array<Any?>,
+    @JvmField var newTarget: Any?,
     @JvmField var env: Env?,
     /**
      * Compiled code to run this activation with (the code block's entry code), or null to interpret it. Not kept: a
@@ -32,6 +32,43 @@ class Frame(
      * a frame (a smaller one is cheaper, notably on ART).
      */
     @JvmField var ext: FrameExt? = null
+
+    /**
+     * Bumped each time the frame starts another activation (Agent.framePool): where an error was captured is a frame
+     * and its activation (JSErrorObject.capturedAt).
+     */
+    @JvmField var activation = 0
+
+    /**
+     * The frame of a returned call of compiled code (from Agent.framePool) made the frame of a new one, as the
+     * constructor makes it for compiled code (nothing else holds a frame once its call returned: the stack traces
+     * captured are strings, error objects hold a frame weakly with its activation, arguments objects hold the
+     * arguments and the environment).
+     */
+    fun reuse(fn: JSClosure, code: CodeBlock, realm: Realm, thisValue: Any?, args: Array<Any?>, env: Env?) {
+        this.fn = fn
+        this.code = code
+        this.realm = realm
+        this.thisValue = thisValue
+        this.args = args
+        this.newTarget = Undefined
+        this.env = env
+        sp = code.numRegs
+        pc = 0
+        activation++
+    }
+
+    /** A returned frame going into Agent.framePool: it keeps none of the call's values alive there. */
+    fun release() {
+        fn = null
+        thisValue = null
+        args = NO_SLOTS
+        env = null
+        slots = NO_SLOTS
+        parent = null
+        inlineFn = null
+        inlinePc = 0
+    }
 
     private fun ext(): FrameExt = ext ?: FrameExt().also { ext = it }
 

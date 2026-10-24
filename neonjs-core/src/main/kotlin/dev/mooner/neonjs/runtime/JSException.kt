@@ -42,6 +42,7 @@ class JSException(@JvmField val value: Any?) : RuntimeException(null, null, fals
             realm.agent.topFrame?.let { top ->
                 e.capturedAt = java.lang.ref.WeakReference(top)
                 e.capturedPc = top.pc
+                e.capturedActivation = top.activation
             }
             return JSException(e)
         }
@@ -67,6 +68,8 @@ open class JSErrorObject(proto: JSObject?) : JSObject(proto) {
      */
     @JvmField var capturedAt: java.lang.ref.WeakReference<Any>? = null
     @JvmField var capturedPc: Int = -1
+    /** The frame's activation then (Frame.activation: a frame of a returned call serves another later). */
+    @JvmField var capturedActivation: Int = 0
     /** Name and message kept in internal slots (DOMException) rather than in "name" / "message" data properties. */
     open val slotName: String? get() = null
     open val slotMessage: String? get() = null

@@ -55,11 +55,20 @@ interface ModuleLoaderHooks {
  * Not thread-safe; a context must be used from one thread at a time. Exception: the external-job API
  * ([postExternalJob], [addExternalSource], [removeExternalSource], [closeExternal]) may be called from any thread.
  */
+/** Frames Agent.framePool keeps at most. */
+const val FRAME_POOL = 64
+
 class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
     @JvmField var currentRealm: Realm? = null
     @JvmField var depth = 0
     @JvmField var maxDepth = config.maxCallDepth
     @JvmField var topFrame: Frame? = null
+    /**
+     * Frames of calls of compiled code that returned, for the next such calls (Interpreter.invokeClosure): a frame is a
+     * call's largest allocation (on ART, allocating and collecting them took about 45% of a recursive call).
+     */
+    @JvmField val framePool = arrayOfNulls<Frame>(FRAME_POOL)
+    @JvmField var framePoolSize = 0
     /**
      * Set by compiled code's element fast paths (JitRt.elemNumI and the like) when they do not apply; the generated code
      * clears it and takes the full [[Get]]. A stale true only costs a slow path.
