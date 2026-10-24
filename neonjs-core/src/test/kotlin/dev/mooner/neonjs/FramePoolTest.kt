@@ -59,6 +59,20 @@ class FramePoolTest {
     }
 
     @Test
+    fun constructionsKeepWhatTheyMade() {
+        same(
+            """
+            class P { constructor(x, y) { this.x = x; this.y = y } add(o) { return new P(this.x + o.x, this.y + o.y) } }
+            class Q extends P { constructor(x) { super(x, -x); this.k = new.target === Q } }
+            function F(a) { this.a = a; this.t = typeof new.target }
+            var p = new P(0, 0), qs = [];
+            for (var i = 0; i < 200; i++) { p = p.add(new P(1, 2)); qs.push(new Q(i), new F(i)) }
+            [p.x, p.y, qs[10].x, qs[10].y, qs[10].k, qs[11].a, qs[11].t, qs.length].join()
+            """.trimIndent(),
+        )
+    }
+
+    @Test
     fun recursionAndExceptionsAcrossFrames() {
         same(
             """

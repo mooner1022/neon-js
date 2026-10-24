@@ -45,13 +45,13 @@ class Frame(
      * captured are strings, error objects hold a frame weakly with its activation, arguments objects hold the
      * arguments and the environment).
      */
-    fun reuse(fn: JSClosure, code: CodeBlock, realm: Realm, thisValue: Any?, args: Array<Any?>, env: Env?) {
+    fun reuse(fn: JSClosure, code: CodeBlock, realm: Realm, thisValue: Any?, args: Array<Any?>, newTarget: Any?, env: Env?) {
         this.fn = fn
         this.code = code
         this.realm = realm
         this.thisValue = thisValue
         this.args = args
-        this.newTarget = Undefined
+        this.newTarget = newTarget
         this.env = env
         sp = code.numRegs
         pc = 0

@@ -68,7 +68,7 @@ object Interpreter {
             // compiled code's frame from the agent's pool where there is one (Frame.reuse)
             val agent = realm.agent
             val frame = if (FRAME_POOLING && compiled != null && agent.framePoolSize > 0) {
-                agent.framePool[--agent.framePoolSize]!!.also { it.reuse(fn, code, realm, thisValue, args, fn.env) }
+                agent.framePool[--agent.framePoolSize]!!.also { it.reuse(fn, code, realm, thisValue, args, Undefined, fn.env) }
             } else Frame(fn, code, realm, thisValue, args, Undefined, fn.env, compiled)
             if (flags and (CodeBlock.GENERATOR or CodeBlock.ASYNC) != 0) {
                 return Generators.start(frame)
@@ -116,9 +116,10 @@ object Interpreter {
             }
             dev.mooner.neonjs.jit.Jit.prepare(code, realm.agent)
             val compiled = code.compiled as dev.mooner.neonjs.jit.CompiledCode?
-            val frame = Frame(fn, code, realm, Uninitialized, args, newTarget, fn.env, compiled)
+            val frame = constructFrame(fn, code, realm, Uninitialized, args, newTarget, compiled)
             // checks happen after the callee context is gone (errors come from the caller's realm)
             val r = execute(frame, compiled) as DerivedResult
+            pool(frame, compiled)
             val v = r.value
             if (v is JSObject) return v
             if (v !== Undefined) throw JSException.typeError("Derived constructors may only return object or undefined")
@@ -131,10 +132,30 @@ object Interpreter {
         if (code.flags and CodeBlock.CLASS_CTOR != 0) Rt.initializeInstanceElements(obj, fn)
         if (code.flags and CodeBlock.DEFAULT_CTOR != 0) return obj
         val compiled = code.compiled as dev.mooner.neonjs.jit.CompiledCode?
-        val frame = Frame(fn, code, realm, obj, args, newTarget, fn.env, compiled)
+        val frame = constructFrame(fn, code, realm, obj, args, newTarget, compiled)
         var r = execute(frame, compiled)
         if (r === TAIL) r = callClosure(frame.tailFn!!, frame.tailThis, frame.tailArgs!!)
+        else pool(frame, compiled)
         return r as? JSObject ?: obj
+    }
+
+    /** A construction's frame: for compiled code, one of the agent's pool where frames are reused (as invokeClosure). */
+    private fun constructFrame(fn: JSClosure, code: CodeBlock, realm: Realm, thisValue: Any?, args: Array<Any?>, newTarget: JSObject,
+                               compiled: dev.mooner.neonjs.jit.CompiledCode?): Frame {
+        val agent = realm.agent
+        if (FRAME_POOLING && compiled != null && agent.framePoolSize > 0) {
+            return agent.framePool[--agent.framePoolSize]!!.also { it.reuse(fn, code, realm, thisValue, args, newTarget, fn.env) }
+        }
+        return Frame(fn, code, realm, thisValue, args, newTarget, fn.env, compiled)
+    }
+
+    /** [f], whose construction returned, back to the agent's pool (as invokeClosure's frames). */
+    private fun pool(f: Frame, compiled: dev.mooner.neonjs.jit.CompiledCode?) {
+        val agent = f.realm.agent
+        if (FRAME_POOLING && compiled != null && f.ext == null && agent.debuggerHook == null && agent.framePoolSize < FRAME_POOL) {
+            f.release()
+            agent.framePool[agent.framePoolSize++] = f
+        }
     }
 
     /** Runs a frame with realm / depth bookkeeping. */
