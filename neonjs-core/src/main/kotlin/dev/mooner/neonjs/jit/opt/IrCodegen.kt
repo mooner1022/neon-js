@@ -645,9 +645,22 @@ internal class IrCodegen(
         if (i.virtual) return // allocated by the exits that need it
         when (op) {
             Ir.PARAM -> {
+                // f.args[a], undefined past its end (JitRt.arg, without a call: ART does not inline helpers here)
+                val none = Label()
+                val end = Label()
                 frame()
+                mv.visitFieldInsn(GETFIELD, FRAME, "args", CONSTS_D)
+                mv.visitInsn(DUP)
+                mv.visitInsn(ARRAYLENGTH)
                 iconst(i.a)
-                rt("arg", "(${FRAME_D}I)$OBJ")
+                mv.visitJumpInsn(IF_ICMPLE, none)
+                iconst(i.a)
+                mv.visitInsn(AALOAD)
+                mv.visitJumpInsn(GOTO, end)
+                mv.visitLabel(none)
+                mv.visitInsn(POP)
+                pushUndefined()
+                mv.visitLabel(end)
                 done(i, JT.ANY)
                 return
             }
@@ -676,6 +689,11 @@ internal class IrCodegen(
             }
             Ir.INLINE_ENTER -> {
                 if (i.callee!!.quiet) return // nothing sees it: no record (QuietInlines)
+                if (curSite == null) {
+                    inlineEnter(i)
+                    storedPc = -2
+                    return
+                }
                 frame()
                 load(i.inputs[0], JT.ANY)
                 mv.visitTypeInsn(CHECKCAST, CLOSURE)
@@ -687,6 +705,20 @@ internal class IrCodegen(
             }
             Ir.INLINE_EXIT -> {
                 if (i.callee!!.quiet) return
+                if (curSite == null) {
+                    // JitRt.inlineExit
+                    frame()
+                    mv.visitInsn(ACONST_NULL)
+                    mv.visitFieldInsn(PUTFIELD, FRAME, "inlineFn", CLOSURE_D)
+                    mv.visitVarInsn(ALOAD, L_AGENT)
+                    mv.visitInsn(DUP)
+                    mv.visitFieldInsn(GETFIELD, AGENT, "depth", "I")
+                    mv.visitInsn(ICONST_1)
+                    mv.visitInsn(ISUB)
+                    mv.visitFieldInsn(PUTFIELD, AGENT, "depth", "I")
+                    storedPc = -2
+                    return
+                }
                 frame()
                 rt(if (curSite != null) "inlineExitNested" else "inlineExit", "($FRAME_D)V")
                 storedPc = -2
@@ -810,10 +842,9 @@ internal class IrCodegen(
                     mv.visitInsn(AALOAD)
                     mv.visitJumpInsn(IF_ACMPNE, l)
                     mv.visitVarInsn(ALOAD, ge)
-                    mv.visitFieldInsn(GETFIELD, GLOBAL_ENV, "lexicalList", "Ljava/util/ArrayList;")
+                    mv.visitFieldInsn(GETFIELD, GLOBAL_ENV, "lexicalSlots", "[Ldev/mooner/neonjs/runtime/GlobalBinding;")
                     iconst(i.b)
-                    mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/ArrayList", "get", "(I)$OBJ", false)
-                    mv.visitTypeInsn(CHECKCAST, "dev/mooner/neonjs/runtime/GlobalBinding")
+                    mv.visitInsn(AALOAD)
                     mv.visitFieldInsn(GETFIELD, "dev/mooner/neonjs/runtime/GlobalBinding", "value", OBJ)
                     mv.visitInsn(DUP)
                     mv.visitFieldInsn(GETSTATIC, "dev/mooner/neonjs/runtime/Uninitialized", "INSTANCE", "Ldev/mooner/neonjs/runtime/Uninitialized;")
@@ -1131,6 +1162,53 @@ internal class IrCodegen(
         if (intResult && cls != JT.NN && result == JT.NUM) mv.visitInsn(I2D)
         done(i, result)
         return true
+    }
+
+    /**
+     * JitRt.inlineEnter for a call inlined in the function compiled: the depth and the call budget counted in place,
+     * the helper called only where one runs out (it counts them again, then throws or checks for an interrupt).
+     */
+    private fun inlineEnter(i: Inst) {
+        val slow = Label()
+        val done = Label()
+        frame()
+        iconst(i.a)
+        mv.visitFieldInsn(PUTFIELD, FRAME, "pc", "I")
+        mv.visitVarInsn(ALOAD, L_AGENT)
+        mv.visitFieldInsn(GETFIELD, AGENT, "depth", "I")
+        mv.visitVarInsn(ALOAD, L_AGENT)
+        mv.visitFieldInsn(GETFIELD, AGENT, "maxDepth", "I")
+        mv.visitJumpInsn(IF_ICMPGE, slow)
+        mv.visitVarInsn(ALOAD, L_AGENT)
+        mv.visitFieldInsn(GETFIELD, AGENT, "callBudget", "I")
+        mv.visitJumpInsn(IFLE, slow)
+        mv.visitVarInsn(ALOAD, L_AGENT)
+        mv.visitInsn(DUP)
+        mv.visitFieldInsn(GETFIELD, AGENT, "depth", "I")
+        mv.visitInsn(ICONST_1)
+        mv.visitInsn(IADD)
+        mv.visitFieldInsn(PUTFIELD, AGENT, "depth", "I")
+        mv.visitVarInsn(ALOAD, L_AGENT)
+        mv.visitInsn(DUP)
+        mv.visitFieldInsn(GETFIELD, AGENT, "callBudget", "I")
+        mv.visitInsn(ICONST_1)
+        mv.visitInsn(ISUB)
+        mv.visitFieldInsn(PUTFIELD, AGENT, "callBudget", "I")
+        frame()
+        mv.visitInsn(ICONST_0)
+        mv.visitFieldInsn(PUTFIELD, FRAME, "inlinePc", "I")
+        frame()
+        load(i.inputs[0], JT.ANY)
+        mv.visitTypeInsn(CHECKCAST, CLOSURE)
+        mv.visitFieldInsn(PUTFIELD, FRAME, "inlineFn", CLOSURE_D)
+        mv.visitJumpInsn(GOTO, done)
+        mv.visitLabel(slow)
+        frame()
+        load(i.inputs[0], JT.ANY)
+        mv.visitTypeInsn(CHECKCAST, CLOSURE)
+        iconst(i.a)
+        rt("inlineEnter", "($FRAME_D$CLOSURE_D" + "I)V")
+        mv.visitLabel(done)
     }
 
     /** [v] (a number) as an int in a new local. */

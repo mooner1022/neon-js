@@ -266,7 +266,7 @@ object GlobalCache {
         if (ic != null) {
             if (ic.shape == null) {
                 if (ic.token === ge.token) {
-                    val v = ge.lexicalList[ic.index].value
+                    val v = ge.lexicalSlots[ic.index]!!.value
                     if (v !== Uninitialized) return v
                 }
             } else {
@@ -285,7 +285,7 @@ object GlobalCache {
         if (ic != null) {
             if (ic.shape == null) {
                 if (ic.token === ge.token) {
-                    val b = ge.lexicalList[ic.index]
+                    val b = ge.lexicalSlots[ic.index]!!
                     if (b.mutable && b.value !== Uninitialized) {
                         b.value = value
                         return

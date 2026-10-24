@@ -32,6 +32,11 @@ class GlobalEnv(@JvmField val realm: Realm, @JvmField val global: JSObject, @Jvm
     @JvmField val lexical = HashMap<String, GlobalBinding>()
     /** The same bindings in declaration order (indexed by global-access inline caches). */
     @JvmField val lexicalList = ArrayList<GlobalBinding>()
+    /**
+     * [lexicalList] as an array (its first [lexicalList].size entries), which compiled code reads without a call (a
+     * replaced array is published with a single write).
+     */
+    @JvmField var lexicalSlots = arrayOfNulls<GlobalBinding>(8)
     /** Incremented whenever a lexical binding is added (it may shadow a cached global object property). */
     @JvmField var lexicalEpoch = 0
     /** Identity of this environment for inline caches (holds no references, so caches retain nothing). */
@@ -40,7 +45,12 @@ class GlobalEnv(@JvmField val realm: Realm, @JvmField val global: JSObject, @Jvm
 
     fun declareLexical(name: String, b: GlobalBinding) {
         val old = lexical.put(name, b)
-        if (old != null) lexicalList[lexicalList.indexOf(old)] = b else lexicalList.add(b)
+        val i = if (old != null) lexicalList.indexOf(old) else lexicalList.size
+        if (old != null) lexicalList[i] = b else lexicalList.add(b)
+        var slots = lexicalSlots
+        if (i >= slots.size) slots = slots.copyOf(slots.size * 2)
+        slots[i] = b
+        lexicalSlots = slots
         lexicalEpoch++
     }
 }
