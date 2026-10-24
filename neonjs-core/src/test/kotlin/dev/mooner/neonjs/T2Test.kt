@@ -429,8 +429,9 @@ class T2Test {
         // is compiled again with a double sum. In dead, t is dead where the sum's exit is (its state leaves it out, as
         // undefined) until the next iteration writes it; an entry right after the exit (-Dneonjs.jit.osrStress, as in
         // the Test262 runs) has the baseline take any number for it
-        val src = "function sum(n) { var s = 0; for (var i = 0; i < n; i++) s += i * 1000; return s }\n" +
-            "function dead(n) { var t = 0.5, s = 0; for (var i = 0; i < n; i++) { t = i * 0.5; if (t < 0) s = 0; s += i * 1000 } return s }"
+        // (b ^= s takes s as an int: the sum stays on ints)
+        val src = "function sum(n) { var s = 0, b = 0; for (var i = 0; i < n; i++) { s += i * 1000; b ^= s } return s + ':' + b }\n" +
+            "function dead(n) { var t = 0.5, s = 0, b = 0; for (var i = 0; i < n; i++) { t = i * 0.5; if (t < 0) s = 0; s += i * 1000; b ^= s } return s + ':' + b }"
         val run = "[sum(10), sum(200000), sum(300000), dead(10), dead(200000)].join()"
         val expected = interpreted(src, run)
         NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
@@ -510,15 +511,17 @@ class T2Test {
 
     @Test
     fun int32ArithmeticExitsWhereItLeavesTheRange() {
-        // arithmetic of values the profiles saw as int32s stays on ints, exiting before the instruction where the
-        // result is not an int32 or is -0; an ADD or `>>>` whose uses are all bitwise wraps around instead
+        // arithmetic of values the profiles saw as int32s stays on ints where an int is used (k ^= x here), exiting
+        // before the instruction where the result is not an int32 or is -0; an ADD or `>>>` whose uses are all bitwise
+        // wraps around instead
         val src = """
-            function sum(n) { var s = 0; for (var i = 0; i < n; i++) s += i; return s }
-            function prod(a, b) { return a * b }
+            var k = 0;
+            function sum(n) { var s = 0; for (var i = 0; i < n; i++) { s += i; k ^= s } return s }
+            function prod(a, b) { var p = a * b; k ^= p; return p }
             function rem(a, b) { return a % b }
-            function neg(a) { return -a }
-            function dec(a) { return a - 1 }
-            function inc(a) { var x = a; x++; return x }
+            function neg(a) { var x = -a; k ^= x; return x }
+            function dec(a) { var x = a - 1; k ^= x; return x }
+            function inc(a) { var x = a; x++; k ^= x; return x }
             function hash(n) { var h = 0; for (var i = 0; i < n; i++) h = (h * 31 + i) | 0; return h }
             function bits(n) { var s = 0; for (var i = 0; i < n; i++) s = (s + ((i * i) ^ (i >>> 3))) | 0; return s }
             function shr(a) { return (a >>> 0) ^ 1 }
@@ -528,7 +531,7 @@ class T2Test {
         val warm = "for (var w = 0; w < 30; w++) { sum(10); prod(w, 3); rem(w, 7); neg(w + 1); dec(w); inc(w); hash(5); bits(5); shr(w); wrap(w, 2) }"
         val expr = "[sum(100), sum(100000), prod(6, 7), prod(0, -5), prod(-3, 0), prod(65536, 65536), prod(-2147483648, -1), rem(17, 5)," +
             " rem(5, 0), rem(-4, 2), rem(-2147483648, -1), rem(-7, 3), neg(5), neg(0), neg(-2147483648), dec(0), dec(-2147483648)," +
-            " inc(41), inc(2147483647), hash(1000), bits(1000), shr(-1), shr(5), wrap(2147483647, 1), wrap(-2147483648, -1)].map(z).join('|')"
+            " inc(41), inc(2147483647), hash(1000), bits(1000), shr(-1), shr(5), wrap(2147483647, 1), wrap(-2147483648, -1), k].map(z).join('|')"
         val expected = interpreted(src, "$warm; $expr")
         for (stress in intArrayOf(0, 2)) {
             JvmCompiler.DEOPT_STRESS = stress

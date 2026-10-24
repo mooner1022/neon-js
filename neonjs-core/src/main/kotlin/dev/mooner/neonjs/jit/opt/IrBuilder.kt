@@ -72,6 +72,7 @@ internal class IrBuilder(
         dropBoxedChecks()
         val kinds = Kinds(ints, elems)
         kinds.infer(g)
+        if (demandInts()) kinds.infer(g)
         if (preferDoubles()) kinds.infer(g)
         intArith(kinds)
         removeDeadCode(kinds)
@@ -101,6 +102,38 @@ internal class IrBuilder(
         var changed = false
         for (b in g.blocks) for (i in b.insts) if (i.op == Ir.CHECK_INT32 && i !in asInt) {
             i.op = Ir.CHECK_NUMBER
+            changed = true
+        }
+        return changed
+    }
+
+    /**
+     * Int32 arithmetic (Ir.intArith) pays where its int is used as one: a bitwise operand, an element key, or the
+     * operand of such arithmetic (through phis); and a remainder always (the double one is a library call). A comparison
+     * costs the same on doubles: a counter only compared stays one, as the baseline's (no overflow check). Elsewhere (a sum only read as a number) it would cost an overflow check where doubles cost nothing and can
+     * be moved out of a loop, so it is made on doubles: its state goes. Returns whether one changed (kinds are inferred
+     * again then).
+     */
+    private fun demandInts(): Boolean {
+        val demanded = HashSet<Value>()
+        val work = ArrayDeque<Value>()
+        fun demand(v: Value) {
+            if (v.kind == JT.INT && demanded.add(v)) work.add(v)
+        }
+        for (b in g.blocks) for (i in b.insts) when {
+            JT.isBitwise(i.op) || i.op == Op.BNOT -> i.inputs.forEach { demand(it) }
+            i.op == Op.GET_ELEM || i.op == Op.PUT_ELEM -> demand(i.inputs[1])
+            i.op == Op.MOD && i.state != null && i.kind == JT.INT -> demand(i)
+        }
+        while (work.isNotEmpty()) {
+            when (val v = work.removeLast()) {
+                is Phi -> v.inputs.forEach { demand(it) }
+                is Inst -> if (Ir.intArith(v.op) || v.op == Op.TO_NUMERIC) v.inputs.forEach { demand(it) }
+            }
+        }
+        var changed = false
+        for (b in g.blocks) for (i in b.insts) if (Ir.intArith(i.op) && i.state != null && i.kind == JT.INT && i !in demanded) {
+            i.state = null
             changed = true
         }
         return changed
