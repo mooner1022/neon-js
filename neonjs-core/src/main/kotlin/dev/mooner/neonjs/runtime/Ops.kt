@@ -7,13 +7,15 @@ import kotlin.math.pow
 
 /** ECMAScript abstract operations. */
 object Ops {
-    private val doubleCache = Array(1024) { it.toDouble() }
+    /** Boxes of the integers -[CACHED] until [CACHED] (exclusive), the box of k at k + [CACHED]: negatives too (`-i`, deltas). */
+    private const val CACHED = 1024
+    private val doubleCache = Array(2 * CACHED) { (it - CACHED).toDouble() }
 
     /** Boxes a double, reusing cached boxes for small integers. */
     @JvmStatic
     fun num(d: Double): Any {
         val i = d.toInt()
-        if (i in 0..<1024 && i.toDouble() == d && !(d == 0.0 && 1.0 / d < 0)) return doubleCache[i]
+        if (i >= -CACHED && i < CACHED && i.toDouble() == d && !(d == 0.0 && 1.0 / d < 0)) return doubleCache[i + CACHED]
         return d
     }
 
@@ -21,13 +23,13 @@ object Ops {
     // and allocates a new one, which defeats the cache.
     @JvmStatic
     fun num(i: Int): Any {
-        if (i in 0..<1024) return doubleCache[i]
+        if (i >= -CACHED && i < CACHED) return doubleCache[i + CACHED]
         return i.toDouble()
     }
 
     @JvmStatic
     fun num(l: Long): Any {
-        if (l in 0L..<1024L) return doubleCache[l.toInt()]
+        if (l >= -CACHED && l < CACHED) return doubleCache[l.toInt() + CACHED]
         return l.toDouble()
     }
 
