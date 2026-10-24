@@ -121,9 +121,17 @@ class Shape private constructor(
             val p = o.proto ?: return null
             val c = p.childShapes
             val cls = o.javaClass
-            if (c is Shape && c.ownerClass === cls) return c
+            if (c is Shape) {
+                if (c.ownerClass === cls) return c
+            } else if (c is Roots && c.first.ownerClass === cls) return c.first
             return rootSlow(p, cls)
         }
+
+        /**
+         * The roots of a prototype whose objects are of several classes (Object.prototype's: plain objects, arguments
+         * objects and others): the plain objects' (or else the first class's) found without a lookup, the others by class.
+         */
+        private class Roots(@JvmField val first: Shape, @JvmField val byClass: HashMap<Class<*>, Shape>)
 
         private fun rootSlow(p: JSObject, cls: Class<*>): Shape {
             val c = p.childShapes
@@ -138,11 +146,13 @@ class Shape private constructor(
                 m[c.ownerClass!!] = c
                 val r = newRoot(cls)
                 m[cls] = r
-                p.childShapes = m
+                p.childShapes = Roots(if (cls === JSObject::class.java) r else c, m)
                 return r
             }
-            @Suppress("UNCHECKED_CAST")
-            return (c as HashMap<Class<*>, Shape>).getOrPut(cls) { newRoot(cls) }
+            val roots = c as Roots
+            val r = roots.byClass.getOrPut(cls) { newRoot(cls) }
+            if (cls === JSObject::class.java && roots.first !== r) p.childShapes = Roots(r, roots.byClass)
+            return r
         }
     }
 }

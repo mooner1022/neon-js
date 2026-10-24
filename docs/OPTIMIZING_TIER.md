@@ -405,6 +405,8 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
   - callees of the other strictness are inlined (class constructors and methods are strict, scripts mostly sloppy):
     the helpers of writes that may fail read the strictness of the innermost call the frame records (`JitRt.strict`),
     and a body that runs one is not quiet, so it records its call.
+  - a plain object's empty shape is found without a lookup where a prototype's objects are of several classes
+    (Object.prototype: each `{}` given its properties one by one looked its root up in a HashMap).
 - **P5: tiering and tuning** (~1.5K). T1 -> T2 counters, OSR from T1 into T2 at loop headers, background T2 queue,
   thresholds, profiling T1 if compiled mode needs it, the builder option, Android measurement. Exit: StarLight's
   NeonBench and the user's benchmark gain on ART, first run included; default stays off until a release cycle has
