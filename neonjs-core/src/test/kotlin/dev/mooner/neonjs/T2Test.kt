@@ -180,6 +180,38 @@ class T2Test {
     }
 
     @Test
+    fun propertiesAddedThroughTransitions() {
+        // a constructor's this.x = ... adds through the transition the cache saw (AddSlot); a setter that appears on the
+        // prototype for that key, or an object that is not extensible, exits before the store
+        val src = """
+            function Vec(x, y) { this.x = x; this.y = y }
+            function make(n) { var a = []; for (var i = 0; i < n; i++) a.push(new Vec(i, i * 2)); return a }
+            function addZ(o) { o.z = 1; return o.z }
+            """.trimIndent()
+        val warm = "for (var w = 0; w < 30; w++) { make(5); addZ({}) }"
+        val expr = "[make(3).map(v => v.x + v.y).join(), addZ({}), addZ(Object.preventExtensions({})), addZ(Object.freeze({ z: 5 }))," +
+            " (Object.defineProperty(Vec.prototype, 'y', { set(v) { this._y = v * 10 }, get() { return this._y }, configurable: true })," +
+            " new Vec(1, 2).y), make(2).map(v => v.y).join()].join('|')"
+        val expected = interpreted(src, "$warm; $expr")
+        NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
+            .build().newContext().use { ctx ->
+                ctx.agent.config.tier2 = true
+                ctx.eval(src)
+                ctx.eval(warm)
+                for (n in listOf("Vec", "make", "addZ")) {
+                    val cb: CodeBlock = (ctx.eval(n).raw as JSClosure).code
+                    if (n != "make") {
+                        val ir = dev.mooner.neonjs.jit.opt.IrPrinter.print(IrBuilder(cb, ints = true, elems = true).build())
+                        assertTrue(ir.contains("AddSlot"), ir)
+                    }
+                    cb.baseline ?: JvmCompiler.compile(cb)!!.also { cb.baseline = it; cb.compiled = it }
+                    Jit.install(cb, T2.compile(cb, CodeDefiners.default) ?: fail("$n not compiled"))
+                }
+                assertEquals(expected, ctx.eval(expr).asString())
+            }
+    }
+
+    @Test
     fun speculationOnProfilesAndShapes() {
         // the interpreter fills the value profiles (tier2) and the property caches; T2 code then reads numbers and
         // slots directly, and leaves when a value, a receiver's shape or a prototype's shape is another

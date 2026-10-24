@@ -739,7 +739,17 @@ internal class IrBuilder(
                     }
                     Op.PUT_PROP -> {
                         val ic = if (code.t2FailedAt(pc)) null else monomorphic(code.constants[a], PropCache.STORE)
-                        if (ic == null) {
+                        val add = if (ic != null || code.t2FailedAt(pc)) null else monomorphic(code.constants[a], PropCache.ADD)
+                        if (add != null) {
+                            // (obj v -- v): a new own property, through the transition the cache saw
+                            val chain = add.chain
+                            val store = before(Inst(Ir.ADD_SLOT, arrayOf(stack[stack.size - 2], stack[stack.size - 1]),
+                                g.dataIndex(add.shape), g.dataIndex(add.next), if (chain == null) -1 else g.dataIndex(chain), pc, stmt))
+                            val v = pop()
+                            pop()
+                            add(cur, store)
+                            stack.add(v)
+                        } else if (ic == null) {
                             val v = pop()
                             inst(op, arrayOf(pop(), v), result = true)
                         } else {
@@ -941,7 +951,8 @@ internal class IrBuilder(
 
     /**
      * The entry of property site [site] (a PropSite) when it is monomorphic with the one [kind] the optimizing tier
-     * compiles: an own or inherited data property to read (DATA), a writable own data property to write (STORE).
+     * compiles: an own or inherited data property to read (DATA), a writable own data property to write (STORE), a new
+     * own property to add (ADD).
      */
     private fun monomorphic(site: Any?, kind: Int): PropIC? {
         if (!speculate || site !is PropSite) return null
@@ -1068,7 +1079,7 @@ internal class IrBuilder(
 
     /** Whether [i] takes all its operands as Objects, whatever their kinds. */
     private fun takesObject(i: Inst): Boolean = when (i.op) {
-        Ir.RETURN, Ir.THROW, Op.CALL, Op.NEW, Op.STORE_ENV, Op.STORE_GLOBAL, Op.PUT_PROP, Ir.STORE_SLOT,
+        Ir.RETURN, Ir.THROW, Op.CALL, Op.NEW, Op.STORE_ENV, Op.STORE_GLOBAL, Op.PUT_PROP, Ir.STORE_SLOT, Ir.ADD_SLOT,
         Op.NEW_OBJECT_LITERAL, Op.ARRAY_PUSH -> true
         else -> false
     }

@@ -244,6 +244,13 @@ object Ir {
      */
     const val CHECK_INTRINSIC = 1018
     const val MATH = 1019
+    /**
+     * (obj, value) a property added through the transition a monomorphic cache saw (PropCache.ADD): the receiver's shape
+     * [Inst.a] (data index), the prototypes' [Inst.c] (or -1), then the map moves to shape [Inst.b] with the value
+     * appended (PropertyMap.addTransition); another shape, a prototype's, or an object not extensible exits to
+     * [Inst.state], before the instruction.
+     */
+    const val ADD_SLOT = 1020
     /** Terminators. GOTO; BRANCH(value): [Inst.a] is the bytecode jump tested (JUMP_IF_TRUE and the like). */
     const val GOTO = 1100
     const val BRANCH = 1101
@@ -283,6 +290,7 @@ object Ir {
         IS_CLOSURE -> "IsClosure"
         CHECK_INTRINSIC -> "CheckIntrinsic"
         MATH -> "Math"
+        ADD_SLOT -> "AddSlot"
         SWITCH -> "Switch"
         GOTO -> "Goto"
         BRANCH -> "Branch"

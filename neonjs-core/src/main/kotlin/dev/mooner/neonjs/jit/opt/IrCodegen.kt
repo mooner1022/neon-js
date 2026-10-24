@@ -871,6 +871,55 @@ internal class IrCodegen(
                 exits.add(specExit(l, i))
                 return
             }
+            Ir.ADD_SLOT -> {
+                // the receiver's shape and its prototypes' as the cache saw them, an extensible object (PropCache.put's
+                // ADD case), then the transition
+                val l = Label()
+                val obj = i.inputs[0]
+                load(obj, JT.ANY)
+                mv.visitTypeInsn(INSTANCEOF, "dev/mooner/neonjs/runtime/JSObject")
+                mv.visitJumpInsn(IFEQ, l)
+                load(obj, JT.ANY)
+                mv.visitTypeInsn(CHECKCAST, "dev/mooner/neonjs/runtime/JSObject")
+                val o = temp()
+                mv.visitVarInsn(ASTORE, o)
+                shapeCheck(o, i.a, l)
+                mv.visitVarInsn(ALOAD, o)
+                mv.visitFieldInsn(GETFIELD, "dev/mooner/neonjs/runtime/JSObject", "extensible", "Z")
+                mv.visitJumpInsn(IFEQ, l)
+                if (i.c >= 0) {
+                    val chain = g.data[i.c] as Array<*>
+                    val h = temp()
+                    mv.visitVarInsn(ALOAD, o)
+                    mv.visitVarInsn(ASTORE, h)
+                    for (k in chain.indices) {
+                        mv.visitVarInsn(ALOAD, h)
+                        mv.visitFieldInsn(GETFIELD, "dev/mooner/neonjs/runtime/JSObject", "proto", "Ldev/mooner/neonjs/runtime/JSObject;")
+                        mv.visitInsn(DUP)
+                        mv.visitVarInsn(ASTORE, h)
+                        mv.visitJumpInsn(IFNULL, l)
+                        mv.visitVarInsn(ALOAD, dataLocal)
+                        iconst(i.c)
+                        mv.visitInsn(AALOAD)
+                        mv.visitTypeInsn(CHECKCAST, "[Ljava/lang/Object;")
+                        iconst(k)
+                        mv.visitInsn(AALOAD)
+                        val t = temp()
+                        mv.visitVarInsn(ASTORE, t)
+                        shapeCheckWith(h, t, l)
+                    }
+                }
+                mv.visitVarInsn(ALOAD, o)
+                mv.visitMethodInsn(INVOKEVIRTUAL, "dev/mooner/neonjs/runtime/JSObject", "ensureProps", "()$PMAP_D", false)
+                mv.visitVarInsn(ALOAD, dataLocal)
+                iconst(i.b)
+                mv.visitInsn(AALOAD)
+                mv.visitTypeInsn(CHECKCAST, "dev/mooner/neonjs/runtime/Shape")
+                load(i.inputs[1], JT.ANY)
+                mv.visitMethodInsn(INVOKEVIRTUAL, PMAP, "addTransition", "(Ldev/mooner/neonjs/runtime/Shape;$OBJ)V", false)
+                exits.add(specExit(l, i))
+                return
+            }
             Ir.LOAD_SLOT, Ir.STORE_SLOT -> {
                 // the receiver's property map has the shape the cache saw (then the prototypes' do), else an exit
                 val l = Label()
