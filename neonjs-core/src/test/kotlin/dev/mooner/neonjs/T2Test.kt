@@ -498,12 +498,16 @@ class T2Test {
         // results (the same Java methods), ToNumber of other values (valueOf included), and a replaced function called
         val src = """
             function f(x) { return Math.sqrt(x) + Math.sin(x) * Math.cos(x) - Math.tan(x) + Math.atan(x) + Math.exp(x / 100) +
-                Math.log(x + 1) + Math.floor(x / 3) + Math.ceil(x / 3) + Math.abs(-x) + Math.atan2(x, 2) + Math.pow(x, 0.5) }
-            function g(v) { return [Math.sqrt(v), Math.floor(v), Math.abs(v), Math.pow(v, 2), Math.pow(1, v), Math.atan2(v, -0)] }
+                Math.log(x + 1) + Math.floor(x / 3) + Math.ceil(x / 3) + Math.abs(-x) + Math.atan2(x, 2) + Math.pow(x, 0.5) +
+                Math.round(x / 7) + Math.trunc(-x / 3) + Math.min(x, 3) + Math.max(x, 2) }
+            function g(v) { return [Math.sqrt(v), Math.floor(v), Math.abs(v), Math.pow(v, 2), Math.pow(1, v), Math.atan2(v, -0),
+                Math.round(v), Math.trunc(v), Math.min(v, 0), Math.max(v, -0), Math.min(1, v), Math.max(-1, v)] }
+            function h(v) { return [Math.round(v), Math.trunc(v), Math.min(v, -0), Math.max(v, 0)] }
             var z = v => Object.is(v, -0) ? '-0' : String(v);
             """.trimIndent()
-        val warm = "for (var w = 0; w < 30; w++) { f(w); g(w) }"
+        val warm = "for (var w = 0; w < 30; w++) { f(w); g(w); h(w / 4) }"
         val expr = "[f(1.5), f(0), f(-1), f(1e300)].concat(g(-0), g(NaN), g('9'), g({ valueOf() { return 16 } }), g(Infinity), g(-Infinity))" +
+            ".concat(...[-0.4, 0.49999999999999994, 2.5, -2.5, -0.5, -0, 0, 1e300, -7.5, NaN].map(h))" +
             ".concat((Math.sqrt = x => 'replaced ' + x, g(4))).map(z).join('|')"
         val expected = interpreted(src, "$warm; $expr")
         NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
@@ -511,7 +515,7 @@ class T2Test {
                 ctx.agent.config.tier2 = true
                 ctx.eval(src)
                 ctx.eval(warm)
-                for (n in listOf("f", "g")) {
+                for (n in listOf("f", "g", "h")) {
                     val cb: CodeBlock = (ctx.eval(n).raw as JSClosure).code
                     val ir = dev.mooner.neonjs.jit.opt.IrPrinter.print(IrBuilder(cb, ints = true, elems = true).build())
                     assertTrue(ir.contains("CheckIntrinsic") && ir.contains("Math v"), ir)

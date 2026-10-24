@@ -139,23 +139,14 @@ internal object MathBuiltins {
             val ri = Math.rint(r)
             if (x > 0 && abs(r - ri) < 1e-12 && Math.pow(2.0, ri) == x) ri else r
         }
-        f1("round") { x ->
-            if (x.isNaN() || x.isInfinite()) x
-            else if (x == 0.0) x
-            else if (x > 0 && x < 0.5) 0.0
-            else if (x < 0 && x >= -0.5) -0.0
-            else {
-                val fl = floor(x)
-                if (x - fl >= 0.5) fl + 1 else fl
-            }
-        }
+        f1("round", MathIntrinsic.ROUND) { MathExtra.round(it) }
         f1("sign") { x -> if (x.isNaN()) x else if (x > 0) 1.0 else if (x < 0) -1.0 else x }
         f1("sin", MathIntrinsic.SIN) { sin(it) }
         f1("sinh") { sinh(it) }
         f1("sqrt", MathIntrinsic.SQRT) { sqrt(it) }
         f1("tan", MathIntrinsic.TAN) { tan(it) }
         f1("tanh") { tanh(it) }
-        f1("trunc") { x -> if (x.isNaN() || x.isInfinite()) x else if (x < 0) ceil(x) else floor(x) }
+        f1("trunc", MathIntrinsic.TRUNC) { MathExtra.trunc(it) }
         f1("f16round") { x -> Float16.round(x) }
         m.method(realm, "atan2", 2) { _, _, args, _ ->
             val y = Ops.toNumber(args.arg(0))
@@ -192,6 +183,8 @@ internal object MathBuiltins {
         }
         m.method(realm, "imul", 2) { _, _, args, _ -> (Ops.toInt32(args.arg(0)) * Ops.toInt32(args.arg(1))).toDouble() }
         m.method(realm, "max", 2) { _, _, args, _ ->
+            // (two arguments: Math.max, which the optimizing tier calls in place)
+            if (args.size == 2) return@method Math.max(Ops.toNumber(args[0]), Ops.toNumber(args[1]))
             val nums = DoubleArray(args.size) { Ops.toNumber(args[it]) }
             var r = Double.NEGATIVE_INFINITY
             for (d in nums) {
@@ -199,8 +192,9 @@ internal object MathBuiltins {
                 if (d > r || (d == 0.0 && r == 0.0 && 1.0 / r < 0)) r = d
             }
             r
-        }
+        }.intrinsic = MathIntrinsic.MAX
         m.method(realm, "min", 2) { _, _, args, _ ->
+            if (args.size == 2) return@method Math.min(Ops.toNumber(args[0]), Ops.toNumber(args[1]))
             val nums = DoubleArray(args.size) { Ops.toNumber(args[it]) }
             var r = Double.POSITIVE_INFINITY
             for (d in nums) {
@@ -208,7 +202,7 @@ internal object MathBuiltins {
                 if (d < r || (d == 0.0 && r == 0.0 && 1.0 / d < 0)) r = d
             }
             r
-        }
+        }.intrinsic = MathIntrinsic.MIN
         m.method(realm, "pow", 2) { _, _, args, _ -> Ops.pow(Ops.toNumber(args.arg(0)), Ops.toNumber(args.arg(1))) }.intrinsic = MathIntrinsic.POW
         m.method(realm, "random", 0) { f, _, _, _ -> f.realm.agent.nextRandom() }
         m.method(realm, "sumPrecise", 1) { f, _, args, _ -> SumPrecise.sum(f.realm, args.arg(0)) }
@@ -356,6 +350,22 @@ internal object BigIntBuiltins {
 internal object MathExtra {
     private const val LN2 = 0.6931471805599453
     private const val TWO28 = 268435456.0
+
+    /** Math.round (also the optimizing tier's, MathIntrinsic.ROUND). */
+    @JvmStatic
+    fun round(x: Double): Double =
+        if (x.isNaN() || x.isInfinite()) x
+        else if (x == 0.0) x
+        else if (x > 0 && x < 0.5) 0.0
+        else if (x < 0 && x >= -0.5) -0.0
+        else {
+            val fl = floor(x)
+            if (x - fl >= 0.5) fl + 1 else fl
+        }
+
+    /** Math.trunc (also the optimizing tier's, MathIntrinsic.TRUNC). */
+    @JvmStatic
+    fun trunc(x: Double): Double = if (x.isNaN() || x.isInfinite()) x else if (x < 0) ceil(x) else floor(x)
 
     fun asinh(x: Double): Double {
         if (x == 0.0 || !x.isFinite()) return x

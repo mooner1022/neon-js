@@ -398,7 +398,9 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
     computes such a call with the Java method the builtin calls, behind a guard on the function's intrinsic id
     (`CheckIntrinsic`, LICM moves it with the loads of `Math.f`) that exits before the call for anything else. On ART:
     NeonBench float 12.5K -> 124K (T1 9.2K), nbody 15% faster. A loop reading a module's `const` (an environment load
-    with a TDZ check) no longer keeps its loads in it.
+    with a TDZ check) no longer keeps its loads in it. round and trunc (`MathExtra`) and min and max of two arguments
+    (`Math.min`/`Math.max`, which the builtins call for two) followed: on ART a loop clamping with `Math.min(Math.max(..))`
+    went from 95 to 1.6 ms, one of `Math.round` and `Math.trunc` from 90 to 4.4 ms.
   - properties added through a monomorphic transition (`AddSlot`: PropCache's ADD case in place, behind the shapes and
     an extensible check). Small on ART (a loop of `new` of a class 2-3%): most of what is left in NeonBench alloc and
     basic.js classes is the object model, a JSObject, its PropertyMap and its arrays for each object made property by

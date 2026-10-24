@@ -51,9 +51,14 @@ object MathIntrinsic {
     const val POW = 12
     /** String.prototype.charCodeAt (Ir.CHAR_CODE: a string's code unit in place, the builtin's steps otherwise). */
     const val CHAR_CODE_AT = 13
+    const val ROUND = 14
+    const val TRUNC = 15
+    /** Math.min and Math.max of two arguments (calls with other counts are not the intrinsic). */
+    const val MIN = 16
+    const val MAX = 17
 
     /** The number of arguments of intrinsic [id]. */
-    fun arity(id: Int) = if (id == ATAN2 || id == POW) 2 else 1
+    fun arity(id: Int) = if (id == ATAN2 || id == POW || id == MIN || id == MAX) 2 else 1
 }
 
 /** Builtin function implemented in Kotlin. */

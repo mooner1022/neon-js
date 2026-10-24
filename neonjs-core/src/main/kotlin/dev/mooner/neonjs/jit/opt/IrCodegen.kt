@@ -787,6 +787,10 @@ internal class IrCodegen(
                 when (i.a) {
                     MathIntrinsic.POW -> mv.visitMethodInsn(INVOKESTATIC, "dev/mooner/neonjs/runtime/Ops", "pow", "(DD)D", false)
                     MathIntrinsic.ATAN2 -> mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "atan2", "(DD)D", false)
+                    MathIntrinsic.MIN -> mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "min", "(DD)D", false)
+                    MathIntrinsic.MAX -> mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "max", "(DD)D", false)
+                    MathIntrinsic.ROUND, MathIntrinsic.TRUNC -> mv.visitMethodInsn(INVOKESTATIC, "dev/mooner/neonjs/builtins/MathExtra",
+                        if (i.a == MathIntrinsic.ROUND) "round" else "trunc", "(D)D", false)
                     else -> mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", when (i.a) {
                         MathIntrinsic.ABS -> "abs"
                         MathIntrinsic.SQRT -> "sqrt"
