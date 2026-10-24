@@ -75,6 +75,7 @@ internal class IrBuilder(
         if (demandInts()) kinds.infer(g)
         if (preferDoubles()) kinds.infer(g)
         intArith(kinds)
+        foldChecks(kinds)
         removeDeadCode(kinds)
         if (speculate) Licm.run(g, kinds)
         QuietInlines.run(g, kinds)
@@ -210,6 +211,25 @@ internal class IrBuilder(
             val where = (if (i.op == Op.INC) below[v] else above[v]) ?: continue
             if (where.any { dominates(it, b) }) i.state = null
         }
+    }
+
+    /**
+     * Number checks of values that are numbers already (a literal's property read as the value it was made of, a
+     * checked load checked again): one of a number of its own kind goes, its uses taking the value; another (a double
+     * of an int) only converts it and needs no exit, so its state goes (an exit in a loop keeps ART from optimizing it).
+     */
+    private fun foldChecks(kinds: Kinds) {
+        var folded = false
+        for (b in g.blocks) for (i in b.insts) {
+            if (i.op != Ir.CHECK_NUMBER && i.op != Ir.CHECK_INT32) continue
+            val k = kinds.of(i.inputs[0])
+            if (!JT.isNum(k) || (i.op == Ir.CHECK_INT32 && k != JT.INT)) continue
+            if (k == i.kind) {
+                replaced[i] = i.inputs[0]
+                folded = true
+            } else i.state = null
+        }
+        if (folded) resolveAll()
     }
 
     /**

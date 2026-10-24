@@ -785,6 +785,7 @@ internal class IrCodegen(
                 val vk = kindOf(v)
                 if (JT.isNum(vk)) {
                     // a number already (a read replaced by the value it reads): only an int32 check is left, if any
+                    // (IrBuilder.foldChecks takes the state of the others)
                     if (op == Ir.CHECK_NUMBER || vk == JT.INT) {
                         load(v, if (op == Ir.CHECK_NUMBER) JT.NUM else JT.INT)
                         done(i, if (op == Ir.CHECK_NUMBER) JT.NUM else JT.INT)
