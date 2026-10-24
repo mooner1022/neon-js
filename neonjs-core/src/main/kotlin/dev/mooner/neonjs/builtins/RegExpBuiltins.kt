@@ -511,8 +511,6 @@ internal object RegExpBuiltins {
             values[i] = if (cs < 0 || ce < 0) Undefined else s.substring(cs, ce)
         }
         val a = JSArray.of(realm.arrayPrototype, values)
-        a.defineOwn("index", matchStart.toDouble(), Attr.ALL)
-        a.defineOwn("input", s, Attr.ALL)
         val names = prog.groupNames
         var groups: Any? = Undefined
         // groupNames used for the indices array (null = no group property)
@@ -534,7 +532,7 @@ internal object RegExpBuiltins {
                 indexNames[i] = name
             }
         }
-        a.defineOwn("groups", groups, Attr.ALL)
+        resultProps(a, matchStart.toDouble(), s, groups)
         if (prog.flags and FLAG_INDICES != 0) {
             val pairs = arrayOfNulls<Any?>(n + 1)
             pairs[0] = pair(realm, matchStart, matchEnd)
@@ -557,6 +555,28 @@ internal object RegExpBuiltins {
             a.defineOwn("indices", ia, Attr.ALL)
         }
         return a
+    }
+
+    private val RESULT_KEYS: Array<Any> = arrayOf("index", "input", "groups")
+
+    /** The layout of exec results' named properties; its root identifies the realm (as ObjectLiteralSite keeps one). */
+    private var resultLayout: PropertyMap.Layout? = null
+
+    /** Gives exec result [a] its `index`, `input` and `groups`, in that order (the groups made before are unobservable). */
+    private fun resultProps(a: JSArray, index: Double, input: String, groups: Any?) {
+        val root = Shape.emptyShapeOf(a)
+        var l = resultLayout
+        if (l == null || l.root !== root) {
+            l = PropertyMap.layoutOf(root, RESULT_KEYS)
+            if (l == null) {
+                a.defineOwn("index", index, Attr.ALL)
+                a.defineOwn("input", input, Attr.ALL)
+                a.defineOwn("groups", groups, Attr.ALL)
+                return
+            }
+            resultLayout = l
+        }
+        a.props = PropertyMap.withLayout(l, arrayOf(index, input, groups))
     }
 
     private fun pair(realm: Realm, a: Int, b: Int): JSArray = JSArray.of(realm.arrayPrototype, arrayOf(a.toDouble(), b.toDouble()))
