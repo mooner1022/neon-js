@@ -37,11 +37,16 @@ class JSArray(proto: JSObject?, capacity: Int = 0) : JSObject(proto) {
 
     // ------------------------------------------------------------------ fast paths
 
-    /** True if no object on the prototype chain has indexed properties or exotic behaviour. */
+    /**
+     * True if no object on the prototype chain has indexed properties or exotic behaviour. An array there (Array.prototype
+     * is one) is exotic only through its elements and `length`: it qualifies without elements.
+     */
     fun protoChainClean(): Boolean {
         var p = proto
         while (p != null) {
-            if (p.special and SPECIAL_ALL != 0) return false
+            if (p is JSArray) {
+                if (p.special and (SPECIAL_GET or SPECIAL_SET or SPECIAL_HAS) != 0 || p.sparse || p.denseLen != 0) return false
+            } else if (p.special and SPECIAL_ALL != 0) return false
             val pm = p.props
             if (pm != null && pm.hasIndexKeys) return false
             p = p.proto
