@@ -388,6 +388,12 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
       more: the compilation itself (the IR, D8 on the device, then ART's JIT), not T1 running meanwhile (keeping the
       old code until the new one was there changed nothing).
     - `new` inlining, MAKE_CLASS (`classes`), environment loads with a TDZ check moved out of loops (module `const`).
+  - Math builtins (P3's intrinsics): abs, sqrt, sin, cos, tan, atan, exp, log, floor, ceil, atan2 and pow carry an
+    intrinsic id (`NativeFunction.intrinsic`) the interpreter notes at their call sites (`CallFeedback.intrinsic`); T2
+    computes such a call with the Java method the builtin calls, behind a guard on the function's intrinsic id
+    (`CheckIntrinsic`, LICM moves it with the loads of `Math.f`) that exits before the call for anything else. On ART:
+    NeonBench float 12.5K -> 124K (T1 9.2K), nbody 15% faster. A loop reading a module's `const` (an environment load
+    with a TDZ check) no longer keeps its loads in it.
 - **P5: tiering and tuning** (~1.5K). T1 -> T2 counters, OSR from T1 into T2 at loop headers, background T2 queue,
   thresholds, profiling T1 if compiled mode needs it, the builder option, Android measurement. Exit: StarLight's
   NeonBench and the user's benchmark gain on ART, first run included; default stays off until a release cycle has
