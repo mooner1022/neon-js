@@ -155,9 +155,9 @@ object JitRt {
     // ------------------------------------------------------------------ names & globals
 
     /**
-     * The strictness of the code running in [f]: the innermost call compiled inlined there ([Frame.inlineFn]; the
-     * optimizing tier inlines callees of the other strictness, whose bodies record their calls where such a helper
-     * runs), else the frame's function.
+     * The strictness of the code running in [f]: the innermost call compiled inlined there ([Frame.inlineFn]: callees of
+     * the other strictness are inlined, and every body that runs such a helper records its call; the optimizing tier's
+     * quiet ones run none), else the frame's function.
      */
     private fun strict(f: Frame) = (f.inlineFn?.code ?: f.code).flags and CodeBlock.STRICT != 0
 

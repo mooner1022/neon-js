@@ -48,26 +48,18 @@ internal object Inlining {
     }
 
     /**
-     * The [ALLOWED] instructions whose helpers behave differently in strict code (a failed assignment throws): they read
-     * the strictness from the frame (JitRt.strict).
-     */
-    private val STRICT_SENSITIVE = BooleanArray(256).also { a ->
-        for (op in intArrayOf(Op.PUT_PROP, Op.PUT_ELEM, Op.STORE_GLOBAL)) a[op] = true
-    }
-
-    /**
      * Whether [callee] can be inlined into [caller]: an ordinary function (not a generator, async function or class
      * constructor), no exception handlers, its parameters in registers, and only [ALLOWED] instructions: none that
      * reads the callee's own frame (`arguments`, `new.target`, the function itself), creates scopes or closures, or
-     * resolves names dynamically. `this` is bound when the body is entered, as a call binds it (JitRt.inlineThis). The
-     * helpers of a few instructions read the strictness of the innermost call the frame records (JitRt.strict): here a
-     * callee of the other strictness (class methods are strict, scripts mostly sloppy) is inlined only without them
-     * ([STRICT_SENSITIVE]), unless [anyStrictness] (the optimizing tier).
+     * resolves names dynamically. `this` is bound when the body is entered, as a call binds it (JitRt.inlineThis). A
+     * callee of the other strictness (class methods are strict, scripts mostly sloppy) is inlined as any other: the
+     * helpers that behave differently in strict code (a failed assignment throws) read the strictness of the innermost
+     * call the frame records (JitRt.strict).
      */
-    fun eligible(caller: CodeBlock, callee: CodeBlock, maxCode: Int = MAX_CALLEE_CODE, anyStrictness: Boolean = false): Boolean {
+    fun eligible(callee: CodeBlock, maxCode: Int = MAX_CALLEE_CODE): Boolean {
         val f = callee.flags
         if (f and (CodeBlock.GENERATOR or CodeBlock.ASYNC or CodeBlock.CLASS_CTOR or CodeBlock.DERIVED or CodeBlock.NO_JIT) != 0) return false
-        return bodyEligible(caller, callee, maxCode, anyStrictness)
+        return bodyEligible(callee, maxCode)
     }
 
     /**
@@ -75,15 +67,13 @@ internal object Inlining {
      * `this` is made before its body runs (not a derived class's: Interpreter.constructClosure) and that has a body (not
      * a class's default one), whose body [eligible] would inline (a class constructor's too: it is constructed here).
      */
-    fun constructible(caller: CodeBlock, callee: CodeBlock, maxCode: Int): Boolean {
+    fun constructible(callee: CodeBlock, maxCode: Int): Boolean {
         val f = callee.flags
         if (f and CodeBlock.CONSTRUCTOR == 0 || f and (CodeBlock.DERIVED or CodeBlock.DEFAULT_CTOR or CodeBlock.NO_JIT) != 0) return false
-        return bodyEligible(caller, callee, maxCode, anyStrictness = true)
+        return bodyEligible(callee, maxCode)
     }
 
-    private fun bodyEligible(caller: CodeBlock, callee: CodeBlock, maxCode: Int, anyStrictness: Boolean): Boolean {
-        val f = callee.flags
-        val sameStrictness = anyStrictness || (f and CodeBlock.STRICT) == (caller.flags and CodeBlock.STRICT)
+    private fun bodyEligible(callee: CodeBlock, maxCode: Int): Boolean {
         if (callee.strictPcs != null || callee.handlers.isNotEmpty()) return false
         val code = callee.code
         if (code.size > maxCode) return false
@@ -93,7 +83,6 @@ internal object Inlining {
         while (pc < code.size) {
             val op = code[pc]
             if (op < 0 || op >= ALLOWED.size || !ALLOWED[op]) return false
-            if (!sameStrictness && STRICT_SENSITIVE[op]) return false
             pc += Op.length(code, pc)
         }
         return true
@@ -114,7 +103,7 @@ internal object Inlining {
         while (pc < code.size && out.size < MAX_SITES) {
             if (code[pc] == Op.CALL) {
                 val target = if (fb == null) cb.callHint(pc) else fb.getOrNull(pc)?.takeIf { it.count >= MIN_COUNT }?.target
-                if (target != null && eligible(cb, target)) out.add(pc to target)
+                if (target != null && eligible(target)) out.add(pc to target)
             }
             pc += Op.length(code, pc)
         }

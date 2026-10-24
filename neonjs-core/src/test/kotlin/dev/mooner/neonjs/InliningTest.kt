@@ -130,8 +130,9 @@ class InliningTest {
     @Test
     fun calleesOfOtherModesOrRealmsAreCalled() {
         // strict and sloppy code behave differently in the same op (an assignment to a frozen object's property throws
-        // only in strict code): a callee whose mode differs from the caller's is called, never inlined, while the other
-        // calls of the caller are
+        // only in strict code): a callee whose mode differs from the caller's is inlined with the other calls, its
+        // helpers reading its own mode
+        val before = JvmCompiler.inlinedCalls.get()
         same(
             "var frozen = Object.freeze({ x: 0 }); function helper(x) { return x + 1 } function strictPut(o, x) { 'use strict'; o.x = x; return x }" +
                 "function caller(n) { var s = 0; for (var k = 0; k < n; k++) { s += helper(k); try { s += strictPut(frozen, k) } catch (e) { s += e.name.length } } return s }" +
@@ -142,6 +143,7 @@ class InliningTest {
                 "function caller(n) { 'use strict'; var s = 0; for (var k = 0; k < n; k++) { s += helper(k); try { s += sloppyPut(frozen, k) } catch (e) { s += e.name.length } } return s }" +
                 "caller(20); caller(20); all(caller(3))",
         )
+        assertTrue(JvmCompiler.inlinedCalls.get() - before >= 4, "both callees of each caller inlined")
         // one compiled script runs in several realms (as Test262's createRealm does): a closure of the same code from
         // another realm is called, where it reads its own realm's globals, not inlined into the caller's realm
         fun go(mode: ExecutionMode): String {

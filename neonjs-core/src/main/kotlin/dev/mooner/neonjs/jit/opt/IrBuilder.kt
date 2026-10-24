@@ -872,8 +872,7 @@ internal class IrBuilder(
             else fb.getOrNull(pc)?.takeIf { it.count >= Inlining.MIN_COUNT }?.target) ?: return null
             // (helpers read the strictness of the innermost call the frame records, JitRt.strict: a body that runs one is
             // not quiet, QuietInlines, and records its call)
-            if (if (construct) !Inlining.constructible(cb, target, MAX_CALLEE_CODE)
-                else !Inlining.eligible(cb, target, MAX_CALLEE_CODE, anyStrictness = true)) return null
+            if (if (construct) !Inlining.constructible(target, MAX_CALLEE_CODE) else !Inlining.eligible(target, MAX_CALLEE_CODE)) return null
             // recursion is inlined once, at the function compiled (as the baseline does): further copies only grow it
             if (depth > 0) {
                 if (target === cb) return null

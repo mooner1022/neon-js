@@ -218,10 +218,10 @@ unboxed. The rules that keep calls the same as before:
   source) name the callee's code. An exception caught by the caller gets its stack before the frame leaves the body.
 - Realms: one code block runs in several realms (a script compiled once, Test262's `createRealm`) and compiled code
   reads globals and intrinsics from the frame's realm, so a closure of the same code from another realm is called.
-- Strictness: helpers read that of the innermost call the frame records (`JitRt.strict`: `Frame.inlineFn`'s, else
-  the frame's function's). A callee of the other strictness (class methods are strict, scripts mostly sloppy) is
-  inlined only if it has none of the instructions whose helpers do (`PUT_PROP`, `PUT_ELEM`, `STORE_GLOBAL`:
-  `Inlining.STRICT_SENSITIVE`), but by the optimizing tier; its `this` is bound by its own strictness.
+- Strictness: the helpers that behave differently in strict code (`PUT_PROP`, `PUT_ELEM`, `STORE_GLOBAL`: a failed
+  assignment throws) read that of the innermost call the frame records (`JitRt.strict`: `Frame.inlineFn`'s, else the
+  frame's function's), so a callee of the other strictness (class methods are strict, scripts mostly sloppy) is
+  inlined as any other; its `this` is bound by its own strictness.
 - Identity: the inlined sites and the callees' own `JitInput`s are part of the caller's `JitInput`, and
   `CodeBlock.inlineTargets` is set before the code is installed through the volatile `compiled` field. A block whose
   code with inlined calls would exceed the JVM method size limit is compiled without them
