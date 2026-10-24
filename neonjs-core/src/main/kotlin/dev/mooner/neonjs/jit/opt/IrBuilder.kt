@@ -582,8 +582,9 @@ internal class IrBuilder(
             }
             if (b.loopHeader) {
                 // where on-stack replacement may enter (the function's own loops), and the state where LICM's exits
-                // resume
-                b.entryRegs = Array(nregs) { regs[it]!! }
+                // resume; a register dead there is undefined (an entry does not load it: a frame may hold anything there,
+                // the baseline's a hole, which loaded would overwrite a value another register holds too)
+                b.entryRegs = Array(nregs) { regAt(b.pc, it, regs[it]!!) }
                 b.entryDepth = stack.size
             }
             var cur = b

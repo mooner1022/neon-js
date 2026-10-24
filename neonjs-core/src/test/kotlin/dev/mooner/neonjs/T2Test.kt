@@ -1068,6 +1068,30 @@ class T2Test {
             }
     }
 
+    @Test
+    fun runningLoopsEnterWithAValueInTwoRegisters() {
+        // a value in two registers at a loop header, one of them dead there (a class's constructor: its binding and the
+        // temporary MAKE_CLASS stored it in): on-stack replacement loads it from the live one. The loop runs as the
+        // adaptive mode runs it, the interpreter entering the baseline, which holds nothing for the dead register (a
+        // hole), then the tier's code: loaded after the binding, the hole was the constructor
+        val src = """
+            function f(n) {
+              class P { constructor(x) { this.x = x } add(o) { return new P(this.x + o.x) } }
+              let p = new P(0);
+              for (let i = 0; i < n; i++) p = p.add(new P(1));
+              return p.x
+            }
+            """.trimIndent()
+        val expr = "var t = 0; for (var r = 0; r < 3; r++) t += f(60000); String(t)"
+        val expected = interpreted(src, expr)
+        NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(2).backgroundCompilation(false).console(null)
+            .build().newContext().use { ctx ->
+                ctx.agent.config.tier2 = true
+                ctx.eval(src)
+                assertEquals(expected, ctx.eval(expr).asString())
+            }
+    }
+
     /** The IR of function [name] after [src] ran in the interpreter (its caches and profiles filled). */
     private fun irOf(src: String, name: String, profiled: Boolean = false): String =
         NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).console(null).build().newContext().use { ctx ->
