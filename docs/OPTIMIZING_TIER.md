@@ -397,8 +397,8 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
   - properties added through a monomorphic transition (`AddSlot`: PropCache's ADD case in place, behind the shapes and
     an extensible check). Small on ART (a loop of `new` of a class 2-3%): most of what is left in NeonBench alloc and
     basic.js classes is the object model, a JSObject, its PropertyMap and its arrays for each object made property by
-    property; a layout shared along transitions (as object literals share theirs) or slots in the object would be the
-    next step there, outside this tier.
+    property. Maps now share the layouts of the shapes they move to (ARCHITECTURE "Shapes and inline caches"):
+    objects made in a loop 2x faster on ART, a loop of `new` of a class 115 -> 97 ms, NeonBench alloc +8-10%.
 - **P5: tiering and tuning** (~1.5K). T1 -> T2 counters, OSR from T1 into T2 at loop headers, background T2 queue,
   thresholds, profiling T1 if compiled mode needs it, the builder option, Android measurement. Exit: StarLight's
   NeonBench and the user's benchmark gain on ART, first run included; default stays off until a release cycle has

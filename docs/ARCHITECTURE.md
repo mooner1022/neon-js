@@ -335,6 +335,12 @@ Java class)*; appending a property follows a transition. Any other structural ch
 compaction, prototype change that cannot be replayed — gives the map a fresh unique token. Hence two maps with the
 same cacheable shape have the same keys, slots, attributes, prototype and class.
 
+So maps of one shared shape can share their keys, attributes and hashes: an object literal's map takes its site's
+layout (`ObjectLiteralSite`), and a map that starts empty with a shared shape takes, at each property added along a
+transition, the layout of the shape it moves to (`Shape.layout`, made by the first map there, up to 8 properties). Such
+a map owns its values only (three allocations an object less: on ART, objects made in a loop 2x faster); any other
+change copies the layout first (`ownLayout`).
+
 `PropCache` (property sites) caches own data/accessor hits, prototype-chain hits (validated by the shapes of every
 object on the chain), absent properties, existing-slot stores, add-property transitions and prototype setters, up
 to 4 receiver shapes per site. `GlobalCache` caches global lexical bindings by index and global-object properties
@@ -342,7 +348,7 @@ by shape. Cache entries are immutable and published with a single field write be
 are shared by contexts running on different threads; shapes belong to one context, so entries never hit across
 contexts. Objects with exotic `[[Get]]`/`[[Set]]` use `Shape.UNCACHEABLE`.
 
-**Invariant:** never write `PropertyMap.keys`/`flags` directly — use `add`, `setFlags`, `removeAt`
+**Invariant:** never write `PropertyMap.keys`/`flags` directly (they may be a shared layout) — use `add`, `setFlags`, `removeAt`
 (`JSObject.defineOwn`, `defineOwnProperty`...). Writing `values[i]` for an existing data slot is fine.
 
 ## Environments
