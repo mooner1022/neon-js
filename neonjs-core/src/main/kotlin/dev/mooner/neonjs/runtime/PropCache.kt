@@ -11,6 +11,11 @@ package dev.mooner.neonjs.runtime
 class PropSite(@JvmField val key: Any) {
     @JvmField var entry: PropIC? = null
     @JvmField var fills = 0
+    /**
+     * An exotic receiver's own cache for this site (JSObject.getAt; a host object's: the member the key names in its
+     * class): an immutable record, written with a single write.
+     */
+    @JvmField var aux: Any? = null
 
     override fun toString(): String = PK.toStringKey(key)
 }
@@ -168,7 +173,7 @@ object PropCache {
             site.fills++
             buildGet(o, key, sh)?.let { install(site, it) }
         }
-        return o.get(key, o)
+        return o.getAt(site)
     }
 
     private fun cacheableFor(h: JSObject, key: Any, hs: Shape?): Boolean =

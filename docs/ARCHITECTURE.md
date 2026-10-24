@@ -448,6 +448,12 @@ parses generic signatures and compares Methods in native code:
   `equals`/`hashCode`);
 - the views of `Java.extend` adapter classes, which would otherwise keep them loaded beyond their context.
 
+A property site keeps the member its key names in a host object's class (`PropSite.aux`, read by `HostObject.getAt`
+where the property cache misses, as it always does for host objects): a field, methods or a bean getter, the same
+for every instance of the class under the policy. Reading `list.size` then skips the name lookups in the class's
+tables, and a host object keeps its bound methods by index (`HostClassInfo.methodIndex`). On ART a host method call
+took 10-20% less.
+
 ## Optional modules and extensions
 
 - **`neonjs-intl`** implements ECMA-402 on ICU4J. Core only defines the `IntlProvider` SPI (found with

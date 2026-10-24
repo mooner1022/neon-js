@@ -32,6 +32,15 @@ abstract class Shape2D(val name: String) {
     fun locked(): String = "final"
 }
 
+class FieldName {
+    @JvmField var name = "field"
+}
+
+class MethodName {
+    fun name() = "method"
+    fun getLabel() = "bean"
+}
+
 interface Greeter {
     fun greet(who: String): String
     fun twice(who: String): String = greet(who) + "/" + greet(who)
@@ -80,6 +89,29 @@ class InteropTest {
             .sandbox(SandboxPolicy.builder().exposeJavaGlobal(javaGlobal).build()).build().newContext()
 
     private val lookupAll = HostAccess.builder(HostAccess.Level.ALL).allowLookup { true }.build()
+
+    @Test
+    fun membersKeptBySite() {
+        // a property site keeps the member its key names in the receiver's class (HostObject.getAt): one site reads a
+        // field of one class, a method of another, a Map entry, nothing of an array, a bean getter; a method read twice
+        // (at one site or two) is the same function
+        ctx().use { c ->
+            c["a"] = FieldName()
+            c["b"] = MethodName()
+            c["m"] = hashMapOf("name" to "entry", "label" to "entry label")
+            c["arr"] = intArrayOf(1, 2, 3)
+            c["list"] = listOf(1, 2)
+            c.eval("function n(o) { var v = o.name; return typeof v === 'function' ? v.call(o) : v }")
+            c.eval("function l(o) { return o.label }")
+            c.eval("function len(o) { return o.length }")
+            val r = "[n(a), n(b), n(m), n(arr), l(b), l(m), l(a), len(arr), len(list), len(a)].join()"
+            val expected = "field,method,entry,,bean,entry label,,3,2,"
+            for (i in 0 until 3) assertEquals(expected, c.eval(r).asString())
+            assertTrue(c.eval("b.name === b.name && n.call && (function (o) { return o.name })(b) === b.name").asBoolean())
+            c.eval("a.name = 'changed'")
+            assertEquals("changed", c.eval("n(a)").asString())
+        }
+    }
 
     @Test
     fun mapEntriesAsProperties() {

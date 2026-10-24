@@ -4,6 +4,19 @@ import dev.mooner.neonjs.HostAccess
 import dev.mooner.neonjs.HostName
 import java.lang.reflect.*
 
+/**
+ * An instance member of [info]'s class that a name resolves to: [field], else the overloads [methods] (at [index] in
+ * [HostClassInfo.methodIndex]), else [getter].
+ */
+internal class HostMember(
+    @JvmField val info: HostClassInfo,
+    @JvmField val name: String,
+    @JvmField val field: Field?,
+    @JvmField val methods: List<Method>?,
+    @JvmField val index: Int,
+    @JvmField val getter: Method?,
+)
+
 /** Reflection metadata of a host class as seen from JS under a [HostAccess] policy. */
 class HostClassInfo private constructor(val cls: Class<*>, val access: HostAccess) {
     /** Whether JS may use the class itself: static members, constructors (and see [instancesVisible]). */
@@ -33,6 +46,21 @@ class HostClassInfo private constructor(val cls: Class<*>, val access: HostAcces
         } catch (_: LinkageError) {
             null
         }
+    }
+
+    /** Each instance method name's index: a HostObject keeps its bound methods by it. */
+    internal val methodIndex: Map<String, Int> = HashMap<String, Int>().also { m -> for (k in instanceMethods.keys) m[k] = m.size }
+
+    /**
+     * The instance member [name] names, as HostObject resolves a name that is not an array-like's `length`: a field,
+     * else methods, else a bean getter; null for none (a Map entry or the prototype's). The same for every instance, so
+     * property sites keep it (HostObject.getAt).
+     */
+    internal fun member(name: String): HostMember? {
+        instanceFields[name]?.let { return HostMember(this, name, it, null, -1, null) }
+        methodIndex[name]?.let { return HostMember(this, name, null, instanceMethods[name], it, null) }
+        instanceGetters[name]?.let { return HostMember(this, name, null, null, -1, it) }
+        return null
     }
 
     private fun jsName(m: AccessibleObject, default: String): String = m.getAnnotation(HostName::class.java)?.value ?: default

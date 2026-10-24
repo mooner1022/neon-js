@@ -103,6 +103,12 @@ open class JSObject(@JvmField var proto: JSObject?) {
     }
 
     /** Fast own-value lookup used by `[[Get]]`: returns [NotFound] when absent; invokes getters with [receiver]. */
+    /**
+     * `[[Get]]` of [site]'s key with this object as the receiver, where a property cache missed: an exotic object may
+     * keep its own cache in the site ([PropSite.aux]).
+     */
+    open fun getAt(site: PropSite): Any? = get(site.key, this)
+
     open fun getOwnValue(key: Any, receiver: Any?): Any? {
         val p = props ?: return NotFound
         val i = p.find(key)

@@ -45,6 +45,9 @@ class HostMethodFunction(
 class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @JvmField val info: HostClassInfo) :
     JSObject(bridge.realm.objectPrototype) {
 
+    /** Bound methods by [HostClassInfo.methodIndex] (one function per name, as reading a method twice gives). */
+    private var bound: Array<HostMethodFunction?>? = null
+    /** Bound methods named by signature keys. */
     private var methodCache: HashMap<String, HostMethodFunction>? = null
 
     init {
@@ -69,13 +72,44 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
     }
 
     private fun method(name: String): HostMethodFunction? {
-        val list = info.instanceMethods[name] ?: info.overload(name, static = false)?.let { listOf(it) } ?: return null
+        info.methodIndex[name]?.let { return boundMethod(it, name, info.instanceMethods[name]!!) }
+        val m = info.overload(name, static = false) ?: return null
         var mc = methodCache
         if (mc == null) {
             mc = HashMap()
             methodCache = mc
         }
-        return mc.getOrPut(name) { HostMethodFunction(bridge, name.substringBefore('('), list, target) }
+        return mc.getOrPut(name) { HostMethodFunction(bridge, name.substringBefore('('), listOf(m), target) }
+    }
+
+    private fun boundMethod(index: Int, name: String, list: List<Method>): HostMethodFunction {
+        var b = bound
+        if (b == null) {
+            b = arrayOfNulls(info.methodIndex.size)
+            bound = b
+        }
+        return b[index] ?: HostMethodFunction(bridge, name, list, target).also { b[index] = it }
+    }
+
+    /** As [get], with the member the site's key names in this class kept in the site (the same for its instances). */
+    override fun getAt(site: PropSite): Any? {
+        val c = site.aux
+        if (c is HostMember && c.info === info) return read(c)
+        val key = site.key
+        if (key is String && !(key == "length" && isArrayLike())) {
+            val m = info.member(key)
+            if (m != null) {
+                site.aux = m
+                return read(m)
+            }
+        }
+        return get(key, this)
+    }
+
+    private fun read(m: HostMember): Any? {
+        m.field?.let { return bridge.toJS(read(it)) }
+        m.methods?.let { return boundMethod(m.index, m.name, it) }
+        return bridge.invoke(m.getter!!, target, EMPTY_ARGS)
     }
 
     private fun isMap() = target is Map<*, *> && access.allowMapAccess
