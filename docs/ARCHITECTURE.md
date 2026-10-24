@@ -81,7 +81,9 @@ Together with the smaller frame this made calls 15-30% faster on HotSpot; each c
 On ART, calls of compiled code also reuse frames: the agent keeps up to 64 frames of such calls that returned
 (`Agent.framePool`, without extra state and while no debugger hook may hold one), and `Frame.reuse` makes one the next
 call's. Allocating and collecting frames took about 45% of a recursive call there (the StarLight benchmark: 330 -> 290 ms
-per loop in T1, 130 -> 82 ms with the optimizing tier). Nothing else holds a frame once its call returned: stack traces
+per loop in T1, 130 -> 82 ms with the optimizing tier), and so do the arrays of 1 to 4 arguments compiled code passes
+to JS functions (`Agent.argsPool`: 82 -> 76 ms; not where the callee's frame lives on, a generator's or an async
+function's). Nothing else holds a frame or its arguments once its call returned: stack traces
 are strings, arguments objects hold the arguments and the environment, and an error object holds the frame it was made
 in weakly, with that frame's activation (`Frame.activation`, bumped on reuse). HotSpot's compilers remove the
 allocation of a frame that does not escape, which the pool would defeat (calls of closures 40% slower), so it is off
