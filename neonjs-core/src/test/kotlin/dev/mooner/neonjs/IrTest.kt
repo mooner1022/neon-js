@@ -61,6 +61,15 @@ class IrTest {
     }
 
     @Test
+    fun unusedResultsGo() {
+        // t is never read: its arithmetic goes (the counter's increment, with its exit, stays)
+        val g = build("function f(n) { for (var i = 0; i < n; i++) { var t = i * 2 + 1 } return n }")
+        val text = IrPrinter.print(g)
+        assertTrue(g.blocks.none { b -> b.insts.any { it.op == dev.mooner.neonjs.compiler.Op.MUL || it.op == dev.mooner.neonjs.compiler.Op.ADD } }, text)
+        assertTrue(g.blocks.any { b -> b.insts.any { it.op == dev.mooner.neonjs.compiler.Op.INC } }, text)
+    }
+
+    @Test
     fun valuesOfUnknownTypeStayObjects() {
         val g = build("function f(o) { var t = 0; for (var k = 0; k < 3; k++) t = t + o.x; return t }")
         val header = g.blocks.first { it.loopHeader }

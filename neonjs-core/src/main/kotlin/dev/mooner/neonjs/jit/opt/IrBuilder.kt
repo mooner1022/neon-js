@@ -74,6 +74,7 @@ internal class IrBuilder(
         kinds.infer(g)
         if (preferDoubles()) kinds.infer(g)
         intArith(kinds)
+        removeDeadCode(kinds)
         if (speculate) Licm.run(g, kinds)
         QuietInlines.run(g, kinds)
         number()
@@ -130,6 +131,51 @@ internal class IrBuilder(
                 i.wraps = true
             }
         }
+    }
+
+    /**
+     * Results nothing uses (no instruction, phi, exit state, inlined call or on-stack replacement entry) of instructions
+     * that only compute them go: arithmetic and comparisons of numbers, guarded loads, number checks (their exits only
+     * test speculations nothing relies on then). HotSpot's compilers remove such code; ART's keep it where an exit's
+     * call in the loop keeps the registers alive (an inlined call whose result is unused: 2x on ART).
+     */
+    private fun removeDeadCode(kinds: Kinds) {
+        do {
+            val used = HashSet<Value>()
+            val sites = HashSet<InlineSite>()
+            fun site(s0: InlineSite?) {
+                var s = s0
+                while (s != null && sites.add(s)) {
+                    used.addAll(s.values())
+                    s = s.parent
+                }
+            }
+            for (b in g.blocks) {
+                for (p in b.phis) used.addAll(p.inputs)
+                for (i in b.insts) {
+                    used.addAll(i.inputs)
+                    i.state?.let { s ->
+                        used.addAll(s.values)
+                        site(s.site)
+                    }
+                }
+                b.entryRegs?.let { used.addAll(it) }
+                site(b.site)
+            }
+            var removed = false
+            for (b in g.blocks) if (b.insts.removeAll { it.hasResult && !it.virtual && it !in used && pure(it, kinds) }) removed = true
+        } while (removed)
+        removeDeadPhis()
+    }
+
+    /** Whether [i] does nothing but compute its result (or exit: a speculation). */
+    private fun pure(i: Inst, kinds: Kinds): Boolean = when (i.op) {
+        Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD, Op.EXP, Op.BAND, Op.BOR, Op.BXOR, Op.SHL, Op.SAR, Op.SHR,
+        Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC, Op.TO_NUMBER ->
+            i.inputs.all { JT.isNum(kinds.of(it)) }
+        Op.SEQ, Op.SNE, Op.NOT, Op.LOAD_ENV, Ir.CHECK_NUMBER, Ir.CHECK_INT32, Ir.LOAD_SLOT, Ir.LOAD_GLOBAL_LEX,
+        Ir.LOAD_GLOBAL_SLOT, Ir.CLOSURE_ENV -> true
+        else -> false
     }
 
     private fun newBlock(pc: Int, site: InlineSite?): Block = Block(-1, pc, site).also { made.add(it) }
