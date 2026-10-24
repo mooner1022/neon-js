@@ -231,6 +231,12 @@ object Ir {
      */
     const val LOAD_GLOBAL_LEX = 1015
     const val LOAD_GLOBAL_SLOT = 1016
+    /**
+     * (fn) whether fn is a closure of the code block [Inst.a] indexes in the graph's data, in the frame's realm (as
+     * CHECK_CLOSURE tests, without an exit): a call inlined where its guard failed before branches on it to a call made
+     * as a call instead (IrBuilder.inline).
+     */
+    const val IS_CLOSURE = 1017
     /** Terminators. GOTO; BRANCH(value): [Inst.a] is the bytecode jump tested (JUMP_IF_TRUE and the like). */
     const val GOTO = 1100
     const val BRANCH = 1101
@@ -267,6 +273,7 @@ object Ir {
         LOAD_HOME -> "LoadHome"
         LOAD_GLOBAL_LEX -> "LoadGlobalLex"
         LOAD_GLOBAL_SLOT -> "LoadGlobalSlot"
+        IS_CLOSURE -> "IsClosure"
         SWITCH -> "Switch"
         GOTO -> "Goto"
         BRANCH -> "Branch"

@@ -64,7 +64,7 @@ internal object Licm {
         }
         fun stored(shape: Any?, slot: Int) = stores.any { it.first === shape && it.second == slot }
         fun movable(i: Inst, b: Block): Boolean = when (i.op) {
-            Ir.CHECK_CLOSURE, Ir.CHECK_NUMBER, Ir.CHECK_INT32, Ir.CLOSURE_ENV -> true
+            Ir.CHECK_CLOSURE, Ir.CHECK_NUMBER, Ir.CHECK_INT32, Ir.CLOSURE_ENV, Ir.IS_CLOSURE -> true
             // (after its call's guard, in the same block: moved together)
             Ir.INLINE_THIS -> i.a == 1
             Ir.LOAD_GLOBAL_LEX -> !opaque
@@ -111,7 +111,7 @@ internal object Licm {
             i.inputs.all { JT.isNum(kinds.of(it)) }
         Op.SEQ, Op.SNE, Op.NOT, Op.LOAD_ENV, Op.NEW_OBJECT_LITERAL -> true
         Ir.CHECK_NUMBER, Ir.CHECK_INT32, Ir.CHECK_CLOSURE, Ir.LOAD_SLOT, Ir.LOAD_GLOBAL_LEX, Ir.LOAD_GLOBAL_SLOT,
-        Ir.STRESS_EXIT, Ir.CLOSURE_ENV, Ir.INLINE_THIS, Ir.INLINE_ENTER, Ir.INLINE_EXIT, Ir.SET_HOME, Ir.GOTO, Ir.BRANCH,
+        Ir.STRESS_EXIT, Ir.CLOSURE_ENV, Ir.IS_CLOSURE, Ir.INLINE_THIS, Ir.INLINE_ENTER, Ir.INLINE_EXIT, Ir.SET_HOME, Ir.GOTO, Ir.BRANCH,
         Ir.SWITCH, Ir.RETURN -> true
         else -> false
     }

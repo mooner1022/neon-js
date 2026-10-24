@@ -655,7 +655,7 @@ internal class IrBuilder(
                     }
                     Op.CALL -> {
                         val target = inlineTarget(pc)
-                        if (target == null) {
+                        if (target == null || stack.size < a + 2) {
                             val n = a + 2
                             if (stack.size < n) throw JitBailout("operand stack underflow at $pc")
                             val inputs = Array(n) { stack[stack.size - n + it] }
@@ -718,8 +718,9 @@ internal class IrBuilder(
         /** The code block to compile the CALL at [pc] inlined with, or null. */
         private fun inlineTarget(pc: Int): CodeBlock? {
             val depth = site?.depth ?: 0
-            // not where a call made there was another function before (CodeBlock.t2Failed)
-            if (depth >= maxInlineDepth || code.t2FailedAt(pc)) return null
+            // (where a call made there was another function before, CodeBlock.t2Failed, the call is made as a call when
+            // it is another again: inline)
+            if (depth >= maxInlineDepth) return null
             val fb = code.callFeedback
             val target = (if (fb == null) code.callHint(pc) else fb.getOrNull(pc)?.takeIf { it.count >= Inlining.MIN_COUNT }?.target) ?: return null
             // helpers read the strictness from the frame: the function compiled's
@@ -749,37 +750,64 @@ internal class IrBuilder(
             T2.inlinedCalls.incrementAndGet()
             val ops = ArrayList(stack.subList(stack.size - n, stack.size))
             val fn = ops[0]
-            // the guard: anything else than a closure of the target here leaves before the call, which the
+            // where the guard failed before (CodeBlock.t2Failed: a callback site that gets several functions), another
+            // function is called as a call, on a branch of its own; elsewhere the guard leaves before the call, which the
             // interpreter then makes
-            val guard = add(cur, Inst(Ir.CHECK_CLOSURE, arrayOf(fn), g.dataIndex(target), 0, 0, pc, stmt))
-            guard.state = FrameState(pc, Array(nregs + stack.size) { if (it < nregs) regAt(pc, it, regs[it]!!) else stack[it - nregs] }, site)
+            val polymorphic = code.t2FailedAt(pc)
+            var start = cur
+            var other: Block? = null
+            if (polymorphic) {
+                val test = add(cur, Inst(Ir.IS_CLOSURE, arrayOf(fn), g.dataIndex(target), 0, 0, pc, stmt).also { it.hasResult = true })
+                start = newBlock(pc, site).also { it.handler = cur.handler }
+                other = newBlock(pc, site).also { it.handler = cur.handler }
+                add(cur, Inst(Ir.BRANCH, arrayOf(test), Op.JUMP_IF_FALSE, 0, 0, pc, stmt)).targets = listOf(other, start)
+                start.preds.add(cur)
+                other.preds.add(cur)
+            } else {
+                val guard = add(cur, Inst(Ir.CHECK_CLOSURE, arrayOf(fn), g.dataIndex(target), 0, 0, pc, stmt))
+                guard.state = FrameState(pc, Array(nregs + stack.size) { if (it < nregs) regAt(pc, it, regs[it]!!) else stack[it - nregs] }, site)
+            }
             repeat(n) { stack.removeAt(stack.size - 1) }
             // (where the caller goes on after the call: what is live at the call is)
             val callerState = FrameState(pc, Array(nregs + stack.size) { if (it < nregs) regAt(pc, it, regs[it]!!) else stack[it - nregs] }, site)
-            val enter = add(cur, Inst(Ir.INLINE_ENTER, arrayOf(fn), pc, 0, 0, pc, stmt))
-            val env = add(cur, Inst(Ir.CLOSURE_ENV, arrayOf(fn), 0, 0, 0, pc, stmt).also { it.hasResult = true })
+            val enter = add(start, Inst(Ir.INLINE_ENTER, arrayOf(fn), pc, 0, 0, pc, stmt))
+            val env = add(start, Inst(Ir.CLOSURE_ENV, arrayOf(fn), 0, 0, 0, pc, stmt).also { it.hasResult = true })
             val thisValue = if (readsThis(target)) {
                 val bound = if (target.flags and (CodeBlock.STRICT or CodeBlock.ARROW) != 0) 1 else 0
-                add(cur, Inst(Ir.INLINE_THIS, arrayOf(fn, ops[1]), bound, 0, 0, pc, stmt).also { it.hasResult = true })
+                add(start, Inst(Ir.INLINE_THIS, arrayOf(fn, ops[1]), bound, 0, 0, pc, stmt).also { it.hasResult = true })
             } else undefined()
             val args = Array(argc) { ops[2 + it] }
             val calleeSite = InlineSite(site, target, pc, callerState, fn, thisValue, args, env)
             enter.callee = calleeSite
             g.dataIndex(target.constants)
             val body = Body(target, calleeSite, cur.handler)
-            val join = newBlock(pc, site)
-            join.handler = cur.handler
-            body.join = join
+            // where the body's returns meet (and the call ends), then, with a call made as a call, where both meet
+            val end = newBlock(pc, site)
+            end.handler = cur.handler
+            body.join = end
             val calleeRegs = Array<Value>(target.numRegs) { undefined() }
             target.paramRegs?.forEachIndexed { i, r -> if (r >= 0 && i < argc) calleeRegs[r] = args[i] }
-            body.build(cur, calleeRegs)
+            body.build(start, calleeRegs)
             val result: Value = when (body.returned.size) {
                 0 -> undefined() // it never returns: the block is not reached
                 1 -> body.returned[0]
-                else -> Phi(join).also { p -> join.phis.add(p); p.inputs.addAll(body.returned) }
+                else -> Phi(end).also { p -> end.phis.add(p); p.inputs.addAll(body.returned) }
             }
-            add(join, Inst(Ir.INLINE_EXIT, NO_VALUES, 0, 0, 0, pc, stmt)).callee = calleeSite
-            stack.add(result)
+            add(end, Inst(Ir.INLINE_EXIT, NO_VALUES, 0, 0, 0, pc, stmt)).callee = calleeSite
+            if (other == null) {
+                stack.add(result)
+                return end
+            }
+            val called = add(other, Inst(Op.CALL, ops.toTypedArray(), argc, 0, 0, pc, stmt).also { it.hasResult = true })
+            val join = newBlock(pc, site)
+            join.handler = cur.handler
+            if (body.returned.isNotEmpty()) {
+                goto(end, join)
+                join.preds.add(end)
+            }
+            goto(other, join)
+            join.preds.add(other)
+            stack.add(if (join.preds.size == 1) called else Phi(join).also { p -> join.phis.add(p); p.inputs.add(result); p.inputs.add(called) })
             return join
         }
     }

@@ -310,7 +310,8 @@ class T2Test {
     @Test
     fun failedSpeculationsAreNotMadeAgain() {
         // a callback site the feedback saw call one function, then called with another: the guard exits until the code
-        // gives way to the baseline and is compiled again without inlining there (CodeBlock.t2Failed)
+        // gives way to the baseline and is compiled again with a call made as a call there for another function
+        // (CodeBlock.t2Failed)
         val src = """
             function repeatf(n, block) { var s = 0; for (var i = 0; i < n; i++) s += block(i); return s }
             function dbl(x) { return x * 2 }
@@ -334,6 +335,9 @@ class T2Test {
                 assertEquals(1, cb.t2Recompiles, "compiled again once")
                 assertTrue(cb.compiled is dev.mooner.neonjs.jit.opt.T2Code, "the tier's code runs")
                 assertTrue(cb.t2FailedAt(pcOfCall(cb)), "the call's speculation is noted")
+                // the next version still inlines the call, and makes the call as a call for another function
+                val ir = dev.mooner.neonjs.jit.opt.IrPrinter.print(IrBuilder(cb, ints = true, elems = true).build())
+                assertTrue(ir.contains("IsClosure") && ir.contains("CALL") && ir.contains("InlineEnter"), ir)
                 // the second version makes no exit there: the exits stop at the limit
                 assertTrue(dev.mooner.neonjs.jit.Deopt.count.get() - exits <= dev.mooner.neonjs.jit.opt.T2Code.DEOPT_LIMIT + 2)
             }

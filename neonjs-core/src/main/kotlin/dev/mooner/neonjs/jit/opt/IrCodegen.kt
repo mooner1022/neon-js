@@ -675,6 +675,35 @@ internal class IrCodegen(
                 done(i, JT.ANY)
                 return
             }
+            Ir.IS_CLOSURE -> {
+                // CHECK_CLOSURE's test, as a boolean
+                val fn = i.inputs[0]
+                val no = Label()
+                val end = Label()
+                load(fn, JT.ANY)
+                mv.visitTypeInsn(INSTANCEOF, CLOSURE)
+                mv.visitJumpInsn(IFEQ, no)
+                load(fn, JT.ANY)
+                mv.visitTypeInsn(CHECKCAST, CLOSURE)
+                mv.visitFieldInsn(GETFIELD, CLOSURE, "code", CODEBLOCK_D)
+                mv.visitVarInsn(ALOAD, dataLocal)
+                iconst(i.a)
+                mv.visitInsn(AALOAD)
+                mv.visitJumpInsn(IF_ACMPNE, no)
+                load(fn, JT.ANY)
+                mv.visitTypeInsn(CHECKCAST, CLOSURE)
+                mv.visitFieldInsn(GETFIELD, CLOSURE, "realm", REALM_D)
+                frame()
+                mv.visitFieldInsn(GETFIELD, FRAME, "realm", REALM_D)
+                mv.visitJumpInsn(IF_ACMPNE, no)
+                mv.visitInsn(ICONST_1)
+                mv.visitJumpInsn(GOTO, end)
+                mv.visitLabel(no)
+                mv.visitInsn(ICONST_0)
+                mv.visitLabel(end)
+                done(i, JT.BOOL)
+                return
+            }
             Ir.CHECK_CLOSURE -> {
                 // a closure of the code block inlined, in the frame's realm (as Gen.emitInlineCall's guard)
                 val fn = i.inputs[0]

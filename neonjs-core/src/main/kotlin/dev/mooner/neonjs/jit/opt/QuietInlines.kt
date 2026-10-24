@@ -35,7 +35,7 @@ internal object QuietInlines {
             i.inputs.all { JT.isNum(kinds.of(it)) }
         Op.SEQ, Op.SNE, Op.NOT, Op.LOAD_ENV, Op.STORE_ENV -> true
         Ir.CHECK_NUMBER, Ir.CHECK_INT32, Ir.CHECK_CLOSURE, Ir.LOAD_SLOT, Ir.STORE_SLOT, Ir.LOAD_GLOBAL_LEX,
-        Ir.LOAD_GLOBAL_SLOT, Ir.STRESS_EXIT, Ir.CLOSURE_ENV, Ir.INLINE_THIS, Ir.SET_HOME, Ir.GOTO, Ir.BRANCH, Ir.SWITCH -> true
+        Ir.LOAD_GLOBAL_SLOT, Ir.STRESS_EXIT, Ir.CLOSURE_ENV, Ir.IS_CLOSURE, Ir.INLINE_THIS, Ir.SET_HOME, Ir.GOTO, Ir.BRANCH, Ir.SWITCH -> true
         Ir.INLINE_ENTER, Ir.INLINE_EXIT -> i.callee!!.quiet
         else -> false
     }
