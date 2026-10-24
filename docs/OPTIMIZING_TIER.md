@@ -382,9 +382,11 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
       result's box (direct calls between T2 codes with unboxed arguments and results). Inlining recursion deeper made
       ART slower (depth 2: 141 -> 175 ms; depth 3: 1.3 s, apparently not JIT-compiled by ART).
     - a call site that gets a second function after its first compilation (StarLight's repeatf) runs the loop of its
-      first one with a guard, then gives way after 4 exits and is compiled again with a branch to a plain call there
-      (one loop runs on T1 meanwhile: 146 against 108 ms); the call on that branch then keeps LICM out of the loop.
-      Loop versioning on the invariant closure test would keep the first loop's code.
+      first one with a guard, then gives way after 4 exits and is compiled again with a branch to a plain call there;
+      the call on that branch keeps LICM out of the loop (70 against 63 ms per loop on ART). Loop versioning on the
+      invariant closure test would keep the first loop's code. The loop where the block is compiled again takes 40 ms
+      more: the compilation itself (the IR, D8 on the device, then ART's JIT), not T1 running meanwhile (keeping the
+      old code until the new one was there changed nothing).
     - `new` inlining, MAKE_CLASS (`classes`), environment loads with a TDZ check moved out of loops (module `const`).
 - **P5: tiering and tuning** (~1.5K). T1 -> T2 counters, OSR from T1 into T2 at loop headers, background T2 queue,
   thresholds, profiling T1 if compiled mode needs it, the builder option, Android measurement. Exit: StarLight's
