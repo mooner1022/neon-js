@@ -447,6 +447,10 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
     StarLight's repeatf (radius, then fib) no longer exits 4 times, gives way and is compiled again in the fourth loop
     (its new code ran in ART's interpreter until ART compiled it: 102-104 ms), and its loop keeps LICM in the fifth
     (63-65 ms, not 71-73): on ART, StarLight 75.4-76.2 -> 66.0-66.8 ms per loop.
+  - a construction (`new F`) reads F's `prototype` through the slot its code block's closures were last seen to hold
+    it at (`CodeBlock.prototypeSlot`, by shape: they share it), not with a lookup (all tiers); boxes of the integers
+    -1024..1023 are shared (`Ops.num`: `-i` allocated one). On ART: NeonBench alloc 6.8-6.9K -> 7.2K, `new` of a class
+    without properties 17-20 -> 14 ms.
 - **P5: tiering and tuning** (~1.5K). T1 -> T2 counters, OSR from T1 into T2 at loop headers, background T2 queue,
   thresholds, profiling T1 if compiled mode needs it, the builder option, Android measurement. Exit: StarLight's
   NeonBench and the user's benchmark gain on ART, first run included; default stays off until a release cycle has

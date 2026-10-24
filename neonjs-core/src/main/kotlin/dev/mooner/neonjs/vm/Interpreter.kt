@@ -127,7 +127,7 @@ object Interpreter {
             return r.thisValue
         }
         dev.mooner.neonjs.jit.Jit.prepare(code, realm.agent)
-        val proto = Ops.getPrototypeFromConstructor(newTarget) { it.objectPrototype }
+        val proto = if (newTarget === fn) constructorPrototype(fn) else Ops.getPrototypeFromConstructor(newTarget) { it.objectPrototype }
         val obj = JSObject(proto)
         if (code.flags and CodeBlock.CLASS_CTOR != 0) Rt.initializeInstanceElements(obj, fn)
         if (code.flags and CodeBlock.DEFAULT_CTOR != 0) return obj
@@ -137,6 +137,27 @@ object Interpreter {
         if (r === TAIL) r = callClosure(frame.tailFn!!, frame.tailThis, frame.tailArgs!!)
         else pool(frame, compiled)
         return r as? JSObject ?: obj
+    }
+
+    /**
+     * The prototype a construction of [fn] by itself (`new fn`) gives `this` (GetPrototypeFromConstructor): its own
+     * `prototype` (a data property every constructor closure has, which cannot be deleted), read through the slot its
+     * code block's closures were last seen to hold it at where the shape is that one, else looked up (and noted).
+     */
+    @JvmStatic
+    fun constructorPrototype(fn: JSClosure): JSObject {
+        val pm = fn.props
+        val at = fn.code.prototypeSlot
+        if (pm != null && at != null && pm.shape === at.shape) {
+            val p = pm.values[at.slot]
+            if (p is JSObject) return p
+        }
+        val p = Ops.getPrototypeFromConstructor(fn) { it.objectPrototype }
+        if (pm != null && pm.shape.cacheable) {
+            val i = pm.find("prototype")
+            if (i >= 0 && pm.flags[i] and Attr.ACCESSOR == 0) fn.code.prototypeSlot = ShapeSlot(pm.shape, i)
+        }
+        return p
     }
 
     /** A construction's frame: for compiled code, one of the agent's pool where frames are reused (as invokeClosure). */

@@ -23,6 +23,26 @@ class InlineCacheTest {
     """
 
     @Test
+    fun constructorPrototypeThroughItsSlot() = check("""
+        // a construction reads the constructor's prototype through the slot its code block's closures held it at
+        // (CodeBlock.prototypeSlot): each closure's own value, a value replaced, a primitive (Object.prototype then)
+        function mk() { return function G() {} }
+        var G1 = mk(), G2 = mk();
+        for (var i = 0; i < 20; i++) { eq(Object.getPrototypeOf(new G1()), G1.prototype, 'G1'); eq(Object.getPrototypeOf(new G2()), G2.prototype, 'G2') }
+        var p = { tag: 1 };
+        G1.prototype = p;
+        eq(Object.getPrototypeOf(new G1()), p, 'replaced');
+        eq(new G1().tag, 1, 'inherited');
+        G1.prototype = 5;
+        eq(Object.getPrototypeOf(new G1()), Object.prototype, 'primitive');
+        G2.extra = 1;
+        eq(Object.getPrototypeOf(new G2()), G2.prototype, 'another shape');
+        class C { constructor() { this.v = 1 } }
+        for (var i = 0; i < 20; i++) eq(Object.getPrototypeOf(new C()), C.prototype, 'class');
+        'ok'
+    """)
+
+    @Test
     fun deleteAndRedefine() = check("""
         function getX(o) { return o.x }
         var o = { x: 1, y: 2 };

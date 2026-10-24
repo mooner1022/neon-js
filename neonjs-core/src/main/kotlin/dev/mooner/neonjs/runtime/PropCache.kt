@@ -243,6 +243,9 @@ object PropCache {
 }
 
 /** A global variable access site (LOAD_GLOBAL / LOAD_GLOBAL_TYPEOF / STORE_GLOBAL operand). */
+/** A property's slot in maps of [shape] (CodeBlock.prototypeSlot). */
+class ShapeSlot(@JvmField val shape: Shape, @JvmField val slot: Int)
+
 class GlobalSite(@JvmField val name: String) {
     @JvmField var cache: GlobalIC? = null
     /** Number of cache fills; past a limit the site stops caching (megamorphic, e.g. globals added in a loop). */

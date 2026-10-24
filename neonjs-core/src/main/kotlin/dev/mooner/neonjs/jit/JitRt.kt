@@ -253,7 +253,7 @@ object JitRt {
      */
     @JvmStatic fun newThis(fn: Any?): Any? {
         val c = fn as JSClosure
-        val o = JSObject(Ops.getPrototypeFromConstructor(c) { it.objectPrototype })
+        val o = JSObject(Interpreter.constructorPrototype(c))
         if (c.code.flags and CodeBlock.CLASS_CTOR != 0) Rt.initializeInstanceElements(o, c)
         return o
     }

@@ -203,6 +203,11 @@ class CodeBlock(@JvmField val name: String, @JvmField val kind: FunctionKind) {
      * heuristic only: the generated code checks its target at every call).
      */
     @JvmField var callFeedback: Array<CallFeedback?>? = null
+    /**
+     * Where the closures of this constructor were last seen to hold their `prototype` (Interpreter.constructorPrototype):
+     * closures of one block share their shape. One object, so that a reader sees a shape with its slot.
+     */
+    @JvmField var prototypeSlot: dev.mooner.neonjs.runtime.ShapeSlot? = null
     /** Value kinds the interpreter saw, with the optimizing tier on (adaptive mode); created on first use. */
     @JvmField var profile: ValueProfile? = null
     /**
