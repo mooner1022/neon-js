@@ -85,14 +85,23 @@ object Jit {
     @JvmStatic
     fun osr(f: Frame): Any? {
         val c = f.code.compiled as CompiledCode
-        val r = try {
-            c.run(f)
-        } catch (e: Throwable) {
-            osrEntered.incrementAndGet()
-            throw JitRt.leaveCompiled(e, f)
+        var r = if (c is dev.mooner.neonjs.jit.opt.T2Code && !c.hasEntry(f.pc)) JitRt.NO_OSR else enter(c, f)
+        // the optimizing tier's code declines a frame whose registers lack the kinds it speculated on (it changed
+        // nothing then): the baseline, which takes any, continues the loop, and the tier's code is not tried there again
+        if (r === JitRt.NO_OSR && c is dev.mooner.neonjs.jit.opt.T2Code) {
+            c.declined(f.pc)
+            val b = f.code.baseline as CompiledCode?
+            if (b != null && b !== c) r = enter(b, f)
         }
         (if (r === JitRt.NO_OSR) osrMissed else osrEntered).incrementAndGet()
         return r
+    }
+
+    private fun enter(c: CompiledCode, f: Frame): Any? = try {
+        c.run(f)
+    } catch (e: Throwable) {
+        osrEntered.incrementAndGet()
+        throw JitRt.leaveCompiled(e, f)
     }
 
     /** Loops continued in compiled code ([osr]), and attempts at a pc the code has no entry at. */

@@ -20,6 +20,14 @@ abstract class T2Code(@JvmField val data: Array<Any?>, @JvmField val block: Code
 
     fun hasEntry(pc: Int): Boolean = java.util.Arrays.binarySearch(osrPcs, pc) >= 0
 
+    /**
+     * The code declined a frame at the loop header [pc] (a register without the kind it speculated on: an int sum that
+     * overflowed in the interpreter, say): that entry is not offered again (Jit.osr goes to the baseline there).
+     */
+    fun declined(pc: Int) {
+        osrPcs = osrPcs.filter { it != pc }.toIntArray()
+    }
+
     companion object {
         /**
          * Deoptimizations after which a version of a block's code gives way to its baseline (and the block is compiled
