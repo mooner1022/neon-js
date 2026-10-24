@@ -93,6 +93,68 @@ object PropCache {
         return getMiss(o, site, sh)
     }
 
+    /**
+     * As [get] for string primitive [v] in [realm]: its entries have the receiver shape [Realm.stringShape] (a string has
+     * no own named property but `length`) and a chain from String.prototype; a getter gets [v] as `this`.
+     */
+    @JvmStatic
+    fun getString(realm: Realm, v: CharSequence, site: PropSite): Any? {
+        val key = site.key
+        if (key == "length") return Ops.num(v.length)
+        val sh = realm.stringShape
+        var e = site.entry
+        while (e != null) {
+            if (e.shape === sh) {
+                val h = walkFrom(realm.stringPrototype, e.chain!!)
+                if (h != null) {
+                    if (e.kind == ABSENT) return Undefined
+                    val x = h.props!!.values[e.slot]
+                    return if (e.kind == DATA) x else callGetter(x, v)
+                }
+            }
+            e = e.link
+        }
+        if (key is String && site.fills < MAX_FILLS) {
+            site.fills++
+            buildGetFrom(realm.stringPrototype, key, sh)?.let { install(site, it) }
+        }
+        return Ops.getV(realm, v, key)
+    }
+
+    /** As [walk] for a receiver without own properties whose prototype is [first]: the last object, or null. */
+    private fun walkFrom(first: JSObject, chain: Array<Shape>): JSObject? {
+        var h = first
+        for ((k, s) in chain.withIndex()) {
+            if (k > 0) h = h.proto ?: return null
+            val hp = h.props
+            val hs = hp?.shape ?: Shape.emptyShapeOf(h)
+            if (hs !== s) return null
+        }
+        return h
+    }
+
+    /** As [buildGet] for a receiver of shape [sh] without own properties whose prototype is [first]. */
+    private fun buildGetFrom(first: JSObject, key: Any, sh: Shape): PropIC? {
+        var h = first
+        val chain = ArrayList<Shape>(4)
+        while (true) {
+            var hs = shapeOf(h)
+            if (hs == null) {
+                h.ensureProps()
+                hs = h.props!!.shape
+            }
+            if (!cacheableFor(h, key, hs) || chain.size >= MAX_DEPTH) return null
+            chain.add(hs)
+            val pm = h.props
+            val i = pm?.find(key) ?: -1
+            if (i >= 0) {
+                val kind = if (pm!!.flags[i] and Attr.ACCESSOR != 0) GETTER else DATA
+                return PropIC(sh, chain.toTypedArray(), i, kind, null, null)
+            }
+            h = h.proto ?: return PropIC(sh, chain.toTypedArray(), -1, ABSENT, null, null)
+        }
+    }
+
     private fun callGetter(acc: Any?, receiver: Any?): Any? {
         val g = acc.cast<Accessor>().getter
         return if (g is JSObject) g.call(receiver, EMPTY_ARGS) else Undefined

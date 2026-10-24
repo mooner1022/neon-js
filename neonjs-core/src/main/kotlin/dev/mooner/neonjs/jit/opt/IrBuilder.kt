@@ -1028,7 +1028,8 @@ internal class IrBuilder(
     private fun monomorphic(site: Any?, kind: Int): PropIC? {
         if (!speculate || site !is PropSite) return null
         val e = site.entry ?: return null
-        if (e.link != null || e.kind != kind || !e.shape.cacheable) return null
+        // (a string primitive's entry: Realm.stringShape, for receivers that are no objects)
+        if (e.link != null || e.kind != kind || !e.shape.cacheable || e.shape.ownerClass === CharSequence::class.java) return null
         if (kind == PropCache.STORE && e.chain != null) return null
         return e
     }

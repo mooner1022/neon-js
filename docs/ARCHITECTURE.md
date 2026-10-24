@@ -344,7 +344,10 @@ change copies the layout first (`ownLayout`).
 
 `PropCache` (property sites) caches own data/accessor hits, prototype-chain hits (validated by the shapes of every
 object on the chain), absent properties, existing-slot stores, add-property transitions and prototype setters, up
-to 4 receiver shapes per site. `GlobalCache` caches global lexical bindings by index and global-object properties
+to 4 receiver shapes per site. A string primitive is a receiver too (`PropCache.getString`): its entries have the
+realm's `stringShape` (no own named property but `length`) and a chain from String.prototype, whose named keys are
+ordinary (`JSStringObject.icSafeKey`), and a getter gets the primitive as `this`; `s.charCodeAt` looked the method up
+by key each time before. `GlobalCache` caches global lexical bindings by index and global-object properties
 by shape. Cache entries are immutable and published with a single field write because code blocks (and so sites)
 are shared by contexts running on different threads; shapes belong to one context, so entries never hit across
 contexts. Objects with exotic `[[Get]]`/`[[Set]]` use `Shape.UNCACHEABLE`.

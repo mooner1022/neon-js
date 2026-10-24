@@ -23,6 +23,32 @@ class InlineCacheTest {
     """
 
     @Test
+    fun stringPrimitivesReadThroughTheirCache() = check("""
+        // a string primitive's properties come from String.prototype and Object.prototype through the site's cache
+        // (PropCache.getString): replaced, deleted, a getter (this: the primitive), absent then defined
+        function code(s, i) { return s.charCodeAt(i) }
+        function has(s) { return s.hasOwnProperty('0') }
+        function extra(s) { return s.extra }
+        function len(s) { return s.length }
+        for (var i = 0; i < 40; i++) { eq(code('abc', 1), 98); eq(has('x'), true); eq(extra('y'), undefined); eq(len('abcd'), 4) }
+        var orig = String.prototype.charCodeAt;
+        String.prototype.charCodeAt = function (i) { return 'p' + i };
+        eq(code('abc', 1), 'p1', 'replaced');
+        String.prototype.charCodeAt = orig;
+        eq(code('abc', 2), 99, 'restored');
+        Object.prototype.extra = 'o';
+        eq(extra('y'), 'o', 'defined up the chain');
+        Object.defineProperty(String.prototype, 'extra', { get() { 'use strict'; return typeof this + ':' + this }, configurable: true });
+        eq(extra('y'), 'string:y', 'getter');
+        delete String.prototype.extra;
+        eq(extra('z'), 'o', 'deleted');
+        delete Object.prototype.extra;
+        eq(extra('z'), undefined, 'gone');
+        eq(len('xyz'), 3, 'length');
+        'ok'
+    """)
+
+    @Test
     fun constructorPrototypeThroughItsSlot() = check("""
         // a construction reads the constructor's prototype through the slot its code block's closures held it at
         // (CodeBlock.prototypeSlot): each closure's own value, a value replaced, a primitive (Object.prototype then)

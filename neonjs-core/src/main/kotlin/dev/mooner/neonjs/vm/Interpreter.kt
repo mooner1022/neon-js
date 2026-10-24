@@ -372,7 +372,8 @@ object Interpreter {
                         Op.GET_PROP -> {
                             val o = s[sp - 1]
                             val site = k[code[pc++]] as PropSite
-                            s[sp - 1] = if (o is JSObject) PropCache.get(o, site) else Rt.getPrimitiveProp(realm, o, site.key)
+                            s[sp - 1] = if (o is JSObject) PropCache.get(o, site)
+                            else if (o is CharSequence) PropCache.getString(realm, o, site) else Rt.getPrimitiveProp(realm, o, site.key)
                             prof?.record(opStart, s[sp - 1])
                         }
                         Op.PUT_PROP -> {

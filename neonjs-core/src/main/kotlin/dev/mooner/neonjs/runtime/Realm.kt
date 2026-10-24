@@ -8,6 +8,11 @@ class Realm(@JvmField val agent: Agent) {
     lateinit var functionPrototype: JSObject
     lateinit var arrayPrototype: JSObject
     lateinit var stringPrototype: JSObject
+    /**
+     * The receiver shape of string primitives in property caches (PropCache.getString): no own named property, this
+     * realm's String.prototype their prototype.
+     */
+    @JvmField val stringShape: Shape = Shape.newRoot(CharSequence::class.java)
     lateinit var numberPrototype: JSObject
     lateinit var booleanPrototype: JSObject
     lateinit var symbolPrototype: JSObject

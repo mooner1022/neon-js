@@ -477,7 +477,7 @@ object JitRt {
 
     @JvmStatic fun getProp(o: Any?, site: Any?, f: Frame): Any? {
         val s = site.cast<PropSite>()
-        return if (o is JSObject) PropCache.get(o, s) else Rt.getPrimitiveProp(f.realm, o, s.key)
+        return if (o is JSObject) PropCache.get(o, s) else if (o is CharSequence) PropCache.getString(f.realm, o, s) else Rt.getPrimitiveProp(f.realm, o, s.key)
     }
 
     @JvmStatic fun putProp(o: Any?, v: Any?, site: Any?, f: Frame): Any? {
