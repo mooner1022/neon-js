@@ -408,6 +408,7 @@ internal class IrCodegen(
                 mv.visitLabel(starts[k])
                 for ((r, v) in b.entryRegs!!.withIndex()) {
                     if (v is Const || local[v] == null) continue
+                    val next = Label()
                     frame()
                     mv.visitFieldInsn(GETFIELD, FRAME, "slots", CONSTS_D)
                     iconst(r)
@@ -417,11 +418,20 @@ internal class IrCodegen(
                         continue
                     }
                     // a kind may rest on a speculation the interpreter did not make (a profiled load, say): a register
-                    // without a value of it there means no entry this time (the frame is not changed before)
+                    // without a value of it there means no entry this time (the frame is not changed before); but a
+                    // register dead at the header (undefined where an exit left it out) takes any value of the kind
                     mv.visitVarInsn(ASTORE, obj)
                     mv.visitVarInsn(ALOAD, obj)
                     mv.visitTypeInsn(INSTANCEOF, if (v.kind == JT.BOOL) "java/lang/Boolean" else "java/lang/Double")
-                    mv.visitJumpInsn(IFEQ, none)
+                    if (v in live[b]!!) mv.visitJumpInsn(IFEQ, none)
+                    else {
+                        val has = Label()
+                        mv.visitJumpInsn(IFNE, has)
+                        if (v.kind == JT.NUM) mv.visitInsn(DCONST_0) else mv.visitInsn(ICONST_0)
+                        store(v)
+                        mv.visitJumpInsn(GOTO, next)
+                        mv.visitLabel(has)
+                    }
                     mv.visitVarInsn(ALOAD, obj)
                     when (v.kind) {
                         JT.NUM -> unboxNum()
@@ -440,6 +450,7 @@ internal class IrCodegen(
                         }
                     }
                     store(v)
+                    mv.visitLabel(next)
                 }
                 // what LICM moved before the loop, its exits resuming at the header with the registers loaded
                 b.loopEntry?.let { e ->

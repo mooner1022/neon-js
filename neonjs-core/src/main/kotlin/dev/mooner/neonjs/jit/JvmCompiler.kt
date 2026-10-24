@@ -599,11 +599,23 @@ object JvmCompiler {
                         mv.visitFieldInsn(GETFIELD, FRAME, "slots", CONSTS_D)
                         iconst(r)
                         mv.visitInsn(AALOAD)
+                        // with the tier on, a frame an exit of its code left may hold undefined in a register dead there
+                        // (Deopt: the exit's state leaves it out), which is still dead at this header: any number does
+                        val store = Label()
+                        if (cb.tierUp) {
+                            val num = Label()
+                            mv.visitInsn(DUP)
+                            mv.visitTypeInsn(INSTANCEOF, "java/lang/Double")
+                            mv.visitJumpInsn(IFNE, num)
+                            mv.visitInsn(POP)
+                            mv.visitInsn(if (load[r] == JT.INT) ICONST_0 else DCONST_0)
+                            mv.visitJumpInsn(GOTO, store)
+                            mv.visitLabel(num)
+                        }
                         unboxNum()
-                        if (load[r] == JT.INT) {
-                            rt("exactInt", "(D)I")
-                            mv.visitVarInsn(ISTORE, slots[r])
-                        } else mv.visitVarInsn(DSTORE, slots[r])
+                        if (load[r] == JT.INT) rt("exactInt", "(D)I")
+                        mv.visitLabel(store)
+                        mv.visitVarInsn(if (load[r] == JT.INT) ISTORE else DSTORE, slots[r])
                     }
                     mv.visitJumpInsn(GOTO, common)
                 }
