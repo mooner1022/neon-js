@@ -54,12 +54,17 @@ object T2 {
     fun compile(cb: CodeBlock, definer: CodeDefiner): CompiledCode? {
         try {
             if (cb.t2Off) throw JitBailout("deoptimized too often")
-            val g = IrBuilder(cb, JvmCompiler.INT32, JvmCompiler.ELEMS, stressExits = JvmCompiler.DEOPT_STRESS > 0).build()
-            if (VERIFY) IrVerifier.verify(g)
-            if (PRINT != null && cb.name.contains(PRINT)) System.err.println("T2 ${cb.name}:\n${IrPrinter.print(g)}")
             val name = "dev/mooner/neonjs/jit/T2$" + JvmCompiler.sanitize(cb.name) + "$" + counter.incrementAndGet()
+            var g = build(cb, unswitch = true)
             val bytes = try {
-                IrCodegen.generate(g, name, definer.classFileVersion, JvmCompiler.INT32, JvmCompiler.ELEMS)
+                try {
+                    IrCodegen.generate(g, name, definer.classFileVersion, JvmCompiler.INT32, JvmCompiler.ELEMS)
+                } catch (e: org.objectweb.asm.MethodTooLargeException) {
+                    // a loop copied made the method too large: without copies, which no larger than before
+                    if (!g.unswitched) throw e
+                    g = build(cb, unswitch = false)
+                    IrCodegen.generate(g, name, definer.classFileVersion, JvmCompiler.INT32, JvmCompiler.ELEMS)
+                }
             } catch (e: JitBailout) {
                 if (System.getProperty("neonjs.jit.t2Debug") != null && e.message!!.contains("no local") && debugShown.incrementAndGet() <= 2) {
                     System.err.println("T2DEBUG ${cb.name}: ${e.message}\n${cb.sourceText()?.take(800)}\n${IrPrinter.print(g)}")
@@ -86,6 +91,13 @@ object T2 {
             failureReasons.computeIfAbsent(reason.take(120)) { AtomicLong() }.incrementAndGet()
             return null
         }
+    }
+
+    private fun build(cb: CodeBlock, unswitch: Boolean): Graph {
+        val g = IrBuilder(cb, JvmCompiler.INT32, JvmCompiler.ELEMS, stressExits = JvmCompiler.DEOPT_STRESS > 0, unswitch = unswitch).build()
+        if (PRINT != null && cb.name.contains(PRINT)) System.err.println("T2 ${cb.name}:\n${IrPrinter.print(g)}")
+        if (VERIFY) IrVerifier.verify(g)
+        return g
     }
 
     /** Blocks compiled by [submit]'s thread, one at a time, in order; past 4096 waiting, more are dropped. */

@@ -16,6 +16,8 @@ class Graph(@JvmField val code: CodeBlock) {
     @JvmField var osrPcs = IntArray(0)
     /** Objects the code needs at run time (T2Code.data), each once. */
     @JvmField val data = ArrayList<Any?>()
+    /** Whether a loop was copied on a closure test (Unswitch): T2 builds the graph again without that where it is too large. */
+    @JvmField var unswitched = false
 
     /** The index of [o] in [data], added if needed. */
     fun dataIndex(o: Any?): Int {
@@ -52,6 +54,13 @@ class Block(@JvmField var id: Int, @JvmField val pc: Int, @JvmField val site: In
     @JvmField var entryDepth = 0
     /** For a loop header: the block before it holding what LICM moved out of the loop (null: none). */
     @JvmField var loopEntry: Block? = null
+    /**
+     * For a loop header copied on a closure test (Unswitch): the copy's header, and the block testing which runs; for the
+     * copy's header, the header it copies (not an on-stack replacement entry of its own: the original's tests first).
+     */
+    @JvmField var twin: Block? = null
+    @JvmField var dispatch: Block? = null
+    @JvmField var twinOf: Block? = null
     /**
      * The exception entry of the innermost handler whose range covers this block (null: none): what an exception
      * thrown by its code goes to. [catchEntry] marks such entries, which no other block jumps to.
@@ -238,7 +247,8 @@ object Ir {
     /**
      * (fn) whether fn is a closure of the code block [Inst.a] indexes in the graph's data, in the frame's realm (as
      * CHECK_CLOSURE tests, without an exit): a call inlined where its guard failed before branches on it to a call made
-     * as a call instead (IrBuilder.inline).
+     * as a call instead (IrBuilder.inline); [Inst.b] 1 marks a site built so tentatively (Unswitch), [Inst.state] being
+     * its guard's.
      */
     const val IS_CLOSURE = 1017
     /**

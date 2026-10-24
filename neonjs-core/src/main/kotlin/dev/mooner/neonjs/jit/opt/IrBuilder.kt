@@ -37,6 +37,8 @@ internal class IrBuilder(
     private val maxInlineDepth: Int = if (Inlining.ENABLED) MAX_INLINE_DEPTH else 0,
     /** Whether the code speculates on the interpreter's value profiles and the property caches (T2.SPECULATE). */
     private val speculate: Boolean = T2.SPECULATE,
+    /** Whether loops with a call of a parameter are copied on the closure it is (Unswitch). */
+    private val unswitch: Boolean = true,
 ) {
     private val g = Graph(cb)
     /** Every block made, in the order made; the graph keeps those reachable, in reverse post order. */
@@ -69,6 +71,13 @@ internal class IrBuilder(
         order(start)
         removeTrivialPhis()
         removeDeadPhis()
+        if (Unswitch.run(g, made)) {
+            // (blocks no longer reached, a version's other side, go)
+            g.blocks.clear()
+            order(start)
+            removeTrivialPhis()
+            removeDeadPhis()
+        }
         if (speculate) ScalarReplacement.run(g)
         dropBoxedChecks()
         val kinds = Kinds(ints, elems)
@@ -916,12 +925,15 @@ internal class IrBuilder(
             val fn = ops[0]
             // where the guard failed before (CodeBlock.t2Failed: a callback site that gets several functions), another
             // function is called as a call, on a branch of its own; elsewhere the guard leaves before the call, which the
-            // interpreter then makes
+            // interpreter then makes. A parameter never assigned is the same all through a loop: its site is built so
+            // tentatively, the guard's state kept (Unswitch copies the loop on the test, or makes it a guard)
             val polymorphic = code.t2FailedAt(pc)
+            val tentative = !polymorphic && unswitch && speculate && site == null && unassignedParams.any { regs[it] === fn }
             var start = cur
             var other: Block? = null
-            if (polymorphic) {
-                val test = add(cur, Inst(Ir.IS_CLOSURE, arrayOf(fn), g.dataIndex(target), 0, 0, pc, stmt).also { it.hasResult = true })
+            if (polymorphic || tentative) {
+                val test = add(cur, Inst(Ir.IS_CLOSURE, arrayOf(fn), g.dataIndex(target), if (tentative) 1 else 0, 0, pc, stmt).also { it.hasResult = true })
+                if (tentative) test.state = FrameState(pc, Array(nregs + stack.size) { if (it < nregs) regAt(pc, it, regs[it]!!) else stack[it - nregs] }, site)
                 start = newBlock(pc, site).also { it.handler = cur.handler }
                 other = newBlock(pc, site).also { it.handler = cur.handler }
                 add(cur, Inst(Ir.BRANCH, arrayOf(test), Op.JUMP_IF_FALSE, 0, 0, pc, stmt)).targets = listOf(other, start)
@@ -1002,6 +1014,18 @@ internal class IrBuilder(
         if (e.link != null || e.kind != kind || !e.shape.cacheable) return null
         if (kind == PropCache.STORE && e.chain != null) return null
         return e
+    }
+
+    /** The registers of parameters the function never assigns (no STORE_REG there): the same value all through it. */
+    private val unassignedParams: IntArray by lazy {
+        val stored = HashSet<Int>()
+        val code = cb.code
+        var pc = 0
+        while (pc < code.size) {
+            if (code[pc] == Op.STORE_REG) stored.add(code[pc + 1])
+            pc += Op.length(code, pc)
+        }
+        (cb.paramRegs ?: IntArray(0)).filter { it >= 0 && it !in stored }.toIntArray()
     }
 
     private fun readsThis(target: CodeBlock): Boolean {

@@ -378,16 +378,17 @@ class T2Test {
 
     @Test
     fun failedSpeculationsAreNotMadeAgain() {
-        // a callback site the feedback saw call one function, then called with another: the guard exits until the code
-        // gives way to the baseline and is compiled again with a call made as a call there for another function
-        // (CodeBlock.t2Failed)
+        // a call site the feedback saw call one function, then calling another (a global the code reads: not a parameter,
+        // whose loops Unswitch copies): the guard exits until the code gives way to the baseline and is compiled again
+        // with a call made as a call there for another function (CodeBlock.t2Failed)
         val src = """
-            function repeatf(n, block) { var s = 0; for (var i = 0; i < n; i++) s += block(i); return s }
+            var block = dbl, t, k; // (globals declared later would change the global object's shape)
+            function repeatf(n) { var s = 0; for (var i = 0; i < n; i++) s += block(i); return s }
             function dbl(x) { return x * 2 }
             function inc(x) { return x + 1 }
             """.trimIndent()
-        val warm = "for (var w = 0; w < 30; w++) repeatf(20, dbl)"
-        val expr = "var t = 0; for (var k = 0; k < 200; k++) t += repeatf(10, k % 2 ? dbl : inc); String(t)"
+        val warm = "for (var w = 0; w < 30; w++) repeatf(20)"
+        val expr = "t = 0; for (k = 0; k < 200; k++) { block = k % 2 ? dbl : inc; t += repeatf(10) } String(t)"
         val expected = interpreted(src, "$warm; $expr")
         NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
             .build().newContext().use { ctx ->
@@ -698,7 +699,8 @@ class T2Test {
                             Jit.install(cb, T2.compile(cb, CodeDefiners.default) ?: fail("$n not compiled"))
                         }
                         if (stress == 0) {
-                            assertTrue(moved["repeatf"]!!.containsAll(listOf("CheckClosure", "LoadGlobalSlot", "LoadSlot", "CheckNumber")), "$moved")
+                            // (repeatf's callback is a parameter: its loop is copied, Unswitch, the closure tested before)
+                            assertTrue(moved["repeatf"]!!.containsAll(listOf("ClosureEnv", "LoadGlobalSlot", "LoadSlot", "CheckNumber")), "$moved")
                             assertFalse(moved["writes"]!!.contains("LoadSlot"), "$moved")
                             assertFalse(moved["calls"]!!.contains("LoadGlobalLex"), "$moved")
                             assertFalse(moved["sometimes"]!!.contains("LoadSlot"), "$moved")
@@ -870,15 +872,16 @@ class T2Test {
 
     @Test
     fun constructionSitesOfSeveralConstructors() {
-        // a site the feedback saw construct one constructor, then another: compiled again, it constructs the other as a
-        // construction made as one (CodeBlock.t2Failed)
+        // a site the feedback saw construct one constructor, then another (a global, as above): compiled again, it
+        // constructs the other as a construction made as one (CodeBlock.t2Failed)
         val src = """
-            function build(n, C) { var s = 0; for (var i = 0; i < n; i++) s += new C(i).v; return s }
+            var C = A, t, k;
+            function build(n) { var s = 0; for (var i = 0; i < n; i++) s += new C(i).v; return s }
             function A(x) { this.v = x * 2 }
             class B { constructor(x) { this.v = x + 1 } }
             """.trimIndent()
-        val warm = "for (var w = 0; w < 30; w++) build(20, A)"
-        val expr = "var t = 0; for (var k = 0; k < 200; k++) t += build(10, k % 2 ? A : B); String(t)"
+        val warm = "for (var w = 0; w < 30; w++) build(20)"
+        val expr = "t = 0; for (k = 0; k < 200; k++) { C = k % 2 ? A : B; t += build(10) } String(t)"
         val expected = interpreted(src, "$warm; $expr")
         NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
             .build().newContext().use { ctx ->
@@ -923,6 +926,85 @@ class T2Test {
         same(src, listOf("len2", "make", "addBoth", "storeLoad", "viaCall"),
             "var o = { x: 5 }; var r1 = addBoth(o, o); var q = { x: 0 }; [len2({ x: 3, y: 4 }), make(10), r1, JSON.stringify(o), " +
                 "storeLoad(q, q), viaCall({ x: 1 }, bump), viaCall({ x: 1 }, keep), addBoth({ x: 1 }, { x: 2 })].join('|')")
+    }
+
+    @Test
+    fun loopsCopiedOnTheirCallback() {
+        // a call of a parameter in a loop: the loop is copied on the closure the feedback names (Unswitch), the callee
+        // inlined in one version, called in the other, so another callback runs with no exit and no compilation again;
+        // as `new` too
+        val src = """
+            function repeatf(n, block) { var s = 0; for (var i = 0; i < n; i++) s += block(i); return s }
+            function build(n, C) { var s = 0; for (var i = 0; i < n; i++) s += new C(i).v; return s }
+            function dbl(x) { return x * 2 }
+            function inc(x) { return x + 1 }
+            function A(x) { this.v = x * 2 }
+            class B { constructor(x) { this.v = x + 1 } }
+            for (var w = 0; w < 30; w++) { repeatf(20, dbl); build(20, A) }
+            """.trimIndent()
+        for (n in listOf("repeatf", "build")) {
+            val ir = irOf(src, n, profiled = true)
+            assertEquals(2, Regex(" loop\n").findAll(ir).count(), ir)
+            assertTrue(ir.contains("IsClosure") && !ir.contains("CheckClosure"), ir)
+        }
+        // (build's result is read after the construction as the feedback's objects: another constructor's exit there)
+        val expr = "var t = 0; for (var k = 0; k < 200; k++) t += repeatf(10, k % 2 ? dbl : inc); String(t)"
+        val expr2 = "var u = 0; for (var k = 0; k < 200; k++) u += build(10, k % 2 ? A : B); String(u)"
+        val expected = interpreted(src, "$expr; $expr2")
+        NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
+            .build().newContext().use { ctx ->
+                ctx.agent.config.tier2 = true
+                ctx.eval(src)
+                val cbs = listOf("repeatf", "build").map { (ctx.eval(it).raw as JSClosure).code }
+                for (cb in cbs) {
+                    cb.baseline ?: JvmCompiler.compile(cb)!!.also { cb.baseline = it; cb.compiled = it }
+                    Jit.install(cb, T2.compile(cb, CodeDefiners.default) ?: fail("not compiled"))
+                }
+                val exits = dev.mooner.neonjs.jit.Deopt.count.get()
+                ctx.eval(expr)
+                assertEquals(exits, dev.mooner.neonjs.jit.Deopt.count.get(), "no exit")
+                assertEquals(0, cbs[0].t2Recompiles, "not compiled again")
+                assertEquals(expected, ctx.eval(expr2).asString())
+            }
+    }
+
+    @Test
+    fun runningLoopsEnterTheCopyForAnotherCallback() {
+        // on-stack replacement at the header of a loop copied on its callback tests the closure first: a loop running
+        // with another callback than the one inlined goes on in the copy (in the inlined version, it would run the
+        // inlined body for the wrong function)
+        val src = """
+            function f(n, block) { var s = 0; for (var i = 0; i < n; i++) { if (i === 100) install('f'); s += block(i) } return s }
+            function dbl(x) { return x * 2 }
+            function inc(x) { return x + 1 }
+            """.trimIndent()
+        val warm = "for (var w = 0; w < 30; w++) f(20, dbl)"
+        val expr = "[f(5000, inc), f(5000, dbl)].join('|')"
+        val expected = interpreted("function install() {}\n$src", "$warm; $expr")
+        val tierUps = dev.mooner.neonjs.jit.Deopt.tierUps.get()
+        var armed = false
+        NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
+            .build().newContext().use { ctx ->
+                ctx.agent.config.tier2 = true
+                ctx.setFunction("install") { args ->
+                    if (armed) {
+                        val cb: CodeBlock = (ctx.eval(args[0].asString()).raw as JSClosure).code
+                        val ir = dev.mooner.neonjs.jit.opt.IrPrinter.print(IrBuilder(cb, ints = true, elems = true).build())
+                        assertEquals(2, Regex(" loop\n").findAll(ir).count(), ir)
+                        Jit.install(cb, T2.compile(cb, CodeDefiners.default) ?: fail("not compiled"))
+                    }
+                    null
+                }
+                ctx.eval(src)
+                ctx.eval(warm)
+                armed = true
+                // the loop starts in T1 code that looks for the tier's code at its back edges
+                val cb: CodeBlock = (ctx.eval("f").raw as JSClosure).code
+                cb.baseline ?: JvmCompiler.compileAll(listOf(cb), CodeDefiners.default, tierUp = true)[0]!!.also { cb.baseline = it; cb.compiled = it }
+                cb.compiled = cb.baseline
+                assertEquals(expected, ctx.eval(expr).asString())
+            }
+        assertTrue(dev.mooner.neonjs.jit.Deopt.tierUps.get() - tierUps >= 1, "loops moved: ${dev.mooner.neonjs.jit.Deopt.tierUps.get() - tierUps}")
     }
 
     /** The IR of function [name] after [src] ran in the interpreter (its caches and profiles filled). */

@@ -385,14 +385,21 @@ internal class IrCodegen(
         val targets = JvmCompiler.backEdgeTargets(g.code.code)
         if (targets.isEmpty()) return
         val live = liveIn()
-        val entries = g.blocks.filter { b ->
-            val regs = b.entryRegs
+        // (a loop copied on a closure test, Unswitch: entered at its header, which tests first, the copy's header not)
+        fun enterable(b: Block, regs: Array<Value>): Boolean {
             // the values LICM moved before the loop are made again (below), from registers
             val e = b.loopEntry
-            fun ok(v: Value) = regs!!.any { it === v } || (e != null && v is Inst && v.block === e)
-            b.site == null && regs != null && b.entryDepth == 0 && java.util.Arrays.binarySearch(targets, b.pc) >= 0 &&
-                live[b]!!.all { ok(it) } &&
+            fun ok(v: Value) = regs.any { it === v } || (e != null && v is Inst && v.block === e)
+            return live[b]!!.all { ok(it) } &&
                 (e == null || (e.insts.all { i -> i.inputs.all { it is Const || ok(it) } } && regs.all { it is Const || local[it] != null }))
+        }
+        val entries = g.blocks.filter { b ->
+            val regs = b.entryRegs
+            val tw = b.twin
+            b.site == null && regs != null && b.entryDepth == 0 && b.twinOf == null && java.util.Arrays.binarySearch(targets, b.pc) >= 0 &&
+                enterable(b, regs) &&
+                (tw == null || (tw.entryRegs != null && enterable(tw, tw.entryRegs!!) &&
+                    b.dispatch!!.insts.all { i -> i.isTerminator || i.inputs.all { v -> v is Const || regs.any { it === v } } }))
         }.sortedBy { it.pc }
         g.osrPcs = entries.map { it.pc }.distinct().toIntArray()
         val normal = Label()
@@ -408,8 +415,8 @@ internal class IrCodegen(
             mv.visitLookupSwitchInsn(none, IntArray(entries.size) { entries[it].pc }, starts)
             val obj = temp()
             val d = tempD()
-            for ((k, b) in entries.withIndex()) {
-                mv.visitLabel(starts[k])
+            /** The interpreter's registers into the locals of header [b]'s values. */
+            fun registers(b: Block) {
                 for ((r, v) in b.entryRegs!!.withIndex()) {
                     if (v is Const || local[v] == null) continue
                     val next = Label()
@@ -456,7 +463,9 @@ internal class IrCodegen(
                     store(v)
                     mv.visitLabel(next)
                 }
-                // what LICM moved before the loop, its exits resuming at the header with the registers loaded
+            }
+            /** Into header [b]: what LICM moved before the loop, its exits resuming at the header with the registers loaded. */
+            fun enter(b: Block) {
                 b.loopEntry?.let { e ->
                     val state = FrameState(b.pc, b.entryRegs!!.copyOf(), b.site)
                     for (i in e.insts) if (!i.isTerminator) {
@@ -467,6 +476,25 @@ internal class IrCodegen(
                     }
                 }
                 mv.visitJumpInsn(GOTO, label[b])
+            }
+            for ((k, b) in entries.withIndex()) {
+                mv.visitLabel(starts[k])
+                registers(b)
+                val tw = b.twin
+                if (tw == null) {
+                    enter(b)
+                    continue
+                }
+                // a loop copied on a closure test: the test, then the loop or its copy (whose registers are its own)
+                val test = b.dispatch!!
+                for (i in test.insts) if (!i.isTerminator) inst(i)
+                val copy = Label()
+                load(test.term.inputs[0], JT.BOOL)
+                mv.visitJumpInsn(if (test.term.a == Op.JUMP_IF_TRUE) IFNE else IFEQ, copy)
+                enter(b)
+                mv.visitLabel(copy)
+                registers(tw)
+                enter(tw)
             }
         }
         mv.visitLabel(none)

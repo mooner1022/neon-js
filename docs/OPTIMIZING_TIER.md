@@ -388,6 +388,15 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
       more: the compilation itself (the IR, D8 on the device, then ART's JIT), not T1 running meanwhile (keeping the
       old code until the new one was there changed nothing).
     - MAKE_CLASS (`classes`), environment loads with a TDZ check moved out of loops (module `const`).
+    - `new` is inlined from the interpreter's feedback only: compiled mode (no feedback; static targets cover calls
+      only) constructs as before.
+    - an inner loop's header is no on-stack replacement entry where LICM moved values with results out of the loop
+      around it (they are live there but in no register): the interpreter, then the baseline, run such a loop until
+      the function is entered again.
+    - fib on ART: the call machinery is 54% of the samples, the body 32%, boxing 13%; taking out of the helper what a
+      direct call would skip (argument pools, `this`, flags, realm, try/finally) gained 0-3%, and inlining the
+      recursion twice nothing (three times: 2.5x slower). What is left needs calls without a frame per call or boxes
+      (unboxed arguments and results between T2 codes), a larger design.
   - Math builtins (P3's intrinsics): abs, sqrt, sin, cos, tan, atan, exp, log, floor, ceil, atan2 and pow carry an
     intrinsic id (`NativeFunction.intrinsic`) the interpreter notes at their call sites (`CallFeedback.intrinsic`); T2
     computes such a call with the Java method the builtin calls, behind a guard on the function's intrinsic id
@@ -426,6 +435,18 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
     a store of that slot, and a number check of a value checked before is that check. On ART: NeonBench mono
     221-236K -> 272-277K; a constructor's second property is added without checks, and a loop reading what an inlined
     `new` made reads the values it was given (`new` in a loop 58-62 -> 52 ms); StarLight unchanged.
+  - loops copied on their callback (`Unswitch`, right after the graph is built): a call or `new` of a parameter the
+    function never assigns is built as a branch on the closure the feedback names (`IsClosure`) to the body inlined
+    or to a call made as a call. Such a parameter is the same all through a loop, so the loop is copied: one version
+    takes the inlined body, the other the call, and a block before them tests the closure once. The inlined version is
+    then a site of one callee (LICM moves its loads out), and another callback runs the copy without an exit or a
+    compilation again. Only an innermost loop without exception entries, of at most 300 instructions, whose exits go
+    to one block only it reaches (each value of the loop used after it merges in one phi there); a site not copied so
+    becomes a guard as before. On-stack replacement enters at the original header and tests the closure first; the
+    copy's header is no entry of its own. A copied function too large for a method is built again without copies.
+    StarLight's repeatf (radius, then fib) no longer exits 4 times, gives way and is compiled again in the fourth loop
+    (its new code ran in ART's interpreter until ART compiled it: 102-104 ms), and its loop keeps LICM in the fifth
+    (63-65 ms, not 71-73): on ART, StarLight 75.4-76.2 -> 66.0-66.8 ms per loop.
 - **P5: tiering and tuning** (~1.5K). T1 -> T2 counters, OSR from T1 into T2 at loop headers, background T2 queue,
   thresholds, profiling T1 if compiled mode needs it, the builder option, Android measurement. Exit: StarLight's
   NeonBench and the user's benchmark gain on ART, first run included; default stays off until a release cycle has
