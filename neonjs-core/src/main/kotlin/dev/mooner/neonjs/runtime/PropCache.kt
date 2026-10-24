@@ -8,7 +8,12 @@ package dev.mooner.neonjs.runtime
  * self-consistent entry; a lost update only costs another miss. Shapes are per prototype object, hence per context,
  * so an entry filled by one context can never hit in another.
  */
-class PropSite(@JvmField val key: Any) {
+class PropSite(key: Any) {
+    /**
+     * The property key; a string interned (once, when the code is compiled), so that comparing it with a builtin's key
+     * or another site's (`key == "length"`, PropertyMap.find) is decided by identity.
+     */
+    @JvmField val key: Any = if (key is String) key.intern() else key
     @JvmField var entry: PropIC? = null
     @JvmField var fills = 0
     /**
