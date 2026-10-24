@@ -71,7 +71,7 @@ internal object Licm {
             // numbers of numbers, without an exit (ART does not move them where an exit's call is in the loop)
             Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD, Op.EXP, Op.BAND, Op.BOR, Op.BXOR, Op.SHL, Op.SAR, Op.SHR, Op.NEG,
             Op.BNOT, Op.TO_NUMERIC, Op.TO_NUMBER -> i.state == null && i.inputs.all { JT.isNum(kinds.of(it)) }
-            Ir.LOAD_GLOBAL_LEX -> !opaque
+            Ir.LOAD_GLOBAL_LEX, Ir.LENGTH -> !opaque
             Ir.LOAD_GLOBAL_SLOT -> !opaque && !stored(g.data[i.a], i.b)
             Ir.LOAD_SLOT -> !opaque && !stored(if (i.c < 0) g.data[i.a] else (g.data[i.c] as Array<*>).last(), i.b)
             // its environment: the header's body's, the same where no instruction of the loop changes the frame's
@@ -115,7 +115,7 @@ internal object Licm {
             i.inputs.all { JT.isNum(kinds.of(it)) }
         // (a TDZ check throws, which leaves the loop: no write)
         Op.SEQ, Op.SNE, Op.NOT, Op.LOAD_ENV, Op.LOAD_ENV_TDZ, Op.NEW_OBJECT_LITERAL -> true
-        Ir.CHECK_NUMBER, Ir.CHECK_INT32, Ir.CHECK_CLOSURE, Ir.LOAD_SLOT, Ir.LOAD_GLOBAL_LEX, Ir.LOAD_GLOBAL_SLOT,
+        Ir.CHECK_NUMBER, Ir.CHECK_INT32, Ir.CHECK_CLOSURE, Ir.LOAD_SLOT, Ir.LENGTH, Ir.LOAD_GLOBAL_LEX, Ir.LOAD_GLOBAL_SLOT,
         Ir.STRESS_EXIT, Ir.CLOSURE_ENV, Ir.IS_CLOSURE, Ir.CHECK_INTRINSIC, Ir.INLINE_THIS, Ir.INLINE_ENTER, Ir.INLINE_EXIT, Ir.SET_HOME, Ir.GOTO, Ir.BRANCH,
         Ir.SWITCH, Ir.RETURN -> true
         else -> false

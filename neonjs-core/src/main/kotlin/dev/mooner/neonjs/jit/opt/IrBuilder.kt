@@ -273,7 +273,7 @@ internal class IrBuilder(
         Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC, Op.TO_NUMBER, Ir.MATH ->
             i.inputs.all { JT.isNum(kinds.of(it)) }
         Op.SEQ, Op.SNE, Op.NOT, Op.LOAD_ENV, Ir.CHECK_NUMBER, Ir.CHECK_INT32, Ir.LOAD_SLOT, Ir.LOAD_GLOBAL_LEX,
-        Ir.LOAD_GLOBAL_SLOT, Ir.CLOSURE_ENV -> true
+        Ir.LOAD_GLOBAL_SLOT, Ir.CLOSURE_ENV, Ir.LENGTH -> true
         else -> false
     }
 
@@ -710,7 +710,14 @@ internal class IrBuilder(
                     }
                     Op.GET_PROP -> {
                         val ic = if (code.t2FailedAt(pc)) null else monomorphic(code.constants[a], PropCache.DATA)
-                        if (ic == null) inst(op, arrayOf(pop()), result = true)
+                        if (ic == null && ints && speculate && !code.t2FailedAt(pc) && (code.constants[a] as? PropSite)?.key == "length" &&
+                            (code.profile?.values?.get(pc)?.toInt() ?: 0) and 0xFF == ValueProfile.INT) {
+                            // an array's or a string's length, read in place
+                            val l = before(Inst(Ir.LENGTH, arrayOf(stack.last()), 0, 0, 0, pc, stmt))
+                            pop()
+                            add(cur, l).hasResult = true
+                            stack.add(l)
+                        } else if (ic == null) inst(op, arrayOf(pop()), result = true)
                         else {
                             // the receiver's shape (and its prototypes', for an inherited property) as the cache saw it,
                             // then the slot; anything else leaves before the instruction

@@ -11,6 +11,8 @@ import org.objectweb.asm.Opcodes.*
 
 private const val GLOBAL_ENV = "dev/mooner/neonjs/runtime/GlobalEnv"
 private const val NATIVE = "dev/mooner/neonjs/runtime/NativeFunction"
+private const val ARRAY = "dev/mooner/neonjs/runtime/JSArray"
+private const val HOLE = "dev/mooner/neonjs/runtime/Hole"
 private const val GLOBAL_ENV_D = "L$GLOBAL_ENV;"
 
 /**
@@ -1132,15 +1134,86 @@ internal class IrCodegen(
             }
             Op.GET_ELEM -> {
                 val key = kindOf(i.inputs[1])
+                if (key == JT.INT) {
+                    // an array's dense element in place (JSArray.getIndexFast), the helper otherwise
+                    storePc(i)
+                    val o = temp()
+                    val k = temp()
+                    load(i.inputs[0], JT.ANY)
+                    mv.visitVarInsn(ASTORE, o)
+                    load(i.inputs[1], JT.INT)
+                    mv.visitVarInsn(ISTORE, k)
+                    val slow = Label()
+                    val hole = Label()
+                    val end = Label()
+                    val a = denseIndex(o, k, slow)
+                    mv.visitVarInsn(ALOAD, a)
+                    mv.visitFieldInsn(GETFIELD, ARRAY, "dense", CONSTS_D)
+                    mv.visitVarInsn(ILOAD, k)
+                    mv.visitInsn(AALOAD)
+                    mv.visitInsn(DUP)
+                    mv.visitFieldInsn(GETSTATIC, HOLE, "INSTANCE", "L$HOLE;")
+                    mv.visitJumpInsn(IF_ACMPEQ, hole)
+                    mv.visitJumpInsn(GOTO, end)
+                    mv.visitLabel(hole)
+                    mv.visitInsn(POP)
+                    mv.visitLabel(slow)
+                    mv.visitVarInsn(ALOAD, o)
+                    mv.visitVarInsn(ILOAD, k)
+                    frame()
+                    rt("getElemI", "(${OBJ}I$FRAME_D)$OBJ")
+                    mv.visitLabel(end)
+                    done(i, JT.ANY)
+                    return
+                }
                 if (JT.isNum(key)) {
                     storePc(i)
                     load(i.inputs[0], JT.ANY)
                     load(i.inputs[1], key)
                     frame()
-                    if (key == JT.INT) rt("getElemI", "(${OBJ}I$FRAME_D)$OBJ") else rt("getElemD", "(${OBJ}D$FRAME_D)$OBJ")
+                    rt("getElemD", "(${OBJ}D$FRAME_D)$OBJ")
                     done(i, JT.ANY)
                     return
                 }
+            }
+            Ir.LENGTH -> {
+                val l = Label()
+                val not = Label()
+                val big = Label()
+                val end = Label()
+                val o = temp()
+                load(i.inputs[0], JT.ANY)
+                mv.visitVarInsn(ASTORE, o)
+                mv.visitVarInsn(ALOAD, o)
+                mv.visitTypeInsn(INSTANCEOF, ARRAY)
+                mv.visitJumpInsn(IFEQ, not)
+                mv.visitVarInsn(ALOAD, o)
+                mv.visitTypeInsn(CHECKCAST, ARRAY)
+                mv.visitFieldInsn(GETFIELD, ARRAY, "length", "J")
+                mv.visitInsn(DUP2)
+                mv.visitLdcInsn(Int.MAX_VALUE.toLong())
+                mv.visitInsn(LCMP)
+                mv.visitJumpInsn(IFGT, big)
+                mv.visitInsn(L2I)
+                mv.visitJumpInsn(GOTO, end)
+                mv.visitLabel(big)
+                mv.visitInsn(POP2)
+                mv.visitJumpInsn(GOTO, l)
+                mv.visitLabel(not)
+                // a JS string (a CharSequence): its UTF-16 length
+                mv.visitVarInsn(ALOAD, o)
+                mv.visitTypeInsn(INSTANCEOF, "java/lang/CharSequence")
+                mv.visitJumpInsn(IFEQ, l)
+                mv.visitVarInsn(ALOAD, o)
+                mv.visitTypeInsn(CHECKCAST, "java/lang/CharSequence")
+                mv.visitMethodInsn(INVOKEINTERFACE, "java/lang/CharSequence", "length", "()I", true)
+                mv.visitLabel(end)
+                if (ints) done(i, JT.INT) else {
+                    mv.visitInsn(I2D)
+                    done(i, JT.NUM)
+                }
+                exits.add(specExit(l, i))
+                return
             }
             Op.PUT_ELEM -> {
                 val key = kindOf(i.inputs[1])
@@ -1156,6 +1229,42 @@ internal class IrCodegen(
                     val v = if (stored == JT.INT) "I" else "D"
                     rt("setElem$k$v", "($OBJ$k$v$FRAME_D)$v")
                     done(i, stored)
+                    return
+                }
+                if (key == JT.INT && value != JT.NUM) {
+                    // an array's dense element written in place (JSArray.trySetIndexFast's first case), the helper
+                    // otherwise
+                    storePc(i)
+                    val o = temp()
+                    val k = temp()
+                    load(i.inputs[0], JT.ANY)
+                    mv.visitVarInsn(ASTORE, o)
+                    load(i.inputs[1], JT.INT)
+                    mv.visitVarInsn(ISTORE, k)
+                    val slow = Label()
+                    val end = Label()
+                    val a = denseIndex(o, k, slow)
+                    mv.visitVarInsn(ALOAD, a)
+                    mv.visitFieldInsn(GETFIELD, ARRAY, "dense", CONSTS_D)
+                    mv.visitVarInsn(ILOAD, k)
+                    mv.visitInsn(AALOAD)
+                    mv.visitFieldInsn(GETSTATIC, HOLE, "INSTANCE", "L$HOLE;")
+                    mv.visitJumpInsn(IF_ACMPEQ, slow)
+                    mv.visitVarInsn(ALOAD, a)
+                    mv.visitFieldInsn(GETFIELD, ARRAY, "dense", CONSTS_D)
+                    mv.visitVarInsn(ILOAD, k)
+                    load(i.inputs[2], JT.ANY)
+                    mv.visitInsn(AASTORE)
+                    load(i.inputs[2], JT.ANY)
+                    mv.visitJumpInsn(GOTO, end)
+                    mv.visitLabel(slow)
+                    mv.visitVarInsn(ALOAD, o)
+                    mv.visitVarInsn(ILOAD, k)
+                    load(i.inputs[2], JT.ANY)
+                    frame()
+                    rt("putElemIA", "(${OBJ}I$OBJ$FRAME_D)$OBJ")
+                    mv.visitLabel(end)
+                    done(i, JT.ANY)
                     return
                 }
                 if (JT.isNum(key)) {
@@ -1349,6 +1458,30 @@ internal class IrCodegen(
         iconst(i.a)
         rt("inlineEnter", "($FRAME_D$CLOSURE_D" + "I)V")
         mv.visitLabel(done)
+    }
+
+    /**
+     * The array in local [o] (a JSArray, not sparse) with int [k] (local) within its dense elements, in a new local;
+     * anything else jumps to [slow].
+     */
+    private fun denseIndex(o: Int, k: Int, slow: Label): Int {
+        mv.visitVarInsn(ALOAD, o)
+        mv.visitTypeInsn(INSTANCEOF, ARRAY)
+        mv.visitJumpInsn(IFEQ, slow)
+        val a = temp()
+        mv.visitVarInsn(ALOAD, o)
+        mv.visitTypeInsn(CHECKCAST, ARRAY)
+        mv.visitVarInsn(ASTORE, a)
+        mv.visitVarInsn(ALOAD, a)
+        mv.visitFieldInsn(GETFIELD, ARRAY, "sparse", "Z")
+        mv.visitJumpInsn(IFNE, slow)
+        mv.visitVarInsn(ILOAD, k)
+        mv.visitJumpInsn(IFLT, slow)
+        mv.visitVarInsn(ILOAD, k)
+        mv.visitVarInsn(ALOAD, a)
+        mv.visitFieldInsn(GETFIELD, ARRAY, "denseLen", "I")
+        mv.visitJumpInsn(IF_ICMPGE, slow)
+        return a
     }
 
     /** [v] (a number) as an int in a new local. */

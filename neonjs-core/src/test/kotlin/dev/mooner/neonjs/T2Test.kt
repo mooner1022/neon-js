@@ -180,6 +180,43 @@ class T2Test {
     }
 
     @Test
+    fun arrayElementsAndLengthsInPlace() {
+        // an array's dense elements are read and written in place, anything else (holes, sparse arrays, other
+        // objects, keys out of range) through the helpers; `.length` of arrays and strings in place, of other objects
+        // through an exit
+        val src = """
+            function sum(a) { var s = 0; for (var i = 0; i < a.length; i++) s += a[i]; return s }
+            function fill(a, v) { for (var i = 0; i < a.length; i++) a[i] = v + i; return a.join() }
+            function at(a, i) { return a[i] }
+            function put(a, i, v) { a[i] = v; return a[i] }
+            function len(x) { return x.length }
+            Array.prototype[3] = 'proto';
+            """.trimIndent()
+        val warm = "for (var w = 0; w < 30; w++) { sum([1, 2, 3]); fill([0, 0], w); at([5, 6], 1); put([1, 2], 0, w); len([1, 2]); len('ab') }"
+        val expr = "[sum([1, 2, 3, 4.5]), sum([1, , 3]), sum('123'), sum({ length: 2, 0: 5, 1: 6 }), fill([0, 0, 0], 'x')," +
+            " fill(Object.freeze([1, 2]), 9), at([1, 2], 5), at([1, , 2], 1), at([1, 2, 3, 4], 3), at([1, 2, 3], -1), at(new Int8Array([7, 8]), 1)," +
+            " at('xyz', 1), put([1, 2], 5, 'far'), put(Object.freeze([1, 2]), 0, 'no'), put([], 0, 'first'), len([1, 2, 3]), len('héllo'), len({ length: 'obj' })," +
+            " len(new Int8Array(4)), len(function (a, b) {})].join('|')"
+        val expected = interpreted(src, "$warm; $expr")
+        NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
+            .build().newContext().use { ctx ->
+                ctx.agent.config.tier2 = true
+                ctx.eval(src)
+                ctx.eval(warm)
+                for (n in listOf("sum", "fill", "at", "put", "len")) {
+                    val cb: CodeBlock = (ctx.eval(n).raw as JSClosure).code
+                    if (n == "len") {
+                        val ir = dev.mooner.neonjs.jit.opt.IrPrinter.print(IrBuilder(cb, ints = true, elems = true).build())
+                        assertTrue(ir.contains("Length"), ir)
+                    }
+                    cb.baseline ?: JvmCompiler.compile(cb)!!.also { cb.baseline = it; cb.compiled = it }
+                    Jit.install(cb, T2.compile(cb, CodeDefiners.default) ?: fail("$n not compiled"))
+                }
+                assertEquals(expected, ctx.eval(expr).asString())
+            }
+    }
+
+    @Test
     fun propertiesAddedThroughTransitions() {
         // a constructor's this.x = ... adds through the transition the cache saw (AddSlot); a setter that appears on the
         // prototype for that key, or an object that is not extensible, exits before the store

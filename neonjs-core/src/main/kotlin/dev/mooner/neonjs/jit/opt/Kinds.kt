@@ -44,6 +44,7 @@ internal class Kinds(private val ints: Boolean, private val elems: Boolean) {
             Ir.CHECK_NUMBER -> JT.NUM
             Ir.IS_CLOSURE -> JT.BOOL
             Ir.MATH -> JT.NUM
+            Ir.LENGTH -> intKind
             Ir.CHECK_INT32 -> JT.INT
             Op.PUT_ELEM -> {
                 val k = of(inp[1])

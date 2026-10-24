@@ -251,6 +251,11 @@ object Ir {
      * [Inst.state], before the instruction.
      */
     const val ADD_SLOT = 1020
+    /**
+     * (obj) `obj.length` where the profile saw int32s: an array's (its length an int32) or a string's; anything else
+     * exits to [Inst.state], before the instruction.
+     */
+    const val LENGTH = 1021
     /** Terminators. GOTO; BRANCH(value): [Inst.a] is the bytecode jump tested (JUMP_IF_TRUE and the like). */
     const val GOTO = 1100
     const val BRANCH = 1101
@@ -291,6 +296,7 @@ object Ir {
         CHECK_INTRINSIC -> "CheckIntrinsic"
         MATH -> "Math"
         ADD_SLOT -> "AddSlot"
+        LENGTH -> "Length"
         SWITCH -> "Switch"
         GOTO -> "Goto"
         BRANCH -> "Branch"
