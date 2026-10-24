@@ -164,6 +164,52 @@ internal class IrBuilder(
                 i.wraps = true
             }
         }
+        boundedSteps(kinds)
+    }
+
+    /**
+     * A loop counter's `++` where `i < n` holds (n an int: i is below the largest int32) cannot leave the int32 range,
+     * nor `--` where `i > n` holds: no check, no exit (an exit in a loop also keeps ART from optimizing it). The test
+     * holds where the branch on it goes, if that block has no other way in and dominates the step.
+     */
+    private fun boundedSteps(kinds: Kinds) {
+        val index = HashMap<Block, Int>()
+        for ((k, b) in g.blocks.withIndex()) index[b] = k
+        val idom by lazy { IrVerifier.dominators(g, index) }
+        fun dominates(a: Block, b: Block): Boolean {
+            var x: Block? = b
+            while (x != null) {
+                if (x === a) return true
+                val d = idom[x]
+                x = if (d == null || d === x || index[d] == null) null else d
+            }
+            return false
+        }
+        // the blocks where v < n (below) or v > n (above) holds, n an int, by the branches testing it
+        val below = HashMap<Value, ArrayList<Block>>()
+        val above = HashMap<Value, ArrayList<Block>>()
+        for (b in g.blocks) {
+            val t = b.insts.lastOrNull() ?: continue
+            val c = t.inputs.firstOrNull() as? Inst ?: continue
+            if (t.op != Ir.BRANCH || (t.a != Op.JUMP_IF_FALSE && t.a != Op.JUMP_IF_TRUE) || c.inputs.size != 2) continue
+            val holds = if (t.a == Op.JUMP_IF_FALSE) t.targets[1] else t.targets[0]
+            if (holds.preds.size != 1) continue
+            val (l, r) = c.inputs[0] to c.inputs[1]
+            when {
+                c.op == Op.LT && kinds.of(r) == JT.INT -> below.getOrPut(l) { ArrayList() }.add(holds)
+                c.op == Op.GT && kinds.of(l) == JT.INT -> below.getOrPut(r) { ArrayList() }.add(holds)
+                c.op == Op.GT && kinds.of(r) == JT.INT -> above.getOrPut(l) { ArrayList() }.add(holds)
+                c.op == Op.LT && kinds.of(l) == JT.INT -> above.getOrPut(r) { ArrayList() }.add(holds)
+            }
+        }
+        if (below.isEmpty() && above.isEmpty()) return
+        for (b in g.blocks) for (i in b.insts) {
+            if ((i.op != Op.INC && i.op != Op.DEC) || i.state == null || i.kind != JT.INT) continue
+            var v = i.inputs[0]
+            if (v is Inst && v.op == Op.TO_NUMERIC) v = v.inputs[0]
+            val where = (if (i.op == Op.INC) below[v] else above[v]) ?: continue
+            if (where.any { dominates(it, b) }) i.state = null
+        }
     }
 
     /**

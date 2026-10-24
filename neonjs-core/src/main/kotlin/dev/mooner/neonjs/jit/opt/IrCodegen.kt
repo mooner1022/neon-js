@@ -1345,13 +1345,16 @@ internal class IrCodegen(
     private fun intUnary(i: Inst) {
         val a = intLocal(i.inputs[0])
         val l = Label()
-        mv.visitVarInsn(ILOAD, a)
-        when (i.op) {
-            Op.INC -> { mv.visitLdcInsn(Int.MAX_VALUE); mv.visitJumpInsn(IF_ICMPEQ, l) }
-            Op.DEC -> { mv.visitLdcInsn(Int.MIN_VALUE); mv.visitJumpInsn(IF_ICMPEQ, l) }
-            // -0 and -MIN_VALUE: 0 and MIN_VALUE are those with no bit but the sign's
-            else -> { mv.visitLdcInsn(Int.MAX_VALUE); mv.visitInsn(IAND); mv.visitJumpInsn(IFEQ, l) }
-        }
+        // (without a state: a step that cannot leave the range, IrBuilder.boundedSteps)
+        if (i.state != null) {
+            mv.visitVarInsn(ILOAD, a)
+            when (i.op) {
+                Op.INC -> { mv.visitLdcInsn(Int.MAX_VALUE); mv.visitJumpInsn(IF_ICMPEQ, l) }
+                Op.DEC -> { mv.visitLdcInsn(Int.MIN_VALUE); mv.visitJumpInsn(IF_ICMPEQ, l) }
+                // -0 and -MIN_VALUE: 0 and MIN_VALUE are those with no bit but the sign's
+                else -> { mv.visitLdcInsn(Int.MAX_VALUE); mv.visitInsn(IAND); mv.visitJumpInsn(IFEQ, l) }
+            }
+        } else if (i.op == Op.NEG) throw JitBailout("int negation without its exit")
         mv.visitVarInsn(ILOAD, a)
         when (i.op) {
             Op.INC -> { mv.visitInsn(ICONST_1); mv.visitInsn(IADD) }
@@ -1359,7 +1362,7 @@ internal class IrCodegen(
             else -> mv.visitInsn(INEG)
         }
         done(i, JT.INT)
-        exits.add(specExit(l, i))
+        if (i.state != null) exits.add(specExit(l, i))
     }
 
     companion object {
