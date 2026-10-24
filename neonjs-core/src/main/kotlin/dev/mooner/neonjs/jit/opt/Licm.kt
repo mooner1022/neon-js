@@ -9,8 +9,8 @@ import dev.mooner.neonjs.jit.JT
  * [Block.loopEntry]), which runs once each time the loop is entered instead of once per iteration.
  *
  * - Moved: shape-guarded slot loads, global loads, number checks, closure guards, closure environments and `this` bound
- *   without allocating, and loads of the header's own environment, from the blocks that run on every iteration (those
- *   dominating every back edge).
+ *   without allocating, loads of the header's own environment, and arithmetic of numbers without an exit, from the
+ *   blocks that run on every iteration (those dominating every back edge).
  * - Loads move only out of loops whose instructions cannot run code of their own nor write anything but slots through
  *   a shape ([clean]): there, shapes do not change, so a slot load stays only where the loop stores into the same slot
  *   of the same shape, and an environment load where the loop stores into any environment.
@@ -67,6 +67,9 @@ internal object Licm {
             Ir.CHECK_CLOSURE, Ir.CHECK_NUMBER, Ir.CHECK_INT32, Ir.CLOSURE_ENV, Ir.IS_CLOSURE -> true
             // (after its call's guard, in the same block: moved together)
             Ir.INLINE_THIS -> i.a == 1
+            // numbers of numbers, without an exit (ART does not move them where an exit's call is in the loop)
+            Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD, Op.EXP, Op.BAND, Op.BOR, Op.BXOR, Op.SHL, Op.SAR, Op.SHR, Op.NEG,
+            Op.BNOT, Op.TO_NUMERIC, Op.TO_NUMBER -> i.state == null && i.inputs.all { JT.isNum(kinds.of(it)) }
             Ir.LOAD_GLOBAL_LEX -> !opaque
             Ir.LOAD_GLOBAL_SLOT -> !opaque && !stored(g.data[i.a], i.b)
             Ir.LOAD_SLOT -> !opaque && !stored(if (i.c < 0) g.data[i.a] else (g.data[i.c] as Array<*>).last(), i.b)
