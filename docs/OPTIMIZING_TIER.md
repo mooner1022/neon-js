@@ -399,6 +399,9 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
     basic.js classes is the object model, a JSObject, its PropertyMap and its arrays for each object made property by
     property. Maps now share the layouts of the shapes they move to (ARCHITECTURE "Shapes and inline caches"):
     objects made in a loop 2x faster on ART, a loop of `new` of a class 115 -> 97 ms, NeonBench alloc +8-10%.
+  - arrays: with an int key, a JS array's dense elements are read and written in place (the helpers otherwise), and
+    `.length` (int32s in the profile) of an array or a string is read in place (`Length`, exiting for other objects:
+    a typed array's length is a prototype getter, which may be replaced). On ART: NeonBench mono 39K -> 240K.
 - **P5: tiering and tuning** (~1.5K). T1 -> T2 counters, OSR from T1 into T2 at loop headers, background T2 queue,
   thresholds, profiling T1 if compiled mode needs it, the builder option, Android measurement. Exit: StarLight's
   NeonBench and the user's benchmark gain on ART, first run included; default stays off until a release cycle has
