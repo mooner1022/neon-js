@@ -793,6 +793,15 @@ internal class IrBuilder(
                             stack.add(v)
                         }
                     }
+                    Op.MAKE_CLASS -> {
+                        // ([heritage] [name] -- proto ctor): the helper's pair, then each value of it
+                        val n = (if (bb and 1 != 0) 1 else 0) + (if (bb and 2 != 0) 1 else 0)
+                        if (stack.size < n) throw JitBailout("operand stack underflow at $pc")
+                        val inputs = Array(n) { stack[stack.size - n + it] }
+                        repeat(n) { stack.removeAt(stack.size - 1) }
+                        val pair = add(cur, Inst(op, inputs, a, bb, c, pc, stmt).also { it.hasResult = true })
+                        for (k in 0..1) stack.add(add(cur, Inst(Ir.PART, arrayOf<Value>(pair), k, 0, 0, pc, stmt).also { it.hasResult = true }))
+                    }
                     Op.NEW -> {
                         val target = inlineTarget(pc, construct = true)
                         if (target == null || stack.size < a + 1) {
@@ -1217,7 +1226,7 @@ internal class IrBuilder(
 
         /** Instructions with no [arity] that the builder builds itself (iteration, the finally dispatch, methods). */
         private val BUILT_OPS = setOf(Op.ITER_STEP, Op.FOR_IN_NEXT, Op.JUMP_TABLE, Op.ITER_STEP_U, Op.ITER_REST,
-            Op.ITER_CLOSE, Op.ITER_CLOSE_THROW, Op.MAKE_METHOD)
+            Op.ITER_CLOSE, Op.ITER_CLOSE_THROW, Op.MAKE_METHOD, Op.MAKE_CLASS)
 
         /** Calls compiled inlined into one another at most; bytecode ints of one callee and of all of them, at most. */
         const val MAX_INLINE_DEPTH = 3

@@ -277,6 +277,11 @@ object Ir {
      */
     const val NEW_THIS = 1022
     const val CONSTRUCT_RESULT = 1023
+    /**
+     * (pair) element [Inst.a] of the Object[] a helper returned for two values: MAKE_CLASS's (whose own result is that
+     * pair) prototype, then constructor.
+     */
+    const val PART = 1024
     /** Terminators. GOTO; BRANCH(value): [Inst.a] is the bytecode jump tested (JUMP_IF_TRUE and the like). */
     const val GOTO = 1100
     const val BRANCH = 1101
@@ -320,6 +325,7 @@ object Ir {
         LENGTH -> "Length"
         NEW_THIS -> "NewThis"
         CONSTRUCT_RESULT -> "ConstructResult"
+        PART -> "Part"
         SWITCH -> "Switch"
         GOTO -> "Goto"
         BRANCH -> "Branch"

@@ -1069,6 +1069,19 @@ class T2Test {
     }
 
     @Test
+    fun functionsDefiningClasses() {
+        // a class defined in the function compiled (MAKE_CLASS: its prototype and constructor, two values): methods,
+        // accessors, fields, private and static elements, computed keys, a derived class calling up
+        val src = """
+            function make(n) { class P { constructor(x) { this.x = x } get dbl() { return this.x * 2 } } var s = 0; for (var i = 0; i < n; i++) s += new P(i).dbl; return s }
+            function extend(n) { class A { f() { return 1 } } class B extends A { f() { return super.f() + 1 } } var s = 0; for (var i = 0; i < n; i++) s += new B().f(); return s }
+            function elements(k) { class C { #p = 3; static s = 4; q = k; [k + 'm']() { return this.#p + C.s } static #t() { return 5 } static t() { return C.#t() } } var c = new C(); return [c[k + 'm'](), c.q, C.t(), typeof C, Object.getPrototypeOf(c) === C.prototype].join() }
+            function anon(n) { var D = class { v() { return n } }; return new D().v() + (class {}).name }
+            """.trimIndent()
+        same(src, listOf("make", "extend", "elements", "anon"), "[make(10), extend(5), elements('a'), anon(7)].join('|')")
+    }
+
+    @Test
     fun runningLoopsEnterWithAValueInTwoRegisters() {
         // a value in two registers at a loop header, one of them dead there (a class's constructor: its binding and the
         // temporary MAKE_CLASS stored it in): on-stack replacement loads it from the live one. The loop runs as the

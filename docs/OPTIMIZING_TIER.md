@@ -386,7 +386,7 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
       only loops calling a parameter); the code compiled again then runs in ART's interpreter until ART compiles it
       (StarLight's repeatf lost 40 ms so before Unswitch: when its copied loop could not be entered, the same 40 ms
       moved to the first loop), and the call on that branch keeps LICM out of the loop.
-    - MAKE_CLASS (`classes`), environment loads with a TDZ check moved out of loops (module `const`).
+    - environment loads with a TDZ check moved out of loops (module `const`).
     - `new` is inlined from the interpreter's feedback only: compiled mode (no feedback; static targets cover calls
       only) constructs as before.
     - fib on ART: the call machinery is 54% of the samples, the body 32%, boxing 13%; taking out of the helper what a
@@ -453,6 +453,11 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
     it at (`CodeBlock.prototypeSlot`, by shape: they share it), not with a lookup (all tiers); boxes of the integers
     -1024..1023 are shared (`Ops.num`: `-i` allocated one). On ART: NeonBench alloc 6.8-6.9K -> 7.2K, `new` of a class
     without properties 17-20 -> 14 ms.
+  - classes defined in the function compiled (MAKE_CLASS, the most frequent reason a block was not compiled: the
+    helper's pair of prototype and constructor, then a `Part` of it for each), so the functions around them are
+    compiled too: on ART, basic.js `classes` 87-98 -> 70-77 ms. A loop header's registers leave one dead there
+    undefined: a value in two registers (a class's binding and MAKE_CLASS's temporary) was loaded at an entry from both,
+    and the baseline's hole in the dead one overwrote it.
 - **P5: tiering and tuning** (~1.5K). T1 -> T2 counters, OSR from T1 into T2 at loop headers, background T2 queue,
   thresholds, profiling T1 if compiled mode needs it, the builder option, Android measurement. Exit: StarLight's
   NeonBench and the user's benchmark gain on ART, first run included; default stays off until a release cycle has

@@ -1398,6 +1398,28 @@ internal class IrCodegen(
                 rt("setFunctionName", "($OBJ${OBJ}I$CONSTS_D)V")
                 return
             }
+            Op.MAKE_CLASS -> {
+                // the baseline's call (JvmEmitter), its pair kept: two Part instructions take the prototype and constructor
+                storePc(i)
+                var k = 0
+                if (i.b and 1 != 0) load(i.inputs[k++], JT.ANY)
+                else getstatic("dev/mooner/neonjs/runtime/NotFound", "INSTANCE", "Ldev/mooner/neonjs/runtime/NotFound;")
+                if (i.b and 2 != 0) load(i.inputs[k], JT.ANY) else mv.visitInsn(ACONST_NULL)
+                frame()
+                consts()
+                iconst(i.a)
+                rt("makeClass", "($OBJ$OBJ$FRAME_D${CONSTS_D}I)$CONSTS_D")
+                done(i, JT.ANY)
+                return
+            }
+            Ir.PART -> {
+                load(i.inputs[0], JT.ANY)
+                mv.visitTypeInsn(CHECKCAST, CONSTS_D)
+                iconst(i.a)
+                mv.visitInsn(AALOAD)
+                done(i, JT.ANY)
+                return
+            }
         }
         // the baseline's code for the instruction, with Object operands
         storePc(i)
