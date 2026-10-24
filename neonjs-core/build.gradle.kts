@@ -15,4 +15,6 @@ tasks.test {
     useJUnitPlatform()
     maxHeapSize = "2g"
     jvmArgs("-Xss16m")
+    // frames and argument arrays are reused as on ART (off by default on HotSpot): FramePoolTest and the rest test that
+    systemProperty("neonjs.framePool", "true")
 }

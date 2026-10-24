@@ -63,9 +63,9 @@ const val ARGS_POOL = 16
  * Whether calls of compiled code reuse the frames of returned ones (Agent.framePool): on ART, where allocating and
  * collecting frames took about 45% of a recursive call; not on HotSpot, whose compilers remove the allocation of a frame
  * that does not escape, which a pool defeats (calls of closures 40% slower there). `-Dneonjs.framePool=true|false`
- * decides instead.
+ * decides instead (the core tests run with it on). A constant: off, the call paths compile as before (HotSpot folds it).
  */
-@JvmField var FRAME_POOLING: Boolean =
+@JvmField val FRAME_POOLING: Boolean =
     System.getProperty("neonjs.framePool")?.toBoolean() ?: (System.getProperty("java.vm.name") == "Dalvik")
 
 class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
