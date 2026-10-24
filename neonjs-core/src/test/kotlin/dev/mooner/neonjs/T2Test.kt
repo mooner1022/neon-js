@@ -419,6 +419,38 @@ class T2Test {
     }
 
     @Test
+    fun numbersOnlyPassedOnAreNotUnboxed() {
+        // a value whose profile saw numbers gets a check only where something takes it unboxed: returned, passed to a
+        // call or stored, it stays the Object it came as (no new box for it)
+        val src = """
+            function pass(o) { return o.x }
+            function store(o, p) { p.y = o.x; return p.y }
+            function arg(o) { return String(o.x) }
+            function used(o) { return o.x * 2 }
+            function both(o) { var v = o.x; return [v, v + 1] }
+            """.trimIndent()
+        val names = listOf("pass", "store", "arg", "used", "both")
+        val warm = "for (var w = 0; w < 30; w++) { pass({ x: w }); store({ x: w }, { y: 0 }); arg({ x: w }); used({ x: w }); both({ x: w }) }"
+        val expr = "[pass({ x: 1.5 }), pass({ x: 'str' }), store({ x: 2 }, { y: 0 }), arg({ x: 3 }), used({ x: 4 }), used({ x: 'u' })," +
+            " both({ x: 5 }), both({ x: null })].join('|')"
+        val expected = interpreted(src, "$warm; $expr")
+        NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
+            .build().newContext().use { ctx ->
+                ctx.agent.config.tier2 = true
+                ctx.eval(src)
+                ctx.eval(warm)
+                for (n in names) {
+                    val cb: CodeBlock = (ctx.eval(n).raw as JSClosure).code
+                    val ir = dev.mooner.neonjs.jit.opt.IrPrinter.print(IrBuilder(cb, ints = true, elems = true).build())
+                    assertEquals(n in listOf("used", "both"), ir.contains("CheckInt32") || ir.contains("CheckNumber"), "$n: $ir")
+                    cb.baseline ?: JvmCompiler.compile(cb)!!.also { cb.baseline = it; cb.compiled = it }
+                    Jit.install(cb, T2.compile(cb, CodeDefiners.default) ?: fail("$n not compiled"))
+                }
+                assertEquals(expected, ctx.eval(expr).asString())
+            }
+    }
+
+    @Test
     fun objectsWithoutPropertyMapsPassShapeChecks() {
         // a new array has no property map: its shape is its prototype's empty one, as the caches compare, so a method
         // read through it (push on Array.prototype) does not exit

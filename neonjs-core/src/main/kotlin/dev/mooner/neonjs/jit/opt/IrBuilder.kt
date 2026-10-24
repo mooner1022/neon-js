@@ -69,6 +69,7 @@ internal class IrBuilder(
         removeTrivialPhis()
         removeDeadPhis()
         if (speculate) ScalarReplacement.run(g)
+        dropBoxedChecks()
         val kinds = Kinds(ints, elems)
         kinds.infer(g)
         if (preferDoubles()) kinds.infer(g)
@@ -849,6 +850,40 @@ internal class IrBuilder(
                 }
             }
         }
+        resolveAll()
+    }
+
+    /**
+     * A number check pays where its number is taken unboxed. Where every use takes an Object (a return, a call's
+     * operand, a store), the number would only be boxed again, a new box at each check, so the check goes and its
+     * uses take the value as it came.
+     */
+    private fun dropBoxedChecks() {
+        val uses = HashMap<Value, ArrayList<Any>>()
+        for (b in g.blocks) {
+            for (p in b.phis) for (v in p.inputs) uses.getOrPut(v) { ArrayList() }.add(p)
+            for (i in b.insts) for (v in i.inputs) uses.getOrPut(v) { ArrayList() }.add(i)
+        }
+        var dropped = false
+        for (b in g.blocks) for (i in b.insts) {
+            if (i.op != Ir.CHECK_NUMBER && i.op != Ir.CHECK_INT32) continue
+            if (uses[i].orEmpty().all { it is Inst && takesObject(it) }) {
+                replaced[i] = i.inputs[0]
+                dropped = true
+            }
+        }
+        if (dropped) resolveAll()
+    }
+
+    /** Whether [i] takes all its operands as Objects, whatever their kinds. */
+    private fun takesObject(i: Inst): Boolean = when (i.op) {
+        Ir.RETURN, Ir.THROW, Op.CALL, Op.NEW, Op.STORE_ENV, Op.STORE_GLOBAL, Op.PUT_PROP, Ir.STORE_SLOT,
+        Op.NEW_OBJECT_LITERAL, Op.ARRAY_PUSH -> true
+        else -> false
+    }
+
+    /** Puts the values [replaced] gives in place of those replaced, everywhere, and removes those (phis, instructions). */
+    private fun resolveAll() {
         val sites = HashSet<InlineSite>()
         lateinit var resolveSite: (InlineSite?) -> Unit
         fun resolveState(s: FrameState) {
@@ -868,6 +903,7 @@ internal class IrBuilder(
         }
         for (b in g.blocks) {
             b.phis.removeAll { replaced.containsKey(it) }
+            b.insts.removeAll { replaced.containsKey(it) }
             for (p in b.phis) for (k in p.inputs.indices) p.inputs[k] = resolve(p.inputs[k])
             for (i in b.insts) {
                 for (k in i.inputs.indices) i.inputs[k] = resolve(i.inputs[k])
