@@ -386,18 +386,22 @@ internal object StringBuiltins {
             }
             if (r.isEmpty()) {
                 for (c in s) {
-                    out.add(c.toString())
+                    out.add(Ops.charString(c))
                     if (out.size.toLong() >= lim) break
                 }
                 return@method Builtins.arrayOf(f.realm, out)
             }
             var p = 0
-            var q = s.indexOf(r, 0)
+            // (one character: String.indexOf(int), which ART compiles as an intrinsic)
+            val c = if (r.length == 1) r[0].code else -1
+            @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
+            val js = s as java.lang.String
+            var q = if (c >= 0) js.indexOf(c, 0) else js.indexOf(r, 0)
             while (q >= 0) {
                 out.add(s.substring(p, q))
                 if (out.size.toLong() >= lim) return@method Builtins.arrayOf(f.realm, out)
                 p = q + r.length
-                q = s.indexOf(r, p)
+                q = if (c >= 0) js.indexOf(c, p) else js.indexOf(r, p)
             }
             out.add(s.substring(p))
             Builtins.arrayOf(f.realm, out)
