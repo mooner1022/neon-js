@@ -23,16 +23,21 @@ class Shape private constructor(
     @JvmField val attrs: Int,
     /** Number of slots described (meaningful for shared shapes only). */
     @JvmField val size: Int,
-    /** Tree root (self for roots); null for unique shapes. */
-    root: Shape?,
+    /** The tree's size counter, shared by its shapes (a root makes it); null for unique shapes. */
+    tree: Tree?,
     /** Owner class (roots only). */
     @JvmField val ownerClass: Class<*>?,
     @JvmField val cacheable: Boolean,
 ) {
-    private val root: Shape = root ?: this
+    /**
+     * Not the root itself: a shape held elsewhere (an inline cache of code shared by the engine's contexts, the
+     * optimizing tier's code) keeps the shapes below it alive, not its whole tree (with their layouts) once its context
+     * is gone.
+     */
+    private val tree: Tree? = tree ?: if (ownerClass != null) Tree() else null
 
     /** True when the shape belongs to a transition tree (append transitions are deterministic). */
-    @JvmField val shared: Boolean = ownerClass != null || root != null
+    @JvmField val shared: Boolean = ownerClass != null || tree != null
 
     /**
      * For a shared shape of at most [PropertyMap.MAX_LAYOUT] slots: the keys, attributes and hashes every map with
@@ -43,8 +48,10 @@ class Shape private constructor(
     /** Single transition (Shape) or a map of them (HashMap<TransitionKey, Shape>). */
     private var transitions: Any? = null
 
-    /** Number of shapes in the tree (maintained on the root). */
-    private var treeSize = 1
+    /** Number of shapes in a tree. */
+    class Tree {
+        @JvmField var size = 1
+    }
 
     private data class TransitionKey(val key: Any, val attrs: Int)
 
@@ -61,10 +68,10 @@ class Shape private constructor(
             @Suppress("UNCHECKED_CAST")
             (t as HashMap<TransitionKey, Shape>)[TransitionKey(key, attrs)]?.let { return it }
         }
-        val r = root
-        if (r.treeSize >= MAX_TREE_SIZE) return unique()
-        r.treeSize++
-        val child = Shape(key, attrs, size + 1, r, null, true)
+        val tr = tree!!
+        if (tr.size >= MAX_TREE_SIZE) return unique()
+        tr.size++
+        val child = Shape(key, attrs, size + 1, tr, null, true)
         when (t) {
             null -> transitions = child
             is Shape -> {
