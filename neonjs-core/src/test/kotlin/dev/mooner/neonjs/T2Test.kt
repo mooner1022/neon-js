@@ -809,6 +809,25 @@ class T2Test {
             }
     }
 
+    @Test
+    fun calleesOfTheOtherStrictnessAreInlined() {
+        // a class method (strict) inlined into a sloppy function and a sloppy function into a strict one: their writes
+        // through the helpers (sites that saw several shapes) fail as the callee's strictness says
+        val src = """
+            class Box { constructor(v) { this.v = v } set(v) { this.v = v; return v } }
+            function viaStrict(o, v) { return o.set(v) }
+            function sloppyW(o, v) { o.w = v; return v }
+            function viaSloppy(o, v) { 'use strict'; const r = sloppyW(o, v); return r }
+            function tryIt(f, o) { try { f(o, 7); return 'ok ' + JSON.stringify(o) } catch (e) { return e.name } }
+            var boxes = [new Box(1), Object.assign(new Box(2), { a: 1 }), Object.assign(new Box(3), { b: 1 })];
+            var plain = [{ w: 0 }, { a: 1, w: 0 }, { b: 1, w: 0 }];
+            for (var r = 0; r < 30; r++) for (var k = 0; k < 3; k++) { viaStrict(boxes[k], r); viaSloppy(plain[k], r) }
+            """.trimIndent()
+        for (n in listOf("viaStrict", "viaSloppy")) assertTrue(irOf(src, n).contains("InlineEnter"), n)
+        same(src, listOf("viaStrict", "viaSloppy"),
+            "[tryIt(viaStrict, Object.freeze(new Box(1))), tryIt(viaSloppy, Object.freeze({ w: 1 })), tryIt(viaStrict, boxes[1]), tryIt(viaSloppy, plain[2])].join('|')")
+    }
+
     /** The IR of function [name] after [src] ran in the interpreter (its caches and profiles filled). */
     private fun irOf(src: String, name: String): String =
         NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).console(null).build().newContext().use { ctx ->

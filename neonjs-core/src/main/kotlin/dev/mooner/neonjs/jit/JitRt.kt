@@ -154,7 +154,12 @@ object JitRt {
 
     // ------------------------------------------------------------------ names & globals
 
-    private fun strict(f: Frame) = f.code.flags and CodeBlock.STRICT != 0
+    /**
+     * The strictness of the code running in [f]: the innermost call compiled inlined there ([Frame.inlineFn]; the
+     * optimizing tier inlines callees of the other strictness, whose bodies record their calls where such a helper
+     * runs), else the frame's function.
+     */
+    private fun strict(f: Frame) = (f.inlineFn?.code ?: f.code).flags and CodeBlock.STRICT != 0
 
     @JvmStatic fun loadName(f: Frame, name: Any?): Any? = Names.load(f.env, name.cast<String>(), strict(f), false)
     @JvmStatic fun loadNameTypeof(f: Frame, name: Any?): Any? = Names.load(f.env, name.cast<String>(), strict(f), true)

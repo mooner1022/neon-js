@@ -60,13 +60,14 @@ internal object Inlining {
      * constructor), no exception handlers, its parameters in registers, and only [ALLOWED] instructions: none that
      * reads the callee's own frame (`arguments`, `new.target`, the function itself), creates scopes or closures, or
      * resolves names dynamically. `this` is bound when the body is entered, as a call binds it (JitRt.inlineThis). The
-     * helpers of a few instructions read the strictness from the frame, which is the caller's: a callee of the other
-     * strictness (class methods are strict, scripts mostly sloppy) is inlined only without them ([STRICT_SENSITIVE]).
+     * helpers of a few instructions read the strictness of the innermost call the frame records (JitRt.strict): here a
+     * callee of the other strictness (class methods are strict, scripts mostly sloppy) is inlined only without them
+     * ([STRICT_SENSITIVE]), unless [anyStrictness] (the optimizing tier).
      */
-    fun eligible(caller: CodeBlock, callee: CodeBlock, maxCode: Int = MAX_CALLEE_CODE): Boolean {
+    fun eligible(caller: CodeBlock, callee: CodeBlock, maxCode: Int = MAX_CALLEE_CODE, anyStrictness: Boolean = false): Boolean {
         val f = callee.flags
         if (f and (CodeBlock.GENERATOR or CodeBlock.ASYNC or CodeBlock.CLASS_CTOR or CodeBlock.DERIVED or CodeBlock.NO_JIT) != 0) return false
-        val sameStrictness = (f and CodeBlock.STRICT) == (caller.flags and CodeBlock.STRICT)
+        val sameStrictness = anyStrictness || (f and CodeBlock.STRICT) == (caller.flags and CodeBlock.STRICT)
         if (callee.strictPcs != null || callee.handlers.isNotEmpty()) return false
         val code = callee.code
         if (code.size > maxCode) return false

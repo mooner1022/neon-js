@@ -850,8 +850,9 @@ internal class IrBuilder(
             if (depth >= maxInlineDepth) return null
             val fb = code.callFeedback
             val target = (if (fb == null) code.callHint(pc) else fb.getOrNull(pc)?.takeIf { it.count >= Inlining.MIN_COUNT }?.target) ?: return null
-            // helpers read the strictness from the frame: the function compiled's
-            if (!Inlining.eligible(cb, target, MAX_CALLEE_CODE)) return null
+            // (helpers read the strictness of the innermost call the frame records, JitRt.strict: a body that runs one is
+            // not quiet, QuietInlines, and records its call)
+            if (!Inlining.eligible(cb, target, MAX_CALLEE_CODE, anyStrictness = true)) return null
             // recursion is inlined once, at the function compiled (as the baseline does): further copies only grow it
             if (depth > 0) {
                 if (target === cb) return null

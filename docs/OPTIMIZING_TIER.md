@@ -402,6 +402,9 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
   - arrays: with an int key, a JS array's dense elements are read and written in place (the helpers otherwise), and
     `.length` (int32s in the profile) of an array or a string is read in place (`Length`, exiting for other objects:
     a typed array's length is a prototype getter, which may be replaced). On ART: NeonBench mono 39K -> 240K.
+  - callees of the other strictness are inlined (class constructors and methods are strict, scripts mostly sloppy):
+    the helpers of writes that may fail read the strictness of the innermost call the frame records (`JitRt.strict`),
+    and a body that runs one is not quiet, so it records its call.
 - **P5: tiering and tuning** (~1.5K). T1 -> T2 counters, OSR from T1 into T2 at loop headers, background T2 queue,
   thresholds, profiling T1 if compiled mode needs it, the builder option, Android measurement. Exit: StarLight's
   NeonBench and the user's benchmark gain on ART, first run included; default stays off until a release cycle has
