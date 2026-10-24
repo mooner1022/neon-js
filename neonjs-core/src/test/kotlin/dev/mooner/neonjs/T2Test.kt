@@ -895,9 +895,41 @@ class T2Test {
             }
     }
 
+    @Test
+    fun checksAndLoadsMadeOnce() {
+        // a shape check of an object checked before, nothing that may change shapes between, is not made again, and a
+        // slot read or written before is that value (KnownShapes); an object of the same shape given a property between
+        // may be the same object, a store may write the slot read, a call may do anything: the checks are made again
+        val src = """
+            function len2(p) { return p.x * p.x + p.y * p.y }
+            function P(x, y) { this.x = x; this.y = y }
+            function lenP(p) { return p.x * p.x + p.y * p.y }
+            function make(n) { var s = 0; for (var i = 0; i < n; i++) s += lenP(new P(i, 1)); return s }
+            function addBoth(a, b) { var t = a.x; b.y = 1; a.z = 2; return t }
+            function storeLoad(a, b) { a.x = 1; b.x = 2; return a.x }
+            function viaCall(a, f) { var s = a.x; f(a); return s + a.x }
+            function bump(o) { try { o.x = 10 } catch (e) {} }
+            function keep(o) { try {} catch (e) {} }
+            for (var r = 0; r < 40; r++) { len2({ x: r, y: 2 }); make(3); addBoth({ x: 1 }, { x: 2 }); storeLoad({ x: 0 }, { x: 0 }); viaCall({ x: 1 }, r % 2 ? keep : bump) }
+            """.trimIndent()
+        val ir = irOf(src, "len2", profiled = true)
+        // p.x and p.y read once each, the second without a check, each value checked as a number once
+        assertEquals(2, Regex("LoadSlot").findAll(ir).count(), ir)
+        assertEquals(2, Regex("CheckNumber").findAll(ir).count(), ir)
+        assertTrue(ir.contains("known=5"), ir)
+        // the constructor's second property added without a check, its properties then read as the values added
+        val mk = irOf(src, "make", profiled = true)
+        assertTrue(mk.contains("known=7") && !mk.contains("LoadSlot"), mk)
+        same(src, listOf("len2", "make", "addBoth", "storeLoad", "viaCall"),
+            "var o = { x: 5 }; var r1 = addBoth(o, o); var q = { x: 0 }; [len2({ x: 3, y: 4 }), make(10), r1, JSON.stringify(o), " +
+                "storeLoad(q, q), viaCall({ x: 1 }, bump), viaCall({ x: 1 }, keep), addBoth({ x: 1 }, { x: 2 })].join('|')")
+    }
+
     /** The IR of function [name] after [src] ran in the interpreter (its caches and profiles filled). */
-    private fun irOf(src: String, name: String): String =
+    private fun irOf(src: String, name: String, profiled: Boolean = false): String =
         NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).console(null).build().newContext().use { ctx ->
+            // (with the tier on, the interpreter profiles values)
+            if (profiled) ctx.agent.config.tier2 = true
             ctx.eval(src)
             dev.mooner.neonjs.jit.opt.IrPrinter.print(IrBuilder((ctx.eval(name).raw as JSClosure).code, ints = true, elems = true).build())
         }

@@ -28,6 +28,7 @@ object IrPrinter {
                 if (i.hasResult) sb.append(kind(i))
                 if (i.virtual) sb.append(" virtual")
                 if (i.wraps) sb.append(" wraps")
+                if (i.known != 0) sb.append(" known=").append(i.known)
                 if (i.callee?.quiet == true) sb.append(" quiet")
                 sb.append('\n')
             }

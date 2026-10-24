@@ -125,6 +125,8 @@ class Inst(
      * wraps around, with no exit.
      */
     @JvmField var wraps = false
+    /** For LOAD_SLOT, STORE_SLOT and ADD_SLOT: the checks not made, their facts holding there (KnownShapes bits). */
+    @JvmField var known = 0
     /** For INLINE_ENTER and INLINE_EXIT: the call they enter and leave. */
     @JvmField var callee: InlineSite? = null
 

@@ -418,6 +418,14 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
     objects as literals: 34-43 ms). The rest is the object model: each property added through a transition
     (`AddSlot`) writes the map's layout, values and shape again where a literal's map is made once with its layout
     (V8 folds a constructor's adds into the allocation with the function's final map).
+  - checks and loads made again (`KnownShapes`, after LICM): along each path, a shape check passed (LoadSlot,
+    StoreSlot, AddSlot) makes the object's shape, its extensibility (AddSlot's, or a new object's) and its prototypes'
+    shapes known until something may change shapes or run code; an AddSlot of another object of the same shape ends
+    that object's facts (it may be the same one, which moved on). A later check of a known fact is not made (`known=`
+    in the IR), and an instruction left without a check has no exit. A slot read, written or added is that value until
+    a store of that slot, and a number check of a value checked before is that check. On ART: NeonBench mono
+    221-236K -> 272-277K; a constructor's second property is added without checks, and a loop reading what an inlined
+    `new` made reads the values it was given (`new` in a loop 58-62 -> 52 ms); StarLight unchanged.
 - **P5: tiering and tuning** (~1.5K). T1 -> T2 counters, OSR from T1 into T2 at loop headers, background T2 queue,
   thresholds, profiling T1 if compiled mode needs it, the builder option, Android measurement. Exit: StarLight's
   NeonBench and the user's benchmark gain on ART, first run included; default stays off until a release cycle has

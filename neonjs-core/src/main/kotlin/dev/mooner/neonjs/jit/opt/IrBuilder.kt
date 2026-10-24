@@ -79,6 +79,13 @@ internal class IrBuilder(
         foldChecks(kinds)
         removeDeadCode(kinds)
         if (speculate) Licm.run(g, kinds)
+        if (speculate && KnownShapes.run(g, kinds) { i, v -> replaced[i] = v }) {
+            // loads that were the values written or read before: their uses have those values' kinds
+            resolveAll()
+            kinds.infer(g)
+            foldChecks(kinds)
+            removeDeadCode(kinds)
+        }
         QuietInlines.run(g, kinds)
         number()
         return g
