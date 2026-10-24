@@ -378,13 +378,13 @@ class JSStringObject(proto: JSObject?, @JvmField val value: String) : JSObject(p
     override val className: String get() = "String"
 
     override fun getOwnProperty(key: Any): PropertyDescriptor? {
-        if (key is Int && key < value.length) return PropertyDescriptor.data(value[key].toString(), Attr.ENUMERABLE)
+        if (key is Int && key < value.length) return PropertyDescriptor.data(Ops.charString(value[key]), Attr.ENUMERABLE)
         if (key == "length") return PropertyDescriptor.data(value.length.toDouble(), 0)
         return ordinaryGetOwnProperty(key)
     }
 
     override fun getOwnValue(key: Any, receiver: Any?): Any? {
-        if (key is Int && key < value.length) return value[key].toString()
+        if (key is Int && key < value.length) return Ops.charString(value[key])
         if (key == "length") return value.length.toDouble()
         return super.getOwnValue(key, receiver)
     }

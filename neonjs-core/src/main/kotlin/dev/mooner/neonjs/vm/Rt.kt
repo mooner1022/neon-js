@@ -155,7 +155,7 @@ object Rt {
         }
         if (o is CharSequence && key is Double) {
             val i = key.toInt()
-            if (i >= 0 && i.toDouble() == key && i < o.length) return o[i].toString()
+            if (i >= 0 && i.toDouble() == key && i < o.length) return Ops.charString(o[i])
         }
         return Ops.getV(realm, o, Ops.toPropertyKey(key))
     }

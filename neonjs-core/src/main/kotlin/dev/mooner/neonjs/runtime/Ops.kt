@@ -11,6 +11,13 @@ object Ops {
     private const val CACHED = 1024
     private val doubleCache = Array(2 * CACHED) { (it - CACHED).toDouble() }
 
+    /** One-character strings of the codes below 256, shared (a string's `s[i]`, charAt, fromCharCode, iteration). */
+    private val charStrings = Array(256) { it.toChar().toString() }
+
+    /** The one-character string of [c], shared for codes below 256. */
+    @JvmStatic
+    fun charString(c: Char): String = if (c.code < 256) charStrings[c.code] else c.toString()
+
     /** Boxes a double, reusing cached boxes for small integers. */
     @JvmStatic
     fun num(d: Double): Any {
@@ -619,7 +626,7 @@ object Ops {
             is CharSequence -> {
                 if (key == "length") return v.length.toDouble()
                 if (key is Int) {
-                    if (key < v.length) return v[key].toString()
+                    if (key < v.length) return charString(v[key])
                 }
                 return realm.stringPrototype.get(key, v)
             }

@@ -118,6 +118,7 @@ internal object StringBuiltins {
         }
         realm.global("String", ctor)
         ctor.method(realm, "fromCharCode", 1) { _, _, args, _ ->
+            if (args.size == 1) return@method Ops.charString(Ops.toUint16(args[0]).toChar())
             val sb = StringBuilder(args.size)
             for (a in args) sb.append(Ops.toUint16(a).toChar())
             sb.toString()
@@ -152,12 +153,12 @@ internal object StringBuiltins {
             val s = thisStr(t, "at")
             val rel = Ops.toIntegerOrInfinity(args.arg(0))
             val k = if (rel >= 0) rel else s.length + rel
-            if (k < 0 || k >= s.length) Undefined else s[k.toInt()].toString()
+            if (k < 0 || k >= s.length) Undefined else Ops.charString(s[k.toInt()])
         }
         proto.method(realm, "charAt", 1) { _, t, args, _ ->
             val s = thisStr(t, "charAt")
             val p = Ops.toIntegerOrInfinity(args.arg(0))
-            if (p < 0 || p >= s.length) "" else s[p.toInt()].toString()
+            if (p < 0 || p >= s.length) "" else Ops.charString(s[p.toInt()])
         }
         proto.method(realm, "charCodeAt", 1) { _, t, args, _ ->
             val s = thisStr(t, "charCodeAt")
@@ -471,7 +472,7 @@ internal object StringBuiltins {
             } else {
                 val cp = s.codePointAt(it.pos)
                 val n = Character.charCount(cp)
-                val r = s.substring(it.pos, it.pos + n)
+                val r = if (n == 1) Ops.charString(s[it.pos]) else s.substring(it.pos, it.pos + n)
                 it.pos += n
                 Iteration.createIterResult(f.realm, r, false)
             }
