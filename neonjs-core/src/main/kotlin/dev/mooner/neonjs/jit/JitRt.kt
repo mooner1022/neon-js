@@ -347,6 +347,39 @@ object JitRt {
         }
         return fnv.construct(args, fnv)
     }
+    /**
+     * An arguments array of [n] (1..4) entries for a call of a JS function: one of a returned call's (Agent.argsPool, with
+     * FRAME_POOLING), else a new one.
+     */
+    @Suppress("NOTHING_TO_INLINE")
+    private inline fun takeArgs(agent: Agent, n: Int): Array<Any?> {
+        if (FRAME_POOLING) {
+            val k = agent.argsPoolSize[n]
+            if (k > 0) {
+                agent.argsPoolSize[n] = k - 1
+                return agent.argsPool[n][k - 1]!!
+            }
+        }
+        return arrayOfNulls(n)
+    }
+
+    /**
+     * [args] back to the pool once the call of [fn] returned: nothing holds them then (arguments objects and rest
+     * parameters copy them, a tail call gets arrays of its own), unless the call's frame lives on (a generator's or an
+     * async function's) or a debugger hook may have kept it.
+     */
+    @Suppress("NOTHING_TO_INLINE")
+    private inline fun giveArgs(agent: Agent, fn: JSClosure, args: Array<Any?>) {
+        if (!FRAME_POOLING || fn.code.flags and (CodeBlock.GENERATOR or CodeBlock.ASYNC) != 0 || agent.debuggerHook != null) return
+        val n = args.size
+        val k = agent.argsPoolSize[n]
+        if (k < ARGS_POOL) {
+            java.util.Arrays.fill(args, null)
+            agent.argsPool[n][k] = args
+            agent.argsPoolSize[n] = k + 1
+        }
+    }
+
     // the JS function case of icall() again, as for call0..call4
     @JvmStatic fun icall0(fnv: Any?, t: Any?, f: Frame, pc: Int): Any? {
         if (fnv !is JSClosure) return icall(fnv, t, EMPTY_ARGS, f, pc)
@@ -356,22 +389,48 @@ object JitRt {
     @JvmStatic fun icall1(fnv: Any?, t: Any?, a: Any?, f: Frame, pc: Int): Any? {
         if (fnv !is JSClosure) return icall(fnv, t, arrayOf(a), f, pc)
         f.inlinePc = pc
-        return Interpreter.invokeClosure(fnv, t, arrayOf(a))
+        val agent = f.realm.agent
+        val args = takeArgs(agent, 1)
+        args[0] = a
+        val r = Interpreter.invokeClosure(fnv, t, args)
+        giveArgs(agent, fnv, args)
+        return r
     }
     @JvmStatic fun icall2(fnv: Any?, t: Any?, a: Any?, b: Any?, f: Frame, pc: Int): Any? {
         if (fnv !is JSClosure) return icall(fnv, t, arrayOf(a, b), f, pc)
         f.inlinePc = pc
-        return Interpreter.invokeClosure(fnv, t, arrayOf(a, b))
+        val agent = f.realm.agent
+        val args = takeArgs(agent, 2)
+        args[0] = a
+        args[1] = b
+        val r = Interpreter.invokeClosure(fnv, t, args)
+        giveArgs(agent, fnv, args)
+        return r
     }
     @JvmStatic fun icall3(fnv: Any?, t: Any?, a: Any?, b: Any?, c: Any?, f: Frame, pc: Int): Any? {
         if (fnv !is JSClosure) return icall(fnv, t, arrayOf(a, b, c), f, pc)
         f.inlinePc = pc
-        return Interpreter.invokeClosure(fnv, t, arrayOf(a, b, c))
+        val agent = f.realm.agent
+        val args = takeArgs(agent, 3)
+        args[0] = a
+        args[1] = b
+        args[2] = c
+        val r = Interpreter.invokeClosure(fnv, t, args)
+        giveArgs(agent, fnv, args)
+        return r
     }
     @JvmStatic fun icall4(fnv: Any?, t: Any?, a: Any?, b: Any?, c: Any?, d: Any?, f: Frame, pc: Int): Any? {
         if (fnv !is JSClosure) return icall(fnv, t, arrayOf(a, b, c, d), f, pc)
         f.inlinePc = pc
-        return Interpreter.invokeClosure(fnv, t, arrayOf(a, b, c, d))
+        val agent = f.realm.agent
+        val args = takeArgs(agent, 4)
+        args[0] = a
+        args[1] = b
+        args[2] = c
+        args[3] = d
+        val r = Interpreter.invokeClosure(fnv, t, args)
+        giveArgs(agent, fnv, args)
+        return r
     }
 
     // environment slots of an inlined body: through its closure's environment
@@ -733,22 +792,48 @@ object JitRt {
     @JvmStatic fun call1(fnv: Any?, t: Any?, a: Any?, f: Frame, pc: Int): Any? {
         if (fnv !is JSClosure) return call(fnv, t, arrayOf(a), f, pc)
         f.pc = pc
-        return Interpreter.invokeClosure(fnv, t, arrayOf(a))
+        val agent = f.realm.agent
+        val args = takeArgs(agent, 1)
+        args[0] = a
+        val r = Interpreter.invokeClosure(fnv, t, args)
+        giveArgs(agent, fnv, args)
+        return r
     }
     @JvmStatic fun call2(fnv: Any?, t: Any?, a: Any?, b: Any?, f: Frame, pc: Int): Any? {
         if (fnv !is JSClosure) return call(fnv, t, arrayOf(a, b), f, pc)
         f.pc = pc
-        return Interpreter.invokeClosure(fnv, t, arrayOf(a, b))
+        val agent = f.realm.agent
+        val args = takeArgs(agent, 2)
+        args[0] = a
+        args[1] = b
+        val r = Interpreter.invokeClosure(fnv, t, args)
+        giveArgs(agent, fnv, args)
+        return r
     }
     @JvmStatic fun call3(fnv: Any?, t: Any?, a: Any?, b: Any?, c: Any?, f: Frame, pc: Int): Any? {
         if (fnv !is JSClosure) return call(fnv, t, arrayOf(a, b, c), f, pc)
         f.pc = pc
-        return Interpreter.invokeClosure(fnv, t, arrayOf(a, b, c))
+        val agent = f.realm.agent
+        val args = takeArgs(agent, 3)
+        args[0] = a
+        args[1] = b
+        args[2] = c
+        val r = Interpreter.invokeClosure(fnv, t, args)
+        giveArgs(agent, fnv, args)
+        return r
     }
     @JvmStatic fun call4(fnv: Any?, t: Any?, a: Any?, b: Any?, c: Any?, d: Any?, f: Frame, pc: Int): Any? {
         if (fnv !is JSClosure) return call(fnv, t, arrayOf(a, b, c, d), f, pc)
         f.pc = pc
-        return Interpreter.invokeClosure(fnv, t, arrayOf(a, b, c, d))
+        val agent = f.realm.agent
+        val args = takeArgs(agent, 4)
+        args[0] = a
+        args[1] = b
+        args[2] = c
+        args[3] = d
+        val r = Interpreter.invokeClosure(fnv, t, args)
+        giveArgs(agent, fnv, args)
+        return r
     }
     @JvmStatic fun callSpread(fnv: Any?, thisV: Any?, arr: Any?, f: Frame, pc: Int): Any? = call(fnv, thisV, Rt.arrayToArgs(arr.cast<JSArray>()), f, pc)
 

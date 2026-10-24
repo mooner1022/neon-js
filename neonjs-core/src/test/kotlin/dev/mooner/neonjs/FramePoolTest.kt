@@ -33,11 +33,14 @@ class FramePoolTest {
             function args() { return arguments }
             function make(x) { var y = x * 2; return () => x + y }
             function self() { return this }
+            function rest(x, ...r) { return r }
+            function* gen(x, y) { yield x; yield y }
+            var g = gen('g1', 'g2'), r1 = rest(1, 2, 3), r2 = rest(4, 5);
             var a = args(1, 2), b = args(3, 4), fs = [];
             for (var i = 0; i < 100; i++) fs.push(make(i));
             var s = 0; for (var f of fs) s += f();
             var o = { m: self }, p = { m: self };
-            [a[0], a[1], b[0], b.length, s, o.m() === o, p.m() === p].join()
+            [a[0], a[1], b[0], b.length, s, o.m() === o, p.m() === p, r1, r2, [...g]].join()
             """.trimIndent(),
         )
     }

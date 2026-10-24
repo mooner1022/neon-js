@@ -55,8 +55,9 @@ interface ModuleLoaderHooks {
  * Not thread-safe; a context must be used from one thread at a time. Exception: the external-job API
  * ([postExternalJob], [addExternalSource], [removeExternalSource], [closeExternal]) may be called from any thread.
  */
-/** Frames Agent.framePool keeps at most. */
+/** Frames Agent.framePool keeps at most, and arguments arrays of each length Agent.argsPool. */
 const val FRAME_POOL = 64
+const val ARGS_POOL = 16
 
 /**
  * Whether calls of compiled code reuse the frames of returned ones (Agent.framePool): on ART, where allocating and
@@ -78,6 +79,9 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
      */
     @JvmField val framePool = arrayOfNulls<Frame>(FRAME_POOL)
     @JvmField var framePoolSize = 0
+    /** Arguments arrays of 1 to 4 entries (by length) of returned calls, for the next calls (JitRt.call1 and the like). */
+    @JvmField val argsPool = Array(5) { arrayOfNulls<Array<Any?>>(ARGS_POOL) }
+    @JvmField val argsPoolSize = IntArray(5)
     /**
      * Set by compiled code's element fast paths (JitRt.elemNumI and the like) when they do not apply; the generated code
      * clears it and takes the full [[Get]]. A stale true only costs a slow path.
