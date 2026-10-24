@@ -130,7 +130,9 @@ class Rope(left: CharSequence, right: CharSequence) : CharSequence {
             if (len > MAX_LENGTH) throw JSException.rangeErrorNoRealm("Invalid string length")
             if (len > 65536) Agent.current.get()?.checkStringLength(len)
             if (len < 32 || (a is Rope && a.depth > 2000) || (b is Rope && b.depth > 2000)) {
-                return a.toString() + b.toString()
+                // (String.concat: one string made, where `+` went through a StringBuilder)
+                @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
+                return (a.toString() as java.lang.String).concat(b.toString())
             }
             return Rope(a, b)
         }
