@@ -9,8 +9,16 @@ import org.junit.jupiter.api.Test
  * may see its frame change.
  */
 class FramePoolTest {
-    private fun run(mode: ExecutionMode, src: String): String =
-        NeonEngine.builder().executionMode(mode).backgroundCompilation(false).console(null).build().newContext().use { it.eval(src).asString() }
+    /** With the pool on (it is off by default on HotSpot, where these tests run). */
+    private fun run(mode: ExecutionMode, src: String): String {
+        val before = dev.mooner.neonjs.runtime.FRAME_POOLING
+        dev.mooner.neonjs.runtime.FRAME_POOLING = true
+        try {
+            return NeonEngine.builder().executionMode(mode).backgroundCompilation(false).console(null).build().newContext().use { it.eval(src).asString() }
+        } finally {
+            dev.mooner.neonjs.runtime.FRAME_POOLING = before
+        }
+    }
 
     private fun same(src: String) {
         val expected = run(ExecutionMode.INTERPRETER, src)

@@ -58,14 +58,23 @@ interface ModuleLoaderHooks {
 /** Frames Agent.framePool keeps at most. */
 const val FRAME_POOL = 64
 
+/**
+ * Whether calls of compiled code reuse the frames of returned ones (Agent.framePool): on ART, where allocating and
+ * collecting frames took about 45% of a recursive call; not on HotSpot, whose compilers remove the allocation of a frame
+ * that does not escape, which a pool defeats (calls of closures 40% slower there). `-Dneonjs.framePool=true|false`
+ * decides instead.
+ */
+@JvmField var FRAME_POOLING: Boolean =
+    System.getProperty("neonjs.framePool")?.toBoolean() ?: (System.getProperty("java.vm.name") == "Dalvik")
+
 class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
     @JvmField var currentRealm: Realm? = null
     @JvmField var depth = 0
     @JvmField var maxDepth = config.maxCallDepth
     @JvmField var topFrame: Frame? = null
     /**
-     * Frames of calls of compiled code that returned, for the next such calls (Interpreter.invokeClosure): a frame is a
-     * call's largest allocation (on ART, allocating and collecting them took about 45% of a recursive call).
+     * Frames of calls of compiled code that returned, for the next such calls (Interpreter.invokeClosure, with
+     * [FRAME_POOLING]): a frame is a call's largest allocation.
      */
     @JvmField val framePool = arrayOfNulls<Frame>(FRAME_POOL)
     @JvmField var framePoolSize = 0
