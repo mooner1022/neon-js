@@ -461,6 +461,9 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
   - derived classes' constructors (INIT_THIS_REG: `this` once super() returned, the register's and the frame's, as the
     baseline sets them) are compiled as well. What is left not compiled in Test262's compiled mode (about 25 blocks):
     methods too large, and `with` and direct eval scopes (LOAD_NAME_CALL).
+  - `s.charCodeAt(i)` of the builtin (an intrinsic, `CharCode`): a JS string's code unit at an int index in place (a rope
+    flattens once), NaN past its ends, anything else through the builtin's steps. With string primitives' properties
+    cached (all tiers, PropCache.getString), on ART a loop hashing chat messages by char code 47 -> 22 ms.
 - **P5: tiering and tuning** (~1.5K). T1 -> T2 counters, OSR from T1 into T2 at loop headers, background T2 queue,
   thresholds, profiling T1 if compiled mode needs it, the builder option, Android measurement. Exit: StarLight's
   NeonBench and the user's benchmark gain on ART, first run included; default stays off until a release cycle has

@@ -830,10 +830,14 @@ internal class IrBuilder(
                             val n = a + 2
                             if (stack.size < n) throw JitBailout("operand stack underflow at $pc")
                             val fn = stack[stack.size - n]
+                            val thisV = stack[stack.size - n + 1]
                             val args = Array(a) { stack[stack.size - a + it] }
                             add(cur, Inst(Ir.CHECK_INTRINSIC, arrayOf(fn), intrinsic, 0, 0, pc, stmt)).state = state(pc)
                             repeat(n) { stack.removeAt(stack.size - 1) }
-                            stack.add(add(cur, Inst(Ir.MATH, args, intrinsic, 0, 0, pc, stmt).also { it.hasResult = true }))
+                            val r = if (intrinsic == dev.mooner.neonjs.runtime.MathIntrinsic.CHAR_CODE_AT) {
+                                Inst(Ir.CHAR_CODE, arrayOf(thisV, args[0]), intrinsic, 0, 0, pc, stmt)
+                            } else Inst(Ir.MATH, args, intrinsic, 0, 0, pc, stmt)
+                            stack.add(add(cur, r.also { it.hasResult = true }))
                         } else if (target == null || stack.size < a + 2) {
                             val n = a + 2
                             if (stack.size < n) throw JitBailout("operand stack underflow at $pc")

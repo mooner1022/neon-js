@@ -49,9 +49,11 @@ object MathIntrinsic {
     const val CEIL = 10
     const val ATAN2 = 11
     const val POW = 12
+    /** String.prototype.charCodeAt (Ir.CHAR_CODE: a string's code unit in place, the builtin's steps otherwise). */
+    const val CHAR_CODE_AT = 13
 
     /** The number of arguments of intrinsic [id]. */
-    fun arity(id: Int) = if (id >= ATAN2) 2 else 1
+    fun arity(id: Int) = if (id == ATAN2 || id == POW) 2 else 1
 }
 
 /** Builtin function implemented in Kotlin. */

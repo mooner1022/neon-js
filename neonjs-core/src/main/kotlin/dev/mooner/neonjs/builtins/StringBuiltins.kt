@@ -87,6 +87,14 @@ internal object StringBuiltins {
         return true
     }
 
+    /** String.prototype.charCodeAt's steps on `this` [t] (the optimizing tier's Ir.CHAR_CODE outside its fast path too). */
+    @JvmStatic
+    fun charCodeAt(t: Any?, pos: Any?): Double {
+        val s = thisStr(t, "charCodeAt")
+        val p = Ops.toIntegerOrInfinity(pos)
+        return if (p < 0 || p >= s.length) Double.NaN else s[p.toInt()].code.toDouble()
+    }
+
     fun thisStr(t: Any?, m: String): String {
         if (t === Undefined || t === Null) typeErr("String.prototype.$m called on null or undefined")
         return Ops.toString(t)
@@ -160,11 +168,7 @@ internal object StringBuiltins {
             val p = Ops.toIntegerOrInfinity(args.arg(0))
             if (p < 0 || p >= s.length) "" else Ops.charString(s[p.toInt()])
         }
-        proto.method(realm, "charCodeAt", 1) { _, t, args, _ ->
-            val s = thisStr(t, "charCodeAt")
-            val p = Ops.toIntegerOrInfinity(args.arg(0))
-            if (p < 0 || p >= s.length) Double.NaN else s[p.toInt()].code.toDouble()
-        }
+        proto.method(realm, "charCodeAt", 1) { _, t, args, _ -> charCodeAt(t, args.arg(0)) }.intrinsic = MathIntrinsic.CHAR_CODE_AT
         proto.method(realm, "codePointAt", 1) { _, t, args, _ ->
             val s = thisStr(t, "codePointAt")
             val p = Ops.toIntegerOrInfinity(args.arg(0))

@@ -1421,6 +1421,50 @@ internal class IrCodegen(
                 done(i, JT.ANY)
                 return
             }
+            Ir.CHAR_CODE -> {
+                // a JS string (a CharSequence: a rope flattens once) at an int index: its code unit, NaN past its ends;
+                // else the builtin's steps
+                val slow = Label()
+                val end = Label()
+                if (kindOf(i.inputs[1]) == JT.INT) {
+                    val o = temp()
+                    val s = temp()
+                    val k = temp()
+                    val nan = Label()
+                    load(i.inputs[0], JT.ANY)
+                    mv.visitVarInsn(ASTORE, o)
+                    mv.visitVarInsn(ALOAD, o)
+                    mv.visitTypeInsn(INSTANCEOF, "java/lang/CharSequence")
+                    mv.visitJumpInsn(IFEQ, slow)
+                    mv.visitVarInsn(ALOAD, o)
+                    mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Object", "toString", "()Ljava/lang/String;", false)
+                    mv.visitVarInsn(ASTORE, s)
+                    load(i.inputs[1], JT.INT)
+                    mv.visitVarInsn(ISTORE, k)
+                    mv.visitVarInsn(ILOAD, k)
+                    mv.visitJumpInsn(IFLT, nan)
+                    mv.visitVarInsn(ILOAD, k)
+                    mv.visitVarInsn(ALOAD, s)
+                    mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "length", "()I", false)
+                    mv.visitJumpInsn(IF_ICMPGE, nan)
+                    mv.visitVarInsn(ALOAD, s)
+                    mv.visitVarInsn(ILOAD, k)
+                    mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "charAt", "(I)C", false)
+                    mv.visitInsn(I2D)
+                    mv.visitJumpInsn(GOTO, end)
+                    mv.visitLabel(nan)
+                    mv.visitLdcInsn(Double.NaN)
+                    mv.visitJumpInsn(GOTO, end)
+                }
+                mv.visitLabel(slow)
+                storePc(i)
+                load(i.inputs[0], JT.ANY)
+                load(i.inputs[1], JT.ANY)
+                mv.visitMethodInsn(INVOKESTATIC, "dev/mooner/neonjs/builtins/StringBuiltins", "charCodeAt", "($OBJ$OBJ)D", false)
+                mv.visitLabel(end)
+                done(i, JT.NUM)
+                return
+            }
             Ir.PART -> {
                 load(i.inputs[0], JT.ANY)
                 mv.visitTypeInsn(CHECKCAST, CONSTS_D)

@@ -43,7 +43,7 @@ internal class Kinds(private val ints: Boolean, private val elems: Boolean) {
             Op.NOT -> JT.BOOL
             Ir.CHECK_NUMBER -> JT.NUM
             Ir.IS_CLOSURE -> JT.BOOL
-            Ir.MATH -> JT.NUM
+            Ir.MATH, Ir.CHAR_CODE -> JT.NUM
             Ir.LENGTH -> intKind
             Ir.CHECK_INT32 -> JT.INT
             Op.PUT_ELEM -> {

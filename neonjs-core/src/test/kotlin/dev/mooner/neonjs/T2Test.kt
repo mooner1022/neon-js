@@ -1114,6 +1114,23 @@ class T2Test {
             }
     }
 
+    @Test
+    fun charCodesReadInPlace() {
+        // `s.charCodeAt(i)` of the builtin (CHECK_INTRINSIC): a string's code unit at an int index in place (a rope's
+        // too), NaN past its ends; another receiver or index through the builtin's steps, another function an exit
+        val src = """
+            function hash(s) { var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h }
+            function at(s, i) { return s.charCodeAt(i) }
+            var rope = 'abc'; for (var k = 0; k < 40; k++) rope = rope + 'xyz0123456789' + k;
+            var odd = { charCodeAt: String.prototype.charCodeAt, toString() { return 'Q' } };
+            var mine = { charCodeAt(i) { return 'own' + i } };
+            for (var w = 0; w < 30; w++) { hash('hello' + w); at('abc', 1) }
+            """.trimIndent()
+        assertTrue(irOf(src, "hash", profiled = true).contains("CharCode"))
+        same(src, listOf("hash", "at"),
+            "[hash('hello world'), hash(rope), at('abc', 5), at('abc', -1), at('abc', '1'), at('abc', 1.5), at(odd, 0), at(mine, 2), at(rope, 3)].join()")
+    }
+
     /** The IR of function [name] after [src] ran in the interpreter (its caches and profiles filled). */
     private fun irOf(src: String, name: String, profiled: Boolean = false): String =
         NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).console(null).build().newContext().use { ctx ->

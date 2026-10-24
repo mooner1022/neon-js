@@ -282,6 +282,12 @@ object Ir {
      * pair) prototype, then constructor.
      */
     const val PART = 1024
+    /**
+     * (string, index) `string.charCodeAt(index)` behind CHECK_INTRINSIC (MathIntrinsic.CHAR_CODE_AT), a double: a JS
+     * string's code unit at an int index in place, NaN past its ends; anything else through the builtin's steps
+     * (StringBuiltins.charCodeAt: `this` made a string, which may run code).
+     */
+    const val CHAR_CODE = 1025
     /** Terminators. GOTO; BRANCH(value): [Inst.a] is the bytecode jump tested (JUMP_IF_TRUE and the like). */
     const val GOTO = 1100
     const val BRANCH = 1101
@@ -326,6 +332,7 @@ object Ir {
         NEW_THIS -> "NewThis"
         CONSTRUCT_RESULT -> "ConstructResult"
         PART -> "Part"
+        CHAR_CODE -> "CharCode"
         SWITCH -> "Switch"
         GOTO -> "Goto"
         BRANCH -> "Branch"
