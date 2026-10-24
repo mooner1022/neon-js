@@ -78,7 +78,8 @@ helper, `JitRt.call0`..`call4`, which includes the steps of `callClosure` and `e
 inline functions): ART's ahead-of-time code does not inline across the three, and HotSpot gives up on them as a chain.
 Together with the smaller frame this made calls 15-30% faster on HotSpot; each change alone gained little.
 
-On ART, calls of compiled code also reuse frames: the agent keeps up to 64 frames of such calls that returned
+On ART, calls and constructions of compiled code also reuse frames: the agent keeps up to 64 frames of such calls
+that returned
 (`Agent.framePool`, without extra state and while no debugger hook may hold one), and `Frame.reuse` makes one the next
 call's. Allocating and collecting frames took about 45% of a recursive call there (the StarLight benchmark: 330 -> 290 ms
 per loop in T1, 130 -> 82 ms with the optimizing tier), and so do the arrays of 1 to 4 arguments compiled code passes
