@@ -413,6 +413,10 @@ the result array (reachable through `Symbol.species`), make it sparse, delete el
 on `Array.prototype`. Fast paths in other engines have broken exactly there, by trusting a length or an element store
 read before the callback.
 
+for-of over an array iterator whose `next` is the intrinsic one steps it without its result object
+(`Iteration.stepValue` → `ArrayBuiltins.step`): the object would be fresh, so reading its `done` and `value` is
+unobservable. The iterator record keeps the `next` read when the loop started, as the specification has it.
+
 ## Interop (`interop/`)
 
 `HostBridge` converts values in both directions and selects overloads by conversion cost, breaking ties by

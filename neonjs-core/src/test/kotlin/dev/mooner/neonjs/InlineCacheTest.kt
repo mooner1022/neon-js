@@ -89,6 +89,34 @@ class InlineCacheTest {
     """)
 
     @Test
+    fun arrayIteratorsStepWithoutResultObjects() = check("""
+        // for-of steps an array iterator whose next is the intrinsic one without its result object (Iteration.stepValue):
+        // a growing array, a getter element (and one that throws), keys, entries, a typed array; a next replaced before
+        // a loop is called, one replaced during a loop is not (the loop read next when it started)
+        function list(it) { var r = []; for (const x of it) r.push(String(x)); return r.join() }
+        var a = [1, 2, 3], out = [];
+        for (const x of a) { out.push(x); if (x === 1) a.push(4) }
+        eq(out.join(), '1,2,3,4', 'grows');
+        var g = [0, 1];
+        Object.defineProperty(g, 0, { get() { return 'got' } });
+        eq(list(g), 'got,1', 'getter');
+        eq(list([5, 6].keys()) + ' ' + list([5, 6].entries()), '0,1 0,5,1,6', 'keys, entries');
+        eq(list(new Uint8Array([7, 8])), '7,8', 'typed');
+        var AIP = Object.getPrototypeOf([][Symbol.iterator]()), next = AIP.next;
+        AIP.next = function () { var r = next.call(this); if (!r.done) r.value = r.value * 10; return r };
+        eq(list([1, 2]), '10,20', 'replaced next');
+        AIP.next = next;
+        var during = [];
+        for (const x of [1, 2, 3]) { during.push(x); AIP.next = function () { return { done: true } } }
+        AIP.next = next;
+        eq(during.join(), '1,2,3', 'next read once');
+        var bad = [1, 2];
+        Object.defineProperty(bad, 1, { get() { throw new Error('boom') } });
+        eq(throws(() => list(bad)).message, 'boom');
+        'ok'
+    """)
+
+    @Test
     fun stringPrimitivesReadThroughTheirCache() = check("""
         // a string primitive's properties come from String.prototype and Object.prototype through the site's cache
         // (PropCache.getString): replaced, deleted, a getter (this: the primitive), absent then defined

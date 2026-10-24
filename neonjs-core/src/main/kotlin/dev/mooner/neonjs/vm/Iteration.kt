@@ -1,5 +1,7 @@
 package dev.mooner.neonjs.vm
 
+import dev.mooner.neonjs.builtins.ArrayBuiltins
+import dev.mooner.neonjs.builtins.ArrayIteratorObject
 import dev.mooner.neonjs.runtime.*
 
 /** Iterator Record. */
@@ -65,6 +67,20 @@ object Iteration {
     /** IteratorStepValue: returns the next value or [NotFound] when done. */
     @JvmStatic
     fun stepValue(rec: IteratorRecord): Any? {
+        val nm = rec.nextMethod
+        val it = rec.iterator
+        if (it is ArrayIteratorObject && nm is NativeFunction && nm === nm.realm.arrayIteratorNext && nm.realm.agent.currentRealm === nm.realm) {
+            // the intrinsic next of an array iterator of the current realm: its result object would be fresh, reading it
+            // unobservable
+            val v = try {
+                ArrayBuiltins.step(nm.realm, it)
+            } catch (e: Throwable) {
+                rec.done = true
+                throw e
+            }
+            if (v === NotFound) rec.done = true
+            return v
+        }
         val r: Any?
         try {
             r = Ops.call(rec.nextMethod, rec.iterator, EMPTY_ARGS)

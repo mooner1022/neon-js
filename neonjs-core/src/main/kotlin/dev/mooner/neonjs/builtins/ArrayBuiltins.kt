@@ -677,29 +677,35 @@ internal object ArrayBuiltins {
         realm.arrayIteratorPrototype = aip
         val next = aip.method(realm, "next", 0) { f, t, _, _ ->
             val it = t as? ArrayIteratorObject ?: typeErr("next method called on incompatible receiver")
-            val o = it.iterated
-            if (o == null) Iteration.createIterResult(f.realm, Undefined, true)
-            else {
-                val idx = it.index
-                val n = if (o is TypedArrayLike) {
-                    if (o.isOutOfBounds()) typeErr("Cannot perform %ArrayIteratorPrototype%.next on a detached or out-of-bounds TypedArray")
-                    o.typedLength()
-                } else len(o)
-                if (idx >= n) {
-                    it.iterated = null
-                    Iteration.createIterResult(f.realm, Undefined, true)
-                } else {
-                    it.index = idx + 1
-                    when (it.kind) {
-                        0 -> Iteration.createIterResult(f.realm, idx.toDouble(), false)
-                        1 -> Iteration.createIterResult(f.realm, o.get(key(idx), o), false)
-                        else -> Iteration.createIterResult(f.realm, Builtins.arrayOf(f.realm, listOf(idx.toDouble(), o.get(key(idx), o))), false)
-                    }
-                }
-            }
+            val v = step(f.realm, it)
+            if (v === NotFound) Iteration.createIterResult(f.realm, Undefined, true) else Iteration.createIterResult(f.realm, v, false)
         }
         realm.arrayIteratorNext = next
         aip.value(JSSymbol.toStringTag, "Array Iterator", Attr.CONFIGURABLE)
+    }
+
+    /**
+     * %ArrayIteratorPrototype%.next of [it] without its result object: the next value, NotFound when done (for-of steps
+     * through here when the iterator's next method is that intrinsic, see Iteration.stepValue).
+     */
+    @JvmStatic
+    fun step(realm: Realm, it: ArrayIteratorObject): Any? {
+        val o = it.iterated ?: return NotFound
+        val idx = it.index
+        val n = if (o is TypedArrayLike) {
+            if (o.isOutOfBounds()) typeErr("Cannot perform %ArrayIteratorPrototype%.next on a detached or out-of-bounds TypedArray")
+            o.typedLength()
+        } else len(o)
+        if (idx >= n) {
+            it.iterated = null
+            return NotFound
+        }
+        it.index = idx + 1
+        return when (it.kind) {
+            0 -> idx.toDouble()
+            1 -> o.get(key(idx), o)
+            else -> Builtins.arrayOf(realm, listOf(idx.toDouble(), o.get(key(idx), o)))
+        }
     }
 
     private fun startIndex(v: Any?, n: Long): Long {
