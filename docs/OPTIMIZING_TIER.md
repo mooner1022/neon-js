@@ -394,6 +394,11 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
     (`CheckIntrinsic`, LICM moves it with the loads of `Math.f`) that exits before the call for anything else. On ART:
     NeonBench float 12.5K -> 124K (T1 9.2K), nbody 15% faster. A loop reading a module's `const` (an environment load
     with a TDZ check) no longer keeps its loads in it.
+  - properties added through a monomorphic transition (`AddSlot`: PropCache's ADD case in place, behind the shapes and
+    an extensible check). Small on ART (a loop of `new` of a class 2-3%): most of what is left in NeonBench alloc and
+    basic.js classes is the object model, a JSObject, its PropertyMap and its arrays for each object made property by
+    property; a layout shared along transitions (as object literals share theirs) or slots in the object would be the
+    next step there, outside this tier.
 - **P5: tiering and tuning** (~1.5K). T1 -> T2 counters, OSR from T1 into T2 at loop headers, background T2 queue,
   thresholds, profiling T1 if compiled mode needs it, the builder option, Android measurement. Exit: StarLight's
   NeonBench and the user's benchmark gain on ART, first run included; default stays off until a release cycle has
