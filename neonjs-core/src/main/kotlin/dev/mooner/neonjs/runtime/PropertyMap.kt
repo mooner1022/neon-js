@@ -84,6 +84,11 @@ class PropertyMap private constructor(
 
     /** Adds a new entry (caller guarantees the key is absent). Returns entry index. */
     fun add(key: Any, value: Any?, attrs: Int): Int {
+        val before = shape
+        if (sharesAlong(before)) {
+            val next = before.append(key, attrs)
+            if (next.shared) return addShared(next, key, attrs, value)
+        }
         val i = append(key, value, attrs)
         val s = shape
         if (s.cacheable) shape = s.append(key, attrs)
@@ -95,10 +100,49 @@ class PropertyMap private constructor(
      * as computed earlier by an inline cache. Equivalent to [add].
      */
     fun addTransition(next: Shape, value: Any?) {
+        if (sharesAlong(shape)) {
+            addShared(next, next.key!!, next.attrs, value)
+            return
+        }
         val before = shape
         append(next.key!!, value, next.attrs)
         // a shared shape implies no deleted slots, so append cannot have compacted; stay safe regardless
         shape = if (shape === before) next else Shape.unique()
+    }
+
+    /**
+     * Whether the map shares its keys, attributes and hashes with every map of its shape [s] (exactly [used] of them),
+     * and may go on sharing those of the shape it moves to.
+     */
+    private fun sharesAlong(s: Shape): Boolean = layoutShared && s.shared && used == s.size && used < MAX_LAYOUT && index == null
+
+    /**
+     * Appends [key] ([attrs], [value]) moving to shared shape [next], whose layout ([Shape.layout], made here for the
+     * first map) replaces the map's: a map made property by property owns its values only, as a literal's does.
+     */
+    private fun addShared(next: Shape, key: Any, attrs: Int, value: Any?): Int {
+        var l = next.layout
+        if (l == null) {
+            val n = used + 1
+            val ks = keys.copyOf(n)
+            val fs = flags.copyOf(n)
+            val hs = hashes.copyOf(n)
+            ks[used] = key
+            fs[used] = attrs
+            hs[used] = keyHash(key)
+            l = Layout(next, next, ks, fs, hs, hasIndexKeys || key is Int)
+            next.layout = l
+        }
+        keys = l.keys
+        flags = l.flags
+        hashes = l.hashes
+        if (l.hasIndexKeys) hasIndexKeys = true
+        if (used == values.size) values = values.copyOf(maxOf(4, values.size * 2))
+        val i = used++
+        values[i] = value
+        count++
+        shape = next
+        return i
     }
 
     /** Copies a shared layout before it is changed. */
@@ -178,7 +222,7 @@ class PropertyMap private constructor(
             compact()
             if (used < keys.size) return
         }
-        val n = maxOf(4, keys.size * 2)
+        val n = maxOf(4, keys.size * 2, values.size)
         keys = keys.copyOf(n)
         values = values.copyOf(n)
         flags = flags.copyOf(n)
@@ -268,6 +312,19 @@ class PropertyMap private constructor(
                 if (k is Int) hasIndex = true
             }
             return Layout(root, s, ks, fs, hs, hasIndex)
+        }
+
+        private val NO_KEYS = arrayOfNulls<Any?>(0)
+        private val NO_INTS = IntArray(0)
+
+        /**
+         * The map of an object without properties yet: with a shared empty [shape], one that shares the layouts of the
+         * shapes it moves to ([addShared]) and owns only its values.
+         */
+        @JvmStatic
+        fun empty(shape: Shape?): PropertyMap {
+            if (shape == null || !shape.shared || shape.size != 0) return PropertyMap(shape)
+            return PropertyMap(shape, NO_KEYS, arrayOfNulls(4), NO_INTS, NO_INTS, 0, true)
         }
 
         /** A map with [layout] and its [values] (used as the map's own values array). */

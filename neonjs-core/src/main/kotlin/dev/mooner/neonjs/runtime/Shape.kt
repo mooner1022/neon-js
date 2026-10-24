@@ -34,6 +34,12 @@ class Shape private constructor(
     /** True when the shape belongs to a transition tree (append transitions are deterministic). */
     @JvmField val shared: Boolean = ownerClass != null || root != null
 
+    /**
+     * For a shared shape of at most [PropertyMap.MAX_LAYOUT] slots: the keys, attributes and hashes every map with
+     * this shape has, which maps grown along transitions share (PropertyMap.addShared), made by the first.
+     */
+    @JvmField var layout: PropertyMap.Layout? = null
+
     /** Single transition (Shape) or a map of them (HashMap<TransitionKey, Shape>). */
     private var transitions: Any? = null
 

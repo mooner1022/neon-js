@@ -82,7 +82,7 @@ open class JSObject(@JvmField var proto: JSObject?) {
     fun ensureProps(): PropertyMap {
         var p = props
         if (p == null) {
-            p = PropertyMap(Shape.emptyShapeOf(this))
+            p = PropertyMap.empty(Shape.emptyShapeOf(this))
             props = p
         }
         return p
