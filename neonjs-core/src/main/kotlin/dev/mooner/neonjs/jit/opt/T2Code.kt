@@ -13,6 +13,9 @@ import dev.mooner.neonjs.vm.Frame
  */
 abstract class T2Code(@JvmField val data: Array<Any?>, @JvmField val block: CodeBlock) : CompiledCode {
     @JvmField var deopts = 0
+    /** Exits by speculation (indexed as [data]), made when the first is taken; whether the code gave way already. */
+    @JvmField var specExits: IntArray? = null
+    @JvmField var reverted = false
     /** The definer the code came from, which its block's next compilation uses. */
     @JvmField var definer: dev.mooner.neonjs.jit.CodeDefiner? = null
     /** The loop headers the code can be entered at by on-stack replacement, sorted. */
@@ -34,12 +37,17 @@ abstract class T2Code(@JvmField val data: Array<Any?>, @JvmField val block: Code
          * again without the speculations that failed, [RECOMPILES] times at most, then not at all).
          */
         @JvmField val DEOPT_LIMIT = Integer.getInteger("neonjs.jit.t2DeoptLimit", 16)
+        /**
+         * Exits of one speculation after which the code gives way as well: one that keeps failing (an int sum that
+         * overflows once a call) does not wait for [DEOPT_LIMIT] calls.
+         */
+        @JvmField val SPEC_LIMIT = Integer.getInteger("neonjs.jit.t2SpecLimit", 4)
         const val RECOMPILES = 3
 
         /**
          * An exit of [code] running [f] (Deopt.resume) where the speculation [data] names (a [Speculation]) failed: it is
-         * noted on its code block, and past [DEOPT_LIMIT] exits the block's baseline runs new activations again
-         * (Jit.revert) while the block is compiled again, without the speculations that failed.
+         * noted on its code block, and past [DEOPT_LIMIT] exits (or [SPEC_LIMIT] of this one) the block's baseline runs
+         * new activations again (Jit.revert) while the block is compiled again, without the speculations that failed.
          */
         @JvmStatic
         fun exit(code: T2Code, f: Frame, pc: Int, values: Array<Any?>, inner: Any?, spec: Int): Any? {
@@ -47,7 +55,10 @@ abstract class T2Code(@JvmField val data: Array<Any?>, @JvmField val block: Code
             synchronized(s.code) {
                 (s.code.t2Failed ?: java.util.BitSet().also { s.code.t2Failed = it }).set(s.pc)
             }
-            if (++code.deopts == DEOPT_LIMIT) {
+            val counts = code.specExits ?: IntArray(code.data.size).also { code.specExits = it }
+            val n = ++counts[spec]
+            if ((++code.deopts >= DEOPT_LIMIT || n >= SPEC_LIMIT) && !code.reverted) {
+                code.reverted = true
                 Jit.revert(code.block, code)
                 T2.reverted.incrementAndGet()
                 val b = code.block

@@ -419,6 +419,39 @@ class T2Test {
     }
 
     @Test
+    fun sumsThatOverflowGiveWay() {
+        // an int sum overflows in each call: the exit leaves the loop to the interpreter, whose on-stack replacement
+        // the tier's code declines (the sum is a double there) and the baseline takes; after a few such exits the block
+        // is compiled again with a double sum. In dead, t is dead where the sum's exit is (its state leaves it out, as
+        // undefined) until the next iteration writes it; an entry right after the exit (-Dneonjs.jit.osrStress, as in
+        // the Test262 runs) has the baseline take any number for it
+        val src = "function sum(n) { var s = 0; for (var i = 0; i < n; i++) s += i * 1000; return s }\n" +
+            "function dead(n) { var t = 0.5, s = 0; for (var i = 0; i < n; i++) { t = i * 0.5; if (t < 0) s = 0; s += i * 1000 } return s }"
+        val run = "[sum(10), sum(200000), sum(300000), dead(10), dead(200000)].join()"
+        val expected = interpreted(src, run)
+        NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
+            .build().newContext().use { ctx ->
+                ctx.agent.config.tier2 = true
+                ctx.eval(src)
+                ctx.eval("for (var w = 0; w < 30; w++) { sum(10); dead(10) }")
+                val cb: CodeBlock = (ctx.eval("sum").raw as JSClosure).code
+                var t2: dev.mooner.neonjs.jit.CompiledCode? = null
+                for (n in listOf("sum", "dead")) {
+                    val c: CodeBlock = (ctx.eval(n).raw as JSClosure).code
+                    // (the baseline answers the on-stack replacement the tier's code declines)
+                    c.baseline ?: JvmCompiler.compileAll(listOf(c), CodeDefiners.default, tierUp = true)[0]!!.also { c.baseline = it; c.compiled = it }
+                    val code = T2.compile(c, CodeDefiners.default) ?: fail("$n not compiled")
+                    Jit.install(c, code)
+                    if (n == "sum") t2 = code
+                }
+                for (k in 0 until dev.mooner.neonjs.jit.opt.T2Code.SPEC_LIMIT) assertEquals(expected, ctx.eval(run).asString())
+                assertTrue(cb.t2Recompiles >= 1, "compiled again")
+                assertNotSame(t2, cb.compiled, "the first version gave way")
+                assertEquals(expected, ctx.eval(run).asString())
+            }
+    }
+
+    @Test
     fun numbersOnlyPassedOnAreNotUnboxed() {
         // a value whose profile saw numbers gets a check only where something takes it unboxed: returned, passed to a
         // call or stored, it stays the Object it came as (no new box for it)
