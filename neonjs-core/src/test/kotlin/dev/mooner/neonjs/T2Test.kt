@@ -1007,6 +1007,67 @@ class T2Test {
         assertTrue(dev.mooner.neonjs.jit.Deopt.tierUps.get() - tierUps >= 1, "loops moved: ${dev.mooner.neonjs.jit.Deopt.tierUps.get() - tierUps}")
     }
 
+    @Test
+    fun runningNestedLoopsEnterTheTiersCode() {
+        // on-stack replacement inside nested loops: LICM moved values out of the outer loop too (here the closure test
+        // of the inner loop, copied on its callback), so an entry at the inner header makes the outer loop's entry block
+        // again before its own; at the outer header, a register dead there (the inner counter) is not loaded
+        val src = """
+            function f(n, block) { var s = 0; for (var k = 0; k < 4; k++) { if (k === 1) install('f'); for (var i = 0; i < n; i++) s += block(i) } return s }
+            function dbl(x) { return x * 2 }
+            """.trimIndent()
+        val warm = "for (var w = 0; w < 30; w++) f(20, dbl)"
+        val expr = "String(f(3000, dbl))"
+        val expected = interpreted("function install() {}\n$src", "$warm; $expr")
+        val tierUps = dev.mooner.neonjs.jit.Deopt.tierUps.get()
+        var armed = false
+        NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
+            .build().newContext().use { ctx ->
+                ctx.agent.config.tier2 = true
+                ctx.setFunction("install") { args ->
+                    if (armed) {
+                        val cb: CodeBlock = (ctx.eval(args[0].asString()).raw as JSClosure).code
+                        Jit.install(cb, T2.compile(cb, CodeDefiners.default) ?: fail("not compiled"))
+                    }
+                    null
+                }
+                ctx.eval(src)
+                ctx.eval(warm)
+                armed = true
+                val cb: CodeBlock = (ctx.eval("f").raw as JSClosure).code
+                cb.baseline ?: JvmCompiler.compileAll(listOf(cb), CodeDefiners.default, tierUp = true)[0]!!.also { cb.baseline = it; cb.compiled = it }
+                cb.compiled = cb.baseline
+                assertEquals(expected, ctx.eval(expr).asString())
+            }
+        assertTrue(dev.mooner.neonjs.jit.Deopt.tierUps.get() - tierUps >= 1, "loops moved: ${dev.mooner.neonjs.jit.Deopt.tierUps.get() - tierUps}")
+    }
+
+    @Test
+    fun nestedLoopsWithRegistersDeadAtTheirHeaders() {
+        // on-stack replacement entries of nested loops whose headers have registers dead there (the inner counters) and
+        // entry blocks made again: the exits of what is made again resume with those registers undefined
+        val src = """
+            function run(m, n) { let s = 0; for (let k = 0; k < m; k++) for (let i = 0; i < n; i++) s += Math.sqrt(i) * k; return s }
+            function run3(m, n) { let s = 0; for (let k = 0; k < m; k++) for (let j = 0; j < 10; j++) for (let i = 0; i < n; i++) s += (i ^ j) * k; return s }
+            for (let w = 0; w < 30; w++) { run(3, 20); run3(2, 20) }
+            """.trimIndent()
+        val expr = "[run(5, 300), run3(4, 300)].join()"
+        val expected = interpreted(src, expr)
+        NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
+            .build().newContext().use { ctx ->
+                ctx.agent.config.tier2 = true
+                ctx.eval(src)
+                for (n in listOf("run", "run3")) {
+                    val cb: CodeBlock = (ctx.eval(n).raw as JSClosure).code
+                    cb.baseline ?: JvmCompiler.compile(cb)!!.also { cb.baseline = it; cb.compiled = it }
+                    val code = T2.compile(cb, CodeDefiners.default) ?: fail("$n not compiled: ${T2.failureReasons.keys}")
+                    assertTrue((code as dev.mooner.neonjs.jit.opt.T2Code).osrPcs.size >= 2, "$n: entries ${code.osrPcs.toList()}")
+                    Jit.install(cb, code)
+                }
+                assertEquals(expected, ctx.eval(expr).asString())
+            }
+    }
+
     /** The IR of function [name] after [src] ran in the interpreter (its caches and profiles filled). */
     private fun irOf(src: String, name: String, profiled: Boolean = false): String =
         NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).console(null).build().newContext().use { ctx ->

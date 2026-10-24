@@ -385,21 +385,46 @@ internal class IrCodegen(
         val targets = JvmCompiler.backEdgeTargets(g.code.code)
         if (targets.isEmpty()) return
         val live = liveIn()
-        // (a loop copied on a closure test, Unswitch: entered at its header, which tests first, the copy's header not)
-        fun enterable(b: Block, regs: Array<Value>): Boolean {
-            // the values LICM moved before the loop are made again (below), from registers
-            val e = b.loopEntry
-            fun ok(v: Value) = regs.any { it === v } || (e != null && v is Inst && v.block === e)
-            return live[b]!!.all { ok(it) } &&
-                (e == null || (e.insts.all { i -> i.inputs.all { it is Const || ok(it) } } && regs.all { it is Const || local[it] != null }))
+        // the blocks of each loop LICM made an entry block for: an entry inside it makes that block's code again too (what
+        // the loop it enters relies on, guards included, was moved out of the loops around it as well)
+        val index = HashMap<Block, Int>()
+        for ((k, b) in g.blocks.withIndex()) index[b] = k
+        val bodies = HashMap<Block, Set<Block>>()
+        for (h in g.blocks) if (h.loopHeader && h.loopEntry != null) {
+            val body = HashSet<Block>()
+            body.add(h)
+            val work = ArrayDeque(h.preds.filter { index[it]!! >= index[h]!! })
+            while (work.isNotEmpty()) {
+                val b = work.removeLast()
+                if (body.add(b)) work.addAll(b.preds)
+            }
+            bodies[h] = body
         }
+        /** The entry blocks of the loops around [b], outermost first. */
+        fun around(b: Block): List<Block> = g.blocks.filter { h -> h !== b && bodies[h]?.contains(b) == true }.map { it.loopEntry!! }
+        /**
+         * Whether an entry at [b] with registers [regs] has every value live there, the entry blocks [made] (made again
+         * in order, from registers) having theirs (a register's value without a local, dead there, is not loaded).
+         */
+        fun enterable(b: Block, regs: Array<Value>, made: List<Block>, more: List<Value> = emptyList()): Boolean {
+            val defined = HashSet<Value>()
+            fun ok(v: Value) = v is Const || v in defined || (regs.any { it === v } && local[v] != null)
+            for (e in made) for (i in e.insts) if (!i.isTerminator) {
+                if (!i.inputs.all { ok(it) }) return false
+                defined.add(i)
+            }
+            return live[b]!!.all { ok(it) } && more.all { ok(it) }
+        }
+        // (a loop copied on a closure test, Unswitch: entered at its header, which tests first, the copy's header not)
         val entries = g.blocks.filter { b ->
             val regs = b.entryRegs
             val tw = b.twin
-            b.site == null && regs != null && b.entryDepth == 0 && b.twinOf == null && java.util.Arrays.binarySearch(targets, b.pc) >= 0 &&
-                enterable(b, regs) &&
-                (tw == null || (tw.entryRegs != null && enterable(tw, tw.entryRegs!!) &&
-                    b.dispatch!!.insts.all { i -> i.isTerminator || i.inputs.all { v -> v is Const || regs.any { it === v } } }))
+            if (b.site != null || regs == null || b.entryDepth != 0 || b.twinOf != null || java.util.Arrays.binarySearch(targets, b.pc) < 0) return@filter false
+            val out = around(b)
+            if (tw == null) return@filter enterable(b, regs, out + listOfNotNull(b.loopEntry))
+            val test = b.dispatch!!
+            tw.entryRegs != null && enterable(b, regs, out + test + listOfNotNull(b.loopEntry), test.term.inputs.toList()) &&
+                enterable(tw, tw.entryRegs!!, out + test + listOfNotNull(tw.loopEntry))
         }.sortedBy { it.pc }
         g.osrPcs = entries.map { it.pc }.distinct().toIntArray()
         val normal = Label()
@@ -464,22 +489,29 @@ internal class IrCodegen(
                     mv.visitLabel(next)
                 }
             }
+            /**
+             * Block [e]'s code again (an entry block, the test before a copied loop), its exits resuming at header [b]
+             * (a register's value without a local, dead there, as undefined).
+             */
+            fun again(e: Block, b: Block) {
+                val regs = b.entryRegs!!
+                val state = FrameState(b.pc, Array(regs.size) { r -> regs[r].let { v -> if (v is Const || local[v] != null) v else Const(Undefined) } }, b.site)
+                for (i in e.insts) if (!i.isTerminator) {
+                    val s = i.state
+                    if (s != null) i.state = state
+                    inst(i)
+                    i.state = s
+                }
+            }
             /** Into header [b]: what LICM moved before the loop, its exits resuming at the header with the registers loaded. */
             fun enter(b: Block) {
-                b.loopEntry?.let { e ->
-                    val state = FrameState(b.pc, b.entryRegs!!.copyOf(), b.site)
-                    for (i in e.insts) if (!i.isTerminator) {
-                        val s = i.state
-                        if (s != null) i.state = state
-                        inst(i)
-                        i.state = s
-                    }
-                }
+                b.loopEntry?.let { again(it, b) }
                 mv.visitJumpInsn(GOTO, label[b])
             }
             for ((k, b) in entries.withIndex()) {
                 mv.visitLabel(starts[k])
                 registers(b)
+                for (e in around(b)) again(e, b)
                 val tw = b.twin
                 if (tw == null) {
                     enter(b)
@@ -487,7 +519,7 @@ internal class IrCodegen(
                 }
                 // a loop copied on a closure test: the test, then the loop or its copy (whose registers are its own)
                 val test = b.dispatch!!
-                for (i in test.insts) if (!i.isTerminator) inst(i)
+                again(test, b)
                 val copy = Label()
                 load(test.term.inputs[0], JT.BOOL)
                 mv.visitJumpInsn(if (test.term.a == Op.JUMP_IF_TRUE) IFNE else IFEQ, copy)

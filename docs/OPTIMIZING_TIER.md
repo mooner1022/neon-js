@@ -381,18 +381,14 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
       Frame": fib 120 -> 67 ms, the benchmark 130 -> 82 ms per loop). Left per call: the arguments array and the
       result's box (direct calls between T2 codes with unboxed arguments and results). Inlining recursion deeper made
       ART slower (depth 2: 141 -> 175 ms; depth 3: 1.3 s, apparently not JIT-compiled by ART).
-    - a call site that gets a second function after its first compilation (StarLight's repeatf) runs the loop of its
-      first one with a guard, then gives way after 4 exits and is compiled again with a branch to a plain call there;
-      the call on that branch keeps LICM out of the loop (70 against 63 ms per loop on ART). Loop versioning on the
-      invariant closure test would keep the first loop's code. The loop where the block is compiled again takes 40 ms
-      more: the compilation itself (the IR, D8 on the device, then ART's JIT), not T1 running meanwhile (keeping the
-      old code until the new one was there changed nothing).
+    - a call site of a value other than a parameter (a global, a property) that gets a second function after its first
+      compilation still gives way after 4 exits and is compiled again with a branch to a plain call (Unswitch copies
+      only loops calling a parameter); the code compiled again then runs in ART's interpreter until ART compiles it
+      (StarLight's repeatf lost 40 ms so before Unswitch: when its copied loop could not be entered, the same 40 ms
+      moved to the first loop), and the call on that branch keeps LICM out of the loop.
     - MAKE_CLASS (`classes`), environment loads with a TDZ check moved out of loops (module `const`).
     - `new` is inlined from the interpreter's feedback only: compiled mode (no feedback; static targets cover calls
       only) constructs as before.
-    - an inner loop's header is no on-stack replacement entry where LICM moved values with results out of the loop
-      around it (they are live there but in no register): the interpreter, then the baseline, run such a loop until
-      the function is entered again.
     - fib on ART: the call machinery is 54% of the samples, the body 32%, boxing 13%; taking out of the helper what a
       direct call would skip (argument pools, `this`, flags, realm, try/finally) gained 0-3%, and inlining the
       recursion twice nothing (three times: 2.5x slower). What is left needs calls without a frame per call or boxes
@@ -447,6 +443,12 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
     StarLight's repeatf (radius, then fib) no longer exits 4 times, gives way and is compiled again in the fourth loop
     (its new code ran in ART's interpreter until ART compiled it: 102-104 ms), and its loop keeps LICM in the fifth
     (63-65 ms, not 71-73): on ART, StarLight 75.4-76.2 -> 66.0-66.8 ms per loop.
+  - on-stack replacement in nested loops: LICM moves what an inner loop relies on (guards included) out of the loops
+    around it too, so an entry at an inner header makes the entry blocks of those loops again (outermost first) before
+    its own, from the registers; a register without a local (dead at the header, a phi removed) is not loaded, and the
+    exits of what is made again see it undefined. Inner headers were no entries where an outer entry block had a value
+    live inside (the closure test of a copied loop, an environment): such a loop ran in the baseline, which looks for
+    the tier's code where its iteration budget runs out, nearly always at an inner back edge.
   - a construction (`new F`) reads F's `prototype` through the slot its code block's closures were last seen to hold
     it at (`CodeBlock.prototypeSlot`, by shape: they share it), not with a lookup (all tiers); boxes of the integers
     -1024..1023 are shared (`Ops.num`: `-i` allocated one). On ART: NeonBench alloc 6.8-6.9K -> 7.2K, `new` of a class
