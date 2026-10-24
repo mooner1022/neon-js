@@ -376,9 +376,15 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
     - T2 compiles once, right after T1 is installed: code that had not run then (a function's second loop) gets no
       feedback, so no inlining or checks there, and nothing recompiles it. Compile later, or again when such code turns
       hot (P5).
-    - calls: fib(30) is now most of the StarLight benchmark (about 90 ns a call on ART: simpleperf shows allocation
-      and its GC, the frame, the arguments array, the result's box). Inlining recursion deeper made ART slower (depth 2:
-      141 -> 175 ms; depth 3: 1.3 s, apparently not JIT-compiled by ART). Direct calls between T2 codes.
+    - calls: fib(30) is most of the StarLight benchmark. simpleperf on ART showed allocation and its collection as
+      the cost (36% of samples in the GC thread); frames are now reused on ART (ARCHITECTURE "Every call allocates a
+      Frame": fib 120 -> 67 ms, the benchmark 130 -> 82 ms per loop). Left per call: the arguments array and the
+      result's box (direct calls between T2 codes with unboxed arguments and results). Inlining recursion deeper made
+      ART slower (depth 2: 141 -> 175 ms; depth 3: 1.3 s, apparently not JIT-compiled by ART).
+    - a call site that gets a second function after its first compilation (StarLight's repeatf) runs the loop of its
+      first one with a guard, then gives way after 4 exits and is compiled again with a branch to a plain call there
+      (one loop runs on T1 meanwhile: 146 against 108 ms); the call on that branch then keeps LICM out of the loop.
+      Loop versioning on the invariant closure test would keep the first loop's code.
     - `new` inlining, MAKE_CLASS (`classes`), environment loads with a TDZ check moved out of loops (module `const`).
 - **P5: tiering and tuning** (~1.5K). T1 -> T2 counters, OSR from T1 into T2 at loop headers, background T2 queue,
   thresholds, profiling T1 if compiled mode needs it, the builder option, Android measurement. Exit: StarLight's

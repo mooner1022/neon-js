@@ -78,6 +78,15 @@ helper, `JitRt.call0`..`call4`, which includes the steps of `callClosure` and `e
 inline functions): ART's ahead-of-time code does not inline across the three, and HotSpot gives up on them as a chain.
 Together with the smaller frame this made calls 15-30% faster on HotSpot; each change alone gained little.
 
+On ART, calls of compiled code also reuse frames: the agent keeps up to 64 frames of such calls that returned
+(`Agent.framePool`, without extra state and while no debugger hook may hold one), and `Frame.reuse` makes one the next
+call's. Allocating and collecting frames took about 45% of a recursive call there (the StarLight benchmark: 330 -> 290 ms
+per loop in T1, 130 -> 82 ms with the optimizing tier). Nothing else holds a frame once its call returned: stack traces
+are strings, arguments objects hold the arguments and the environment, and an error object holds the frame it was made
+in weakly, with that frame's activation (`Frame.activation`, bumped on reuse). HotSpot's compilers remove the
+allocation of a frame that does not escape, which the pool would defeat (calls of closures 40% slower), so it is off
+there; `-Dneonjs.framePool=true|false` decides instead.
+
 Proper tail calls: `TAIL_CALL` to a plain closure stores the callee in the frame and returns `TAIL`; `callClosure`
 loops (a trampoline), so tail-recursive code runs in constant JS and JVM stack. Other callees (natives, proxies,
 bound functions) are called directly in the calling function's realm.
