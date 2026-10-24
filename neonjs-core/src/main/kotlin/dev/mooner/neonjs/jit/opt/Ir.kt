@@ -237,6 +237,13 @@ object Ir {
      * as a call instead (IrBuilder.inline).
      */
     const val IS_CLOSURE = 1017
+    /**
+     * (fn) the guard of a builtin computed in place: unless fn is a builtin of intrinsic [Inst.a] (NativeFunction.
+     * intrinsic), an exit to [Inst.state], before the CALL. (args) MATH: that builtin's result, a double, as its Java
+     * method computes it (MathIntrinsic), the arguments taken to numbers first.
+     */
+    const val CHECK_INTRINSIC = 1018
+    const val MATH = 1019
     /** Terminators. GOTO; BRANCH(value): [Inst.a] is the bytecode jump tested (JUMP_IF_TRUE and the like). */
     const val GOTO = 1100
     const val BRANCH = 1101
@@ -274,6 +281,8 @@ object Ir {
         LOAD_GLOBAL_LEX -> "LoadGlobalLex"
         LOAD_GLOBAL_SLOT -> "LoadGlobalSlot"
         IS_CLOSURE -> "IsClosure"
+        CHECK_INTRINSIC -> "CheckIntrinsic"
+        MATH -> "Math"
         SWITCH -> "Switch"
         GOTO -> "Goto"
         BRANCH -> "Branch"

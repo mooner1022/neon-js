@@ -31,11 +31,12 @@ internal object QuietInlines {
     private fun quiet(i: Inst, kinds: Kinds): Boolean = when (i.op) {
         // numbers only: no valueOf, no BigInt mixing
         Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD, Op.EXP, Op.BAND, Op.BOR, Op.BXOR, Op.SHL, Op.SAR, Op.SHR,
-        Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC, Op.TO_NUMBER ->
+        Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC, Op.TO_NUMBER, Ir.MATH ->
             i.inputs.all { JT.isNum(kinds.of(it)) }
         Op.SEQ, Op.SNE, Op.NOT, Op.LOAD_ENV, Op.STORE_ENV -> true
         Ir.CHECK_NUMBER, Ir.CHECK_INT32, Ir.CHECK_CLOSURE, Ir.LOAD_SLOT, Ir.STORE_SLOT, Ir.LOAD_GLOBAL_LEX,
-        Ir.LOAD_GLOBAL_SLOT, Ir.STRESS_EXIT, Ir.CLOSURE_ENV, Ir.IS_CLOSURE, Ir.INLINE_THIS, Ir.SET_HOME, Ir.GOTO, Ir.BRANCH, Ir.SWITCH -> true
+        Ir.LOAD_GLOBAL_SLOT, Ir.STRESS_EXIT, Ir.CLOSURE_ENV, Ir.IS_CLOSURE, Ir.CHECK_INTRINSIC, Ir.INLINE_THIS, Ir.SET_HOME, Ir.GOTO,
+        Ir.BRANCH, Ir.SWITCH -> true
         Ir.INLINE_ENTER, Ir.INLINE_EXIT -> i.callee!!.quiet
         else -> false
     }

@@ -102,6 +102,12 @@ class ScopeInfo(
 class CallFeedback {
     @JvmField var target: CodeBlock? = null
     @JvmField var count = 0
+    /** The builtin intrinsic (NativeFunction.intrinsic) called there: 0 none, -1 more than one. */
+    @JvmField var intrinsic = 0
+
+    fun recordIntrinsic(id: Int) {
+        intrinsic = if (intrinsic == 0 || intrinsic == id) id else -1
+    }
 
     fun record(cb: CodeBlock) {
         if (target === cb) count++

@@ -64,7 +64,8 @@ internal object Licm {
         }
         fun stored(shape: Any?, slot: Int) = stores.any { it.first === shape && it.second == slot }
         fun movable(i: Inst, b: Block): Boolean = when (i.op) {
-            Ir.CHECK_CLOSURE, Ir.CHECK_NUMBER, Ir.CHECK_INT32, Ir.CLOSURE_ENV, Ir.IS_CLOSURE -> true
+            Ir.CHECK_CLOSURE, Ir.CHECK_NUMBER, Ir.CHECK_INT32, Ir.CLOSURE_ENV, Ir.IS_CLOSURE, Ir.CHECK_INTRINSIC -> true
+            Ir.MATH -> i.inputs.all { JT.isNum(kinds.of(it)) }
             // (after its call's guard, in the same block: moved together)
             Ir.INLINE_THIS -> i.a == 1
             // numbers of numbers, without an exit (ART does not move them where an exit's call is in the loop)
@@ -110,12 +111,12 @@ internal object Licm {
     /** Whether [i] can neither run code of its own nor write anything (a slot through a shape aside). */
     private fun clean(i: Inst, kinds: Kinds): Boolean = when (i.op) {
         Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD, Op.EXP, Op.BAND, Op.BOR, Op.BXOR, Op.SHL, Op.SAR, Op.SHR,
-        Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC, Op.TO_NUMBER ->
+        Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC, Op.TO_NUMBER, Ir.MATH ->
             i.inputs.all { JT.isNum(kinds.of(it)) }
         // (a TDZ check throws, which leaves the loop: no write)
         Op.SEQ, Op.SNE, Op.NOT, Op.LOAD_ENV, Op.LOAD_ENV_TDZ, Op.NEW_OBJECT_LITERAL -> true
         Ir.CHECK_NUMBER, Ir.CHECK_INT32, Ir.CHECK_CLOSURE, Ir.LOAD_SLOT, Ir.LOAD_GLOBAL_LEX, Ir.LOAD_GLOBAL_SLOT,
-        Ir.STRESS_EXIT, Ir.CLOSURE_ENV, Ir.IS_CLOSURE, Ir.INLINE_THIS, Ir.INLINE_ENTER, Ir.INLINE_EXIT, Ir.SET_HOME, Ir.GOTO, Ir.BRANCH,
+        Ir.STRESS_EXIT, Ir.CLOSURE_ENV, Ir.IS_CLOSURE, Ir.CHECK_INTRINSIC, Ir.INLINE_THIS, Ir.INLINE_ENTER, Ir.INLINE_EXIT, Ir.SET_HOME, Ir.GOTO, Ir.BRANCH,
         Ir.SWITCH, Ir.RETURN -> true
         else -> false
     }

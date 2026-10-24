@@ -112,26 +112,26 @@ internal object MathBuiltins {
         m.value("SQRT1_2", sqrt(0.5), Attr.NONE)
         m.value("SQRT2", sqrt(2.0), Attr.NONE)
         m.value(JSSymbol.toStringTag, "Math", Attr.CONFIGURABLE)
-        fun f1(name: String, op: (Double) -> Double) {
-            m.method(realm, name, 1) { _, _, args, _ -> op(Ops.toNumber(args.arg(0))) }
+        fun f1(name: String, intrinsic: Int = 0, op: (Double) -> Double) {
+            m.method(realm, name, 1) { _, _, args, _ -> op(Ops.toNumber(args.arg(0))) }.intrinsic = intrinsic
         }
-        f1("abs") { abs(it) }
+        f1("abs", MathIntrinsic.ABS) { abs(it) }
         f1("acos") { acos(it) }
         f1("acosh") { x -> MathExtra.acosh(x) }
         f1("asin") { asin(it) }
         f1("asinh") { x -> MathExtra.asinh(x) }
-        f1("atan") { atan(it) }
+        f1("atan", MathIntrinsic.ATAN) { atan(it) }
         f1("atanh") { x -> MathExtra.atanh(x) }
         f1("cbrt") { cbrt(it) }
-        f1("ceil") { ceil(it) }
+        f1("ceil", MathIntrinsic.CEIL) { ceil(it) }
         f1("clz32") { x -> Integer.numberOfLeadingZeros(Ops.toInt32(x)).toDouble() }
-        f1("cos") { cos(it) }
+        f1("cos", MathIntrinsic.COS) { cos(it) }
         f1("cosh") { cosh(it) }
-        f1("exp") { Math.exp(it) }
+        f1("exp", MathIntrinsic.EXP) { Math.exp(it) }
         f1("expm1") { expm1(it) }
-        f1("floor") { floor(it) }
+        f1("floor", MathIntrinsic.FLOOR) { floor(it) }
         f1("fround") { x -> x.toFloat().toDouble() }
-        f1("log") { ln(it) }
+        f1("log", MathIntrinsic.LOG) { ln(it) }
         f1("log1p") { ln1p(it) }
         f1("log10") { log10(it) }
         f1("log2") { x ->
@@ -150,10 +150,10 @@ internal object MathBuiltins {
             }
         }
         f1("sign") { x -> if (x.isNaN()) x else if (x > 0) 1.0 else if (x < 0) -1.0 else x }
-        f1("sin") { sin(it) }
+        f1("sin", MathIntrinsic.SIN) { sin(it) }
         f1("sinh") { sinh(it) }
-        f1("sqrt") { sqrt(it) }
-        f1("tan") { tan(it) }
+        f1("sqrt", MathIntrinsic.SQRT) { sqrt(it) }
+        f1("tan", MathIntrinsic.TAN) { tan(it) }
         f1("tanh") { tanh(it) }
         f1("trunc") { x -> if (x.isNaN() || x.isInfinite()) x else if (x < 0) ceil(x) else floor(x) }
         f1("f16round") { x -> Float16.round(x) }
@@ -161,7 +161,7 @@ internal object MathBuiltins {
             val y = Ops.toNumber(args.arg(0))
             val x = Ops.toNumber(args.arg(1))
             atan2(y, x)
-        }
+        }.intrinsic = MathIntrinsic.ATAN2
         m.method(realm, "hypot", 2) { _, _, args, _ ->
             val nums = DoubleArray(args.size) { Ops.toNumber(args[it]) }
             var inf = false
@@ -209,7 +209,7 @@ internal object MathBuiltins {
             }
             r
         }
-        m.method(realm, "pow", 2) { _, _, args, _ -> Ops.pow(Ops.toNumber(args.arg(0)), Ops.toNumber(args.arg(1))) }
+        m.method(realm, "pow", 2) { _, _, args, _ -> Ops.pow(Ops.toNumber(args.arg(0)), Ops.toNumber(args.arg(1))) }.intrinsic = MathIntrinsic.POW
         m.method(realm, "random", 0) { f, _, _, _ -> f.realm.agent.nextRandom() }
         m.method(realm, "sumPrecise", 1) { f, _, args, _ -> SumPrecise.sum(f.realm, args.arg(0)) }
     }

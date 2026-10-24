@@ -2,6 +2,7 @@ package dev.mooner.neonjs.jit.opt
 
 import dev.mooner.neonjs.compiler.Op
 import dev.mooner.neonjs.jit.*
+import dev.mooner.neonjs.runtime.MathIntrinsic
 import dev.mooner.neonjs.runtime.Null
 import dev.mooner.neonjs.runtime.Undefined
 import org.objectweb.asm.Label
@@ -9,6 +10,7 @@ import org.objectweb.asm.MethodVisitor
 import org.objectweb.asm.Opcodes.*
 
 private const val GLOBAL_ENV = "dev/mooner/neonjs/runtime/GlobalEnv"
+private const val NATIVE = "dev/mooner/neonjs/runtime/NativeFunction"
 private const val GLOBAL_ENV_D = "L$GLOBAL_ENV;"
 
 /**
@@ -673,6 +675,54 @@ internal class IrCodegen(
                 pushUndefined()
                 mv.visitLabel(end)
                 done(i, JT.ANY)
+                return
+            }
+            Ir.CHECK_INTRINSIC -> {
+                val l = Label()
+                load(i.inputs[0], JT.ANY)
+                mv.visitInsn(DUP)
+                mv.visitTypeInsn(INSTANCEOF, NATIVE)
+                val ok = Label()
+                mv.visitJumpInsn(IFNE, ok)
+                mv.visitInsn(POP)
+                mv.visitJumpInsn(GOTO, l)
+                mv.visitLabel(ok)
+                mv.visitTypeInsn(CHECKCAST, NATIVE)
+                mv.visitFieldInsn(GETFIELD, NATIVE, "intrinsic", "I")
+                iconst(i.a)
+                mv.visitJumpInsn(IF_ICMPNE, l)
+                exits.add(specExit(l, i))
+                return
+            }
+            Ir.MATH -> {
+                // the arguments as numbers (ToNumber may run valueOf: the position first), then the builtin's Java method
+                for (v in i.inputs) {
+                    val k = kindOf(v)
+                    if (JT.isNum(k)) load(v, JT.NUM)
+                    else {
+                        storePc(i)
+                        load(v, JT.ANY)
+                        rt("toNumberD", "($OBJ)D")
+                    }
+                }
+                when (i.a) {
+                    MathIntrinsic.POW -> mv.visitMethodInsn(INVOKESTATIC, "dev/mooner/neonjs/runtime/Ops", "pow", "(DD)D", false)
+                    MathIntrinsic.ATAN2 -> mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "atan2", "(DD)D", false)
+                    else -> mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", when (i.a) {
+                        MathIntrinsic.ABS -> "abs"
+                        MathIntrinsic.SQRT -> "sqrt"
+                        MathIntrinsic.SIN -> "sin"
+                        MathIntrinsic.COS -> "cos"
+                        MathIntrinsic.TAN -> "tan"
+                        MathIntrinsic.ATAN -> "atan"
+                        MathIntrinsic.EXP -> "exp"
+                        MathIntrinsic.LOG -> "log"
+                        MathIntrinsic.FLOOR -> "floor"
+                        MathIntrinsic.CEIL -> "ceil"
+                        else -> throw JitBailout("intrinsic ${i.a}")
+                    }, "(D)D", false)
+                }
+                done(i, JT.NUM)
                 return
             }
             Ir.IS_CLOSURE -> {

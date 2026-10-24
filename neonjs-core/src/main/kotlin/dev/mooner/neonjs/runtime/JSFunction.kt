@@ -32,6 +32,28 @@ fun interface NativeImpl {
     fun invoke(f: NativeFunction, thisArg: Any?, args: Array<Any?>, newTarget: JSObject?): Any?
 }
 
+/**
+ * The Math functions the optimizing tier computes in place (jit/opt: Ir.MATH): ids of [NativeFunction.intrinsic], each
+ * computed with the Java method its builtin calls.
+ */
+object MathIntrinsic {
+    const val ABS = 1
+    const val SQRT = 2
+    const val SIN = 3
+    const val COS = 4
+    const val TAN = 5
+    const val ATAN = 6
+    const val EXP = 7
+    const val LOG = 8
+    const val FLOOR = 9
+    const val CEIL = 10
+    const val ATAN2 = 11
+    const val POW = 12
+
+    /** The number of arguments of intrinsic [id]. */
+    fun arity(id: Int) = if (id >= ATAN2) 2 else 1
+}
+
 /** Builtin function implemented in Kotlin. */
 open class NativeFunction(
     realm: Realm,
@@ -44,6 +66,11 @@ open class NativeFunction(
 ) : JSFunction(realm, proto) {
     /** Optional internal slots for builtins that need state (e.g. promise resolving functions). */
     @JvmField var slot0: Any? = null
+    /**
+     * For a builtin the optimizing tier computes in place where the feedback names it ([MathIntrinsic]; 0: none). The
+     * same in every realm: the function's Kotlin, not the object.
+     */
+    @JvmField var intrinsic = 0
 
     init {
         if (isConstructor) special = special or CONSTRUCTOR

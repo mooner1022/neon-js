@@ -270,7 +270,7 @@ internal class IrBuilder(
     /** Whether [i] does nothing but compute its result (or exit: a speculation). */
     private fun pure(i: Inst, kinds: Kinds): Boolean = when (i.op) {
         Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD, Op.EXP, Op.BAND, Op.BOR, Op.BXOR, Op.SHL, Op.SAR, Op.SHR,
-        Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC, Op.TO_NUMBER ->
+        Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC, Op.TO_NUMBER, Ir.MATH ->
             i.inputs.all { JT.isNum(kinds.of(it)) }
         Op.SEQ, Op.SNE, Op.NOT, Op.LOAD_ENV, Ir.CHECK_NUMBER, Ir.CHECK_INT32, Ir.LOAD_SLOT, Ir.LOAD_GLOBAL_LEX,
         Ir.LOAD_GLOBAL_SLOT, Ir.CLOSURE_ENV -> true
@@ -754,7 +754,18 @@ internal class IrBuilder(
                     }
                     Op.CALL -> {
                         val target = inlineTarget(pc)
-                        if (target == null || stack.size < a + 2) {
+                        val intrinsic = if (target == null) intrinsicAt(pc, a) else 0
+                        if (intrinsic != 0) {
+                            // a Math builtin the feedback saw called there: computed in place behind a guard that
+                            // leaves before the call for anything else
+                            val n = a + 2
+                            if (stack.size < n) throw JitBailout("operand stack underflow at $pc")
+                            val fn = stack[stack.size - n]
+                            val args = Array(a) { stack[stack.size - a + it] }
+                            add(cur, Inst(Ir.CHECK_INTRINSIC, arrayOf(fn), intrinsic, 0, 0, pc, stmt)).state = state(pc)
+                            repeat(n) { stack.removeAt(stack.size - 1) }
+                            stack.add(add(cur, Inst(Ir.MATH, args, intrinsic, 0, 0, pc, stmt).also { it.hasResult = true }))
+                        } else if (target == null || stack.size < a + 2) {
                             val n = a + 2
                             if (stack.size < n) throw JitBailout("operand stack underflow at $pc")
                             val inputs = Array(n) { stack[stack.size - n + it] }
@@ -835,6 +846,13 @@ internal class IrBuilder(
             }
             if (inlined + target.code.size > INLINE_BUDGET) return null
             return target
+        }
+
+        /** The Math builtin (MathIntrinsic) the CALL at [pc] with [argc] arguments always called, or 0. */
+        private fun intrinsicAt(pc: Int, argc: Int): Int {
+            if (!speculate || code.t2FailedAt(pc)) return 0
+            val id = code.callFeedback?.getOrNull(pc)?.intrinsic ?: return 0
+            return if (id > 0 && dev.mooner.neonjs.runtime.MathIntrinsic.arity(id) == argc) id else 0
         }
 
         /**

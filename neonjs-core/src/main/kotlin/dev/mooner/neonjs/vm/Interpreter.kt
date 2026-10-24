@@ -216,6 +216,12 @@ object Interpreter {
 
     private fun newProfile(cb: CodeBlock): ValueProfile = ValueProfile(cb.code.size, cb.formalCount).also { cb.profile = it }
 
+    /** Notes that the CALL at [pc] in [cb] called the builtin intrinsic [id] (NativeFunction.intrinsic). */
+    private fun recordIntrinsic(cb: CodeBlock, pc: Int, id: Int) {
+        val fb = cb.callFeedback ?: arrayOfNulls<CallFeedback>(cb.code.size).also { cb.callFeedback = it }
+        (fb[pc] ?: CallFeedback().also { fb[pc] = it }).recordIntrinsic(id)
+    }
+
     /** Notes that the CALL at [pc] in [cb] called a closure of [callee] (feedback for the JIT's inlining). */
     private fun recordCall(cb: CodeBlock, pc: Int, callee: CodeBlock) {
         val fb = cb.callFeedback ?: arrayOfNulls<CallFeedback>(cb.code.size).also { cb.callFeedback = it }
@@ -508,7 +514,10 @@ object Interpreter {
                             s[sp] = null
                             val fnv = s[sp - 1]
                             f.pc = opStart
-                            if (recordCalls && fnv is JSClosure) recordCall(cb, opStart, fnv.code)
+                            if (recordCalls) {
+                                if (fnv is JSClosure) recordCall(cb, opStart, fnv.code)
+                                else if (fnv is NativeFunction && fnv.intrinsic != 0) recordIntrinsic(cb, opStart, fnv.intrinsic)
+                            }
                             s[sp - 1] = if (fnv is JSObject && fnv.special and JSObject.CALLABLE != 0) fnv.call(thisV, args)
                             else throw Rt.notCallable(fnv, cb, opStart)
                             prof?.record(opStart, s[sp - 1])

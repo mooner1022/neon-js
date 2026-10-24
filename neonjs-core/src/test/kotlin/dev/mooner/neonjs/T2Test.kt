@@ -423,6 +423,36 @@ class T2Test {
     }
 
     @Test
+    fun mathBuiltinsAreComputedInPlace() {
+        // Math functions the feedback saw called are computed in place behind a guard on the function: the same
+        // results (the same Java methods), ToNumber of other values (valueOf included), and a replaced function called
+        val src = """
+            function f(x) { return Math.sqrt(x) + Math.sin(x) * Math.cos(x) - Math.tan(x) + Math.atan(x) + Math.exp(x / 100) +
+                Math.log(x + 1) + Math.floor(x / 3) + Math.ceil(x / 3) + Math.abs(-x) + Math.atan2(x, 2) + Math.pow(x, 0.5) }
+            function g(v) { return [Math.sqrt(v), Math.floor(v), Math.abs(v), Math.pow(v, 2), Math.pow(1, v), Math.atan2(v, -0)] }
+            var z = v => Object.is(v, -0) ? '-0' : String(v);
+            """.trimIndent()
+        val warm = "for (var w = 0; w < 30; w++) { f(w); g(w) }"
+        val expr = "[f(1.5), f(0), f(-1), f(1e300)].concat(g(-0), g(NaN), g('9'), g({ valueOf() { return 16 } }), g(Infinity), g(-Infinity))" +
+            ".concat((Math.sqrt = x => 'replaced ' + x, g(4))).map(z).join('|')"
+        val expected = interpreted(src, "$warm; $expr")
+        NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
+            .build().newContext().use { ctx ->
+                ctx.agent.config.tier2 = true
+                ctx.eval(src)
+                ctx.eval(warm)
+                for (n in listOf("f", "g")) {
+                    val cb: CodeBlock = (ctx.eval(n).raw as JSClosure).code
+                    val ir = dev.mooner.neonjs.jit.opt.IrPrinter.print(IrBuilder(cb, ints = true, elems = true).build())
+                    assertTrue(ir.contains("CheckIntrinsic") && ir.contains("Math v"), ir)
+                    cb.baseline ?: JvmCompiler.compile(cb)!!.also { cb.baseline = it; cb.compiled = it }
+                    Jit.install(cb, T2.compile(cb, CodeDefiners.default) ?: fail("$n not compiled"))
+                }
+                assertEquals(expected, ctx.eval(expr).asString())
+            }
+    }
+
+    @Test
     fun sumsThatOverflowGiveWay() {
         // an int sum overflows in each call: the exit leaves the loop to the interpreter, whose on-stack replacement
         // the tier's code declines (the sum is a double there) and the baseline takes; after a few such exits the block
