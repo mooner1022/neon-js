@@ -458,6 +458,9 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
     compiled too: on ART, basic.js `classes` 87-98 -> 70-77 ms. A loop header's registers leave one dead there
     undefined: a value in two registers (a class's binding and MAKE_CLASS's temporary) was loaded at an entry from both,
     and the baseline's hole in the dead one overwrote it.
+  - derived classes' constructors (INIT_THIS_REG: `this` once super() returned, the register's and the frame's, as the
+    baseline sets them) are compiled as well. What is left not compiled in Test262's compiled mode (about 25 blocks):
+    methods too large, and `with` and direct eval scopes (LOAD_NAME_CALL).
 - **P5: tiering and tuning** (~1.5K). T1 -> T2 counters, OSR from T1 into T2 at loop headers, background T2 queue,
   thresholds, profiling T1 if compiled mode needs it, the builder option, Android measurement. Exit: StarLight's
   NeonBench and the user's benchmark gain on ART, first run included; default stays off until a release cycle has

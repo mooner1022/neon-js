@@ -1077,8 +1077,17 @@ class T2Test {
             function extend(n) { class A { f() { return 1 } } class B extends A { f() { return super.f() + 1 } } var s = 0; for (var i = 0; i < n; i++) s += new B().f(); return s }
             function elements(k) { class C { #p = 3; static s = 4; q = k; [k + 'm']() { return this.#p + C.s } static #t() { return 5 } static t() { return C.#t() } } var c = new C(); return [c[k + 'm'](), c.q, C.t(), typeof C, Object.getPrototypeOf(c) === C.prototype].join() }
             function anon(n) { var D = class { v() { return n } }; return new D().v() + (class {}).name }
+            class Base { constructor(v) { this.v = v } }
+            class Derived extends Base { constructor(v) { if (v < 0) throw new RangeError('neg'); super(v * 2); this.w = this.v + 1 } }
+            class Twice extends Base { constructor() { super(1); super(2) } }
+            class Early extends Base { constructor() { this.x = 1; super(1) } }
+            function derived(n) { var s = 0; for (var i = 0; i < n; i++) s += new Derived(i).w; return s }
+            function errors() { return [Twice, Early, Derived].map(C => { try { new C(-1); return 'ok' } catch (e) { return e.name } }).join() }
             """.trimIndent()
+        val ctor = "Derived"
         same(src, listOf("make", "extend", "elements", "anon"), "[make(10), extend(5), elements('a'), anon(7)].join('|')")
+        // a derived class's constructor (INIT_THIS_REG: `this` once super() returned), compiled itself
+        same(src, listOf(ctor, "Twice", "Early", "derived"), "[derived(20), errors()].join('|')")
     }
 
     @Test

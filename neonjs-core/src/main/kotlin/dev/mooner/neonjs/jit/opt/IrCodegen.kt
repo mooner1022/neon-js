@@ -1412,6 +1412,15 @@ internal class IrCodegen(
                 done(i, JT.ANY)
                 return
             }
+            Op.INIT_THIS_REG -> {
+                storePc(i)
+                load(i.inputs[0], JT.ANY)
+                load(i.inputs[1], JT.ANY)
+                frame()
+                rt("initThisReg", "($OBJ$OBJ$FRAME_D)$OBJ")
+                done(i, JT.ANY)
+                return
+            }
             Ir.PART -> {
                 load(i.inputs[0], JT.ANY)
                 mv.visitTypeInsn(CHECKCAST, CONSTS_D)

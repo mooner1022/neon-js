@@ -458,6 +458,8 @@ internal class IrBuilder(
             Op.ITER_CLOSE_THROW, Op.FOR_IN_NEXT, Op.JUMP_TABLE -> bc[pc + 1] to -1
             Op.MAKE_METHOD -> bc[pc + 2] to -1
             Op.STORE_REG -> -1 to bc[pc + 1]
+            // (its old value read: `this` once only)
+            Op.INIT_THIS_REG -> bc[pc + 1] to bc[pc + 1]
             else -> -1 to -1
         }
 
@@ -792,6 +794,11 @@ internal class IrBuilder(
                             add(cur, store)
                             stack.add(v)
                         }
+                    }
+                    Op.INIT_THIS_REG -> {
+                        // a derived constructor's `this`, from super(): its register and the frame's (JitRt.initThisReg)
+                        regs[a] = inst(op, arrayOf(pop(), regs[a]!!), result = false).also { it.hasResult = true }
+                        home(a)
                     }
                     Op.MAKE_CLASS -> {
                         // ([heritage] [name] -- proto ctor): the helper's pair, then each value of it
@@ -1226,7 +1233,7 @@ internal class IrBuilder(
 
         /** Instructions with no [arity] that the builder builds itself (iteration, the finally dispatch, methods). */
         private val BUILT_OPS = setOf(Op.ITER_STEP, Op.FOR_IN_NEXT, Op.JUMP_TABLE, Op.ITER_STEP_U, Op.ITER_REST,
-            Op.ITER_CLOSE, Op.ITER_CLOSE_THROW, Op.MAKE_METHOD, Op.MAKE_CLASS)
+            Op.ITER_CLOSE, Op.ITER_CLOSE_THROW, Op.MAKE_METHOD, Op.MAKE_CLASS, Op.INIT_THIS_REG)
 
         /** Calls compiled inlined into one another at most; bytecode ints of one callee and of all of them, at most. */
         const val MAX_INLINE_DEPTH = 3
