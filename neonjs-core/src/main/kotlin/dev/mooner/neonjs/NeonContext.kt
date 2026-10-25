@@ -141,6 +141,9 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
             throw NeonException("Host exception: ${e.hostCause}", e.hostCause)
         } catch (e: StackOverflowError) {
             throw NeonException("Maximum call stack size exceeded", e)
+        } catch (_: OutOfMemoryError) {
+            // (as a script's catch sees it, Rt.catchValue: the evaluation ends, not the host's thread)
+            throw NeonResourceLimitException("Out of memory")
         }
     }
 

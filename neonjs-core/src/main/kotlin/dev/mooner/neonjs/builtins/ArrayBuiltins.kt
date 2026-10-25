@@ -768,6 +768,14 @@ internal object ArrayBuiltins {
     fun mergeSort(items: List<Any?>, cmp: Any?): List<Any?> {
         val n = items.size
         if (n < 2) return items
+        // the default order compares in Kotlin (strings of any length): the agent's limits are checked once per 1,024
+        // comparisons (a comparator's calls check them too)
+        val agent = Agent.current.get()
+        var compares = 0
+        fun compare(x: Any?, y: Any?): Int {
+            if (++compares and 1023 == 0) agent?.checkInterrupt()
+            return sortCompare(x, y, cmp)
+        }
         var src = items.toTypedArray()
         var dst = arrayOfNulls<Any?>(n)
         // insertion sort runs of 8
@@ -778,7 +786,7 @@ internal object ArrayBuiltins {
             for (j in i + 1 until end) {
                 val v = src[j]
                 var k = j - 1
-                while (k >= i && sortCompare(src[k], v, cmp) > 0) {
+                while (k >= i && compare(src[k], v) > 0) {
                     src[k + 1] = src[k]
                     k--
                 }
@@ -796,7 +804,7 @@ internal object ArrayBuiltins {
                 var b = mid
                 var o = lo
                 while (a < mid && b < hi) {
-                    if (sortCompare(src[b], src[a], cmp) < 0) dst[o++] = src[b++] else dst[o++] = src[a++]
+                    if (compare(src[b], src[a]) < 0) dst[o++] = src[b++] else dst[o++] = src[a++]
                 }
                 while (a < mid) dst[o++] = src[a++]
                 while (b < hi) dst[o++] = src[b++]

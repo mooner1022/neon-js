@@ -63,6 +63,40 @@ class SecurityTest {
         }
     }
 
+    /**
+     * Found by the red-team sandbox: built-in loops that call no JS (a sort in the default order of long strings, a
+     * typed array's join or scan) ran past every limit. Each must check them: under an instruction budget no check
+     * passes, the operation is stopped where the setup alone (no loop, few calls) completes.
+     */
+    @Test
+    fun builtinLoopsCallingNoJsCheckTheLimits() {
+        val policy = SandboxPolicy.builder().maxStatements(100).build()
+        val cases = listOf(
+            // (fewer elements than the collecting loop checks for, more comparisons than the sort does)
+            "var a = 'x'.repeat(1000).split('')" to "a.sort()",
+            "var a = 'x'.repeat(1000).split('')" to "a.toSorted()",
+            "var s = 'a'.repeat(5000)" to "s.replaceAll('a', 'bb')",
+            "var t = new Uint8Array(5000)" to "t.join()",
+            "var t = new Uint8Array(5000)" to "t.toLocaleString()",
+            "var t = new Uint8Array(200000)" to "t.indexOf(1)",
+            "var t = new Uint8Array(200000)" to "t.lastIndexOf(1)",
+            "var t = new Uint8Array(200000)" to "t.includes(1)",
+        )
+        for (mode in listOf(ExecutionMode.INTERPRETER, ExecutionMode.COMPILED)) for ((setup, op) in cases) {
+            ctx(policy, mode = mode).use { c -> c.eval(setup) }
+            ctx(policy, mode = mode).use { c -> assertThrows<NeonResourceLimitException>("$mode: $op") { c.eval("$setup; $op") } }
+        }
+    }
+
+    @Test
+    fun outOfMemoryEndsTheEvaluation() {
+        ctx().use { c ->
+            c.setFunction("oom") { throw OutOfMemoryError("test") }
+            assertThrows<NeonResourceLimitException> { c.eval("oom()") }
+            assertEquals(2, c.eval("1 + 1").asInt())
+        }
+    }
+
     /** Inputs found by the fuzzer that used to fail with engine-internal exceptions. */
     @Test
     fun fuzzerRegressions() {

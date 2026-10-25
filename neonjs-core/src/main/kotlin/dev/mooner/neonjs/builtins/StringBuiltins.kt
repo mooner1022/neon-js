@@ -340,22 +340,30 @@ internal object StringBuiltins {
             val fnReplace = Ops.isCallable(replace)
             val rv = if (fnReplace) "" else Ops.toString(replace)
             val adv = maxOf(1, ss.length)
+            // (both loops check the agent's limits once per 1,024 matches, the second the length of the result too)
+            val agent = f.realm.agent
             val positions = ArrayList<Int>()
             var p = s.indexOf(ss, 0)
             while (p >= 0) {
                 positions.add(p)
+                if (positions.size and 1023 == 0) agent.checkInterrupt()
                 p = if (p + adv > s.length) -1 else s.indexOf(ss, p + adv)
             }
             var end = 0
             val sb = StringBuilder()
-            for (pp in positions) {
+            for ((i, pp) in positions.withIndex()) {
                 sb.append(s, end, pp)
                 val repl = if (fnReplace) Ops.toString((replace as JSObject).call(Undefined, arrayOf(ss, pp.toDouble(), s)))
                 else getSubstitution(f.realm, ss, s, pp, emptyList(), Undefined, rv)
                 sb.append(repl)
                 end = pp + ss.length
+                if (i and 1023 == 1023) {
+                    agent.checkInterrupt()
+                    agent.checkStringLength(sb.length.toLong())
+                }
             }
             if (end < s.length) sb.append(s, end, s.length)
+            agent.checkStringLength(sb.length.toLong())
             sb.toString()
         }
         proto.method(realm, "slice", 2) { _, t, args, _ ->

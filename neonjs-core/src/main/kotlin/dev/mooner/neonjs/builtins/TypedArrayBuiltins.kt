@@ -528,7 +528,8 @@ internal object TypedArrayBuiltins {
                 result
             }
         }
-        proto.method(realm, "includes", 1) { _, t, args, _ ->
+        // (the scans check the agent's limits once per 65,536 elements, the loops building strings once per 1,024)
+        proto.method(realm, "includes", 1) { f, t, args, _ ->
             val ta = validate(t, "%TypedArray%.prototype.includes")
             val len = ta.lengthOrOOB()
             if (len == 0) return@method false
@@ -536,13 +537,15 @@ internal object TypedArrayBuiltins {
             if (n == Double.POSITIVE_INFINITY) return@method false
             var k = if (n >= 0) n.toLong() else maxOf(len + n, 0.0).toLong()
             val search = args.arg(0)
+            val agent = f.realm.agent
             while (k < len) {
                 if (Ops.sameValueZero(search, ta.getIndex(k.toInt()))) return@method true
+                if (k and 0xFFFFL == 0xFFFFL) agent.checkInterrupt()
                 k++
             }
             false
         }
-        proto.method(realm, "indexOf", 1) { _, t, args, _ ->
+        proto.method(realm, "indexOf", 1) { f, t, args, _ ->
             val ta = validate(t, "%TypedArray%.prototype.indexOf")
             val len = ta.lengthOrOOB()
             if (len == 0) return@method -1.0
@@ -551,14 +554,16 @@ internal object TypedArrayBuiltins {
             var k = if (n >= 0) n.toLong() else maxOf(len + n, 0.0).toLong()
             val search = args.arg(0)
             if (search !is Double && search !is BigInteger) return@method -1.0
+            val agent = f.realm.agent
             while (k < len) {
                 val v = ta.getIndex(k.toInt())
                 if (v !== Undefined && Ops.strictEquals(search, v)) return@method k.toDouble()
+                if (k and 0xFFFFL == 0xFFFFL) agent.checkInterrupt()
                 k++
             }
             -1.0
         }
-        proto.method(realm, "lastIndexOf", 1) { _, t, args, _ ->
+        proto.method(realm, "lastIndexOf", 1) { f, t, args, _ ->
             val ta = validate(t, "%TypedArray%.prototype.lastIndexOf")
             val len = ta.lengthOrOOB()
             if (len == 0) return@method -1.0
@@ -567,24 +572,29 @@ internal object TypedArrayBuiltins {
             var k = if (n >= 0) minOf(n, (len - 1).toDouble()).toLong() else (len + n).toLong()
             val search = args.arg(0)
             if (search !is Double && search !is BigInteger) return@method -1.0
+            val agent = f.realm.agent
             while (k >= 0) {
                 val v = ta.getIndex(k.toInt())
                 if (v !== Undefined && Ops.strictEquals(search, v)) return@method k.toDouble()
+                if (k and 0xFFFFL == 0xFFFFL) agent.checkInterrupt()
                 k--
             }
             -1.0
         }
-        proto.method(realm, "join", 1) { _, t, args, _ ->
+        proto.method(realm, "join", 1) { f, t, args, _ ->
             val ta = validate(t, "%TypedArray%.prototype.join")
             val len = ta.lengthOrOOB()
             val sep = if (args.arg(0) === Undefined) "," else Ops.toString(args.arg(0))
+            val agent = f.realm.agent
             val sb = StringBuilder()
             for (k in 0 until len) {
                 if (k > 0) sb.append(sep)
                 val e = ta.getIndex(k)
                 if (e !== Undefined) sb.append(Ops.toString(e))
                 if (sb.length > Rope.MAX_LENGTH) rangeErr("Invalid string length")
+                if (k and 1023 == 1023) grown(agent, sb)
             }
+            agent.checkStringLength(sb.length.toLong())
             sb.toString()
         }
         proto.method(realm, "map", 1) { f, t, args, _ ->
@@ -697,15 +707,19 @@ internal object TypedArrayBuiltins {
             }
             speciesCreate(f.realm, ta, argList)
         }
-        proto.method(realm, "toLocaleString", 0) { _, t, _, _ ->
+        proto.method(realm, "toLocaleString", 0) { f, t, _, _ ->
             val ta = validate(t, "%TypedArray%.prototype.toLocaleString")
             val len = ta.lengthOrOOB()
+            val agent = f.realm.agent
             val sb = StringBuilder()
             for (k in 0 until len) {
                 if (k > 0) sb.append(',')
                 val e = ta.getIndex(k)
                 if (e !== Undefined) sb.append(Ops.toString(Ops.invoke(e, "toLocaleString", EMPTY_ARGS)))
+                if (sb.length > Rope.MAX_LENGTH) rangeErr("Invalid string length")
+                if (k and 1023 == 1023) grown(agent, sb)
             }
+            agent.checkStringLength(sb.length.toLong())
             sb.toString()
         }
         proto.method(realm, "toReversed", 0) { f, t, _, _ ->
@@ -741,9 +755,17 @@ internal object TypedArrayBuiltins {
         proto.defineOwn("toString", realm.arrayPrototype.get("toString"), Attr.WC)
     }
 
+    /** The agent's limits, checked while a string of a typed array's elements grows in [sb] (its length one of them). */
+    private fun grown(agent: Agent, sb: StringBuilder) {
+        agent.checkInterrupt()
+        agent.checkStringLength(sb.length.toLong())
+    }
+
     /** SortIndexedProperties with CompareTypedArrayElements; reads through `[[Get]]`. */
     private fun sortedValues(ta: JSTypedArray, len: Int, cmp: Any?): Array<Any?> {
         if (cmp === Undefined) {
+            // (the copies below, made at once: charged before)
+            Agent.current.get()?.reserveAllocation(len.toLong() * 32)
             // no user code can run: sort the raw numeric values directly
             if (ta.type.isBigInt) {
                 val b = Array(len) { ta.getIndex(it) as BigInteger }
