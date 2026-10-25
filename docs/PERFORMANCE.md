@@ -193,8 +193,9 @@ Wall time of the whole run, including the start of the process:
 
 ³ At fa1a7b0, 155,476 ms. ART's JIT does not compile a method of more than 10,000 dex code units
 (`--huge-method-max`), and dx, translating the method of ¹ without its optimizer, made 14,922. It ran in ART's
-interpreter. Since f1063d9 dx optimizes classes whose methods could come near that size, which brought the method to
-4,570 code units.
+interpreter. Since f1063d9 dx optimizes classes whose methods could come near that size. The method measured here
+(7,016 bytes, ¹) takes 4,204 code units optimized, 13,572 unoptimized: numbering locals by use does not shrink dex
+from unoptimized dx, which still gives each local a register.
 
 ### Reading the Android numbers
 
