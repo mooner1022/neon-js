@@ -175,7 +175,7 @@ On a desktop JVM, over ten workloads ([`bench/compare.js`](bench/compare.js); ge
 - The interpreter takes 27% less time than Rhino's.
 - Both compiled engines take about 5x the time of V8 (Node 25). The gap is widest in numeric code and narrowest in
   built-ins.
-- On Android (ART, in the emulator), the default mode takes 0.55x the time of compiled Rhino 1.7, the newest Rhino
+- On Android (ART, in the emulator), the default mode takes 0.56x the time of compiled Rhino 1.7, the newest Rhino
   that compiles on Android. The interpreter takes 0.56x the time of Rhino 1.9.1's.
 
 [docs/PERFORMANCE.md](docs/PERFORMANCE.md) has the setup, the per-workload numbers and their caveats.

@@ -478,7 +478,8 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
       not used: the block keeps its baseline.
     - dx optimizes classes with a method that unoptimized dx could make 9,000 code units or more (neonjs-android).
 
-    `nbody`: 7,016 bytes.
+    `nbody`: 7,016 bytes, 1.3 s on HotSpot (31 s before, adaptive mode 4.5 s) and 3.4 s on ART (155 s before,
+    adaptive mode 18 s); docs/PERFORMANCE.md.
 - **P5: tiering and tuning** (~1.5K). T1 -> T2 counters, OSR from T1 into T2 at loop headers, background T2 queue,
   thresholds, profiling T1 if compiled mode needs it, the builder option, Android measurement. Exit: StarLight's
   NeonBench and the user's benchmark gain on ART, first run included; default stays off until a release cycle has

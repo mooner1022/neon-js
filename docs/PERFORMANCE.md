@@ -1,6 +1,6 @@
 # Performance: NeonJS, V8 and Rhino
 
-Measured on 2026-10-25 at commit fa1a7b0, on a desktop JVM. The benchmark is [`bench/compare.js`](../bench/compare.js)
+Measured on 2026-10-25 at commit fa1a7b0, on a desktop JVM; the optimizing tier (T2) again on 2026-10-26 at 56e316a. The benchmark is [`bench/compare.js`](../bench/compare.js)
 and the runner [`bench/compare.sh`](../bench/compare.sh). Android, NeonJS's main target, is measured on ART in
 the emulator: see [Android](#android).
 
@@ -10,7 +10,7 @@ the emulator: see [Android](#android).
 |---|---|
 | Machine | AMD Ryzen 7 9800X3D (8 cores, 16 threads), 31 GB, Windows 11 |
 | JVM (NeonJS, Rhino) | Temurin 25.0.2, default heap, `-Xss16m` |
-| NeonJS | fa1a7b0, CLI (`neonjs --interpreter / --compiled / --adaptive`); T2: `--adaptive` with `-Dneonjs.jit.tier2=true` |
+| NeonJS | fa1a7b0, CLI (`neonjs --interpreter / --compiled / --adaptive`); T2: 56e316a, `--adaptive` with `-Dneonjs.jit.tier2=true` |
 | V8 | Node.js 25.9.0 (V8 14.1.146.11) |
 | Rhino | 1.9.1 (`rhino-all`), `-version 200`; interpreted `-opt -1`, compiled `-opt 9` |
 
@@ -44,16 +44,16 @@ Milliseconds per run, lower is faster:
 
 | workload | V8 | NeonJS interpreter | NeonJS compiled | NeonJS adaptive (default) | NeonJS adaptive + T2 | Rhino interpreted | Rhino compiled |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| sieve | 129 | 12,002 | 780 | 782 | 440 | 10,724 | 449 |
-| nbody | 178 | 33,812 | 4,738 | 4,456 | 31,163 ¹ | 37,624 | 4,834 |
-| binaryTrees | 83 | 2,232 | 456 | 444 | 367 | 4,912 | wrong result ² |
-| polymorphic | 196 | 1,585 | 460 | 425 | 310 | 2,271 | 424 |
-| strings | 168 | 957 | 356 | 348 | 269 | 1,736 | 554 |
-| regex | 163 | 1,617 | 1,826 | 1,709 | 2,038 | 3,117 | 2,806 |
-| functional | 173 | 1,527 | 572 | 570 | 560 | 2,484 | 481 |
-| collections | 144 | 536 | 332 | 285 | 281 | 737 | 337 |
-| matmul | 140 | 33,044 | 1,972 | 2,801 | 2,937 | 27,595 | 1,676 |
-| json | 168 | 354 | 354 | 363 | 378 | 382 | 385 |
+| sieve | 129 | 12,002 | 780 | 782 | 441 | 10,724 | 449 |
+| nbody | 178 | 33,812 | 4,738 | 4,456 | 1,287 ¹ | 37,624 | 4,834 |
+| binaryTrees | 83 | 2,232 | 456 | 444 | 370 | 4,912 | wrong result ² |
+| polymorphic | 196 | 1,585 | 460 | 425 | 296 | 2,271 | 424 |
+| strings | 168 | 957 | 356 | 348 | 246 | 1,736 | 554 |
+| regex | 163 | 1,617 | 1,826 | 1,709 | 1,906 | 3,117 | 2,806 |
+| functional | 173 | 1,527 | 572 | 570 | 574 | 2,484 | 481 |
+| collections | 144 | 536 | 332 | 285 | 314 | 737 | 337 |
+| matmul | 140 | 33,044 | 1,972 | 2,801 | 2,837 | 27,595 | 1,676 |
+| json | 168 | 354 | 354 | 363 | 364 | 382 | 385 |
 
 Geometric mean of the time ratios (lower is faster):
 
@@ -62,19 +62,19 @@ Geometric mean of the time ratios (lower is faster):
 | NeonJS interpreter | 18.0x | 0.73x of Rhino interpreted (10) |
 | NeonJS compiled | 5.1x | 1.00x of Rhino compiled (9, without `binaryTrees`) |
 | NeonJS adaptive (default) | 5.1x | 1.00x of Rhino compiled (9) |
-| NeonJS adaptive + T2 | 5.5x (3.7x without `nbody`, where adaptive is 4.2x) | 1.12x of Rhino compiled (9) |
+| NeonJS adaptive + T2 | 3.9x | 0.77x of Rhino compiled (9) |
 | Rhino interpreted | 24.5x | — |
 | Rhino compiled | 5.0x (9) | — |
 
 Wall time of the whole run, including JVM start, warm-up and compilation:
 - V8: 5 s.
-- NeonJS: compiled 39–45 s, adaptive 42–44 s, interpreter 283–288 s, adaptive + T2 125–135 s (`nbody`¹).
+- NeonJS: compiled 39–45 s, adaptive 42–44 s, interpreter 283–288 s, adaptive + T2 29–32 s.
 - Rhino: compiled 40–42 s, interpreted 299–307 s.
 
-¹ The optimizing tier compiles `nbody` into a JVM method of more than 8,000 bytes of bytecode. HotSpot never
-JIT-compiles such a method (`-XX:+DontCompileHugeMethods`), so it runs in the JVM's bytecode interpreter. With
-`-XX:-DontCompileHugeMethods` the same run takes 2,097 ms, 2.1x faster than without T2. The tier has no size limit
-for the code it generates yet; until it does, this number is what T2 users on HotSpot get.
+¹ At fa1a7b0 the optimizing tier compiled `nbody` into a JVM method of 8,099 bytes. HotSpot never JIT-compiles a
+method of more than 8,000 (`-XX:+DontCompileHugeMethods`), so it ran in the JVM's bytecode interpreter: 31,163 ms.
+Since 98075ae the tier numbers its locals by use, so fewer take `wide` instructions, and on-stack replacement reads
+registers through helpers. The method is now 7,016 bytes. Code still past 8,000 bytes keeps the baseline's.
 
 ² Rhino 1.9.1's compiled mode (`-opt 0` and above) evaluates `{ l: make(d - 1), r: make(d - 1) }` wrongly: `make(2)`
 returns a tree of depth 1. Its checksum differs, so the time (12 ms) is left out. Interpreted Rhino gets it right.
@@ -96,8 +96,8 @@ Rhino 1.7.15.1's compiled mode has the same bug (checksum 87377 on Android).
   `collections` 2.0x, `strings` 2.1x. V8 also reaches its speed within the warm-up run, while the JVM engines need
   their whole run and a JVM start.
 - **The optimizing tier (T2)**, off by default, speeds up the shape- and type-dependent workloads over adaptive mode:
-  `sieve` 1.8x, `polymorphic` 1.4x, `strings` 1.3x, `binaryTrees` 1.2x. Apart from `nbody` (¹), it does not change
-  the others.
+  `nbody` 3.5x, `sieve` 1.8x, `polymorphic` 1.4x, `strings` 1.4x, `binaryTrees` 1.2x. The others are within 12% of
+  adaptive mode. Its geometric mean is 0.78x of adaptive mode's time.
 - **Adaptive against compiled mode** is the same except for `matmul`, where adaptive takes 2,801 ms against 1,972 ms
   in all three passes. The cause has not been analyzed yet.
 
@@ -106,13 +106,14 @@ Rhino 1.7.15.1's compiled mode has the same bug (checksum 87377 on Android).
 Medians over the three passes; these varied by more than 25% between passes:
 - NeonJS compiled: `sieve` 622–838 ms, `nbody` 4,310–5,431 ms, `functional` 567–833 ms.
 - NeonJS adaptive: `sieve` 621–782 ms, `json` 350–459 ms.
-- NeonJS adaptive + T2: `json` 368–488 ms.
+- NeonJS adaptive + T2 (56e316a): `strings` 236–312 ms, `collections` 257–363 ms, `matmul` 2,256–3,215 ms.
 - NeonJS interpreter: `regex` 1,579–2,024 ms.
 - Rhino compiled: `sieve` 443–604 ms.
 
 ## Android
 
-Measured on 2026-10-25 at the same commit, on ART in the Android emulator. The emulator runs ART for x86_64 on the
+Measured on ART in the Android emulator: Rhino and NeonJS's interpreter on 2026-10-25 at fa1a7b0, NeonJS's compiled
+tiers again on 2026-10-26 at 56e316a. The emulator runs ART for x86_64 on the
 desktop machine above, so:
 - the numbers compare engines and tiers on ART;
 - they are not phone times;
@@ -125,7 +126,7 @@ A phone was not used because its clock and temperature could not be held steady 
 | Device | Android emulator, `sdk_phone64_x86_64` Android 14 (API 34, UE1A.230829.036), 6 vCPUs, 4 GB, on the Ryzen 7 9800X3D above (WHPX), otherwise idle |
 | Runtime | ART of that image, `app_process`; default heap (`dalvik.vm.heapgrowthlimit` 192 MB, as an app without `largeHeap`) |
 | Engines | dex bundles compiled ahead of time (`dex2oat --compiler-filter=speed`); code each engine generates is turned into dex at run time and compiled by ART's JIT |
-| NeonJS | fa1a7b0, the CLI's main class; T2 as on the desktop |
+| NeonJS | the CLI's main class: interpreter at fa1a7b0, compiled tiers at 56e316a; T2 as on the desktop |
 | Rhino compiled | 1.7.15.1 with rhino-android 1.6.0 (`AndroidContextFactory`, dx) |
 | Rhino interpreted | 1.9.1 and 1.7.15.1 |
 
@@ -139,7 +140,7 @@ Method:
   interpreter takes about ten minutes on ART.
 - The emulator ran the whole set three times, one process at a time, unpinned. The tables give the median of the three
   medians.
-- Spread between the passes was within 10%, except Rhino 1.7 interpreted on `matmul` (13.2–16.9 s).
+- Spread between the passes was within 20%, except Rhino 1.7 interpreted on `matmul` (13.2–16.9 s).
 - Every checksum matched, except Rhino 1.7's compiled `binaryTrees` (²). At full size the checksums match the expected
   values. At a quarter size they match V8's at that size.
 
@@ -147,16 +148,16 @@ Compiled tiers at full size, milliseconds per run:
 
 | workload | NeonJS compiled | NeonJS adaptive (default) | NeonJS adaptive + T2 | Rhino 1.7 compiled |
 |---|---:|---:|---:|---:|
-| sieve | 2,259 | 2,260 | 2,943 | 3,968 |
-| nbody | 17,430 | 17,832 | 155,476 ³ | 38,485 |
-| binaryTrees | 1,588 | 1,588 | 1,189 | wrong result ² |
-| polymorphic | 1,221 | 1,238 | 610 | 1,837 |
-| strings | 2,183 | 2,226 | 1,878 | 5,598 |
-| regex | 3,377 | 3,353 | 4,401 | 9,261 |
-| functional | 1,632 | 1,660 | 1,542 | 3,875 |
-| collections | 1,098 | 1,138 | 1,093 | 1,642 |
-| matmul | 15,548 | 15,341 | 16,669 | 15,524 |
-| json | 1,734 | 1,716 | 1,749 | 2,616 |
+| sieve | 2,275 | 2,279 | 2,989 | 3,968 |
+| nbody | 18,091 | 18,149 | 3,363 ³ | 38,485 |
+| binaryTrees | 1,582 | 1,592 | 1,185 | wrong result ² |
+| polymorphic | 1,263 | 1,086 | 639 | 1,837 |
+| strings | 2,312 | 2,329 | 1,902 | 5,598 |
+| regex | 3,464 | 3,431 | 3,419 | 9,261 |
+| functional | 1,668 | 1,678 | 1,444 | 3,875 |
+| collections | 1,109 | 1,212 | 1,121 | 1,642 |
+| matmul | 17,280 | 15,849 | 17,988 | 15,524 |
+| json | 1,810 | 1,785 | 1,780 | 2,616 |
 
 Interpreters at a quarter of the size, milliseconds per run (compare them with each other only, not with the table
 above):
@@ -178,40 +179,44 @@ Geometric mean of the time ratios (lower is faster):
 
 | | against | ratio |
 |---|---|---:|
-| NeonJS compiled | Rhino 1.7 compiled (9, without `binaryTrees`) | 0.55x |
-| NeonJS adaptive (default) | Rhino 1.7 compiled (9) | 0.55x |
-| NeonJS adaptive + T2 | Rhino 1.7 compiled (9) | 0.68x (0.54x without `nbody`) |
+| NeonJS compiled | Rhino 1.7 compiled (9, without `binaryTrees`) | 0.57x |
+| NeonJS adaptive (default) | Rhino 1.7 compiled (9) | 0.56x |
+| NeonJS adaptive + T2 | Rhino 1.7 compiled (9) | 0.44x |
 | NeonJS interpreter | Rhino 1.9.1 interpreted (10) | 0.56x |
 | NeonJS interpreter | Rhino 1.7 interpreted (10) | 0.61x |
 
 Wall time of the whole run, including the start of the process:
-- NeonJS: compiled 158–159 s, adaptive 158–165 s, adaptive + T2 611–616 s (³).
+- NeonJS: compiled 163–176 s, adaptive 161–165 s, adaptive + T2 120–123 s.
 - Rhino 1.7 compiled: 269–272 s.
 - At a quarter of the size: NeonJS interpreter 154–155 s, Rhino 1.9.1 interpreted 261–271 s, Rhino 1.7 interpreted
   234–250 s.
 
-³ The same limit as ¹, on ART: ART does not compile a method of more than 10,000 dex code units
-(`--huge-method-max`). With `-Xcompiler-option --huge-method-max=1000000`, `nbody` alone takes 3,838 ms, 4.6x faster
-than without T2. Apps cannot pass that option, so the 155 s is what T2 gives an app today.
+³ At fa1a7b0, 155,476 ms. ART's JIT does not compile a method of more than 10,000 dex code units
+(`--huge-method-max`), and dx, translating the method of ¹ without its optimizer, made 14,922. It ran in ART's
+interpreter. Since f1063d9 dx optimizes classes whose methods could come near that size, which brought the method to
+4,570 code units.
 
 ### Reading the Android numbers
 
-- **NeonJS's default mode takes 0.55x the time of compiled Rhino** on ART. On the desktop it took 1.00x of Rhino
+- **NeonJS's default mode takes 0.56x the time of compiled Rhino** on ART. On the desktop it took 1.00x of Rhino
   1.9.1's time. The Rhino version is not the whole difference: here Rhino 1.7's interpreter is as fast as 1.9.1's. By
   workload, against compiled Rhino:
-  - `regex` 0.36x, `strings` 0.40x, `functional` 0.43x, `nbody` 0.46x, `sieve` 0.57x.
-  - `json`, `polymorphic` and `collections` about 0.67x.
+  - `regex` 0.37x, `strings` 0.42x, `functional` 0.43x, `nbody` 0.47x.
+  - `sieve` 0.57x, `polymorphic` 0.59x, `json` 0.68x, `collections` 0.74x.
   - `matmul` even.
 - **NeonJS's interpreter takes 0.56x the time of Rhino 1.9.1's** (0.73x on the desktop). It takes about a third of the
   time on allocation (`binaryTrees`) and `regex`, and half on `nbody`, strings, `polymorphic` and `functional`. It is
   even on `sieve` and `matmul`.
-- **`matmul` takes the same time in every engine and every tier**: 15.3–16.7 s compiled, 13.4–14.6 s interpreted at a
-  quarter of the size. Where that time goes on ART, in both engines alike, has not been analyzed.
-- **T2 on ART** halves `polymorphic` and speeds up `binaryTrees` 1.3x and `strings` 1.2x over adaptive mode. It slows
-  down `sieve` and `regex` by 1.3x. Without `nbody` (³), its geometric mean is 0.93x of adaptive mode.
-- **Compiled and adaptive modes are even** on ART. That includes `matmul`, where adaptive mode was slower on HotSpot.
-- **ART against HotSpot**, same CPU: NeonJS's adaptive mode takes 2–6x the time it takes on the desktop JVM (`regex`
-  2.0x, `strings` 6.4x).
+- **`matmul` takes about the same time in every engine and every tier**: 15.5–18.0 s compiled, 13.4–14.6 s
+  interpreted at a quarter of the size. Where that time goes on ART, in both engines alike, has not been analyzed.
+- **T2 on ART**, over adaptive mode:
+  - It speeds up `nbody` 5.4x and `polymorphic` 1.7x, and `binaryTrees`, `strings` and `functional` 1.2-1.3x.
+  - It slows down `sieve` by 1.3x and `matmul` by 1.1x.
+  - Its geometric mean is 0.77x of adaptive mode's time (0.91x without `nbody`).
+- **Compiled and adaptive modes are even** on ART, within 16%. That includes `matmul`, where adaptive mode was slower on
+  HotSpot.
+- **ART against HotSpot**, same CPU: NeonJS's adaptive mode takes 2–7x the time it takes on the desktop JVM (`regex`
+  2.0x, `strings` 6.7x).
 
 ## Reproducing
 
