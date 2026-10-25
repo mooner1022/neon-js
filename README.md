@@ -167,6 +167,17 @@ without inlining the callee), `neonjs.jit.inlineMinCount` (16: calls a site must
 caller ran interpreted, before that function is inlined there), `neonjs.jit.osrStress` (tests: every loop continues
 in compiled code after its first iteration), `neonjs.jit.dump` (a directory to write the generated classes to).
 
+### Performance
+
+On a desktop JVM, over ten workloads ([`bench/compare.js`](bench/compare.js); geometric mean of the times):
+- The default adaptive mode is even with Rhino 1.9.1's compiled mode. It is faster on strings, regular expressions,
+  collections and JSON, and slower on typed-array loops.
+- The interpreter takes 27% less time than Rhino's.
+- Both compiled engines take about 5x the time of V8 (Node 25). The gap is widest in numeric code and narrowest in
+  built-ins.
+
+[docs/PERFORMANCE.md](docs/PERFORMANCE.md) has the setup, the per-workload numbers and their caveats.
+
 ### Values
 
 `NeonValue` wraps a JS value: `asInt/asLong/asDouble/asString/asBoolean/asBigInteger`, `as(Class)` / `to<T>()` for
