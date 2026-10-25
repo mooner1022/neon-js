@@ -222,7 +222,7 @@ function matmul(n) {
   for (i = 0; i < N * N; i++) { A[i] = rnd(); B[i] = rnd(); }
   var tr = 0;
   for (var r = 0; r < n; r++) {
-    C.fill(0);
+    if (C.fill) C.fill(0); else for (i = 0; i < N * N; i++) C[i] = 0;   // (Rhino 1.7 has no typed-array fill)
     for (i = 0; i < N; i++)
       for (k = 0; k < N; k++) {
         var a = A[i * N + k];
@@ -279,7 +279,8 @@ for (var t = 0; t < TESTS.length; t++) {
     sum = test.fn(n);
     times.push(now() - s0);
   }
-  var status = SCALE !== 1 ? "-" : sum === test.expect ? "ok" : "MISMATCH(" + sum + ")";
+  // (at another scale, the checksum itself: compare it with another engine's)
+  var status = SCALE !== 1 ? "sum=" + sum : sum === test.expect ? "ok" : "MISMATCH(" + sum + ")";
   // name, median ms, first (warm-up, a quarter of a run) ms, checksum
   out(test.name + " " + median(times).toFixed(1) + " " + warm.toFixed(1) + " " + status);
 }
