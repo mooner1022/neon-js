@@ -527,8 +527,10 @@ installed app is) and run through `app_process` with the screen on:
 
 The translation step is pluggable as well (`dev.mooner.neonjs.android.DexConverter`). The default is dx, the dexer of
 the Android SDK before D8: no longer maintained, but it only ever reads the engine's own generated code, and every class
-Test262 generates translates. `neonjs-android-d8` replaces it with D8 from Google's r8 library (`com.android.tools:r8`),
-which is maintained and has no Java 8 class file ceiling. Adding the module selects it; `DexCodeDefiner(converter = …)`
+Test262 generates translates. A class goes through dx's optimizer, which takes about twice as long, when one of its
+methods could otherwise come near 10,000 code units, above which ART never compiles a method.
+`neonjs-android-d8` replaces it with D8 from Google's r8 library (`com.android.tools:r8`), which is maintained and has
+no Java 8 class file ceiling. Adding the module selects it; `DexCodeDefiner(converter = …)`
 or `-Dneonjs.dexConverter=dx|d8` choose explicitly. D8 is made for whole-program builds, though: each conversion costs
 far more on a phone (5,000 small functions converted one at a time, measured back to back: ≈44 s against ≈2.2 s with
 dx), which the batches of background compilation spread over many functions, and the library adds ≈7.7 MB of dex.

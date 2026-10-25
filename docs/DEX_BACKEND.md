@@ -9,8 +9,12 @@ in, below the tiering policy and the background compiler.
 
 **Methods ART never compiles.** ART skips compiling methods of `UINT16_MAX / 4` (16,383) code units or virtual
 registers and more (`Compiler::IsPathologicalCase`, `art/compiler/compiler.cc`), for the JIT and ahead of time alike;
-such methods only ever run in ART's interpreter. dx expands JVM bytecode considerably, so methods well below the JVM's
-64 KB limit cross that line. Converting every class Test262 generates with dx and measuring the `run` methods:
+such methods only ever run in ART's interpreter. Its JIT also skips methods of more than 10,000 code units (the huge
+method threshold, `--huge-method-max`): on the API 34 emulator, the optimizing tier's code for `nbody` of
+`bench/compare.js` (14,922 code units from dx) ran interpreted, 155 s against 3.8 s once compiled
+(`-Xcompiler-option --huge-method-max=1000000`). dx expands JVM bytecode considerably, so methods well below the JVM's
+64 KB limit cross these lines. Converting every class Test262 generates with dx (unoptimized, as it then was) and
+measuring the `run` methods:
 
 | dex code units | < 1K | 1K–4K | 4K–8K | 8K–16,383 | ≥ 16,383 |
 |---|---|---|---|---|---|
@@ -20,7 +24,12 @@ None exceeded the register limit. The 24 Test262 functions reported as "method t
 not among these; the 138 are compiled and installed today, and on a device they run as dex interpreted by ART rather
 than in NeonJS's own (ahead-of-time compiled) interpreter. Whether that is slower has not been measured.
 
-With dx there is no remedy at the source: it is frozen. The current path can only reject such classes after
+Much of the expansion is dx's register assignment without its optimizer: each JVM local and stack slot gets a
+register of its own. With the optimizer, `nbody` above takes 4,570 code units (68 registers instead of 503), but the
+translation takes about twice as long. So `DxConverter` optimizes only classes with a method that unoptimized dx could
+make 9,000 code units or more (`-Dneonjs.dx.optimizeFrom`). It estimates that from the method's bytes of JVM code: at
+most 1.5 code units a byte with 256 locals and stack slots or fewer, 2.4 with more. The optimizing tier keeps its code
+under 8,000 bytes (HotSpot's own limit), which optimized dx keeps under 10,000 code units. Beyond that, dx is frozen: the current path can only reject classes after
 conversion (read `insns_size` of the `code_item`s in the dex just produced and fail that class, so the function stays
 in NeonJS's interpreter). A direct backend knows the size while emitting and can stop early.
 
@@ -63,7 +72,7 @@ generator mirrors it case by case:
   instruction; NeonJS values are all object references (registers start as `undefined`), with a few int temporaries
   (the interrupt budget, branch conditions) kept in their own registers.
 - **Switches, tail calls, returns**: `packed-switch` payloads, `return-object`.
-- **Size cap**: stop at 16,383 code units (see above) and leave the function interpreted.
+- **Size cap**: stop at 10,000 code units (see above) and leave the function interpreted.
 
 ## Testing
 
@@ -87,8 +96,8 @@ runs.
 
 Follow-ups:
 
-1. **Size cap on the current path**: reject classes whose dex `run` method reaches 16,383 code units (a small parser of
-   the converter's output in `neonjs-android`), after measuring on a device that such a function is indeed faster in
-   NeonJS's interpreter than as ART-interpreted dex.
+1. **Size cap on the current path**: reject classes whose dex `run` method passes 10,000 code units (a small parser of
+   the converter's output in `neonjs-android`; `DxConverterTest` has one), after measuring on a device that such a
+   function is indeed faster in NeonJS's interpreter than as ART-interpreted dex.
 2. **If the direct backend is built**: a register-type lint on `MethodAnalyzer` output for the desktop test suite, and
    Test262 on a device in compiled and adaptive mode as the gate.
