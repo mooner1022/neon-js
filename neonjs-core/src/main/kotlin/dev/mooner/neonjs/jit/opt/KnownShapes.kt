@@ -10,7 +10,8 @@ import dev.mooner.neonjs.jit.JT
  * written or added, by object and slot (and, read from a prototype, by the receiver's shape and the prototypes'): a
  * slot of an object holds one property while its shape only moves on by additions. The facts hold until something may change shapes or run code (any instruction
  * but those [keeps] knows), an ADD_SLOT of another object of the same shape (that object, perhaps: it moved on), and,
- * for the prototypes' shapes, an ADD_SLOT of any other object (one of the prototypes, perhaps); a STORE_SLOT ends the
+ * for the prototypes' shapes and the values read from them, an ADD_SLOT of any other object (one of the prototypes,
+ * perhaps, its new property hiding the one read); a STORE_SLOT ends the
  * values held of its slot. A number check (CHECK_NUMBER, CHECK_INT32) of a value checked so before is that check.
  *
  * A check whose fact holds is not made ([Inst.known]; with none left, no exit), and a LOAD_SLOT of a value held is that
@@ -96,9 +97,11 @@ internal object KnownShapes {
                         if (fact != null && fact.extensible) known = known or EXTENSIBLE
                         if (chain == null || (same && fact!!.chain == chain)) known = known or CHAIN
                         mark(i, known, SHAPE or EXTENSIBLE or CHAIN)
-                        // another object of that shape may be this one, and any other's prototypes may include it
+                        // another object of that shape may be this one, and any other's prototypes may include it: then
+                        // the property added hides the one a prototype's slot held for its receivers
                         f.objs.entries.removeIf { (k, v) -> k !== obj && v.shape === shape }
                         for (e in f.objs.entries) if (e.value.chain != null) e.setValue(e.value.copy(chain = null))
+                        f.loads.keys.removeIf { k -> k.chain != null }
                         val next = g.data[i.b] as dev.mooner.neonjs.runtime.Shape
                         f.objs[obj] = Fact(next, true, chain)
                         // (appended: the last slot of the shape it moved to)

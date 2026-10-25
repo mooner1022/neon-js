@@ -906,8 +906,12 @@ class T2Test {
     fun checksAndLoadsMadeOnce() {
         // a shape check of an object checked before, nothing that may change shapes between, is not made again, and a
         // slot read or written before is that value (KnownShapes); an object of the same shape given a property between
-        // may be the same object, a store may write the slot read, a call may do anything: the checks are made again
+        // may be the same object, a store may write the slot read, a call may do anything: the checks are made again; a
+        // property added to any object may hide one read from a prototype (the object added to may be that prototype)
         val src = """
+            var root = { x: 1, canDelete: false }, mid = Object.create(root), deep = Object.create(mid);
+            function shadowed(m, r, v) { var a = r.x; m.x = v; var b = r.x; return a + ',' + b }
+            function guarded(op, s) { var before = s.canDelete; op.canDelete = true; var after = s.canDelete; return before + ',' + after }
             function len2(p) { return p.x * p.x + p.y * p.y }
             function P(x, y) { this.x = x; this.y = y }
             function lenP(p) { return p.x * p.x + p.y * p.y }
@@ -918,6 +922,7 @@ class T2Test {
             function bump(o) { try { o.x = 10 } catch (e) {} }
             function keep(o) { try {} catch (e) {} }
             for (var r = 0; r < 40; r++) { len2({ x: r, y: 2 }); make(3); addBoth({ x: 1 }, { x: 2 }); storeLoad({ x: 0 }, { x: 0 }); viaCall({ x: 1 }, r % 2 ? keep : bump) }
+            for (var r = 0; r < 40; r++) { shadowed(Object.create(root), deep, 1); guarded(Object.create(root), deep) }
             """.trimIndent()
         val ir = irOf(src, "len2", profiled = true)
         // p.x and p.y read once each, the second without a check, each value checked as a number once
@@ -927,9 +932,10 @@ class T2Test {
         // the constructor's second property added without a check, its properties then read as the values added
         val mk = irOf(src, "make", profiled = true)
         assertTrue(mk.contains("known=7") && !mk.contains("LoadSlot"), mk)
-        same(src, listOf("len2", "make", "addBoth", "storeLoad", "viaCall"),
+        same(src, listOf("len2", "make", "addBoth", "storeLoad", "viaCall", "shadowed", "guarded"),
             "var o = { x: 5 }; var r1 = addBoth(o, o); var q = { x: 0 }; [len2({ x: 3, y: 4 }), make(10), r1, JSON.stringify(o), " +
-                "storeLoad(q, q), viaCall({ x: 1 }, bump), viaCall({ x: 1 }, keep), addBoth({ x: 1 }, { x: 2 })].join('|')")
+                "storeLoad(q, q), viaCall({ x: 1 }, bump), viaCall({ x: 1 }, keep), addBoth({ x: 1 }, { x: 2 }), " +
+                "shadowed(mid, deep, 9), guarded(mid, deep)].join('|')")
     }
 
     @Test
