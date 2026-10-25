@@ -583,6 +583,30 @@ object JitRt {
         return i.toDouble() == d && (i != 0 || 1.0 / d > 0)
     }
 
+    /**
+     * Whether the interpreter's registers [slots] can enter the optimizing tier's code at a loop header: each register
+     * whose letter in [kinds] names a kind holds a value of it ('N' a number, 'I' an int32, 'B' a boolean; any other
+     * letter, any value). The registers are then read with [slotNum], [slotInt] and [slotBool].
+     */
+    @JvmStatic fun osrKinds(slots: Array<Any?>, kinds: String): Boolean {
+        for (r in kinds.indices) {
+            val v = slots[r]
+            val ok = when (kinds[r]) {
+                'N' -> v is Double
+                'I' -> v is Double && isInt32(v)
+                'B' -> v is Boolean
+                else -> true
+            }
+            if (!ok) return false
+        }
+        return true
+    }
+
+    // a register dead at the header takes any value of the kind, so one of another kind reads as 0 or false there
+    @JvmStatic fun slotNum(slots: Array<Any?>, r: Int): Double = slots[r] as? Double ?: 0.0
+    @JvmStatic fun slotInt(slots: Array<Any?>, r: Int): Int = (slots[r] as? Double)?.toInt() ?: 0
+    @JvmStatic fun slotBool(slots: Array<Any?>, r: Int): Boolean = slots[r] == true
+
     @JvmStatic fun exactInt(d: Double): Int {
         val i = d.toInt()
         if (i.toDouble() != d || i == 0 && 1.0 / d < 0) throw notInt32(d)

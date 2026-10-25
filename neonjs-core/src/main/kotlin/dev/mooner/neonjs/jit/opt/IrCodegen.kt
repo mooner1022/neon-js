@@ -8,6 +8,9 @@ import dev.mooner.neonjs.runtime.Undefined
 import org.objectweb.asm.Label
 import org.objectweb.asm.MethodVisitor
 import org.objectweb.asm.Opcodes.*
+import org.objectweb.asm.tree.IincInsnNode
+import org.objectweb.asm.tree.MethodNode
+import org.objectweb.asm.tree.VarInsnNode
 
 private const val GLOBAL_ENV = "dev/mooner/neonjs/runtime/GlobalEnv"
 private const val NATIVE = "dev/mooner/neonjs/runtime/NativeFunction"
@@ -438,55 +441,40 @@ internal class IrCodegen(
             frame()
             mv.visitFieldInsn(GETFIELD, FRAME, "pc", "I")
             mv.visitLookupSwitchInsn(none, IntArray(entries.size) { entries[it].pc }, starts)
-            val obj = temp()
-            val d = tempD()
-            /** The interpreter's registers into the locals of header [b]'s values. */
+            val slots = temp()
+            /**
+             * The interpreter's registers into the locals of header [b]'s values. A kind may rest on a speculation the
+             * interpreter did not make (a profiled load, say): a register live at the header without a value of it there
+             * means no entry this time (osrKinds, before the frame is read); a register dead at the header (undefined
+             * where an exit left it out) takes any value of the kind.
+             */
             fun registers(b: Block) {
-                for ((r, v) in b.entryRegs!!.withIndex()) {
+                frame()
+                mv.visitFieldInsn(GETFIELD, FRAME, "slots", CONSTS_D)
+                mv.visitVarInsn(ASTORE, slots)
+                val regs = b.entryRegs!!
+                val kinds = CharArray(regs.size) { r ->
+                    val v = regs[r]
+                    if (v is Const || local[v] == null || v !in live[b]!!) '.'
+                    else when (v.kind) { JT.NUM -> 'N'; JT.INT -> 'I'; JT.BOOL -> 'B'; else -> '.' }
+                }
+                if (kinds.any { it != '.' }) {
+                    mv.visitVarInsn(ALOAD, slots)
+                    mv.visitLdcInsn(String(kinds).trimEnd('.'))
+                    rt("osrKinds", "(${CONSTS_D}Ljava/lang/String;)Z")
+                    mv.visitJumpInsn(IFEQ, none)
+                }
+                for ((r, v) in regs.withIndex()) {
                     if (v is Const || local[v] == null) continue
-                    val next = Label()
-                    frame()
-                    mv.visitFieldInsn(GETFIELD, FRAME, "slots", CONSTS_D)
+                    mv.visitVarInsn(ALOAD, slots)
                     iconst(r)
-                    mv.visitInsn(AALOAD)
-                    if (v.kind == JT.ANY) {
-                        store(v)
-                        continue
-                    }
-                    // a kind may rest on a speculation the interpreter did not make (a profiled load, say): a register
-                    // without a value of it there means no entry this time (the frame is not changed before); but a
-                    // register dead at the header (undefined where an exit left it out) takes any value of the kind
-                    mv.visitVarInsn(ASTORE, obj)
-                    mv.visitVarInsn(ALOAD, obj)
-                    mv.visitTypeInsn(INSTANCEOF, if (v.kind == JT.BOOL) "java/lang/Boolean" else "java/lang/Double")
-                    if (v in live[b]!!) mv.visitJumpInsn(IFEQ, none)
-                    else {
-                        val has = Label()
-                        mv.visitJumpInsn(IFNE, has)
-                        if (v.kind == JT.NUM) mv.visitInsn(DCONST_0) else mv.visitInsn(ICONST_0)
-                        store(v)
-                        mv.visitJumpInsn(GOTO, next)
-                        mv.visitLabel(has)
-                    }
-                    mv.visitVarInsn(ALOAD, obj)
                     when (v.kind) {
-                        JT.NUM -> unboxNum()
-                        JT.INT -> {
-                            unboxNum()
-                            mv.visitVarInsn(DSTORE, d)
-                            mv.visitVarInsn(DLOAD, d)
-                            rt("isInt32", "(D)Z")
-                            mv.visitJumpInsn(IFEQ, none)
-                            mv.visitVarInsn(DLOAD, d)
-                            mv.visitInsn(D2I)
-                        }
-                        else -> {
-                            mv.visitTypeInsn(CHECKCAST, "java/lang/Boolean")
-                            mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Boolean", "booleanValue", "()Z", false)
-                        }
+                        JT.NUM -> rt("slotNum", "(${CONSTS_D}I)D")
+                        JT.INT -> rt("slotInt", "(${CONSTS_D}I)I")
+                        JT.BOOL -> rt("slotBool", "(${CONSTS_D}I)Z")
+                        else -> mv.visitInsn(AALOAD)
                     }
                     store(v)
-                    mv.visitLabel(next)
                 }
             }
             /**
@@ -1789,13 +1777,85 @@ internal class IrCodegen(
             init.visitInsn(RETURN)
             init.visitMaxs(0, 0)
             init.visitEnd()
-            val mv = cw.visitMethod(ACC_PUBLIC or ACC_FINAL, "run", "($FRAME_D)$OBJ", null, null)
+            // run is made in a tree first, to number its locals by use (renumber)
+            val mv = MethodNode(ASM9, ACC_PUBLIC or ACC_FINAL, "run", "($FRAME_D)$OBJ", null, null)
             mv.visitCode()
             IrCodegen(g, mv, Kinds(ints, elems), ints, cw, name).emit()
             mv.visitMaxs(0, 0)
             mv.visitEnd()
+            renumber(mv, L_REGS)
+            mv.accept(cw)
             cw.visitEnd()
             return cw.toByteArray()
+        }
+
+        /**
+         * Numbers [m]'s locals from [first] on by how often its code uses them, the most used first. Every value of the
+         * graph has a local of its own (and every temporary of the code), often hundreds; a local past 255 takes a
+         * `wide` instruction of twice the size, and HotSpot and ART leave a method above a size uncompiled (HotSpot
+         * past 8,000 bytes). Locals are kept as they are if one is used with two sizes (a double's second half alone).
+         */
+        internal fun renumber(m: MethodNode, first: Int) {
+            val uses = HashMap<Int, Int>()
+            val size = HashMap<Int, Int>()
+            fun use(v: Int, n: Int): Boolean {
+                if (v < first) return true
+                uses.merge(v, 1, Int::plus)
+                return size.put(v, n).let { it == null || it == n }
+            }
+            for (insn in m.instructions) {
+                val ok = when (insn) {
+                    is VarInsnNode -> use(insn.`var`, if (insn.opcode in WIDE_VARS) 2 else 1)
+                    is IincInsnNode -> use(insn.`var`, 1)
+                    else -> true
+                }
+                if (!ok) return
+            }
+            val taken = HashSet<Int>()
+            for ((v, n) in size) if (n == 2) taken.add(v + 1)
+            if (size.keys.any { it in taken }) return // a double's second half used on its own
+            val to = HashMap<Int, Int>()
+            var next = first
+            for (v in uses.keys.sortedWith(compareByDescending<Int> { uses[it]!! }.thenBy { it })) {
+                to[v] = next
+                next += size[v]!!
+            }
+            for (insn in m.instructions) when (insn) {
+                is VarInsnNode -> to[insn.`var`]?.let { insn.`var` = it }
+                is IincInsnNode -> to[insn.`var`]?.let { insn.`var` = it }
+            }
+        }
+
+        private val WIDE_VARS = intArrayOf(DLOAD, DSTORE, LLOAD, LSTORE)
+
+        /** The bytes of code of method [method] of class file [bytes] (its first of that name), or -1 without one. */
+        internal fun codeLength(bytes: ByteArray, method: String): Int {
+            val r = org.objectweb.asm.ClassReader(bytes)
+            val buf = CharArray(r.maxStringLength)
+            var p = r.header + 6
+            p += 2 + 2 * r.readUnsignedShort(p) // interfaces
+            fun skipMembers(): Int {
+                var q = p + 2
+                repeat(r.readUnsignedShort(p)) {
+                    var attrs = r.readUnsignedShort(q + 6)
+                    q += 8
+                    while (attrs-- > 0) q += 6 + r.readInt(q + 2)
+                }
+                return q
+            }
+            p = skipMembers() // fields
+            var q = p + 2
+            repeat(r.readUnsignedShort(p)) {
+                val name = r.readUTF8(q + 2, buf)
+                var attrs = r.readUnsignedShort(q + 6)
+                q += 8
+                while (attrs-- > 0) {
+                    // Code: max_stack, max_locals, code_length
+                    if (name == method && r.readUTF8(q, buf) == "Code") return r.readInt(q + 10)
+                    q += 6 + r.readInt(q + 2)
+                }
+            }
+            return -1
         }
     }
 }

@@ -6,6 +6,7 @@ description = "JavaScript engine for the JVM and Android: ES2025+, a security sa
 
 dependencies {
     implementation("org.ow2.asm:asm:9.9.1")
+    implementation("org.ow2.asm:asm-tree:9.9.1")
     implementation("org.ow2.asm:asm-util:9.9.1")
     testImplementation("org.junit.jupiter:junit-jupiter:5.14.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

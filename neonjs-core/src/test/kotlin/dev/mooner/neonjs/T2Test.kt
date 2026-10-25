@@ -1141,6 +1141,48 @@ class T2Test {
             "[hash('hello world'), hash(rope), at('abc', 5), at('abc', -1), at('abc', '1'), at('abc', 1.5), at(odd, 0), at(mine, 2), at(rope, 3)].join()")
     }
 
+    @Test
+    fun functionsOfManyValuesAndLoopsRunTheTiersCode() {
+        // a function with hundreds of values (a JVM local each, numbered by use) and loops entered with numbers, ints
+        // and booleans in registers, some dead at the headers
+        val body = (0 until 20).joinToString("\n") { k -> "      s = s * 1.0001 + a[(i + $k) % 7] - (s > 1e6 ? $k : 1); t = !t;" }
+        val src = """
+            function many(a, n) {
+              var s = 0, t = true, h = 0;
+              for (var i = 0; i < n; i++) {
+            $body
+                for (var j = 0; j < 3; j++) h = (h * 31 + j + (t ? 1 : 2)) | 0;
+              }
+              return s + ',' + t + ',' + h
+            }
+            var arr = [1.5, 2, 3, 4.25, 5, 6, 7];
+            """.trimIndent()
+        same(src, listOf("many"), "many(arr, 50)")
+        val expected = interpreted(src, "many(arr, 3000)")
+        NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(2).backgroundCompilation(false).console(null)
+            .build().newContext().use { ctx ->
+                ctx.agent.config.tier2 = true
+                ctx.eval(src)
+                assertEquals(expected, ctx.eval("many(arr, 3000)").asString())
+            }
+    }
+
+    @Test
+    fun codePastWhatTheJvmCompilesKeepsTheBaseline() {
+        // a method of more than 8,000 bytes would run in the JVM's bytecode interpreter (HotSpot's
+        // DontCompileHugeMethods): the tier declines it, and the block keeps its baseline
+        val body = (0 until 400).joinToString("\n") { k -> "  s = s * 1.0001 + a[(i + $k) % 7] - (s > 1e6 ? $k : 1);" }
+        val src = "function huge(a, i) { var s = 0;\n$body\n  return s }"
+        NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).backgroundCompilation(false).console(null)
+            .build().newContext().use { ctx ->
+                ctx.eval(src)
+                val cb: CodeBlock = (ctx.eval("huge").raw as JSClosure).code
+                cb.baseline = JvmCompiler.compile(cb)!!
+                assertNull(T2.compile(cb, CodeDefiners.default))
+                assertTrue(T2.failureReasons.keys.any { it.contains("past what the JVM compiles") }, "${T2.failureReasons.keys}")
+            }
+    }
+
     /** The IR of function [name] after [src] ran in the interpreter (its caches and profiles filled). */
     private fun irOf(src: String, name: String, profiled: Boolean = false): String =
         NeonEngine.builder().executionMode(ExecutionMode.ADAPTIVE).jitThreshold(1 shl 30).console(null).build().newContext().use { ctx ->

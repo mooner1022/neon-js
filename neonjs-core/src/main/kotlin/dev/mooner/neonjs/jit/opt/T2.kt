@@ -31,6 +31,15 @@ object T2 {
     /** Testing: `-Dneonjs.jit.t2Verify` checks every graph (IrVerifier) before its code is generated. */
     private val VERIFY = System.getProperty("neonjs.jit.t2Verify") != null
 
+    /**
+     * The most bytes of JVM code the tier's `run` may have (`-Dneonjs.jit.t2MaxCode`). HotSpot does not compile a
+     * method of more than 8,000 (`-XX:+DontCompileHugeMethods`, the default), and ART not one of more than 10,000 dex
+     * code units, which such a method stays under once translated (dx optimizes large classes, D8 all). Code past
+     * that would run in the JVM's bytecode interpreter, far slower than the baseline's compiled code: the block keeps
+     * its baseline.
+     */
+    @JvmField val MAX_CODE: Int = Integer.getInteger("neonjs.jit.t2MaxCode", 8000)
+
     private val counter = AtomicLong()
     private val debugShown = AtomicLong()
     /** Blocks compiled, and those that could not be, by reason; code that deoptimized too often (T2Code.exit). */
@@ -57,14 +66,21 @@ object T2 {
             val name = "dev/mooner/neonjs/jit/T2$" + JvmCompiler.sanitize(cb.name) + "$" + counter.incrementAndGet()
             var g = build(cb, unswitch = true)
             val bytes = try {
-                try {
-                    IrCodegen.generate(g, name, definer.classFileVersion, JvmCompiler.INT32, JvmCompiler.ELEMS)
+                fun generate() = IrCodegen.generate(g, name, definer.classFileVersion, JvmCompiler.INT32, JvmCompiler.ELEMS)
+                var bytes = try {
+                    generate()
                 } catch (e: org.objectweb.asm.MethodTooLargeException) {
-                    // a loop copied made the method too large: without copies, which no larger than before
                     if (!g.unswitched) throw e
-                    g = build(cb, unswitch = false)
-                    IrCodegen.generate(g, name, definer.classFileVersion, JvmCompiler.INT32, JvmCompiler.ELEMS)
+                    null
                 }
+                // loops copied made the method too large: again without copies
+                if (g.unswitched && (bytes == null || IrCodegen.codeLength(bytes, "run") > MAX_CODE)) {
+                    g = build(cb, unswitch = false)
+                    bytes = generate()
+                }
+                val size = IrCodegen.codeLength(bytes!!, "run")
+                if (size > MAX_CODE) throw JitBailout("code of $size bytes: past what the JVM compiles")
+                bytes
             } catch (e: JitBailout) {
                 if (System.getProperty("neonjs.jit.t2Debug") != null && e.message!!.contains("no local") && debugShown.incrementAndGet() <= 2) {
                     System.err.println("T2DEBUG ${cb.name}: ${e.message}\n${cb.sourceText()?.take(800)}\n${IrPrinter.print(g)}")

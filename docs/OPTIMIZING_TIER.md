@@ -466,6 +466,19 @@ Sizes are rough; each phase ends with its exit criteria met and a push.
   - `s.charCodeAt(i)` of the builtin (an intrinsic, `CharCode`): a JS string's code unit at an int index in place (a rope
     flattens once), NaN past its ends, anything else through the builtin's steps. With string primitives' properties
     cached (all tiers, PropCache.getString), on ART a loop hashing chat messages by char code 47 -> 22 ms.
+  - code the JVM compiles: HotSpot does not compile a method past 8,000 bytes, nor ART past 10,000 dex code units, and
+    such code runs in their bytecode interpreters. `nbody` of bench/compare.js (8,099 bytes) took 31 s on HotSpot
+    against 4.5 s without the tier. On ART it took 155 s against 18 s, from 14,922 code units through unoptimized dx.
+    Now:
+    - `run` is generated in a tree and its locals numbered by use, so the most used take short instructions. A local
+      per value (and per temporary) means hundreds, and those past 255 took `wide` instructions twice the size.
+    - On-stack replacement checks a header's registers in one call (`JitRt.osrKinds`) and reads each with one more
+      (`slotNum`/`slotInt`/`slotBool`): 9 bytes a register instead of 33.
+    - Code still past 8,000 bytes (`-Dneonjs.jit.t2MaxCode`) is generated again without loop copies, and past that
+      not used: the block keeps its baseline.
+    - dx optimizes classes with a method that unoptimized dx could make 9,000 code units or more (neonjs-android).
+
+    `nbody`: 7,016 bytes.
 - **P5: tiering and tuning** (~1.5K). T1 -> T2 counters, OSR from T1 into T2 at loop headers, background T2 queue,
   thresholds, profiling T1 if compiled mode needs it, the builder option, Android measurement. Exit: StarLight's
   NeonBench and the user's benchmark gain on ART, first run included; default stays off until a release cycle has
