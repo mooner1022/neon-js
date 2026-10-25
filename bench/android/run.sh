@@ -5,6 +5,7 @@
 # /data/local/tmp/bench/out/ROUND/CONFIG.txt, with a core's clock and the battery temperature before and after each.
 #   CORES  taskset mask for every run (e.g. c0 for a phone's prime cores); unset runs unpinned
 #   CPU    the core whose clock is logged (default 0)
+#   ONLY   the configurations to run, by name (e.g. "neonjs-adaptive neonjs-compiled"); unset runs all
 cd /data/local/tmp
 ROUNDS=${1:-3}
 CPU=${CPU:-0}
@@ -15,6 +16,7 @@ state() {
 }
 run() {
   name=$1; jar=$2; file=$3; shift 3
+  case " ${ONLY:-$name} " in *" $name "*) ;; *) return ;; esac
   f=bench/out/$r/$name.txt
   state start > $f
   s=$(date +%s)
