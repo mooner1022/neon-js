@@ -238,6 +238,8 @@ internal object JSONBuiltins {
     private class State(val realm: Realm, val replacer: JSObject?, val propertyList: List<String>?, val gap: String) {
         val stack = ArrayList<JSObject>()
         var indent = ""
+        /** Values serialized: the agent's limits are checked once per 1,024 (the length of the text among them). */
+        var values = 0
     }
 
     fun stringify(realm: Realm, value: Any?, replacerArg: Any?, spaceArg: Any?): Any? {
@@ -281,10 +283,16 @@ internal object JSONBuiltins {
         wrapper.createDataPropertyOrThrow("", value)
         val sb = StringBuilder()
         val ok = serializeProperty(st, "", wrapper, sb)
-        return if (ok) sb.toString() else Undefined
+        if (!ok) return Undefined
+        realm.agent.checkStringLength(sb.length.toLong())
+        return sb.toString()
     }
 
     private fun serializeProperty(st: State, key: Any, holder: JSObject, sb: StringBuilder): Boolean {
+        if (++st.values and 1023 == 0) {
+            st.realm.agent.checkInterrupt()
+            st.realm.agent.checkStringLength(sb.length.toLong())
+        }
         var value = holder.get(key, holder)
         if (value is JSObject || value is BigInteger) {
             val toJSON = Ops.getV(st.realm, value, "toJSON")
@@ -306,7 +314,12 @@ internal object JSONBuiltins {
             Null -> { sb.append("null"); return true }
             true -> { sb.append("true"); return true }
             false -> { sb.append("false"); return true }
-            is CharSequence -> { quote(value, sb); return true }
+            is CharSequence -> {
+                quote(value, sb)
+                // (a long string quoted may be several times as long)
+                if (sb.length > 65536) st.realm.agent.checkStringLength(sb.length.toLong())
+                return true
+            }
             is Double -> {
                 if (value.isNaN() || value.isInfinite()) sb.append("null") else sb.append(NumberConv.toString(value))
                 return true

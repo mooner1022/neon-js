@@ -303,8 +303,9 @@ internal object GlobalBuiltins {
         numCtor.defineOwn("parseInt", pi, Attr.WC)
         g.method(realm, "decodeURI", 1) { _, _, args, _ -> URICoding.decode(Ops.toString(args.arg(0)), ";/?:@&=+$,#") }
         g.method(realm, "decodeURIComponent", 1) { _, _, args, _ -> URICoding.decode(Ops.toString(args.arg(0)), "") }
-        g.method(realm, "encodeURI", 1) { _, _, args, _ -> URICoding.encode(Ops.toString(args.arg(0)), ";/?:@&=+$,-_.!~*'()#") }
-        g.method(realm, "encodeURIComponent", 1) { _, _, args, _ -> URICoding.encode(Ops.toString(args.arg(0)), "-_.!~*'()") }
+        // (an encoding is up to 9 times as long as the string encoded)
+        g.method(realm, "encodeURI", 1) { f, _, args, _ -> f.realm.agent.checkedString(URICoding.encode(Ops.toString(args.arg(0)), ";/?:@&=+$,-_.!~*'()#")) }
+        g.method(realm, "encodeURIComponent", 1) { f, _, args, _ -> f.realm.agent.checkedString(URICoding.encode(Ops.toString(args.arg(0)), "-_.!~*'()")) }
         g.method(realm, "escape", 1) { _, _, args, _ -> URICoding.escape(Ops.toString(args.arg(0))) }
         g.method(realm, "unescape", 1) { _, _, args, _ -> URICoding.unescape(Ops.toString(args.arg(0))) }
     }

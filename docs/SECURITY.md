@@ -24,11 +24,15 @@ uncounted):
 | wall-clock time | `maxExecutionTime` | loop back-edges, calls, job dispatch, RegExp matcher, long built-in loops (including generic array methods over array-likes with lengths up to 2^53 - 1), `Atomics.wait`, event-loop waits |
 | instruction budget | `maxStatements` | same as above |
 | call depth | `maxCallDepth` | every JS call (proper tail calls do not grow the depth but remain interruptible) |
-| string length | `maxStringLength` | concatenation, `repeat`, `pad*`, `join`, JSON, template building… |
+| string length | `maxStringLength` | every string a built-in or concatenation makes (a catchable `RangeError`, see below) |
 | allocated bytes | `maxAllocatedBytes` | sampled with the time checks; large allocations (buffers, Java arrays, long strings) are charged before they happen |
 | host interrupt | `NeonContext.interrupt()` | same as time; also ends an event loop waiting in the context |
 
-Termination exceptions are not JS exceptions: `catch`, `finally` and promise reactions cannot intercept them.
+Termination exceptions are not JS exceptions: `catch`, `finally` and promise reactions cannot intercept them. The
+string-length limit is the exception: like the fixed limit of V8 and GraalJS it is a `RangeError` ("Invalid string
+length"), which the script may catch; the string is never made, and memory stays bounded by the allocation limit.
+Concatenation and the joining of strings check it from 65,536 characters, so a smaller limit bounds the strings
+those make only from there.
 Exceeded limits are sticky for the rest of the evaluation, so the condition is raised again at the next check even
 if host code swallowed the exception. Every entry into a context from the host (`eval`, a call through a
 `NeonValue`, a callback proxy invoked by a host thread) starts a fresh limit window.

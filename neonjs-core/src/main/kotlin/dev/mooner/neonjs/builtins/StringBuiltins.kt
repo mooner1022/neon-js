@@ -125,19 +125,21 @@ internal object StringBuiltins {
             if (nt == null) s else JSStringObject(Ops.getPrototypeFromConstructor(nt) { it.stringPrototype }, s)
         }
         realm.global("String", ctor)
-        ctor.method(realm, "fromCharCode", 1) { _, _, args, _ ->
+        ctor.method(realm, "fromCharCode", 1) { f, _, args, _ ->
             if (args.size == 1) return@method Ops.charString(Ops.toUint16(args[0]).toChar())
+            f.realm.agent.checkStringLength(args.size.toLong())
             val sb = StringBuilder(args.size)
             for (a in args) sb.append(Ops.toUint16(a).toChar())
             sb.toString()
         }
-        ctor.method(realm, "fromCodePoint", 1) { _, _, args, _ ->
+        ctor.method(realm, "fromCodePoint", 1) { f, _, args, _ ->
             val sb = StringBuilder(args.size)
             for (a in args) {
                 val n = Ops.toNumber(a)
                 if (!Ops.isIntegral(n) || n < 0 || n > 0x10FFFF) rangeErr("Invalid code point ${Ops.toDisplayString(a)}")
                 sb.appendCodePoint(n.toInt())
             }
+            f.realm.agent.checkStringLength(sb.length.toLong())
             sb.toString()
         }
         ctor.method(realm, "raw", 1) { f, _, args, _ ->
@@ -436,11 +438,12 @@ internal object StringBuiltins {
             val end = minOf(start + len, size.toDouble())
             if (start >= end) "" else s.substring(start.toInt(), end.toInt())
         }
-        proto.method(realm, "toLocaleLowerCase", 0) { _, t, _, _ -> toLowerCase(thisStr(t, "toLocaleLowerCase")) }
-        proto.method(realm, "toLocaleUpperCase", 0) { _, t, _, _ -> toUpperCase(thisStr(t, "toLocaleUpperCase")) }
-        proto.method(realm, "toLowerCase", 0) { _, t, _, _ -> toLowerCase(thisStr(t, "toLowerCase")) }
+        // (a case mapping may be longer than the string mapped: 'ß' is 'SS')
+        proto.method(realm, "toLocaleLowerCase", 0) { f, t, _, _ -> f.realm.agent.checkedString(toLowerCase(thisStr(t, "toLocaleLowerCase"))) }
+        proto.method(realm, "toLocaleUpperCase", 0) { f, t, _, _ -> f.realm.agent.checkedString(toUpperCase(thisStr(t, "toLocaleUpperCase"))) }
+        proto.method(realm, "toLowerCase", 0) { f, t, _, _ -> f.realm.agent.checkedString(toLowerCase(thisStr(t, "toLowerCase"))) }
         proto.method(realm, "toString", 0) { _, t, _, _ -> thisStringValue(t, "toString") }
-        proto.method(realm, "toUpperCase", 0) { _, t, _, _ -> toUpperCase(thisStr(t, "toUpperCase")) }
+        proto.method(realm, "toUpperCase", 0) { f, t, _, _ -> f.realm.agent.checkedString(toUpperCase(thisStr(t, "toUpperCase"))) }
         proto.method(realm, "toWellFormed", 0) { _, t, _, _ ->
             val s = thisStr(t, "toWellFormed")
             val sb = StringBuilder(s.length)

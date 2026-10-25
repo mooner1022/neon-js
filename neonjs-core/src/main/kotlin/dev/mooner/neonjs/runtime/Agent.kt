@@ -164,6 +164,12 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
         if (len > 1 shl 20) reserveAllocation(len * 2)
     }
 
+    /** [s], made at once, within the string-length limit. */
+    fun checkedString(s: String): String {
+        checkStringLength(s.length.toLong())
+        return s
+    }
+
     /**
      * Charges a large allocation of about [bytes] against the allocation budget *before* it happens. The budget is
      * otherwise only sampled periodically, so a few huge allocations between two checks could exhaust the heap.

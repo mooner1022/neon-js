@@ -213,6 +213,18 @@ class ApiTest {
         engine(sandbox = policy).newContext().use { ctx ->
             assertEquals("RangeError", ctx.eval("var s = 'x'; try { for (;;) s += s } catch (e) { e.name }").asString())
         }
+        // found by the red-team sandbox: built-ins making a string at once, past the limit from strings within it
+        val small = SandboxPolicy.builder().maxStringLength(100).build()
+        engine(sandbox = small).newContext().use { ctx ->
+            val cases = listOf(
+                "'A'.repeat(100).replaceAll('A', 'BB')", "JSON.stringify('A'.repeat(100))", "JSON.stringify(Array(60).fill(1))",
+                "'ß'.repeat(60).toUpperCase()", "'ß'.repeat(60).toLocaleUpperCase()", "'İ'.repeat(60).toLowerCase()",
+                "encodeURIComponent('#'.repeat(34))", "encodeURI(' '.repeat(34))", "String.fromCharCode(...Array(101).fill(65))",
+                "String.fromCodePoint(...Array(51).fill(0x1F600))", "new Uint8Array(60).join()", "new Uint8Array(60).toLocaleString()",
+            )
+            for (code in cases) assertEquals("RangeError", ctx.eval("try { ($code).length } catch (e) { e.name }").asString(), code)
+            assertEquals(100, ctx.eval("'A'.repeat(100).replaceAll('A', 'B').length").asInt())
+        }
     }
 
     @Test
