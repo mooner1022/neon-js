@@ -24,6 +24,18 @@ class HostClassInfo private constructor(val cls: Class<*>, val access: HostAcces
     /** Whether instances show members: those of a non-public class are the ones of its public supertypes. */
     val instancesVisible: Boolean = access.isInstanceAccessible(cls)
 
+    // the collection views of instances, as the policy allows them (also where no member is visible), never of a class
+    // denied by name (arrays are judged by their elements, each shown as its own class allows)
+    private val viewable = cls.isArray || !access.isDeniedByName(cls)
+    /** Instances are array-like: elements by index, `length`. */
+    val arrayLike: Boolean = viewable &&
+        (cls.isArray && access.allowArrayAccess || List::class.java.isAssignableFrom(cls) && access.allowListAccess)
+    /** Instances' Map entries are properties. */
+    val mapLike: Boolean = viewable && Map::class.java.isAssignableFrom(cls) && access.allowMapAccess
+    /** Instances are JS-iterable. */
+    val iterable: Boolean = arrayLike || viewable && access.allowIterableAccess &&
+        (Iterable::class.java.isAssignableFrom(cls) || Iterator::class.java.isAssignableFrom(cls))
+
     val instanceFields = HashMap<String, Field>()
     val instanceMethods = HashMap<String, MutableList<Method>>()
     val instanceGetters = HashMap<String, Method>()

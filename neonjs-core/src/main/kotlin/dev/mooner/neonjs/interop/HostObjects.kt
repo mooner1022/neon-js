@@ -37,8 +37,9 @@ class HostMethodFunction(
 
 /**
  * Exotic object exposing a host (Java/Kotlin) object's public members as properties: fields, methods, and
- * bean-style properties (getX/isX/setX, i.e. Kotlin properties). Java arrays and Lists are array-like; Maps expose
- * entries through get/set; Iterables are JS-iterable. Functions (lambdas, `@FunctionalInterface` and Kotlin function
+ * bean-style properties (getX/isX/setX, i.e. Kotlin properties). Where the policy allows the views
+ * ([HostClassInfo.arrayLike], [HostClassInfo.mapLike], [HostClassInfo.iterable]), Java arrays and Lists are array-like,
+ * Maps expose entries through get/set and Iterables are JS-iterable. Functions (lambdas, `@FunctionalInterface` and Kotlin function
  * type implementations, see [HostClassInfo.findFunctionalMethod]) are callable. A signature key such as
  * `append(java.lang.String)` names one overload ([HostClassInfo.overload]).
  */
@@ -56,10 +57,9 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
         extensible = false
     }
 
-    override val className: String get() = if (target.javaClass.isArray || (target is List<*> && bridge.access.allowListAccess)) "Array" else "Object"
+    override val className: String get() = if (info.arrayLike) "Array" else "Object"
 
-    private val access get() = bridge.access
-    private fun isArrayLike() = (target.javaClass.isArray && access.allowArrayAccess) || (target is List<*> && access.allowListAccess)
+    private fun isArrayLike() = info.arrayLike
 
     private fun length(): Int = when (target) {
         is List<*> -> target.size
@@ -112,9 +112,9 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
         return bridge.invoke(m.getter!!, target, EMPTY_ARGS)
     }
 
-    private fun isMap() = target is Map<*, *> && access.allowMapAccess
+    private fun isMap() = info.mapLike
 
-    private fun isIterable() = ((target is Iterable<*> || target is Iterator<*>) && access.allowIterableAccess) || isArrayLike()
+    private fun isIterable() = info.iterable
 
     /** True if [name] is a Java member (members take precedence over Map entries). */
     private fun isMember(name: String) = name in info.instanceFields || name in info.instanceMethods || name in info.instanceGetters

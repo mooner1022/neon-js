@@ -189,8 +189,79 @@ class SecurityTest {
             c["f"] = { x: Int -> x }
             c["l"] = java.util.List.of(1, 2)
             assertEquals("object,object,TypeError,undefined", c.eval("[typeof r, typeof f, (() => { try { r() } catch (e) { return e.name } })(), typeof l.size].join()").asString())
+            assertCollectionsOpaque(c)
         }
     }
+
+    /** Host collections under [c]'s policy show nothing of their contents and take no writes. */
+    private fun assertCollectionsOpaque(c: NeonContext) {
+        val list = java.util.ArrayList(listOf(1, 2))
+        val array = intArrayOf(1, 2)
+        val map = java.util.HashMap(mapOf("k" to "v", "gone" to "x"))
+        val set = java.util.LinkedHashSet(listOf("a", "b"))
+        c["l"] = list
+        c["a"] = array
+        c["m"] = map
+        c["s"] = set
+        c["i"] = set.iterator()
+        val notIterable = "(x => { try { return [...x].join() } catch (e) { return e.name } })"
+        assertEquals("undefined,undefined,undefined,undefined,undefined,0,0,{},TypeError,TypeError,TypeError,TypeError,false,[object Object]",
+            c.eval("[l[0], l.length, a[0], a.length, m.k, Object.keys(m).length, Object.getOwnPropertyNames(l).length, " +
+                "JSON.stringify(m), $notIterable(l), $notIterable(a), $notIterable(s), $notIterable(i), Array.isArray(l), " +
+                "Object.prototype.toString.call(a)].map(String).join()").asString())
+        c.eval("l[0] = 9; a[0] = 9; m.k = 'w'; m.added = 1; delete m.gone")
+        assertEquals(listOf(1, 2), list)
+        assertEquals(listOf(1, 2), array.toList())
+        assertEquals(mapOf("k" to "v", "gone" to "x"), map)
+    }
+
+    @Test
+    fun collectionViewsFollowGraalVMsPresets() {
+        // EXPLICIT shows no collection's contents unless the embedder allows the view; ALL shows them
+        ctx(access = HostAccess.EXPLICIT).use { assertCollectionsOpaque(it) }
+        val list = java.util.ArrayList(listOf(1, 2))
+        val map = java.util.HashMap(mapOf("k" to "v"))
+        val opted = HostAccess.builder(HostAccess.Level.EXPLICIT).allowListAccess(true).allowMapAccess(true).build()
+        for (access in listOf(opted, HostAccess.ALL)) ctx(access = access).use { c ->
+            c["l"] = list
+            c["m"] = map
+            assertEquals("1,2,v", c.eval("[l[0], l.length, m.k].join()").asString())
+        }
+        // the views are the policy's: also under NONE when allowed (members stay hidden)
+        ctx(access = HostAccess.builder(HostAccess.Level.NONE).allowListAccess(true).build()).use { c ->
+            c["l"] = list
+            assertEquals("1,2,undefined", c.eval("[...l, typeof l.size].join()").asString())
+        }
+        // a JS object passed for a Map parameter is a view of it whatever the policy shows of host Maps
+        ctx(access = HostAccess.EXPLICIT).use { c ->
+            c["f"] = MapTaker()
+            assertEquals("1", c.eval("f.size({ a: 1 })").asString())
+        }
+    }
+
+    class MapTaker {
+        @HostExport fun size(m: Map<String, Any?>) = m.size.toString()
+    }
+
+    /** Found by the red-team sandbox: a class denied by name showed its contents when it was a collection. */
+    @Test
+    fun collectionsOfClassesDeniedByNameAreOpaque() {
+        val access = HostAccess.builder(HostAccess.Level.ALL).denyClass(DeniedMap::class.java.name).denyClass(DeniedList::class.java.name).build()
+        ctx(access = access).use { c ->
+            val m = DeniedMap().apply { put("token", "s3cret") }
+            val l = DeniedList().apply { add("s3cret") }
+            c["m"] = m
+            c["l"] = l
+            assertEquals("undefined,undefined,{},0,TypeError", c.eval("[m.token, l[0], JSON.stringify(m), Object.keys(l).length, " +
+                "(() => { try { return [...l] } catch (e) { return e.name } })()].map(String).join()").asString())
+            c.eval("m.token = 'changed'; m.added = 1; l[0] = 'changed'")
+            assertEquals(mapOf("token" to "s3cret"), m)
+            assertEquals(listOf("s3cret"), l)
+        }
+    }
+
+    class DeniedMap : java.util.HashMap<String, Any?>()
+    class DeniedList : java.util.ArrayList<Any?>()
 
     @Test
     fun objectsOfDeniedPackagesShowOnlyUsableTypes() {
@@ -227,11 +298,11 @@ class SecurityTest {
             }
         }
         // under EXPLICIT, functions handed over by the host stay callable (they are the host's explicit choice) while
-        // members of collections need annotations
+        // members of collections need annotations, and their contents allowListAccess (as in GraalVM)
         ctx(access = HostAccess.EXPLICIT).use { c ->
             c["r"] = Runnable { }
             c["l"] = java.util.List.of(1, 2)
-            assertEquals("function,undefined,2", c.eval("[typeof r, typeof l.size, l.length].join()").asString())
+            assertEquals("function,undefined,undefined", c.eval("[typeof r, typeof l.size, typeof l.length].join()").asString())
         }
     }
 

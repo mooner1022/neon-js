@@ -205,7 +205,7 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
     fun wrap(v: Any): HostObject {
         wrappers[v]?.let { return it }
         val info = classInfo(v.javaClass)
-        val w = if (info.instancesVisible || info.functionalMethod != null || v.javaClass.isArray || v is List<*> || v is Map<*, *> || v is Iterable<*>) HostObject(this, v, info) else opaque(v)
+        val w = if (info.instancesVisible || info.functionalMethod != null || info.arrayLike || info.mapLike || info.iterable) HostObject(this, v, info) else opaque(v)
         wrappers[v] = w
         return w
     }
@@ -394,7 +394,8 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
                     if (t.isArray) return 2
                     if (t == List::class.java || t == Collection::class.java || t == Iterable::class.java) return 2
                 }
-                if (t == Map::class.java && access.allowMapAccess) return 3
+                // (a view of the JS object: not what the policy shows of host Maps, as in GraalVM)
+                if (t == Map::class.java) return 3
                 if (t.isInterface && access.allowImplementations && t != Map::class.java && t != List::class.java) return 6
                 if (t == Any::class.java) return 5
                 return IMPOSSIBLE

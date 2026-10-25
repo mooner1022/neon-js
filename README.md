@@ -122,7 +122,8 @@ import dev.mooner.neonjs.*
 val engine = NeonEngine.builder()
     .executionMode(ExecutionMode.ADAPTIVE)      // or INTERPRETER / COMPILED, or .optimizationLevel(-1..9)
     .sandbox(SandboxPolicy.STRICT)               // 5 s per evaluation, depth 1000, no eval
-    .hostAccess(HostAccess.EXPLICIT)             // only @HostExport members are visible
+    .hostAccess(HostAccess.builder(HostAccess.Level.EXPLICIT)   // only @HostExport members are visible,
+        .allowMapAccess(true).build())                          // and Map entries as properties
     .build()
 
 engine.newContext().use { ctx ->
@@ -239,9 +240,12 @@ ctx.defineModule("host:db", mapOf("query" to queryFunction, "version" to 2))   /
   single-method interface they implement), and objects whose only role is a `@FunctionalInterface` interface or a
   Kotlin function type. Other objects are not functions even with a single-method interface (an `ArrayList` is
   `Iterable`, a `LocalDate` a `TemporalAdjuster`): call their methods.
-- Java arrays and `List`s behave like JS arrays; `Iterable`s and `Iterator`s work with `for…of` and spread; `Map`
-  entries are readable and writable as properties. A JS array or object passed as a `List` or `Map` is a live view
-  (changes through its entries included) and comes back to its context as the same array or object.
+- Under `HostAccess.ALL`, Java arrays and `List`s behave like JS arrays; `Iterable`s and `Iterator`s work with
+  `for…of` and spread; `Map` entries are readable and writable as properties. Under `EXPLICIT` and `NONE` these
+  views are off unless the policy allows them (`allowArrayAccess`, `allowListAccess`, `allowMapAccess`,
+  `allowIterableAccess`), as in GraalVM, and they never apply to a class denied by name. A JS array or object passed
+  as a `List` or `Map` is a live view (changes through its entries included), at every level, and comes back to its
+  context as the same array or object.
 - JS functions convert to any functional interface (`Runnable`, `Consumer`, Kotlin `fun interface`s, …) and JS
   objects to any interface. The proxies re-enter the context safely from any thread, and come back to the context
   that made them as the original JS function or object.
@@ -282,7 +286,8 @@ to the whole `runEventLoop` call (see [Web globals](#web-globals)).
 host-defined modules — and run under the same limits as their creator.
 
 `HostAccess.NONE` makes host objects opaque, `EXPLICIT` exposes only `@HostExport` members, and `ALL` exposes all
-public members. Every level applies a deny list (reflection, `Class`, class loaders, `System`, `Runtime`,
+public members and the contents of arrays and collections (the builder's `allow*Access` options turn those views on
+for the other levels). Every level applies a deny list (reflection, `Class`, class loaders, `System`, `Runtime`,
 processes, threads, `Unsafe`, serialization streams, engine internals…) and hides `getClass`, `wait`, `notify`
 and `finalize`. Embedders that trust their scripts with some of these lift entries of the built-in list explicitly:
 

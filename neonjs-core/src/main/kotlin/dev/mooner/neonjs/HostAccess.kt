@@ -117,7 +117,7 @@ class HostAccess private constructor(b: Builder) {
     }
 
     /** Whether [c], one of its superclasses or one of its interfaces is denied by name (not by package). */
-    private fun isDeniedByName(c: Class<*>): Boolean {
+    internal fun isDeniedByName(c: Class<*>): Boolean {
         var k: Class<*>? = c
         while (k != null) {
             if (isNameDenied(k.name, packages = false)) return true
@@ -233,10 +233,11 @@ class HostAccess private constructor(b: Builder) {
         val allowedClasses = HashSet<String>()
         val allowedPrefixes = ArrayList<String>()
         var defaultDenyList = true
-        var allowArrayAccess = true
-        var allowListAccess = true
-        var allowMapAccess = true
-        var allowIterableAccess = true
+        // the collection views: on for ALL only, as GraalVM's presets have them
+        var allowArrayAccess = level == Level.ALL
+        var allowListAccess = level == Level.ALL
+        var allowMapAccess = level == Level.ALL
+        var allowIterableAccess = level == Level.ALL
         var allowImplementations = true
 
         fun classFilter(f: (Class<*>) -> Boolean) = apply { classFilter = f }
@@ -274,9 +275,18 @@ class HostAccess private constructor(b: Builder) {
         fun defaultDenyList(enabled: Boolean) = apply { defaultDenyList = enabled }
 
         private fun packagePrefix(p: String) = if (p.endsWith(".")) p else "$p."
+
+        /**
+         * Java arrays are array-like (elements read and written by index, `length`, iteration); on by default for
+         * [Level.ALL] only. Like the other collection views below, at any level, also [Level.NONE], it shows the
+         * contents of objects JS sees nothing else of, and never those of a class denied by name.
+         */
         fun allowArrayAccess(b: Boolean) = apply { allowArrayAccess = b }
+        /** `List`s are array-like; on by default for [Level.ALL] only (see [allowArrayAccess]). */
         fun allowListAccess(b: Boolean) = apply { allowListAccess = b }
+        /** `Map` entries are properties, read, written and deleted; on by default for [Level.ALL] only (see [allowArrayAccess]). */
         fun allowMapAccess(b: Boolean) = apply { allowMapAccess = b }
+        /** `Iterable`s and `Iterator`s are JS-iterable; on by default for [Level.ALL] only (see [allowArrayAccess]). */
         fun allowIterableAccess(b: Boolean) = apply { allowIterableAccess = b }
         fun allowImplementations(b: Boolean) = apply { allowImplementations = b }
         fun build() = HostAccess(this)

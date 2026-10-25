@@ -38,7 +38,13 @@ if host code swallowed the exception. Every entry into a context from the host (
 
 - `NONE`: host objects are opaque: no members, not callable, not array-like.
 - `EXPLICIT`: only members annotated with `@HostExport` (or members of annotated classes).
-- `ALL`: all public members.
+- `ALL`: all public members, and the contents of Java arrays, `List`s, `Map`s, `Iterable`s and `Iterator`s (elements
+  by index, `Map` entries as properties, iteration; written through as well).
+
+The contents are views a level other than `ALL` shows only where the embedder enables them
+(`HostAccess.Builder.allowArrayAccess`, `allowListAccess`, `allowMapAccess`, `allowIterableAccess`), as GraalVM's
+presets do; an enabled view shows the contents of collections even under `NONE`, whose members stay hidden. No view
+applies to an instance of a class denied by name.
 
 At every level a deny list blocks `java.lang.Class`, class loaders, `System`, `Runtime`, processes, threads,
 `SecurityManager`, modules, `StackWalker`, `Unsafe`, `MethodHandles`, object serialization streams, reflection
