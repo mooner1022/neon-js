@@ -7,6 +7,11 @@ enum class ErrorKind(val jsName: String) {
 
 /** A thrown JS value. Stack traces of the Kotlin exception are disabled for performance. */
 class JSException(@JvmField val value: Any?) : RuntimeException(null, null, false, false) {
+    /**
+     * Where a value that is no error object was thrown (Rt.attachStack, at the first frame it leaves): an error object
+     * keeps its own (JSErrorObject.location).
+     */
+    @JvmField var location: SourceLocation? = null
 
     override val message: String get() = describe()
 
@@ -56,6 +61,9 @@ class JSException(@JvmField val value: Any?) : RuntimeException(null, null, fals
     }
 }
 
+/** A position in a script: its source name, and 1-based line and column. */
+class SourceLocation(@JvmField val sourceName: String?, @JvmField val line: Int, @JvmField val column: Int)
+
 /** Ordinary object with an `[[ErrorData]]` internal slot. */
 open class JSErrorObject(proto: JSObject?) : JSObject(proto) {
     override val className: String get() = "Error"
@@ -70,6 +78,11 @@ open class JSErrorObject(proto: JSObject?) : JSObject(proto) {
     @JvmField var capturedPc: Int = -1
     /** The frame's activation then (Frame.activation: a frame of a returned call serves another later). */
     @JvmField var capturedActivation: Int = 0
+    /**
+     * Where the error arose: the first frame of its stack with a position (Agent.captureStack), or for a syntax error,
+     * the position in the source parsed (Evaluator.syntaxError). Null when unknown.
+     */
+    @JvmField var location: SourceLocation? = null
     /** Name and message kept in internal slots (DOMException) rather than in "name" / "message" data properties. */
     open val slotName: String? get() = null
     open val slotMessage: String? get() = null

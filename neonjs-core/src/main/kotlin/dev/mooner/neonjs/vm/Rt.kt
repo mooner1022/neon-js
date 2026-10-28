@@ -675,7 +675,7 @@ object Rt {
             is TerminationException -> throw t
             is StackOverflowError -> return realm.newError(ErrorKind.RANGE, "Maximum call stack size exceeded")
             is OutOfMemoryError -> throw ResourceLimitException("Out of memory")
-            is dev.mooner.neonjs.parser.JSSyntaxError -> return realm.newError(ErrorKind.SYNTAX, t.rawMessage)
+            is dev.mooner.neonjs.parser.JSSyntaxError -> return Evaluator.syntaxErrorObject(realm, t)
             is HostException -> return realm.agent.hostExceptionToJS(t, realm)
             is InterruptedException -> throw InterruptedExecutionException("interrupted")
             else -> {
@@ -692,13 +692,30 @@ object Rt {
      */
     @JvmStatic
     fun attachStack(t: JSException, f: Frame, pc: Int) {
-        val v = t.value as? JSErrorObject ?: return
+        val v = t.value as? JSErrorObject
+        if (v == null) {
+            // a value that is no error object (`throw "x"`): where it was thrown, the first frame it leaves
+            if (t.location == null) t.location = locationAt(f, pc)
+            return
+        }
         val sameStep = v.capturedAt?.get() === f && v.capturedPc == f.pc && v.capturedActivation == f.activation
         if (v.stackTrace == null || sameStep) {
             f.pc = pc
-            v.stackTrace = f.realm.agent.captureStack()
+            f.realm.agent.captureStack(v)
         }
         v.capturedAt = null
+    }
+
+    /** The position of [f] at [pc] (of the body inlined there, if any) in its source, or null without one. */
+    @JvmStatic
+    fun locationAt(f: Frame, pc: Int): SourceLocation? {
+        val inl = f.inlineFn
+        val code = inl?.code ?: f.code
+        val src = code.source ?: return null
+        val pos = code.positionAt(if (inl != null) f.inlinePc else pc)
+        if (pos < 0) return null
+        val (l, c) = src.lineCol(pos)
+        return SourceLocation(src.name, l, c)
     }
 
     // ------------------------------------------------------------------ misc

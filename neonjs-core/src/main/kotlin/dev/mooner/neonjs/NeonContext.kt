@@ -150,10 +150,16 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
     internal fun toHostException(e: JSException): NeonException {
         val v = e.value
         val hostCause = (v as? JSObject)?.let { hostCauseOf(it) }
-        val ex = if (v is JSErrorObject && isSyntaxError(v)) NeonSyntaxException(e.describe(), 0, 0, null)
+        val at = (v as? JSErrorObject)?.location ?: e.location
+        val ex = if (v is JSErrorObject && isSyntaxError(v)) NeonSyntaxException(e.describe(), at?.line ?: 0, at?.column ?: 0, at?.sourceName)
         else NeonException(e.describe(), hostCause)
         ex.guestValue = NeonValue(this, v)
         ex.jsStack = e.jsStack
+        if (at != null) {
+            ex.line = at.line
+            ex.column = at.column
+            ex.sourceName = at.sourceName
+        }
         return ex
     }
 

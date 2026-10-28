@@ -205,7 +205,10 @@ private fun cliMain(args: Array<String>): Int {
                 when (e) {
                     is JSException -> {
                         System.err.println("Uncaught " + Inspector.inspect(e.value))
-                        if (e.value !is JSErrorObject) e.jsStack?.let { System.err.println(it) }
+                        // without a stack: where the parser found a syntax error, or where a value was thrown
+                        val err = e.value as? JSErrorObject
+                        val at = if (err?.stackTrace.isNullOrEmpty()) err?.location ?: e.location else null
+                        at?.let { System.err.println("    at ${it.sourceName ?: "<input>"}:${it.line}:${it.column}") }
                     }
                     is HostException -> System.err.println("Uncaught host exception: ${e.hostCause}")
                     is StackOverflowError -> System.err.println("Uncaught RangeError: Maximum call stack size exceeded")

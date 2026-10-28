@@ -9,9 +9,14 @@ object Evaluator {
 
     /** Converts a parser error into a JS SyntaxError in [realm]. */
     @JvmStatic
-    fun syntaxError(realm: Realm, e: JSSyntaxError): JSException {
+    fun syntaxError(realm: Realm, e: JSSyntaxError): JSException = JSException(syntaxErrorObject(realm, e))
+
+    /** The JS SyntaxError of parser error [e] in [realm], located where the parser found it (not where it was parsed). */
+    @JvmStatic
+    fun syntaxErrorObject(realm: Realm, e: JSSyntaxError): JSErrorObject {
         val err = realm.newError(ErrorKind.SYNTAX, e.rawMessage)
-        return JSException(err)
+        err.location = SourceLocation(e.sourceName, e.line, e.column)
+        return err
     }
 
     @JvmStatic

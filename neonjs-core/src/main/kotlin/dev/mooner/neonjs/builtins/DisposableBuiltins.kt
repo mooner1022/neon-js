@@ -136,7 +136,7 @@ class DisposeCapability {
             val e = JSErrorObject(realm.errorPrototypes[ErrorKind.SUPPRESSED] ?: realm.errorPrototype)
             e.defineOwn("error", error, Attr.WC)
             e.defineOwn("suppressed", suppressed, Attr.WC)
-            if (realm.agent.topFrame != null) e.stackTrace = realm.agent.captureStack()
+            if (realm.agent.topFrame != null) realm.agent.captureStack(e)
             return e
         }
 

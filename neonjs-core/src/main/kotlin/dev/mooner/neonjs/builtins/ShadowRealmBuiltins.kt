@@ -112,7 +112,7 @@ object ShadowRealms {
             dev.mooner.neonjs.parser.Parser.parse(source, dev.mooner.neonjs.parser.ParseOptions(sourceName = "<ShadowRealm>"))
         } catch (e: dev.mooner.neonjs.parser.JSSyntaxError) {
             // early errors are reported as a SyntaxError of the caller's realm
-            throw JSException(callerRealm.newError(ErrorKind.SYNTAX, e.rawMessage))
+            throw dev.mooner.neonjs.vm.Evaluator.syntaxError(callerRealm, e)
         }
         val cb = dev.mooner.neonjs.compiler.Compiler.compileEval(prog, dev.mooner.neonjs.compiler.Source("<ShadowRealm>", source), direct = false)
         val result = try {

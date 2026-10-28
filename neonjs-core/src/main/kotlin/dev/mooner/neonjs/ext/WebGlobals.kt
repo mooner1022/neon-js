@@ -81,7 +81,7 @@ object WebGlobals {
 
     internal fun newDOMException(realm: Realm, message: String, name: String): JSDOMException {
         val e = JSDOMException(realm.intrinsic("%DOMException.prototype%"), name, message)
-        if (realm.agent.topFrame != null) e.stackTrace = realm.agent.captureStack()
+        if (realm.agent.topFrame != null) realm.agent.captureStack(e)
         return e
     }
 
@@ -93,7 +93,7 @@ object WebGlobals {
 
     internal fun newQuotaExceededError(realm: Realm, message: String): JSQuotaExceededError {
         val e = JSQuotaExceededError(realm.intrinsic("%QuotaExceededError.prototype%"), message, null, null)
-        if (realm.agent.topFrame != null) e.stackTrace = realm.agent.captureStack()
+        if (realm.agent.topFrame != null) realm.agent.captureStack(e)
         return e
     }
 
@@ -105,7 +105,7 @@ object WebGlobals {
             val message = if (a.arg(0) === Undefined) "" else Idl.domString(a.arg(0))
             val name = if (a.arg(1) === Undefined) "Error" else Idl.domString(a.arg(1))
             val e = JSDOMException(proto, name, message)
-            if (realm.agent.topFrame != null) e.stackTrace = realm.agent.captureStack()
+            if (realm.agent.topFrame != null) realm.agent.captureStack(e)
             e
         }
         i.attribute("name", { _, t, _, _ -> Idl.self<JSDOMException>(t, "DOMException", "name").excName })
@@ -122,7 +122,7 @@ object WebGlobals {
             if (requested != null && requested < 0) rangeErr("QuotaExceededError: requested is negative")
             if (quota != null && requested != null && requested < quota) rangeErr("QuotaExceededError: requested is less than quota")
             val e = JSQuotaExceededError(proto, message, quota, requested)
-            if (realm.agent.topFrame != null) e.stackTrace = realm.agent.captureStack()
+            if (realm.agent.topFrame != null) realm.agent.captureStack(e)
             e
         }
         q.attribute("quota", { _, t, _, _ -> Idl.self<JSQuotaExceededError>(t, "QuotaExceededError", "quota").quota ?: Null })

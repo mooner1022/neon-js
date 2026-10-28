@@ -523,12 +523,18 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
     /** Captures a JS stack trace string from the active interpreter frames. */
     fun captureStack(): String = captureStack(null, 50)
 
+    /** Gives [o] the JS stack trace of the active frames, and their location (JSErrorObject.location). */
+    fun captureStack(o: JSErrorObject) {
+        o.location = null
+        o.stackTrace = captureStack(null, 50, o)
+    }
+
     /**
      * A JS stack trace of at most [limit] frames. With [skipThrough], the frames down to the call of that function are
      * left out (V8's `Error.captureStackTrace(target, constructorOpt)`), and the trace is empty when it is not on the
      * stack.
      */
-    fun captureStack(skipThrough: JSObject?, limit: Int): String {
+    fun captureStack(skipThrough: JSObject?, limit: Int, into: JSErrorObject? = null): String {
         val sb = StringBuilder()
         var skipping = skipThrough != null
         var f = topFrame
@@ -546,7 +552,7 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
                     if (skipping) {
                         if (fn === skipThrough) skipping = false
                     } else {
-                        appendFrame(sb, fn.debugName().ifEmpty { "<anonymous>" }, fn.code, pc)
+                        appendFrame(sb, fn.debugName().ifEmpty { "<anonymous>" }, fn.code, pc, into)
                         if (++n >= limit) break
                     }
                     if (level == 0) break
@@ -559,7 +565,7 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
             if (skipping) {
                 if (f.fn != null && f.fn === skipThrough) skipping = false
             } else {
-                appendFrame(sb, f.fn?.debugName()?.ifEmpty { "<anonymous>" } ?: f.code.name, f.code, f.pc)
+                appendFrame(sb, f.fn?.debugName()?.ifEmpty { "<anonymous>" } ?: f.code.name, f.code, f.pc, into)
                 n++
             }
             f = f.parent
@@ -567,13 +573,15 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
         return sb.toString().trimEnd()
     }
 
-    private fun appendFrame(sb: StringBuilder, name: String, code: dev.mooner.neonjs.compiler.CodeBlock, pc: Int) {
+    /** A frame of the trace; the first with a position is also [into]'s location. */
+    private fun appendFrame(sb: StringBuilder, name: String, code: dev.mooner.neonjs.compiler.CodeBlock, pc: Int, into: JSErrorObject?) {
         val pos = code.positionAt(pc)
         val src = code.source
         sb.append("    at ").append(name)
         if (src != null && pos >= 0) {
             val (l, c) = src.lineCol(pos)
             sb.append(" (").append(src.name).append(':').append(l).append(':').append(c).append(')')
+            if (into != null && into.location == null) into.location = SourceLocation(src.name, l, c)
         }
         sb.append('\n')
     }

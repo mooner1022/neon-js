@@ -174,6 +174,7 @@ internal class StructuredClone(private val realm: Realm) {
         val r = realm.newError(kind, message)
         if (!hasMessage) r.delete("message")
         r.stackTrace = e.stackTrace
+        r.location = e.location
         memory[e] = r
         return r
     }

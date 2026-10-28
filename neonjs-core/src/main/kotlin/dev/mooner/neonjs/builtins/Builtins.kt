@@ -590,7 +590,7 @@ internal object ErrorBuiltins {
     }
 
     private fun captureStack(realm: Realm, o: JSErrorObject) {
-        if (realm.agent.topFrame != null) o.stackTrace = realm.agent.captureStack()
+        if (realm.agent.topFrame != null) realm.agent.captureStack(o)
     }
 
     private fun installCause(o: JSObject, options: Any?) {

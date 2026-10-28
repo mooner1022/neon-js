@@ -28,11 +28,30 @@ open class NeonException(message: String, cause: Throwable? = null) : RuntimeExc
     /** JS stack trace (frames), if available. */
     var jsStack: String? = null
         internal set
+    /**
+     * Where the error arose: the 1-based line in the script. For a syntax error, where the parser found it; for an
+     * error object, the innermost JS frame with a position when it was created (the top of [jsStack]); for another
+     * thrown value, where it was thrown. 0 when unknown (a host error outside JS code, a sandbox limit).
+     */
+    var line: Int = 0
+        internal set
+    /** The 1-based column of [line]; 0 when unknown. */
+    var column: Int = 0
+        internal set
+    /** The name of the script [line] is in (the name it was evaluated or compiled with); null when unknown. */
+    var sourceName: String? = null
+        internal set
     open val isSyntaxError: Boolean get() = false
     open val isTermination: Boolean get() = false
 }
 
-class NeonSyntaxException(message: String, val line: Int, val column: Int, val sourceName: String?) : NeonException(message) {
+class NeonSyntaxException(message: String, line: Int, column: Int, sourceName: String?) : NeonException(message) {
+    init {
+        this.line = line
+        this.column = column
+        this.sourceName = sourceName
+    }
+
     override val isSyntaxError get() = true
 }
 

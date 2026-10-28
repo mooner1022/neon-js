@@ -263,7 +263,10 @@ ctx.defineModule("host:db", mapOf("query" to queryFunction, "version" to 2))   /
   objects to any interface. The proxies re-enter the context safely from any thread, and come back to the context
   that made them as the original JS function or object.
 - Host exceptions surface in JS as `HostError` objects (catchable); uncaught JS errors surface in the host as
-  `NeonException` with `guestValue` and the JS stack trace.
+  `NeonException` with `guestValue`, the JS stack trace (`jsStack`) and where the error arose: `sourceName`, `line`
+  and `column`. That is the parser's position for a syntax error (`NeonSyntaxException`), the innermost frame where
+  an error object was created, and the `throw` for any other value. `line` is 0 when no JS code was running (a sandbox
+  limit).
 
 With `SandboxPolicy.builder().exposeJavaGlobal(true)` and a `HostAccess` that allows class lookup, scripts get a
 `Java` object: `Java.type("java.util.ArrayList")`, `Java.type("int[]")`, `Java.from(javaCollection)`,

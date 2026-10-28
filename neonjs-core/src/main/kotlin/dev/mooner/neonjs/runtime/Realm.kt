@@ -61,7 +61,7 @@ class Realm(@JvmField val agent: Agent) {
     fun newError(kind: ErrorKind, message: String): JSErrorObject {
         val o = JSErrorObject(errorPrototypes[kind] ?: errorPrototype)
         o.defineOwn("message", message, Attr.WC)
-        if (agent.topFrame != null) o.stackTrace = agent.captureStack()
+        if (agent.topFrame != null) agent.captureStack(o)
         return o
     }
 
