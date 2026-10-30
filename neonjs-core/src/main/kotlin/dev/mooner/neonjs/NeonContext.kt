@@ -344,6 +344,16 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
     }
 
     /**
+     * Sets what is told each time an external job is posted — a completion of a host future handed to JS, a fetch or
+     * WebSocket event, a timer of the web globals, an Atomics.waitAsync wake-up — on the thread that posts it. It should
+     * only arrange for [runEventLoop] with a timeout of 0 to be called on a thread of the host's, which runs the job,
+     * so that no thread has to wait in [runEventLoop] for jobs to come. Null removes it.
+     */
+    fun setExternalJobListener(listener: Runnable?) {
+        agent.externalJobListener = listener
+    }
+
+    /**
      * Runs pending jobs and waits for external events — completions of host futures handed to JS (they appear as
      * promises), Atomics.waitAsync wake-ups — until nothing is pending. Returns false if work was still pending after
      * [timeoutMillis]. Waiting counts against the sandbox's execution-time limit (unless [SandboxPolicy.limitsPerTask])

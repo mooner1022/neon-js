@@ -372,6 +372,14 @@ whichever thread runs jobs (any evaluation does). Timer callbacks must be functi
 `SandboxPolicy.maxTimers` caps pending timers per context (10,000 by default). `TextDecoder` supports only UTF-8
 (other labels are a `RangeError`). The CLI enables these globals and runs the event loop after each script.
 
+A host with an executor of its own needs no thread waiting in the loop: `setExternalJobListener` is told, on the posting
+thread, of each timer, fetch, socket event or future completion, and can schedule `runEventLoop(0)`, which runs what is
+ready and returns.
+
+```kotlin
+ctx.setExternalJobListener { executor.execute { ctx.runEventLoop(0) } }
+```
+
 ### Network (`neonjs-net`)
 
 The optional `neonjs-net` module gives scripts `fetch` and `WebSocket` over [OkHttp](https://square.github.io/okhttp/)

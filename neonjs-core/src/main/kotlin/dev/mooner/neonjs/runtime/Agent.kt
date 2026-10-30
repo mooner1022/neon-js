@@ -347,6 +347,9 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
     /** Number of registered external sources (used to cap per-agent host resources). */
     val externalSourceCount: Int get() = externalSources.size + idleSources.size
 
+    /** Told, on the posting thread, of each job [postExternalJob] queues (the host's cue to run jobs). */
+    @Volatile @JvmField var externalJobListener: Runnable? = null
+
     /** Posts [job] to run on the owner thread at its next [runJobs]; dropped after [closeExternal]. Thread-safe. */
     fun postExternalJob(job: Runnable) {
         externalLock.lock()
@@ -357,6 +360,11 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
             externalPosted.signalAll()
         } finally {
             externalLock.unlock()
+        }
+        try {
+            externalJobListener?.run()
+        } catch (_: RuntimeException) {
+            // the job is queued whatever the listener does
         }
     }
 
