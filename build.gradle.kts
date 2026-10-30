@@ -11,8 +11,8 @@ plugins {
 
 // group and version: gradle.properties (a release passes -Pversion=X.Y.Z)
 
-// The libraries published to Maven Central as dev.mooner.neonjs:<module> (docs/RELEASING.md); the CLI and the
-// Test262 runner are not published.
+// The libraries published as dev.mooner.neonjs:<module> to the GitHub Pages repository and, for some releases, Maven
+// Central (docs/RELEASING.md); the CLI and the Test262 runner are not published.
 val publishedModules = setOf("neonjs-core", "neonjs-intl", "neonjs-net", "neonjs-node", "neonjs-android", "neonjs-android-d8")
 
 subprojects {
@@ -38,7 +38,9 @@ subprojects {
         apply(plugin = "com.vanniktech.maven.publish")
 
         extensions.configure<MavenPublishBaseExtension> {
-            configure(KotlinJvm(javadocJar = JavadocJar.Dokka("dokkaGeneratePublicationHtml"), sourcesJar = SourcesJar.Sources()))
+            // an empty javadoc jar satisfies Central and keeps releases within its monthly size quota; the Dokka HTML
+            // goes to GitHub Pages instead
+            configure(KotlinJvm(javadocJar = JavadocJar.Empty(), sourcesJar = SourcesJar.Sources()))
             // uploads and validates a deployment; it goes public when published on central.sonatype.com
             publishToMavenCentral()
             signAllPublications()
@@ -67,6 +69,17 @@ subprojects {
                     url.set("https://github.com/mooner1022/neon-js")
                     connection.set("scm:git:git://github.com/mooner1022/neon-js.git")
                     developerConnection.set("scm:git:ssh://git@github.com/mooner1022/neon-js.git")
+                }
+            }
+        }
+
+        // publishAllPublicationsToPagesRepository writes a Maven repository into -PpagesRepo=<dir> (the gh-pages
+        // checkout's maven/ directory in the Release workflow), merging the versions already there
+        extensions.configure<PublishingExtension> {
+            repositories {
+                maven {
+                    name = "pages"
+                    url = rootProject.file(findProperty("pagesRepo") ?: "build/pages-maven").toURI()
                 }
             }
         }

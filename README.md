@@ -4,6 +4,7 @@
 [![Android](https://github.com/mooner1022/neon-js/actions/workflows/android.yml/badge.svg)](https://github.com/mooner1022/neon-js/actions/workflows/android.yml)
 [![Release](https://github.com/mooner1022/neon-js/actions/workflows/release.yml/badge.svg)](https://github.com/mooner1022/neon-js/actions/workflows/release.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/dev.mooner.neonjs/neonjs-core?label=Maven%20Central)](https://central.sonatype.com/artifact/dev.mooner.neonjs/neonjs-core)
+[![GitHub Pages](https://img.shields.io/maven-metadata/v?metadataUrl=https%3A%2F%2Fmooner1022.github.io%2Fneon-js%2Fmaven%2Fdev%2Fmooner%2Fneonjs%2Fneonjs-core%2Fmaven-metadata.xml&label=GitHub%20Pages)](https://mooner1022.github.io/neon-js/maven/dev/mooner/neonjs/neonjs-core/maven-metadata.xml)
 
 NeonJS is a JavaScript engine for the JVM, written in Kotlin. It is built for embedding untrusted or semi-trusted
 scripts in Java/Kotlin applications:
@@ -49,8 +50,22 @@ the specified formats follows the engine's own heuristics, which differ from Spi
 
 ## Installation
 
-Releases are published to Maven Central as `dev.mooner.neonjs:<module>`
-([docs/RELEASING.md](docs/RELEASING.md) describes the release process):
+Releases are published as `dev.mooner.neonjs:<module>` to a Maven repository on GitHub Pages, and some of them to
+Maven Central as well ([docs/RELEASING.md](docs/RELEASING.md) describes the release process). Every version is on
+GitHub Pages, so add that repository to get the latest one; Maven Central alone is enough for the versions published
+there.
+
+```kotlin
+// settings.gradle.kts (or repositories { } in build.gradle.kts)
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+        maven("https://mooner1022.github.io/neon-js/maven") {
+            content { includeGroup("dev.mooner.neonjs") }   // only NeonJS is looked up there
+        }
+    }
+}
+```
 
 ```kotlin
 dependencies {
@@ -61,7 +76,8 @@ dependencies {
 }
 ```
 
-The jars are Java 21 class files. For Android, see [Android](#android).
+The jars are Java 21 class files. For Android, see [Android](#android). The API docs of the latest release are at
+[mooner1022.github.io/neon-js/api](https://mooner1022.github.io/neon-js/api/neonjs-core/).
 
 ## Building
 
@@ -515,8 +531,8 @@ dependencies {
 }
 ```
 
-`neonjs-android-d8` gets its r8 dependency from Google's Maven repository (`google()`), which Android builds already
-use. The jars are Java 21 class files, so the app's build tools (D8) must accept that class file version.
+The repositories are the ones in [Installation](#installation). `neonjs-android-d8` gets its r8 dependency from
+Google's Maven repository (`google()`), which Android builds already use. The jars are Java 21 class files, so the app's build tools (D8) must accept that class file version.
 
 The engine needs API 26+ (`java.time`, `java.lang.invoke`, `InMemoryDexClassLoader`). Adding `neonjs-android` is
 enough; to also keep converted code across launches, pass a cache directory:

@@ -1,10 +1,26 @@
 name: Release
 
-# Pushing a tag vX.Y.Z publishes dev.mooner.neonjs:*:X.Y.Z to Maven Central. The deployment is uploaded and validated;
-# it becomes public when it is published from https://central.sonatype.com/publishing/deployments (docs/RELEASING.md).
+# Pushing a tag vX.Y.Z publishes dev.mooner.neonjs:*:X.Y.Z to the Maven repository on GitHub Pages
+# (https://mooner1022.github.io/neon-js/maven) and the API docs to https://mooner1022.github.io/neon-js/api/.
+# Maven Central is opt-in because of its monthly quota: run this workflow by hand for a tag with "Maven Central"
+# checked. The Central deployment is uploaded and validated; it becomes public when it is published from
+# https://central.sonatype.com/publishing/deployments (docs/RELEASING.md).
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to release (vX.Y.Z)
+        required: true
+      pages:
+        description: Publish to GitHub Pages
+        type: boolean
+        default: true
+      central:
+        description: Upload to Maven Central
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -13,13 +29,21 @@ concurrency:
   group: release
   cancel-in-progress: false
 
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
 jobs:
-  publish:
-    name: Publish to Maven Central
+  pages:
+    name: Publish to GitHub Pages
+    if: github.event_name == 'push' || inputs.pages
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -27,9 +51,69 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
       - name: Version from the tag
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          version="${TAG#v}"
           if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || [[ "$version" == *SNAPSHOT* ]]; then
-            echo "::error::tag $GITHUB_REF_NAME is not a release version (vX.Y.Z or vX.Y.Z-qualifier)"
+            echo "::error::tag $TAG is not a release version (vX.Y.Z or vX.Y.Z-qualifier)"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - name: Build and unit tests
+        run: ./gradlew build -Pversion="$VERSION"
+      - name: Check out gh-pages
+        # the first release creates the branch
+        run: |
+          if git ls-remote --exit-code --heads origin gh-pages > /dev/null; then
+            git fetch --depth=1 origin gh-pages
+            git worktree add --detach pages FETCH_HEAD
+          else
+            git worktree add --orphan -b gh-pages pages
+          fi
+      - name: Publish into the Maven repository
+        # Gradle merges the new version into the maven-metadata.xml files already in pages/maven.
+        run: |
+          export ORG_GRADLE_PROJECT_signingInMemoryKey="${SIGNING_KEY//\\n/$'\n'}"
+          ./gradlew publishAllPublicationsToPagesRepository -Pversion="$VERSION" -PpagesRepo="$PWD/pages/maven" --no-configuration-cache
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
+      - name: API docs
+        run: |
+          ./gradlew dokkaGeneratePublicationHtml -Pversion="$VERSION" --no-configuration-cache
+          for html in neonjs-*/build/dokka/html; do
+            module="${html%%/*}"
+            rm -rf "pages/api/$module"
+            mkdir -p pages/api
+            cp -r "$html" "pages/api/$module"
+          done
+          touch pages/.nojekyll
+      - name: Push gh-pages
+        working-directory: pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "release: $VERSION"
+          git push origin HEAD:gh-pages
+
+  central:
+    name: Publish to Maven Central
+    if: github.event_name == 'workflow_dispatch' && inputs.central
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Version from the tag
+        run: |
+          version="${TAG#v}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || [[ "$version" == *SNAPSHOT* ]]; then
+            echo "::error::tag $TAG is not a release version (vX.Y.Z or vX.Y.Z-qualifier)"
             exit 1
           fi
           echo "VERSION=$version" >> "$GITHUB_ENV"
