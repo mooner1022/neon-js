@@ -1,0 +1,130 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "dev.mooner.neonjs",
+    "module": "neonjs-net",
+    "version": "0.1.6",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.8.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.environment": "standard-jvm",
+        "org.gradle.jvm.version": 21,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api",
+        "org.jetbrains.kotlin.platform.type": "jvm"
+      },
+      "dependencies": [
+        {
+          "group": "dev.mooner.neonjs",
+          "module": "neonjs-core",
+          "version": {
+            "requires": "0.1.6"
+          }
+        },
+        {
+          "group": "com.squareup.okhttp3",
+          "module": "okhttp",
+          "version": {
+            "requires": "5.5.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.4.20"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "neonjs-net-0.1.6.jar",
+          "url": "neonjs-net-0.1.6.jar",
+          "size": 69240,
+          "sha512": "d891381a88d0f74355e10138598ac6ccbcd493d39f06934f4e4cbad8dc270690e41d70bc5f9412313fecd95e650fd8872d2ee2792661be813fbce311e38dc7bc",
+          "sha256": "7b67b5bb71af4625863beaea46a3b7da8e86fc07936e1fccb8b5e1ef164adcde",
+          "sha1": "0530d48f9c136e6699be9b9ff340a4b7153d435a",
+          "md5": "74d5837aa95f0a8244eb6b39cbd51ab5"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.environment": "standard-jvm",
+        "org.gradle.jvm.version": 21,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime",
+        "org.jetbrains.kotlin.platform.type": "jvm"
+      },
+      "dependencies": [
+        {
+          "group": "dev.mooner.neonjs",
+          "module": "neonjs-core",
+          "version": {
+            "requires": "0.1.6"
+          }
+        },
+        {
+          "group": "com.squareup.okhttp3",
+          "module": "okhttp",
+          "version": {
+            "requires": "5.5.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.4.20"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "neonjs-net-0.1.6.jar",
+          "url": "neonjs-net-0.1.6.jar",
+          "size": 69240,
+          "sha512": "d891381a88d0f74355e10138598ac6ccbcd493d39f06934f4e4cbad8dc270690e41d70bc5f9412313fecd95e650fd8872d2ee2792661be813fbce311e38dc7bc",
+          "sha256": "7b67b5bb71af4625863beaea46a3b7da8e86fc07936e1fccb8b5e1ef164adcde",
+          "sha1": "0530d48f9c136e6699be9b9ff340a4b7153d435a",
+          "md5": "74d5837aa95f0a8244eb6b39cbd51ab5"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "neonjs-net-0.1.6-sources.jar",
+          "url": "neonjs-net-0.1.6-sources.jar",
+          "size": 15340,
+          "sha512": "41ae292bdb0523def45c5c7210a621733763ec61fbeed0c75037e07f585f5ac4a3821bcc9086c3baa64f6403e76bee877b24a041f9e10283973cb2b32451195d",
+          "sha256": "9fbcbb45de49a957cd6ff2d92767a1d6dc64760112df8be051a3de9571f9c8d8",
+          "sha1": "e97c5c8f002f2a754e6f42a43a8d7bff795e7785",
+          "md5": "6a41d5749f370f25e5eb1de5a02b9e01"
+        }
+      ]
+    }
+  ]
+}

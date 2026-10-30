@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" charset="UTF-8">
+    <title>Jit</title>
+    <link href="../../../images/logo-icon.svg" rel="icon" type="image/svg">
+        <script>var pathToRoot = "../../../";</script>
+    <script>document.documentElement.classList.replace("no-js", "js");</script>
+    <script>const storage = localStorage.getItem("dokka-dark-mode")
+      if (storage == null) {
+        const osDarkSchemePreferred = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+        if (osDarkSchemePreferred === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      } else {
+        const savedDarkMode = JSON.parse(storage)
+        if (savedDarkMode === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      }
+    </script>
+<script type="text/javascript" src="../../../scripts/sourceset_dependencies.js" async="async"></script>
+<link href="../../../styles/style.css" rel="Stylesheet">
+<link href="../../../styles/main.css" rel="Stylesheet">
+<link href="../../../styles/prism.css" rel="Stylesheet">
+<link href="../../../styles/logo-styles.css" rel="Stylesheet">
+<link href="../../../ui-kit/ui-kit.min.css" rel="Stylesheet">
+<script type="text/javascript" src="../../../scripts/safe-local-storage_blocking.js"></script>
+<script type="text/javascript" src="../../../scripts/navigation-loader.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/platform-content-handler.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/main.js" defer="defer"></script>
+<script type="text/javascript" src="../../../scripts/prism.js" async="async"></script>
+<script type="text/javascript" src="../../../ui-kit/ui-kit.min.js" defer="defer"></script>
+</head>
+<body>
+<div class="root">
+    <header class="navigation theme-dark" id="navigation-wrapper" role="banner">
+            <a class="library-name--link" href="../../../index.html" tabindex="1">
+                    neonjs-core
+            </a>
+        <button class="navigation-controls--btn navigation-controls--btn_toc ui-kit_mobile-only" id="toc-toggle"
+                type="button">Toggle table of contents
+        </button>
+        <div class="navigation-controls--break ui-kit_mobile-only"></div>
+        <div class="library-version" id="library-version">
+0.1.6        </div>
+        <div class="navigation-controls">
+        <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
+                <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
+                        data-filter=":neonjs-core/main">jvm</button>
+            <div class="dropdown filter-section--dropdown" data-role="dropdown" id="filter-section-dropdown">
+                <button class="button button_dropdown filter-section--dropdown-toggle" role="combobox"
+                        data-role="dropdown-toggle"
+                        aria-controls="platform-tags-listbox"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                        aria-label="Toggle source sets"
+                ></button>
+                <ul role="listbox" id="platform-tags-listbox" class="dropdown--list" data-role="dropdown-listbox" aria-label="Target filter">
+                    <div class="dropdown--header"><span>Target filter</span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close target filter">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                        <li role="option" class="dropdown--option platform-selector-option jvm-like" tabindex="0">
+                            <label class="checkbox">
+                                <input type="checkbox" class="checkbox--input" id=":neonjs-core/main"
+                                       data-filter=":neonjs-core/main"/>
+                                <span class="checkbox--icon"></span>
+                                jvm
+                            </label>
+                        </li>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </ul>
+            <button class="navigation-controls--btn navigation-controls--btn_theme" id="theme-toggle-button"
+                    type="button">Switch theme
+            </button>
+            <div class="navigation-controls--btn navigation-controls--btn_search" id="searchBar" role="button">Search in
+                API
+            </div>
+        </div>
+    </header>
+    <div id="container">
+        <nav id="leftColumn" class="sidebar" data-item-type="SECTION" data-item-config='{"defaultSize": 280, "minSize": 200, "maxSize": 400}'>
+            <a class="toc--skip-link" href="#main">Skip to content</a>
+            <div class="dropdown theme-dark_mobile" data-role="dropdown" id="toc-dropdown">
+                <ul role="listbox" id="toc-listbox" class="dropdown--list dropdown--list_toc-list"
+                    data-role="dropdown-listbox" aria-label="Table of contents">
+                    <div class="dropdown--header">
+                            <span>
+                                    neonjs-core
+                            </span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close table of contents">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                    <div class="sidebar--inner" id="sideMenu"></div>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </nav>
+        <div id="resizer" class="resizer" data-item-type="BAR"></div>
+        <div id="main" data-item-type="SECTION" role="main">
+<div class="main-content" data-page-type="classlike" id="content" pageIds="neonjs-core::dev.mooner.neonjs.jit/Jit///PointingToDeclaration//-941727813">
+  <div class="breadcrumbs"><a href="../../../index.html">neonjs-core</a><span class="delimiter">/</span><a href="../index.html">dev.mooner.neonjs.jit</a><span class="delimiter">/</span><span class="current">Jit</span></div>
+  <div class="cover ">
+    <h1 class="cover"><span><span>Jit</span></span></h1>
+    <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="index.html">Jit</a></div><p class="paragraph">Tier-up policy: decides when code blocks are compiled, and whether the caller waits for the code.</p></div></div>
+  </div>
+  <div class="tabbedcontent">
+    <div class="tabs-section" tabs-section="tabs-section"><button class="section-tab" data-active="" data-togglable="CONSTRUCTOR,TYPE,PROPERTY,FUNCTION">Members</button></div>
+    <div class="tabs-section-body">
+      <div data-togglable="PROPERTY">
+        <h2 class="tableheader">Properties</h2>
+        <div class="table"><a data-name="-1014040108%2FProperties%2F-941727813" anchor-label="LOOP_CHECK" id="-1014040108%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-l-o-o-p_-c-h-e-c-k.html"><span>LOOP_</span><wbr></wbr><span>CHECK</span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1014040108%2FProperties%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-jvm-field/index.html"><span class="token annotation builtin">JvmField</span></a></div></div><span class="token keyword">val </span><a href="-l-o-o-p_-c-h-e-c-k.html">LOOP_CHECK</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="672677607%2FProperties%2F-941727813" anchor-label="MODE_ADAPTIVE" id="672677607%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-m-o-d-e_-a-d-a-p-t-i-v-e.html"><span>MODE_</span><wbr></wbr><span>ADAPTIVE</span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="672677607%2FProperties%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">const </span><span class="token keyword">val </span><a href="-m-o-d-e_-a-d-a-p-t-i-v-e.html">MODE_ADAPTIVE</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token operator"> = </span><span class="token constant">2</span></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="881634604%2FProperties%2F-941727813" anchor-label="MODE_COMPILED" id="881634604%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-m-o-d-e_-c-o-m-p-i-l-e-d.html"><span>MODE_</span><wbr></wbr><span>COMPILED</span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="881634604%2FProperties%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">const </span><span class="token keyword">val </span><a href="-m-o-d-e_-c-o-m-p-i-l-e-d.html">MODE_COMPILED</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token operator"> = </span><span class="token constant">1</span></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1879124541%2FProperties%2F-941727813" anchor-label="MODE_INTERPRETER" id="-1879124541%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-m-o-d-e_-i-n-t-e-r-p-r-e-t-e-r.html"><span>MODE_</span><wbr></wbr><span><span>INTERPRETER</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1879124541%2FProperties%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">const </span><span class="token keyword">val </span><a href="-m-o-d-e_-i-n-t-e-r-p-r-e-t-e-r.html">MODE_INTERPRETER</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token operator"> = </span><span class="token constant">0</span></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1300508612%2FProperties%2F-941727813" anchor-label="OSR_STRESS" id="-1300508612%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-o-s-r_-s-t-r-e-s-s.html"><span>OSR_</span><wbr></wbr><span>STRESS</span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1300508612%2FProperties%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-jvm-field/index.html"><span class="token annotation builtin">JvmField</span></a></div></div><span class="token keyword">val </span><a href="-o-s-r_-s-t-r-e-s-s.html">OSR_STRESS</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></div><div class="brief "><p class="paragraph">Back-edges of an interpreted loop between two calls of <a href="loop.html">loop</a> (Interpreter: also the period of its interrupt checks). <code class="lang-kotlin">-Dneonjs.jit.osrStress</code> makes it 1 and compiles on the calling thread at the first one, so every loop that runs is entered compiled after its first iteration (for tests).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-292694440%2FProperties%2F-941727813" anchor-label="osrEntered" id="-292694440%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="osr-entered.html"><span>osr</span><wbr></wbr><span><span>Entered</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-292694440%2FProperties%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-jvm-field/index.html"><span class="token annotation builtin">JvmField</span></a></div></div><span class="token keyword">val </span><a href="osr-entered.html">osrEntered</a><span class="token operator">: </span><a href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/atomic/AtomicLong.html">AtomicLong</a></div><div class="brief "><p class="paragraph">Loops continued in compiled code (<a href="osr.html">osr</a>), and attempts at a pc the code has no entry at.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1153653520%2FProperties%2F-941727813" anchor-label="osrMissed" id="1153653520%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="osr-missed.html"><span>osr</span><wbr></wbr><span><span>Missed</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1153653520%2FProperties%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-jvm-field/index.html"><span class="token annotation builtin">JvmField</span></a></div></div><span class="token keyword">val </span><a href="osr-missed.html">osrMissed</a><span class="token operator">: </span><a href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/atomic/AtomicLong.html">AtomicLong</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div data-togglable="FUNCTION">
+        <h2 class="tableheader">Functions</h2>
+        <div class="table"><a data-name="1985968438%2FFunctions%2F-941727813" anchor-label="backend" id="1985968438%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="backend.html"><span><span>backend</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1985968438%2FFunctions%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-jvm-static/index.html"><span class="token annotation builtin">JvmStatic</span></a></div></div><span class="token keyword">fun </span><a href="backend.html"><span class="token function">backend</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">agent<span class="token operator">: </span><a href="../../dev.mooner.neonjs.runtime/-agent/index.html">Agent</a></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="../-jit-backend/index.html">JitBackend</a></div><div class="brief "><p class="paragraph">The backend compiling for <a href="backend.html">agent</a>: JVM classes defined by its code definer.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="79385115%2FFunctions%2F-941727813" anchor-label="install" id="79385115%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="install.html"><span><span>install</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="79385115%2FFunctions%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-jvm-static/index.html"><span class="token annotation builtin">JvmStatic</span></a></div></div><span class="token keyword">fun </span><a href="install.html"><span class="token function">install</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">cb<span class="token operator">: </span><a href="../../dev.mooner.neonjs.compiler/-code-block/index.html">CodeBlock</a><span class="token punctuation">, </span></span><span class="parameter ">code<span class="token operator">: </span><a href="../-compiled-code/index.html">CompiledCode</a></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></div><div class="brief "><p class="paragraph">Makes <a href="install.html">code</a>, a later version of <a href="install.html">cb</a>'s code (the optimizing tier's), the code new activations of <a href="install.html">cb</a> run (docs/OPTIMIZING_TIER.md, &quot;Code versions&quot;). Like the baseline it runs frames made for compiled code from the start and answers on-stack replacement. Returns false, installing nothing, while the block has no baseline. Activations already running keep the version they started with.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1811215552%2FFunctions%2F-941727813" anchor-label="loop" id="-1811215552%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="loop.html"><span><span>loop</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1811215552%2FFunctions%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-jvm-static/index.html"><span class="token annotation builtin">JvmStatic</span></a></div></div><span class="token keyword">fun </span><a href="loop.html"><span class="token function">loop</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">cb<span class="token operator">: </span><a href="../../dev.mooner.neonjs.compiler/-code-block/index.html">CodeBlock</a><span class="token punctuation">, </span></span><span class="parameter ">agent<span class="token operator">: </span><a href="../../dev.mooner.neonjs.runtime/-agent/index.html">Agent</a></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></div><div class="brief "><p class="paragraph">An interpreted loop of <a href="loop.html">cb</a> made <a href="-l-o-o-p_-c-h-e-c-k.html">LOOP_CHECK</a> more iterations. Credits them toward compiling the block (adaptive mode: 64 per period, so a function whose time goes into its loops is compiled after about 64K iterations even when it is called only a few times), and queues the block once due rather than at its next call, so its code is ready while the loop still runs. Returns whether compiled code is installed that the loop can continue in (<a href="osr.html">osr</a>).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-758582419%2FFunctions%2F-941727813" anchor-label="osr" id="-758582419%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="osr.html"><span><span>osr</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-758582419%2FFunctions%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-jvm-static/index.html"><span class="token annotation builtin">JvmStatic</span></a></div></div><span class="token keyword">fun </span><a href="osr.html"><span class="token function">osr</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">f<span class="token operator">: </span><a href="../../dev.mooner.neonjs.vm/-frame/index.html">Frame</a></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span></div><div class="brief "><p class="paragraph">On-stack replacement: continues interpreted frame <a href="osr.html">f</a> in its code block's compiled code, at the loop header <a href="../../dev.mooner.neonjs.vm/-frame/pc.html">Frame.pc</a> with the registers in <a href="../../dev.mooner.neonjs.vm/-frame/slots.html">Frame.slots</a> and an empty operand stack (see <a href="../-compiled-code/index.html">CompiledCode</a>). Returns the frame's result, or <a href="../-jit-rt/-n-o_-o-s-r.html">JitRt.NO_OSR</a> (nothing done) when the code has no entry there. Called by the interpreter outside its exception dispatch: exceptions leave the frame as they leave compiled code (JitRt.leaveCompiled).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1575269683%2FFunctions%2F-941727813" anchor-label="prefetch" id="-1575269683%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="prefetch.html"><span><span>prefetch</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1575269683%2FFunctions%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-jvm-static/index.html"><span class="token annotation builtin">JvmStatic</span></a></div></div><span class="token keyword">fun </span><a href="prefetch.html"><span class="token function">prefetch</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">cb<span class="token operator">: </span><a href="../../dev.mooner.neonjs.compiler/-code-block/index.html">CodeBlock</a><span class="token punctuation">, </span></span><span class="parameter ">agent<span class="token operator">: </span><a href="../../dev.mooner.neonjs.runtime/-agent/index.html">Agent</a></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">Queues <a href="prefetch.html">cb</a>, code created at run time (the <code class="lang-kotlin">Function</code> constructor), in compiled mode: it is about to be called.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1527903947%2FFunctions%2F-941727813" anchor-label="prepare" id="-1527903947%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="prepare.html"><span><span>prepare</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1527903947%2FFunctions%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-jvm-static/index.html"><span class="token annotation builtin">JvmStatic</span></a></div></div><span class="token keyword">fun </span><a href="prepare.html"><span class="token function">prepare</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">cb<span class="token operator">: </span><a href="../../dev.mooner.neonjs.compiler/-code-block/index.html">CodeBlock</a><span class="token punctuation">, </span></span><span class="parameter ">agent<span class="token operator">: </span><a href="../../dev.mooner.neonjs.runtime/-agent/index.html">Agent</a></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="../-compiled-code/index.html">CompiledCode</a><span class="token operator">?</span></div><div class="brief "><p class="paragraph">Returns compiled code for <a href="prepare.html">cb</a> if available or due according to the agent's execution mode.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-581362724%2FFunctions%2F-941727813" anchor-label="revert" id="-581362724%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="revert.html"><span><span>revert</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-581362724%2FFunctions%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-jvm-static/index.html"><span class="token annotation builtin">JvmStatic</span></a></div></div><span class="token keyword">fun </span><a href="revert.html"><span class="token function">revert</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">cb<span class="token operator">: </span><a href="../../dev.mooner.neonjs.compiler/-code-block/index.html">CodeBlock</a><span class="token punctuation">, </span></span><span class="parameter ">code<span class="token operator">: </span><a href="../-compiled-code/index.html">CompiledCode</a></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">Makes <a href="revert.html">cb</a>'s baseline the code new activations run again, if <a href="revert.html">code</a> is the one they run now.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    <div class="footer">
+        <div class="footer--container">
+            <a href="#content" id="go-to-top-link" class="footer--button footer--button_go-to-top"></a>
+            <div class="footer--content">
+                <div>
+                    <span>Generated by </span>
+                    <a class="footer--link footer--link_external" href="https://github.com/Kotlin/dokka">
+                        Dokka
+                    </a>
+                    <div>© 2026 Copyright</div>
+                </div>
+            </div>
+        </div>
+    </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

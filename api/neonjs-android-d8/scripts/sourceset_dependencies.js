@@ -1,0 +1,1 @@
+sourceset_dependencies='{":neonjs-android-d8/main":[]}'

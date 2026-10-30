@@ -1,0 +1,123 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "dev.mooner.neonjs",
+    "module": "neonjs-android",
+    "version": "0.1.6",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.8.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.environment": "standard-jvm",
+        "org.gradle.jvm.version": 21,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api",
+        "org.jetbrains.kotlin.platform.type": "jvm"
+      },
+      "dependencies": [
+        {
+          "group": "dev.mooner.neonjs",
+          "module": "neonjs-core",
+          "version": {
+            "requires": "0.1.6"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.4.20"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "neonjs-android-0.1.6.jar",
+          "url": "neonjs-android-0.1.6.jar",
+          "size": 30391,
+          "sha512": "95c9e16149fab58bb2cb355d9bac6b591a5679a2a2018b883ac614dccbabda2932bc07462c6f8b8adc1b1f6fa76bf25d56b8b7cc8770c7944e78ed5456cd77fa",
+          "sha256": "31ab0a8b94eb00b569b2c9256d9d8c2ec03b2c085f7ec244fbcb40766cd84577",
+          "sha1": "8a44ece8f794cd7c77c7f70ca1e9276bb911035f",
+          "md5": "6efe7fa31e0c1b3fe3dcc2611f10ab4b"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.environment": "standard-jvm",
+        "org.gradle.jvm.version": 21,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime",
+        "org.jetbrains.kotlin.platform.type": "jvm"
+      },
+      "dependencies": [
+        {
+          "group": "com.jakewharton.android.repackaged",
+          "module": "dalvik-dx",
+          "version": {
+            "requires": "16.0.1"
+          }
+        },
+        {
+          "group": "dev.mooner.neonjs",
+          "module": "neonjs-core",
+          "version": {
+            "requires": "0.1.6"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.4.20"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "neonjs-android-0.1.6.jar",
+          "url": "neonjs-android-0.1.6.jar",
+          "size": 30391,
+          "sha512": "95c9e16149fab58bb2cb355d9bac6b591a5679a2a2018b883ac614dccbabda2932bc07462c6f8b8adc1b1f6fa76bf25d56b8b7cc8770c7944e78ed5456cd77fa",
+          "sha256": "31ab0a8b94eb00b569b2c9256d9d8c2ec03b2c085f7ec244fbcb40766cd84577",
+          "sha1": "8a44ece8f794cd7c77c7f70ca1e9276bb911035f",
+          "md5": "6efe7fa31e0c1b3fe3dcc2611f10ab4b"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "neonjs-android-0.1.6-sources.jar",
+          "url": "neonjs-android-0.1.6-sources.jar",
+          "size": 8103,
+          "sha512": "79eb230b2f394bfcb3ec01c9dc10b808e3cba975040faae9cf4e839a3c28a1cfb576788175f544ca78ea00fea81cd538090882d98653f25fc4034fa1458004ea",
+          "sha256": "e96fded7297aae54cf82c33a93cfbb6e41ab7b3ac08d995052eba11b4ebedde5",
+          "sha1": "4d8cc8cd82b677f2d08a93d34be27226a6dd9870",
+          "md5": "3387cb4af269fba5cacfca2e6a0a3786"
+        }
+      ]
+    }
+  ]
+}

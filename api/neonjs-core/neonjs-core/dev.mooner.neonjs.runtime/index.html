@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" charset="UTF-8">
+    <title>dev.mooner.neonjs.runtime</title>
+    <link href="../../images/logo-icon.svg" rel="icon" type="image/svg">
+        <script>var pathToRoot = "../../";</script>
+    <script>document.documentElement.classList.replace("no-js", "js");</script>
+    <script>const storage = localStorage.getItem("dokka-dark-mode")
+      if (storage == null) {
+        const osDarkSchemePreferred = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+        if (osDarkSchemePreferred === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      } else {
+        const savedDarkMode = JSON.parse(storage)
+        if (savedDarkMode === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      }
+    </script>
+<script type="text/javascript" src="../../scripts/sourceset_dependencies.js" async="async"></script>
+<link href="../../styles/style.css" rel="Stylesheet">
+<link href="../../styles/main.css" rel="Stylesheet">
+<link href="../../styles/prism.css" rel="Stylesheet">
+<link href="../../styles/logo-styles.css" rel="Stylesheet">
+<link href="../../ui-kit/ui-kit.min.css" rel="Stylesheet">
+<script type="text/javascript" src="../../scripts/safe-local-storage_blocking.js"></script>
+<script type="text/javascript" src="../../scripts/navigation-loader.js" async="async"></script>
+<script type="text/javascript" src="../../scripts/platform-content-handler.js" async="async"></script>
+<script type="text/javascript" src="../../scripts/main.js" defer="defer"></script>
+<script type="text/javascript" src="../../scripts/prism.js" async="async"></script>
+<script type="text/javascript" src="../../ui-kit/ui-kit.min.js" defer="defer"></script>
+</head>
+<body>
+<div class="root">
+    <header class="navigation theme-dark" id="navigation-wrapper" role="banner">
+            <a class="library-name--link" href="../../index.html" tabindex="1">
+                    neonjs-core
+            </a>
+        <button class="navigation-controls--btn navigation-controls--btn_toc ui-kit_mobile-only" id="toc-toggle"
+                type="button">Toggle table of contents
+        </button>
+        <div class="navigation-controls--break ui-kit_mobile-only"></div>
+        <div class="library-version" id="library-version">
+0.1.6        </div>
+        <div class="navigation-controls">
+        <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
+                <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
+                        data-filter=":neonjs-core/main">jvm</button>
+            <div class="dropdown filter-section--dropdown" data-role="dropdown" id="filter-section-dropdown">
+                <button class="button button_dropdown filter-section--dropdown-toggle" role="combobox"
+                        data-role="dropdown-toggle"
+                        aria-controls="platform-tags-listbox"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                        aria-label="Toggle source sets"
+                ></button>
+                <ul role="listbox" id="platform-tags-listbox" class="dropdown--list" data-role="dropdown-listbox" aria-label="Target filter">
+                    <div class="dropdown--header"><span>Target filter</span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close target filter">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                        <li role="option" class="dropdown--option platform-selector-option jvm-like" tabindex="0">
+                            <label class="checkbox">
+                                <input type="checkbox" class="checkbox--input" id=":neonjs-core/main"
+                                       data-filter=":neonjs-core/main"/>
+                                <span class="checkbox--icon"></span>
+                                jvm
+                            </label>
+                        </li>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </ul>
+            <button class="navigation-controls--btn navigation-controls--btn_theme" id="theme-toggle-button"
+                    type="button">Switch theme
+            </button>
+            <div class="navigation-controls--btn navigation-controls--btn_search" id="searchBar" role="button">Search in
+                API
+            </div>
+        </div>
+    </header>
+    <div id="container">
+        <nav id="leftColumn" class="sidebar" data-item-type="SECTION" data-item-config='{"defaultSize": 280, "minSize": 200, "maxSize": 400}'>
+            <a class="toc--skip-link" href="#main">Skip to content</a>
+            <div class="dropdown theme-dark_mobile" data-role="dropdown" id="toc-dropdown">
+                <ul role="listbox" id="toc-listbox" class="dropdown--list dropdown--list_toc-list"
+                    data-role="dropdown-listbox" aria-label="Table of contents">
+                    <div class="dropdown--header">
+                            <span>
+                                    neonjs-core
+                            </span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close table of contents">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                    <div class="sidebar--inner" id="sideMenu"></div>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </nav>
+        <div id="resizer" class="resizer" data-item-type="BAR"></div>
+        <div id="main" data-item-type="SECTION" role="main">
+<div class="main-content" data-page-type="package" id="content" pageIds="neonjs-core::dev.mooner.neonjs.runtime////PointingToDeclaration//-941727813">
+  <div class="breadcrumbs"><a href="../../index.html">neonjs-core</a><span class="delimiter">/</span><span class="current">dev.mooner.neonjs.runtime</span></div>
+  <div class="cover ">
+    <h1 class="cover"><span><span>Package-level</span></span> <span><span>declarations</span></span></h1>
+  </div>
+  <div class="tabbedcontent">
+    <div class="tabs-section" tabs-section="tabs-section"><button class="section-tab" data-active="" data-togglable="TYPE">Types</button><button class="section-tab" data-togglable="FUNCTION,EXTENSION_FUNCTION">Functions</button><button class="section-tab" data-togglable="PROPERTY,EXTENSION_PROPERTY">Properties</button></div>
+    <div class="tabs-section-body">
+      <div data-togglable="TYPE">
+        <h2 class="tableheader">Types</h2>
+        <div class="table"><a data-name="-1696687285%2FClasslikes%2F-941727813" anchor-label="Accessor" id="-1696687285%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-accessor/index.html"><span><span>Accessor</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1696687285%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-accessor/index.html">Accessor</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">var </span>getter<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">var </span>setter<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">Getter/setter pair stored in a property slot. Fields hold a callable JSObject or Undefined.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-48334613%2FClasslikes%2F-941727813" anchor-label="Agent" id="-48334613%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-agent/index.html"><span><span>Agent</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-48334613%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-agent/index.html">Agent</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>config<span class="token operator">: </span><a href="-runtime-config/index.html">RuntimeConfig</a><span class="token operator"> = </span>RuntimeConfig()</span></span><span class="token punctuation">)</span></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1232488607%2FClasslikes%2F-941727813" anchor-label="Attr" id="-1232488607%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-attr/index.html"><span><span>Attr</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1232488607%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-attr/index.html">Attr</a></div><div class="brief "><p class="paragraph">Property attribute bits.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-747885926%2FClasslikes%2F-941727813" anchor-label="BoundFunction" id="-747885926%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-bound-function/index.html"><span>Bound</span><wbr></wbr><span><span>Function</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-747885926%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-bound-function/index.html">BoundFunction</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>target<span class="token operator">: </span><a href="-j-s-object/index.html">JSObject</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>boundThis<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>boundArgs<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-array/index.html">Array</a><span class="token operator">&lt;</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span><span class="token operator">&gt;</span><span class="token punctuation">, </span></span><span class="parameter ">proto<span class="token operator">: </span><a href="-j-s-object/index.html">JSObject</a><span class="token operator">?</span></span></span><span class="token punctuation">)</span> : <a href="-j-s-object/index.html">JSObject</a></div><div class="brief "><p class="paragraph">Bound function exotic object.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1611131405%2FClasslikes%2F-941727813" anchor-label="DeclEnv" id="1611131405%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-decl-env/index.html"><span>Decl</span><wbr></wbr><span><span>Env</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1611131405%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-decl-env/index.html">DeclEnv</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">parent<span class="token operator">: </span><a href="-env/index.html">Env</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>info<span class="token operator">: </span><a href="../dev.mooner.neonjs.compiler/-scope-info/index.html">ScopeInfo</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>slots<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-array/index.html">Array</a><span class="token operator">&lt;</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span><span class="token operator">&gt;</span></span></span><span class="token punctuation">)</span> : <a href="-env/index.html">Env</a></div><div class="brief "><p class="paragraph">Declarative environment with fixed slots described by <span data-unresolved-link="dev.mooner.neonjs.runtime/DeclEnv//#dev.mooner.neonjs.runtime.Env?#dev.mooner.neonjs.compiler.ScopeInfo#kotlin.Array[kotlin.Any?]/PointingToCallableParameters(1)/">info</span>; <a href="-decl-env/extension.html">extension</a> holds sloppy-eval var bindings.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="164635587%2FClasslikes%2F-941727813" anchor-label="Env" id="164635587%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-env/index.html"><span><span>Env</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="164635587%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">abstract </span><span class="token keyword">class </span><a href="-env/index.html">Env</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>parent<span class="token operator">: </span><a href="-env/index.html">Env</a><span class="token operator">?</span></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">Runtime environment record (scope chain link).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1054932332%2FClasslikes%2F-941727813" anchor-label="ErrorKind" id="-1054932332%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-error-kind/index.html"><span>Error</span><wbr></wbr><span><span>Kind</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1054932332%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">enum </span><a href="-error-kind/index.html">ErrorKind</a> : <a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-enum/index.html">Enum</a><span class="token operator">&lt;</span><a href="-error-kind/index.html">ErrorKind</a><span class="token operator">&gt; </span></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1015910806%2FClasslikes%2F-941727813" anchor-label="ExecutionTimeoutException" id="-1015910806%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-execution-timeout-exception/index.html"><span>Execution</span><wbr></wbr><span>Timeout</span><wbr></wbr><span><span>Exception</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1015910806%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-execution-timeout-exception/index.html">ExecutionTimeoutException</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">message<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a></span></span><span class="token punctuation">)</span> : <a href="-termination-exception/index.html">TerminationException</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1944704466%2FClasslikes%2F-941727813" anchor-label="GlobalBinding" id="-1944704466%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-global-binding/index.html"><span>Global</span><wbr></wbr><span><span>Binding</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1944704466%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-global-binding/index.html">GlobalBinding</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">var </span>value<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>mutable<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">Mutable/immutable binding of the global declarative record.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1313562543%2FClasslikes%2F-941727813" anchor-label="GlobalCache" id="-1313562543%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-global-cache/index.html"><span>Global</span><wbr></wbr><span><span>Cache</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1313562543%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-global-cache/index.html">GlobalCache</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="732239302%2FClasslikes%2F-941727813" anchor-label="GlobalEnv" id="732239302%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-global-env/index.html"><span>Global</span><wbr></wbr><span><span>Env</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="732239302%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-global-env/index.html">GlobalEnv</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>realm<span class="token operator">: </span><a href="-realm/index.html">Realm</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>global<span class="token operator">: </span><a href="-j-s-object/index.html">JSObject</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>thisValue<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span></span></span><span class="token punctuation">)</span> : <a href="-env/index.html">Env</a></div><div class="brief "><p class="paragraph">Global environment: declarative record (let/const/class) + object record (global object).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-96559531%2FClasslikes%2F-941727813" anchor-label="GlobalIC" id="-96559531%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-global-i-c/index.html"><span>Global</span><wbr></wbr><span><span>IC</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-96559531%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-global-i-c/index.html">GlobalIC</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>token<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>index<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>shape<span class="token operator">: </span><a href="-shape/index.html">Shape</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>slot<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>epoch<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">Immutable global-access cache entry: either lexical binding <span data-unresolved-link="dev.mooner.neonjs.runtime/GlobalIC//#kotlin.Any?#kotlin.Int#dev.mooner.neonjs.runtime.Shape?#kotlin.Int#kotlin.Int/PointingToCallableParameters(1)/">index</span> of the global environment identified by <span data-unresolved-link="dev.mooner.neonjs.runtime/GlobalIC//#kotlin.Any?#kotlin.Int#dev.mooner.neonjs.runtime.Shape?#kotlin.Int#kotlin.Int/PointingToCallableParameters(0)/">token</span>, or data property <span data-unresolved-link="dev.mooner.neonjs.runtime/GlobalIC//#kotlin.Any?#kotlin.Int#dev.mooner.neonjs.runtime.Shape?#kotlin.Int#kotlin.Int/PointingToCallableParameters(3)/">slot</span> of a global object whose map has <span data-unresolved-link="dev.mooner.neonjs.runtime/GlobalIC//#kotlin.Any?#kotlin.Int#dev.mooner.neonjs.runtime.Shape?#kotlin.Int#kotlin.Int/PointingToCallableParameters(2)/">shape</span> while the environment's lexical epoch is <span data-unresolved-link="dev.mooner.neonjs.runtime/GlobalIC//#kotlin.Any?#kotlin.Int#dev.mooner.neonjs.runtime.Shape?#kotlin.Int#kotlin.Int/PointingToCallableParameters(4)/">epoch</span> (a newer lexical declaration could shadow the property). Holds no realm objects.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1173130536%2FClasslikes%2F-941727813" anchor-label="GlobalSite" id="1173130536%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-global-site/index.html"><span>Global</span><wbr></wbr><span><span>Site</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1173130536%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-global-site/index.html">GlobalSite</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>name<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a></span></span><span class="token punctuation">)</span></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1091703666%2FClasslikes%2F-941727813" anchor-label="Hole" id="1091703666%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-hole/index.html"><span><span>Hole</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1091703666%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-hole/index.html">Hole</a></div><div class="brief "><p class="paragraph">Array hole marker used in dense element storage.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-671937673%2FClasslikes%2F-941727813" anchor-label="InterruptedExecutionException" id="-671937673%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-interrupted-execution-exception/index.html"><span>Interrupted</span><wbr></wbr><span>Execution</span><wbr></wbr><span><span>Exception</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-671937673%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-interrupted-execution-exception/index.html">InterruptedExecutionException</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">message<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a></span></span><span class="token punctuation">)</span> : <a href="-termination-exception/index.html">TerminationException</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1542614140%2FClasslikes%2F-941727813" anchor-label="IntlProvider" id="-1542614140%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-intl-provider/index.html"><span>Intl</span><wbr></wbr><span><span>Provider</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1542614140%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">interface </span><a href="-intl-provider/index.html">IntlProvider</a></div><div class="brief "><p class="paragraph">Hook for ECMA-402 (<code class="lang-kotlin">Intl</code> and the locale-sensitive methods of String, Number, BigInt, Date, Array...). The implementation lives in the optional <code class="lang-kotlin">neonjs-intl</code> module (ICU4J) and is found with <a href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ServiceLoader.html">ServiceLoader</a>; without it the engine keeps its built-in locale-independent behaviour.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-97012066%2FClasslikes%2F-941727813" anchor-label="IntlSupport" id="-97012066%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-intl-support/index.html"><span>Intl</span><wbr></wbr><span><span>Support</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-97012066%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-intl-support/index.html">IntlSupport</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1793609696%2FClasslikes%2F-941727813" anchor-label="JSArray" id="1793609696%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-j-s-array/index.html"><span><span>JSArray</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1793609696%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-j-s-array/index.html">JSArray</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">proto<span class="token operator">: </span><a href="-j-s-object/index.html">JSObject</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter ">capacity<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token operator"> = </span><span class="token constant">0</span></span></span><span class="token punctuation">)</span> : <a href="-j-s-object/index.html">JSObject</a></div><div class="brief "><p class="paragraph">Array exotic object. Elements live in <a href="-j-s-array/dense.html">dense</a> (with <a href="-hole/index.html">Hole</a> for missing entries, all with default attributes) until an element with non-default attributes or a very sparse write occurs, after which all indexed elements are stored as Int keys in <a href="-j-s-object/props.html">props</a> (<a href="-j-s-array/sparse.html">sparse</a> mode).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-537746286%2FClasslikes%2F-941727813" anchor-label="JSErrorObject" id="-537746286%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-j-s-error-object/index.html"><span>JSError</span><wbr></wbr><span><span>Object</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-537746286%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">open </span><span class="token keyword">class </span><a href="-j-s-error-object/index.html">JSErrorObject</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">proto<span class="token operator">: </span><a href="-j-s-object/index.html">JSObject</a><span class="token operator">?</span></span></span><span class="token punctuation">)</span> : <a href="-j-s-object/index.html">JSObject</a></div><div class="brief "><p class="paragraph">Ordinary object with an <code class="lang-kotlin">[[ErrorData]]</code> internal slot.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1062715734%2FClasslikes%2F-941727813" anchor-label="JSException" id="-1062715734%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-j-s-exception/index.html"><span><span>JSException</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1062715734%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-j-s-exception/index.html">JSException</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>value<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span></span></span><span class="token punctuation">)</span> : <a href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/RuntimeException.html">RuntimeException</a></div><div class="brief "><p class="paragraph">A thrown JS value. Stack traces of the Kotlin exception are disabled for performance.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-981502351%2FClasslikes%2F-941727813" anchor-label="JSFunction" id="-981502351%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-j-s-function/index.html"><span><span>JSFunction</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-981502351%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">abstract </span><span class="token keyword">class </span><a href="-j-s-function/index.html">JSFunction</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>realm<span class="token operator">: </span><a href="-realm/index.html">Realm</a><span class="token punctuation">, </span></span><span class="parameter ">proto<span class="token operator">: </span><a href="-j-s-object/index.html">JSObject</a><span class="token operator">?</span></span></span><span class="token punctuation">)</span> : <a href="-j-s-object/index.html">JSObject</a></div><div class="brief "><p class="paragraph">Base class for function objects that carry a <code class="lang-kotlin">[[Realm]]</code>.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1797062934%2FClasslikes%2F-941727813" anchor-label="JSObject" id="-1797062934%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-j-s-object/index.html"><span><span>JSObject</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1797062934%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">open </span><span class="token keyword">class </span><a href="-j-s-object/index.html">JSObject</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">var </span>proto<span class="token operator">: </span><a href="-j-s-object/index.html">JSObject</a><span class="token operator">?</span></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">Base class of all JS objects. Implements the ordinary object internal methods; exotic objects override them.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1556495133%2FClasslikes%2F-941727813" anchor-label="JSPrimitiveWrapper" id="1556495133%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-j-s-primitive-wrapper/index.html"><span>JSPrimitive</span><wbr></wbr><span><span>Wrapper</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1556495133%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-j-s-primitive-wrapper/index.html">JSPrimitiveWrapper</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">proto<span class="token operator">: </span><a href="-j-s-object/index.html">JSObject</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>primitive<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a></span></span><span class="token punctuation">)</span> : <a href="-j-s-object/index.html">JSObject</a></div><div class="brief "><p class="paragraph">Wrapper objects for Boolean, Number, Symbol and BigInt primitives.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-996334951%2FClasslikes%2F-941727813" anchor-label="JSStringObject" id="-996334951%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-j-s-string-object/index.html"><span>JSString</span><wbr></wbr><span><span>Object</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-996334951%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-j-s-string-object/index.html">JSStringObject</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">proto<span class="token operator">: </span><a href="-j-s-object/index.html">JSObject</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>value<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a></span></span><span class="token punctuation">)</span> : <a href="-j-s-object/index.html">JSObject</a></div><div class="brief "><p class="paragraph">String exotic object.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1116230321%2FClasslikes%2F-941727813" anchor-label="JSSymbol" id="1116230321%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-j-s-symbol/index.html"><span><span>JSSymbol</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1116230321%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-j-s-symbol/index.html">JSSymbol</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>description<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>registryKey<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a><span class="token operator">?</span><span class="token operator"> = </span>null</span></span><span class="token punctuation">)</span></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="476065043%2FClasslikes%2F-941727813" anchor-label="MathIntrinsic" id="476065043%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-math-intrinsic/index.html"><span>Math</span><wbr></wbr><span><span>Intrinsic</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="476065043%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-math-intrinsic/index.html">MathIntrinsic</a></div><div class="brief "><p class="paragraph">The Math functions the optimizing tier computes in place (jit/opt: Ir.MATH): ids of <a href="-native-function/intrinsic.html">NativeFunction.intrinsic</a>, each computed with the Java method its builtin calls.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-493729377%2FClasslikes%2F-941727813" anchor-label="ModuleLoaderHooks" id="-493729377%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-module-loader-hooks/index.html"><span>Module</span><wbr></wbr><span>Loader</span><wbr></wbr><span><span>Hooks</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-493729377%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">interface </span><a href="-module-loader-hooks/index.html">ModuleLoaderHooks</a></div><div class="brief "><p class="paragraph">Module loader hooks used by import() and import.meta.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1560630152%2FClasslikes%2F-941727813" anchor-label="NameRef" id="1560630152%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-name-ref/index.html"><span>Name</span><wbr></wbr><span><span>Ref</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1560630152%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-name-ref/index.html">NameRef</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>env<span class="token operator">: </span><a href="-env/index.html">Env</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>name<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>slot<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>strict<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">Reference to a binding resolved dynamically (for assignments that must resolve before evaluating the RHS).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1898371576%2FClasslikes%2F-941727813" anchor-label="Names" id="-1898371576%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-names/index.html"><span><span>Names</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1898371576%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-names/index.html">Names</a></div><div class="brief "><p class="paragraph">Dynamic name resolution and access (with / eval / global code).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1026080573%2FClasslikes%2F-941727813" anchor-label="NativeFunction" id="-1026080573%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-native-function/index.html"><span>Native</span><wbr></wbr><span><span>Function</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1026080573%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">open </span><span class="token keyword">class </span><a href="-native-function/index.html">NativeFunction</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">realm<span class="token operator">: </span><a href="-realm/index.html">Realm</a><span class="token punctuation">, </span></span><span class="parameter ">name<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token punctuation">, </span></span><span class="parameter ">length<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>impl<span class="token operator">: </span><a href="-native-impl/index.html">NativeImpl</a><span class="token punctuation">, </span></span><span class="parameter ">isConstructor<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a><span class="token operator"> = </span><span class="token boolean">false</span><span class="token punctuation">, </span></span><span class="parameter ">proto<span class="token operator">: </span><a href="-j-s-object/index.html">JSObject</a><span class="token operator">?</span><span class="token operator"> = </span>realm.functionPrototype<span class="token punctuation">, </span></span><span class="parameter ">namePrefix<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a><span class="token operator">?</span><span class="token operator"> = </span>null</span></span><span class="token punctuation">)</span> : <a href="-j-s-function/index.html">JSFunction</a></div><div class="brief "><p class="paragraph">Builtin function implemented in Kotlin.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1539917701%2FClasslikes%2F-941727813" anchor-label="NativeImpl" id="-1539917701%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-native-impl/index.html"><span>Native</span><wbr></wbr><span><span>Impl</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1539917701%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">fun </span><span class="token keyword">interface </span><a href="-native-impl/index.html">NativeImpl</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1731098077%2FClasslikes%2F-941727813" anchor-label="NotFound" id="-1731098077%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-not-found/index.html"><span>Not</span><wbr></wbr><span><span>Found</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1731098077%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-not-found/index.html">NotFound</a></div><div class="brief "><p class="paragraph">Lookup miss marker.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-355934069%2FClasslikes%2F-941727813" anchor-label="Null" id="-355934069%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-null/index.html"><span><span>Null</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-355934069%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-null/index.html">Null</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1869046773%2FClasslikes%2F-941727813" anchor-label="NumberConv" id="1869046773%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-number-conv/index.html"><span>Number</span><wbr></wbr><span><span>Conv</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1869046773%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-number-conv/index.html">NumberConv</a></div><div class="brief "><p class="paragraph">Number <-> String conversions following ECMA-262 (Number::toString, StringToNumber, toFixed, ...).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="198669154%2FClasslikes%2F-941727813" anchor-label="ObjectEnv" id="198669154%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-object-env/index.html"><span>Object</span><wbr></wbr><span><span>Env</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="198669154%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-object-env/index.html">ObjectEnv</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">parent<span class="token operator">: </span><a href="-env/index.html">Env</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>obj<span class="token operator">: </span><a href="-j-s-object/index.html">JSObject</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>isWith<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></span></span><span class="token punctuation">)</span> : <a href="-env/index.html">Env</a></div><div class="brief "><p class="paragraph">Object environment (with statement or global object).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="8739289%2FClasslikes%2F-941727813" anchor-label="ObjectLiteralSite" id="8739289%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-object-literal-site/index.html"><span>Object</span><wbr></wbr><span>Literal</span><wbr></wbr><span><span>Site</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="8739289%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-object-literal-site/index.html">ObjectLiteralSite</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>keys<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-array/index.html">Array</a><span class="token operator">&lt;</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">&gt;</span></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">An object literal whose properties are all <code class="lang-kotlin">key: value</code> with static, distinct keys (Op.NEW_OBJECT_LITERAL). The object is created after its values are evaluated, directly in its final shape, sharing the key layout with every other object of that site. The layout is cached per empty root shape (shapes belong to one context; code blocks, and so sites, are shared): it is an immutable record published with a single write.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-552561250%2FClasslikes%2F-941727813" anchor-label="Ops" id="-552561250%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-ops/index.html"><span><span>Ops</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-552561250%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-ops/index.html">Ops</a></div><div class="brief "><p class="paragraph">ECMAScript abstract operations.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1448252681%2FClasslikes%2F-941727813" anchor-label="PK" id="-1448252681%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-p-k/index.html"><span><span>PK</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1448252681%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-p-k/index.html">PK</a></div><div class="brief "><p class="paragraph">Property key helpers. Keys are Int (array index <= Int.MAX_VALUE), String, or JSSymbol.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1342921681%2FClasslikes%2F-941727813" anchor-label="PropCache" id="1342921681%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-prop-cache/index.html"><span>Prop</span><wbr></wbr><span><span>Cache</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1342921681%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-prop-cache/index.html">PropCache</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="943236046%2FClasslikes%2F-941727813" anchor-label="PropertyDescriptor" id="943236046%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-property-descriptor/index.html"><span>Property</span><wbr></wbr><span><span>Descriptor</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="943236046%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-property-descriptor/index.html">PropertyDescriptor</a></div><div class="brief "><p class="paragraph">A (possibly partial) property descriptor.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-2101947479%2FClasslikes%2F-941727813" anchor-label="PropertyMap" id="-2101947479%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-property-map/index.html"><span>Property</span><wbr></wbr><span><span>Map</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-2101947479%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-property-map/index.html">PropertyMap</a></div><div class="brief "><p class="paragraph">Insertion-ordered property storage. Keys are property keys as produced by <a href="-p-k/index.html">PK</a>: Int (array index), String or JSSymbol. Small maps use linear search; larger maps use an open-addressing index.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1749914325%2FClasslikes%2F-941727813" anchor-label="PropIC" id="1749914325%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-prop-i-c/index.html"><span>Prop</span><wbr></wbr><span><span>IC</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1749914325%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-prop-i-c/index.html">PropIC</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>shape<span class="token operator">: </span><a href="-shape/index.html">Shape</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>chain<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-array/index.html">Array</a><span class="token operator">&lt;</span><a href="-shape/index.html">Shape</a><span class="token operator">&gt;</span><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>slot<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>kind<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>next<span class="token operator">: </span><a href="-shape/index.html">Shape</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>link<span class="token operator">: </span><a href="-prop-i-c/index.html">PropIC</a><span class="token operator">?</span></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">Immutable inline-cache entry.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1813012904%2FClasslikes%2F-941727813" anchor-label="PropSite" id="1813012904%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-prop-site/index.html"><span>Prop</span><wbr></wbr><span><span>Site</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1813012904%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-prop-site/index.html">PropSite</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">key<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">A named property access site (GET_PROP / PUT_PROP operand). Holds the key and the site's inline cache.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-818677149%2FClasslikes%2F-941727813" anchor-label="ProxyObject" id="-818677149%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-proxy-object/index.html"><span>Proxy</span><wbr></wbr><span><span>Object</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-818677149%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-proxy-object/index.html">ProxyObject</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">var </span>target<span class="token operator">: </span><a href="-j-s-object/index.html">JSObject</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">var </span>handler<span class="token operator">: </span><a href="-j-s-object/index.html">JSObject</a><span class="token operator">?</span></span></span><span class="token punctuation">)</span> : <a href="-j-s-object/index.html">JSObject</a></div><div class="brief "><p class="paragraph">Proxy exotic object (ECMA-262 10.5).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1931382945%2FClasslikes%2F-941727813" anchor-label="Realm" id="1931382945%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-realm/index.html"><span><span>Realm</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1931382945%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-realm/index.html">Realm</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>agent<span class="token operator">: </span><a href="-agent/index.html">Agent</a></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">A realm: set of intrinsics, global object and global environment.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="2016215472%2FClasslikes%2F-941727813" anchor-label="ResourceLimitException" id="2016215472%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-resource-limit-exception/index.html"><span>Resource</span><wbr></wbr><span>Limit</span><wbr></wbr><span><span>Exception</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="2016215472%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-resource-limit-exception/index.html">ResourceLimitException</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">message<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a></span></span><span class="token punctuation">)</span> : <a href="-termination-exception/index.html">TerminationException</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1015725184%2FClasslikes%2F-941727813" anchor-label="Rope" id="-1015725184%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-rope/index.html"><span><span>Rope</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1015725184%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-rope/index.html">Rope</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">left<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-char-sequence/index.html">CharSequence</a><span class="token punctuation">, </span></span><span class="parameter ">right<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-char-sequence/index.html">CharSequence</a></span></span><span class="token punctuation">)</span> : <a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-char-sequence/index.html">CharSequence</a></div><div class="brief "><p class="paragraph">Rope string produced by concatenation; flattened lazily. Implements CharSequence so it can be used as a JS string value. Use <a href="-rope/to-string.html">toString</a> to obtain the flat String.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-903109290%2FClasslikes%2F-941727813" anchor-label="RuntimeConfig" id="-903109290%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-runtime-config/index.html"><span>Runtime</span><wbr></wbr><span><span>Config</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-903109290%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-runtime-config/index.html">RuntimeConfig</a></div><div class="brief "><p class="paragraph">Engine-level configuration consulted by the runtime.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-969632817%2FClasslikes%2F-941727813" anchor-label="Shape" id="-969632817%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-shape/index.html"><span><span>Shape</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-969632817%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-shape/index.html">Shape</a></div><div class="brief "><p class="paragraph">Structure token of a <a href="-property-map/index.html">PropertyMap</a>, used by property inline caches.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1556695951%2FClasslikes%2F-941727813" anchor-label="ShapeSlot" id="-1556695951%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-shape-slot/index.html"><span>Shape</span><wbr></wbr><span><span>Slot</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1556695951%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-shape-slot/index.html">ShapeSlot</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>shape<span class="token operator">: </span><a href="-shape/index.html">Shape</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>slot<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">A property's slot in maps of <span data-unresolved-link="dev.mooner.neonjs.runtime/ShapeSlot//#dev.mooner.neonjs.runtime.Shape#kotlin.Int/PointingToCallableParameters(0)/">shape</span> (CodeBlock.prototypeSlot).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1690185730%2FClasslikes%2F-941727813" anchor-label="SourceLocation" id="1690185730%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-source-location/index.html"><span>Source</span><wbr></wbr><span><span>Location</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1690185730%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-source-location/index.html">SourceLocation</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>sourceName<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>line<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>column<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">A position in a script: its source name, and 1-based line and column.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="201877223%2FClasslikes%2F-941727813" anchor-label="TerminationException" id="201877223%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-termination-exception/index.html"><span>Termination</span><wbr></wbr><span><span>Exception</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="201877223%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">open </span><span class="token keyword">class </span><a href="-termination-exception/index.html">TerminationException</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">message<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a></span></span><span class="token punctuation">)</span> : <a href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/RuntimeException.html">RuntimeException</a></div><div class="brief "><p class="paragraph">Thrown to terminate execution (sandbox limits, interrupts). Not catchable by JS code: catch/finally handlers rethrow it without running.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-679391872%2FClasslikes%2F-941727813" anchor-label="Undefined" id="-679391872%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-undefined/index.html"><span><span>Undefined</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-679391872%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-undefined/index.html">Undefined</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-803630315%2FClasslikes%2F-941727813" anchor-label="Uninitialized" id="-803630315%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-uninitialized/index.html"><span><span>Uninitialized</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-803630315%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-uninitialized/index.html">Uninitialized</a></div><div class="brief "><p class="paragraph">TDZ marker stored in uninitialized lexical bindings.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div data-togglable="PROPERTY">
+        <h2 class="tableheader">Properties</h2>
+        <div class="table"><a data-name="1494238479%2FProperties%2F-941727813" anchor-label="ARGS_POOL" id="1494238479%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-a-r-g-s_-p-o-o-l.html"><span>ARGS_</span><wbr></wbr><span>POOL</span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1494238479%2FProperties%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">const </span><span class="token keyword">val </span><a href="-a-r-g-s_-p-o-o-l.html">ARGS_POOL</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token operator"> = </span><span class="token constant">16</span></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1205585438%2FProperties%2F-941727813" anchor-label="EMPTY_ARGS" id="1205585438%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-e-m-p-t-y_-a-r-g-s.html"><span>EMPTY_</span><wbr></wbr><span>ARGS</span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1205585438%2FProperties%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-jvm-field/index.html"><span class="token annotation builtin">JvmField</span></a></div></div><span class="token keyword">val </span><a href="-e-m-p-t-y_-a-r-g-s.html">EMPTY_ARGS</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-array/index.html">Array</a><span class="token operator">&lt;</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span><span class="token operator">&gt;</span></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="2080407519%2FProperties%2F-941727813" anchor-label="FRAME_POOL" id="2080407519%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-f-r-a-m-e_-p-o-o-l.html"><span>FRAME_</span><wbr></wbr><span>POOL</span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="2080407519%2FProperties%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">const </span><span class="token keyword">val </span><a href="-f-r-a-m-e_-p-o-o-l.html">FRAME_POOL</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token operator"> = </span><span class="token constant">64</span></div><div class="brief "><p class="paragraph">Frames Agent.framePool keeps at most, and arguments arrays of each length Agent.argsPool.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1079312089%2FProperties%2F-941727813" anchor-label="FRAME_POOLING" id="1079312089%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-f-r-a-m-e_-p-o-o-l-i-n-g.html"><span>FRAME_</span><wbr></wbr><span>POOLING</span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1079312089%2FProperties%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-jvm-field/index.html"><span class="token annotation builtin">JvmField</span></a></div></div><span class="token keyword">val </span><a href="-f-r-a-m-e_-p-o-o-l-i-n-g.html">FRAME_POOLING</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></div><div class="brief "><p class="paragraph">Whether calls of compiled code reuse the frames of returned ones (Agent.framePool): on ART, where allocating and collecting frames took about 45% of a recursive call; not on HotSpot, whose compilers remove the allocation of a frame that does not escape, which a pool defeats (calls of closures 40% slower there). <code class="lang-kotlin">-Dneonjs.framePool=true|false</code> decides instead (the core tests run with it on). A constant: off, the call paths compile as before (HotSpot folds it).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div data-togglable="EXTENSION_FUNCTION">
+        <h2 class="tableheader">Functions</h2>
+        <div class="table"><a data-name="-1626629745%2FFunctions%2F-941727813" anchor-label="arg" id="-1626629745%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="arg.html"><span><span>arg</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1626629745%2FFunctions%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">inline </span><span class="token keyword">fun </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-array/index.html">Array</a><span class="token operator">&lt;</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span><span class="token operator">&gt;</span><span class="token punctuation">.</span><a href="arg.html"><span class="token function">arg</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">i<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span></div><div class="brief "><p class="paragraph">Helpers for argument access in builtins.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    <div class="footer">
+        <div class="footer--container">
+            <a href="#content" id="go-to-top-link" class="footer--button footer--button_go-to-top"></a>
+            <div class="footer--content">
+                <div>
+                    <span>Generated by </span>
+                    <a class="footer--link footer--link_external" href="https://github.com/Kotlin/dokka">
+                        Dokka
+                    </a>
+                    <div>© 2026 Copyright</div>
+                </div>
+            </div>
+        </div>
+    </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

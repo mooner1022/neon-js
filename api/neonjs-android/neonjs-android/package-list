@@ -1,0 +1,34 @@
+$dokka.format:html-v1
+$dokka.linkExtension:html
+$dokka.location:dev.mooner.neonjs.android////PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/index.html
+$dokka.location:dev.mooner.neonjs.android/DexCheckingDefiner.Companion///PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-checking-definer/-companion/index.html
+$dokka.location:dev.mooner.neonjs.android/DexCheckingDefiner.Companion/batches/#/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-checking-definer/-companion/batches.html
+$dokka.location:dev.mooner.neonjs.android/DexCheckingDefiner.Companion/converted/#/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-checking-definer/-companion/converted.html
+$dokka.location:dev.mooner.neonjs.android/DexCheckingDefiner.Companion/dexBytes/#/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-checking-definer/-companion/dex-bytes.html
+$dokka.location:dev.mooner.neonjs.android/DexCheckingDefiner///PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-checking-definer/index.html
+$dokka.location:dev.mooner.neonjs.android/DexCheckingDefiner/DexCheckingDefiner/#dev.mooner.neonjs.android.DexConverter/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-checking-definer/-dex-checking-definer.html
+$dokka.location:dev.mooner.neonjs.android/DexCheckingDefiner/classFileVersion/#/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-checking-definer/class-file-version.html
+$dokka.location:dev.mooner.neonjs.android/DexCheckingDefiner/converter/#/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-checking-definer/converter.html
+$dokka.location:dev.mooner.neonjs.android/DexCheckingDefiner/define/#kotlin.String#kotlin.ByteArray#java.lang.ClassLoader/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-checking-definer/define.html
+$dokka.location:dev.mooner.neonjs.android/DexCheckingDefiner/defineAll/#kotlin.collections.List[dev.mooner.neonjs.jit.GeneratedClass]#java.lang.ClassLoader/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-checking-definer/define-all.html
+$dokka.location:dev.mooner.neonjs.android/DexCodeDefiner///PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-code-definer/index.html
+$dokka.location:dev.mooner.neonjs.android/DexCodeDefiner/DexCodeDefiner/#java.io.File?#kotlin.Int#dev.mooner.neonjs.android.DexConverter/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-code-definer/-dex-code-definer.html
+$dokka.location:dev.mooner.neonjs.android/DexCodeDefiner/classFileVersion/#/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-code-definer/class-file-version.html
+$dokka.location:dev.mooner.neonjs.android/DexCodeDefiner/converter/#/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-code-definer/converter.html
+$dokka.location:dev.mooner.neonjs.android/DexCodeDefiner/define/#kotlin.String#kotlin.ByteArray#java.lang.ClassLoader/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-code-definer/define.html
+$dokka.location:dev.mooner.neonjs.android/DexCodeDefiner/defineAll/#kotlin.collections.List[dev.mooner.neonjs.jit.GeneratedClass]#java.lang.ClassLoader/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-code-definer/define-all.html
+$dokka.location:dev.mooner.neonjs.android/DexCodeDefiner/isSupported/#/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-code-definer/is-supported.html
+$dokka.location:dev.mooner.neonjs.android/DexConverter///PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-converter/index.html
+$dokka.location:dev.mooner.neonjs.android/DexConverter/classFileVersion/#/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-converter/class-file-version.html
+$dokka.location:dev.mooner.neonjs.android/DexConverter/id/#/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-converter/id.html
+$dokka.location:dev.mooner.neonjs.android/DexConverter/toDex/#kotlin.String#kotlin.ByteArray#kotlin.Int/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-converter/to-dex.html
+$dokka.location:dev.mooner.neonjs.android/DexConverter/toDex/#kotlin.collections.List[dev.mooner.neonjs.jit.GeneratedClass]#kotlin.Int/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-converter/to-dex.html
+$dokka.location:dev.mooner.neonjs.android/DexConverters///PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-converters/index.html
+$dokka.location:dev.mooner.neonjs.android/DexConverters/classCount/#kotlin.ByteArray/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-converters/class-count.html
+$dokka.location:dev.mooner.neonjs.android/DexConverters/default/#/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-converters/default.html
+$dokka.location:dev.mooner.neonjs.android/DexConverters/isDex/#kotlin.ByteArray/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dex-converters/is-dex.html
+$dokka.location:dev.mooner.neonjs.android/DxConverter///PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dx-converter/index.html
+$dokka.location:dev.mooner.neonjs.android/DxConverter/classFileVersion/#/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dx-converter/class-file-version.html
+$dokka.location:dev.mooner.neonjs.android/DxConverter/id/#/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dx-converter/id.html
+$dokka.location:dev.mooner.neonjs.android/DxConverter/toDex/#kotlin.collections.List[dev.mooner.neonjs.jit.GeneratedClass]#kotlin.Int/PointingToDeclaration/neonjs-android/dev.mooner.neonjs.android/-dx-converter/to-dex.html
+dev.mooner.neonjs.android

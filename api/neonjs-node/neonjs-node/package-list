@@ -1,0 +1,29 @@
+$dokka.format:html-v1
+$dokka.linkExtension:html
+$dokka.location:dev.mooner.neonjs.node////PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/index.html
+$dokka.location:dev.mooner.neonjs.node/DotEnv///PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-dot-env/index.html
+$dokka.location:dev.mooner.neonjs.node/DotEnv/parse/#kotlin.String/PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-dot-env/parse.html
+$dokka.location:dev.mooner.neonjs.node/NodeExtension///PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-node-extension/index.html
+$dokka.location:dev.mooner.neonjs.node/NodeExtension/NodeExtension/#dev.mooner.neonjs.node.NodeOptions/PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-node-extension/-node-extension.html
+$dokka.location:dev.mooner.neonjs.node/NodeExtension/install/#dev.mooner.neonjs.runtime.Realm/PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-node-extension/install.html
+$dokka.location:dev.mooner.neonjs.node/NodeExtension/options/#/PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-node-extension/options.html
+$dokka.location:dev.mooner.neonjs.node/NodeOptions.Builder///PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-node-options/-builder/index.html
+$dokka.location:dev.mooner.neonjs.node/NodeOptions.Builder/Builder/#/PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-node-options/-builder/-builder.html
+$dokka.location:dev.mooner.neonjs.node/NodeOptions.Builder/argv/#kotlin.collections.List[kotlin.String]/PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-node-options/-builder/argv.html
+$dokka.location:dev.mooner.neonjs.node/NodeOptions.Builder/build/#/PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-node-options/-builder/build.html
+$dokka.location:dev.mooner.neonjs.node/NodeOptions.Builder/consoleInspect/#kotlin.Boolean/PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-node-options/-builder/console-inspect.html
+$dokka.location:dev.mooner.neonjs.node/NodeOptions.Builder/cwd/#kotlin.String/PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-node-options/-builder/cwd.html
+$dokka.location:dev.mooner.neonjs.node/NodeOptions.Builder/env/#kotlin.collections.Map[kotlin.String,kotlin.String]/PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-node-options/-builder/env.html
+$dokka.location:dev.mooner.neonjs.node/NodeOptions.Builder/onExit/#java.util.function.IntConsumer/PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-node-options/-builder/on-exit.html
+$dokka.location:dev.mooner.neonjs.node/NodeOptions.Builder/platform/#kotlin.String/PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-node-options/-builder/platform.html
+$dokka.location:dev.mooner.neonjs.node/NodeOptions.Companion///PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-node-options/-companion/index.html
+$dokka.location:dev.mooner.neonjs.node/NodeOptions.Companion/DEFAULT/#/PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-node-options/-companion/-d-e-f-a-u-l-t.html
+$dokka.location:dev.mooner.neonjs.node/NodeOptions.Companion/builder/#/PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-node-options/-companion/builder.html
+$dokka.location:dev.mooner.neonjs.node/NodeOptions///PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-node-options/index.html
+$dokka.location:dev.mooner.neonjs.node/NodeOptions/argv/#/PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-node-options/argv.html
+$dokka.location:dev.mooner.neonjs.node/NodeOptions/consoleInspect/#/PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-node-options/console-inspect.html
+$dokka.location:dev.mooner.neonjs.node/NodeOptions/cwd/#/PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-node-options/cwd.html
+$dokka.location:dev.mooner.neonjs.node/NodeOptions/env/#/PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-node-options/env.html
+$dokka.location:dev.mooner.neonjs.node/NodeOptions/onExit/#/PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-node-options/on-exit.html
+$dokka.location:dev.mooner.neonjs.node/NodeOptions/platform/#/PointingToDeclaration/neonjs-node/dev.mooner.neonjs.node/-node-options/platform.html
+dev.mooner.neonjs.node

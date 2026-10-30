@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" charset="UTF-8">
+    <title>dev.mooner.neonjs.ext</title>
+    <link href="../../images/logo-icon.svg" rel="icon" type="image/svg">
+        <script>var pathToRoot = "../../";</script>
+    <script>document.documentElement.classList.replace("no-js", "js");</script>
+    <script>const storage = localStorage.getItem("dokka-dark-mode")
+      if (storage == null) {
+        const osDarkSchemePreferred = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+        if (osDarkSchemePreferred === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      } else {
+        const savedDarkMode = JSON.parse(storage)
+        if (savedDarkMode === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      }
+    </script>
+<script type="text/javascript" src="../../scripts/sourceset_dependencies.js" async="async"></script>
+<link href="../../styles/style.css" rel="Stylesheet">
+<link href="../../styles/main.css" rel="Stylesheet">
+<link href="../../styles/prism.css" rel="Stylesheet">
+<link href="../../styles/logo-styles.css" rel="Stylesheet">
+<link href="../../ui-kit/ui-kit.min.css" rel="Stylesheet">
+<script type="text/javascript" src="../../scripts/safe-local-storage_blocking.js"></script>
+<script type="text/javascript" src="../../scripts/navigation-loader.js" async="async"></script>
+<script type="text/javascript" src="../../scripts/platform-content-handler.js" async="async"></script>
+<script type="text/javascript" src="../../scripts/main.js" defer="defer"></script>
+<script type="text/javascript" src="../../scripts/prism.js" async="async"></script>
+<script type="text/javascript" src="../../ui-kit/ui-kit.min.js" defer="defer"></script>
+</head>
+<body>
+<div class="root">
+    <header class="navigation theme-dark" id="navigation-wrapper" role="banner">
+            <a class="library-name--link" href="../../index.html" tabindex="1">
+                    neonjs-core
+            </a>
+        <button class="navigation-controls--btn navigation-controls--btn_toc ui-kit_mobile-only" id="toc-toggle"
+                type="button">Toggle table of contents
+        </button>
+        <div class="navigation-controls--break ui-kit_mobile-only"></div>
+        <div class="library-version" id="library-version">
+0.1.6        </div>
+        <div class="navigation-controls">
+        <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
+                <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
+                        data-filter=":neonjs-core/main">jvm</button>
+            <div class="dropdown filter-section--dropdown" data-role="dropdown" id="filter-section-dropdown">
+                <button class="button button_dropdown filter-section--dropdown-toggle" role="combobox"
+                        data-role="dropdown-toggle"
+                        aria-controls="platform-tags-listbox"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                        aria-label="Toggle source sets"
+                ></button>
+                <ul role="listbox" id="platform-tags-listbox" class="dropdown--list" data-role="dropdown-listbox" aria-label="Target filter">
+                    <div class="dropdown--header"><span>Target filter</span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close target filter">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                        <li role="option" class="dropdown--option platform-selector-option jvm-like" tabindex="0">
+                            <label class="checkbox">
+                                <input type="checkbox" class="checkbox--input" id=":neonjs-core/main"
+                                       data-filter=":neonjs-core/main"/>
+                                <span class="checkbox--icon"></span>
+                                jvm
+                            </label>
+                        </li>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </ul>
+            <button class="navigation-controls--btn navigation-controls--btn_theme" id="theme-toggle-button"
+                    type="button">Switch theme
+            </button>
+            <div class="navigation-controls--btn navigation-controls--btn_search" id="searchBar" role="button">Search in
+                API
+            </div>
+        </div>
+    </header>
+    <div id="container">
+        <nav id="leftColumn" class="sidebar" data-item-type="SECTION" data-item-config='{"defaultSize": 280, "minSize": 200, "maxSize": 400}'>
+            <a class="toc--skip-link" href="#main">Skip to content</a>
+            <div class="dropdown theme-dark_mobile" data-role="dropdown" id="toc-dropdown">
+                <ul role="listbox" id="toc-listbox" class="dropdown--list dropdown--list_toc-list"
+                    data-role="dropdown-listbox" aria-label="Table of contents">
+                    <div class="dropdown--header">
+                            <span>
+                                    neonjs-core
+                            </span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close table of contents">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                    <div class="sidebar--inner" id="sideMenu"></div>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </nav>
+        <div id="resizer" class="resizer" data-item-type="BAR"></div>
+        <div id="main" data-item-type="SECTION" role="main">
+<div class="main-content" data-page-type="package" id="content" pageIds="neonjs-core::dev.mooner.neonjs.ext////PointingToDeclaration//-941727813">
+  <div class="breadcrumbs"><a href="../../index.html">neonjs-core</a><span class="delimiter">/</span><span class="current">dev.mooner.neonjs.ext</span></div>
+  <div class="cover ">
+    <h1 class="cover"><span><span>Package-level</span></span> <span><span>declarations</span></span></h1>
+  </div>
+  <div class="tabbedcontent">
+    <div class="tabs-section" tabs-section="tabs-section"><button class="section-tab" data-active="" data-togglable="TYPE">Types</button></div>
+    <div class="tabs-section-body">
+      <div data-togglable="TYPE">
+        <h2 class="tableheader">Types</h2>
+        <div class="table"><a data-name="-1129189344%2FClasslikes%2F-941727813" anchor-label="ConsoleBuiltins" id="-1129189344%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-console-builtins/index.html"><span>Console</span><wbr></wbr><span><span>Builtins</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1129189344%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-console-builtins/index.html">ConsoleBuiltins</a></div><div class="brief "><p class="paragraph">The <code class="lang-kotlin">console</code> namespace object. All formatting is done by <a href="-inspector/index.html">Inspector</a>, which never calls back into guest code, so logging an object cannot trigger getters, proxies or toString overrides, unless an engine module gives the realm a <a href="-console-builtins/-formatter/index.html">Formatter</a> of its own (<a href="-console-builtins/set-formatter.html">setFormatter</a>; neonjs-node's formats as Node's console does).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1468556592%2FClasslikes%2F-941727813" anchor-label="Inspector" id="-1468556592%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-inspector/index.html"><span><span>Inspector</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1468556592%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-inspector/index.html">Inspector</a></div><div class="brief "><p class="paragraph">Node-like value formatting for console output and the REPL. Never invokes user code (getters, toString, proxies are not triggered), so it is safe to use on untrusted values.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-539523713%2FClasslikes%2F-941727813" anchor-label="WebGlobals" id="-539523713%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-web-globals/index.html"><span>Web</span><wbr></wbr><span><span>Globals</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-539523713%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-web-globals/index.html">WebGlobals</a></div><div class="brief "><p class="paragraph">Opt-in web platform globals that embedded scripts commonly expect (not part of ECMAScript): <code class="lang-kotlin">queueMicrotask</code>, <code class="lang-kotlin">setTimeout</code> / <code class="lang-kotlin">setInterval</code> / <code class="lang-kotlin">clearTimeout</code> / <code class="lang-kotlin">clearInterval</code>, <code class="lang-kotlin">structuredClone</code>, <code class="lang-kotlin">DOMException</code>, <code class="lang-kotlin">atob</code> / <code class="lang-kotlin">btoa</code>, UTF-8 <code class="lang-kotlin">TextEncoder</code> / <code class="lang-kotlin">TextDecoder</code>, <code class="lang-kotlin">Event</code> / <code class="lang-kotlin">CustomEvent</code> / <code class="lang-kotlin">EventTarget</code> (<span data-unresolved-link="dev.mooner.neonjs.ext/Events///PointingToDeclaration/">Events</span>) and <code class="lang-kotlin">AbortController</code> / <code class="lang-kotlin">AbortSignal</code> (<span data-unresolved-link="dev.mooner.neonjs.ext/Abort///PointingToDeclaration/">Abort</span>), <code class="lang-kotlin">MessageEvent</code> / <code class="lang-kotlin">CloseEvent</code> / <code class="lang-kotlin">ErrorEvent</code>, <code class="lang-kotlin">performance</code> (<span data-unresolved-link="dev.mooner.neonjs.ext/Performance///PointingToDeclaration/">Performance</span>) and <code class="lang-kotlin">crypto.getRandomValues</code> / <code class="lang-kotlin">randomUUID</code> (<span data-unresolved-link="dev.mooner.neonjs.ext/Crypto///PointingToDeclaration/">Crypto</span>), <code class="lang-kotlin">Blob</code> / <code class="lang-kotlin">File</code> (<span data-unresolved-link="dev.mooner.neonjs.ext/Blob///PointingToDeclaration/">Blob</span>), <code class="lang-kotlin">FormData</code> (<span data-unresolved-link="dev.mooner.neonjs.ext/FormData///PointingToDeclaration/">FormData</span>), <code class="lang-kotlin">Headers</code> (<span data-unresolved-link="dev.mooner.neonjs.ext/Headers///PointingToDeclaration/">Headers</span>), <code class="lang-kotlin">Request</code> / <code class="lang-kotlin">Response</code> (<span data-unresolved-link="dev.mooner.neonjs.ext/Fetch///PointingToDeclaration/">Fetch</span>) and <code class="lang-kotlin">URL</code> / <code class="lang-kotlin">URLSearchParams</code> (<span data-unresolved-link="dev.mooner.neonjs.ext/Url///PointingToDeclaration/">Url</span>). <code class="lang-kotlin">fetch</code> and <code class="lang-kotlin">WebSocket</code> come with a transport (<a href="-web-network/index.html">WebNetwork</a>).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-498919871%2FClasslikes%2F-941727813" anchor-label="WebNetwork" id="-498919871%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-web-network/index.html"><span>Web</span><wbr></wbr><span><span>Network</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-498919871%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-web-network/index.html">WebNetwork</a></div><div class="brief "><p class="paragraph">The network under <code class="lang-kotlin">fetch</code> and <code class="lang-kotlin">WebSocket</code>, for engine modules: neonjs-net's <code class="lang-kotlin">NetExtension</code> gives a realm its transports (with its policy) through <a href="-web-network/install.html">install</a>; without them the realm has neither global. The web globals do the standards' part on the context's thread (requests and responses, redirects, header guards, aborts, ready states and events); a transport moves bytes, decides what may be reached, and calls back from any thread.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    <div class="footer">
+        <div class="footer--container">
+            <a href="#content" id="go-to-top-link" class="footer--button footer--button_go-to-top"></a>
+            <div class="footer--content">
+                <div>
+                    <span>Generated by </span>
+                    <a class="footer--link footer--link_external" href="https://github.com/Kotlin/dokka">
+                        Dokka
+                    </a>
+                    <div>© 2026 Copyright</div>
+                </div>
+            </div>
+        </div>
+    </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

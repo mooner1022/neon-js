@@ -1,0 +1,10 @@
+$dokka.format:html-v1
+$dokka.linkExtension:html
+$dokka.location:dev.mooner.neonjs.android.d8////PointingToDeclaration/neonjs-android-d8/dev.mooner.neonjs.android.d8/index.html
+$dokka.location:dev.mooner.neonjs.android.d8/D8Converter.Companion///PointingToDeclaration/neonjs-android-d8/dev.mooner.neonjs.android.d8/-d8-converter/-companion/index.html
+$dokka.location:dev.mooner.neonjs.android.d8/D8Converter///PointingToDeclaration/neonjs-android-d8/dev.mooner.neonjs.android.d8/-d8-converter/index.html
+$dokka.location:dev.mooner.neonjs.android.d8/D8Converter/D8Converter/#/PointingToDeclaration/neonjs-android-d8/dev.mooner.neonjs.android.d8/-d8-converter/-d8-converter.html
+$dokka.location:dev.mooner.neonjs.android.d8/D8Converter/classFileVersion/#/PointingToDeclaration/neonjs-android-d8/dev.mooner.neonjs.android.d8/-d8-converter/class-file-version.html
+$dokka.location:dev.mooner.neonjs.android.d8/D8Converter/id/#/PointingToDeclaration/neonjs-android-d8/dev.mooner.neonjs.android.d8/-d8-converter/id.html
+$dokka.location:dev.mooner.neonjs.android.d8/D8Converter/toDex/#kotlin.collections.List[dev.mooner.neonjs.jit.GeneratedClass]#kotlin.Int/PointingToDeclaration/neonjs-android-d8/dev.mooner.neonjs.android.d8/-d8-converter/to-dex.html
+dev.mooner.neonjs.android.d8

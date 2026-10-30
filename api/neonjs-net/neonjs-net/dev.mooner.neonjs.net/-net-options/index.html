@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" charset="UTF-8">
+    <title>NetOptions</title>
+    <link href="../../../images/logo-icon.svg" rel="icon" type="image/svg">
+        <script>var pathToRoot = "../../../";</script>
+    <script>document.documentElement.classList.replace("no-js", "js");</script>
+    <script>const storage = localStorage.getItem("dokka-dark-mode")
+      if (storage == null) {
+        const osDarkSchemePreferred = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+        if (osDarkSchemePreferred === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      } else {
+        const savedDarkMode = JSON.parse(storage)
+        if (savedDarkMode === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      }
+    </script>
+<script type="text/javascript" src="../../../scripts/sourceset_dependencies.js" async="async"></script>
+<link href="../../../styles/style.css" rel="Stylesheet">
+<link href="../../../styles/main.css" rel="Stylesheet">
+<link href="../../../styles/prism.css" rel="Stylesheet">
+<link href="../../../styles/logo-styles.css" rel="Stylesheet">
+<link href="../../../ui-kit/ui-kit.min.css" rel="Stylesheet">
+<script type="text/javascript" src="../../../scripts/safe-local-storage_blocking.js"></script>
+<script type="text/javascript" src="../../../scripts/navigation-loader.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/platform-content-handler.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/main.js" defer="defer"></script>
+<script type="text/javascript" src="../../../scripts/prism.js" async="async"></script>
+<script type="text/javascript" src="../../../ui-kit/ui-kit.min.js" defer="defer"></script>
+</head>
+<body>
+<div class="root">
+    <header class="navigation theme-dark" id="navigation-wrapper" role="banner">
+            <a class="library-name--link" href="../../../index.html" tabindex="1">
+                    neonjs-net
+            </a>
+        <button class="navigation-controls--btn navigation-controls--btn_toc ui-kit_mobile-only" id="toc-toggle"
+                type="button">Toggle table of contents
+        </button>
+        <div class="navigation-controls--break ui-kit_mobile-only"></div>
+        <div class="library-version" id="library-version">
+0.1.6        </div>
+        <div class="navigation-controls">
+        <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
+                <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
+                        data-filter=":neonjs-net/main">jvm</button>
+            <div class="dropdown filter-section--dropdown" data-role="dropdown" id="filter-section-dropdown">
+                <button class="button button_dropdown filter-section--dropdown-toggle" role="combobox"
+                        data-role="dropdown-toggle"
+                        aria-controls="platform-tags-listbox"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                        aria-label="Toggle source sets"
+                ></button>
+                <ul role="listbox" id="platform-tags-listbox" class="dropdown--list" data-role="dropdown-listbox" aria-label="Target filter">
+                    <div class="dropdown--header"><span>Target filter</span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close target filter">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                        <li role="option" class="dropdown--option platform-selector-option jvm-like" tabindex="0">
+                            <label class="checkbox">
+                                <input type="checkbox" class="checkbox--input" id=":neonjs-net/main"
+                                       data-filter=":neonjs-net/main"/>
+                                <span class="checkbox--icon"></span>
+                                jvm
+                            </label>
+                        </li>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </ul>
+            <button class="navigation-controls--btn navigation-controls--btn_theme" id="theme-toggle-button"
+                    type="button">Switch theme
+            </button>
+            <div class="navigation-controls--btn navigation-controls--btn_search" id="searchBar" role="button">Search in
+                API
+            </div>
+        </div>
+    </header>
+    <div id="container">
+        <nav id="leftColumn" class="sidebar" data-item-type="SECTION" data-item-config='{"defaultSize": 280, "minSize": 200, "maxSize": 400}'>
+            <a class="toc--skip-link" href="#main">Skip to content</a>
+            <div class="dropdown theme-dark_mobile" data-role="dropdown" id="toc-dropdown">
+                <ul role="listbox" id="toc-listbox" class="dropdown--list dropdown--list_toc-list"
+                    data-role="dropdown-listbox" aria-label="Table of contents">
+                    <div class="dropdown--header">
+                            <span>
+                                    neonjs-net
+                            </span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close table of contents">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                    <div class="sidebar--inner" id="sideMenu"></div>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </nav>
+        <div id="resizer" class="resizer" data-item-type="BAR"></div>
+        <div id="main" data-item-type="SECTION" role="main">
+<div class="main-content" data-page-type="classlike" id="content" pageIds="neonjs-net::dev.mooner.neonjs.net/NetOptions///PointingToDeclaration//387445679">
+  <div class="breadcrumbs"><a href="../../../index.html">neonjs-net</a><span class="delimiter">/</span><a href="../index.html">dev.mooner.neonjs.net</a><span class="delimiter">/</span><span class="current">NetOptions</span></div>
+  <div class="cover ">
+    <h1 class="cover"><span>Net</span><wbr></wbr><span><span>Options</span></span></h1>
+    <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-net/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="index.html">NetOptions</a></div><p class="paragraph">What the <code class="lang-kotlin">fetch</code> and <code class="lang-kotlin">WebSocket</code> of a context may reach, and how much of the host they may use. Nothing is reachable by default: a host names the hosts its scripts need (<a href="-builder/allow-hosts.html">Builder.allowHosts</a>). Whatever the hosts, a connection to a loopback, private, link-local or otherwise non-public address is refused unless its range is allowed (<a href="-builder/allow-addresses.html">Builder.allowAddresses</a>), and so is cleartext (<code class="lang-kotlin">http:</code>, <code class="lang-kotlin">ws:</code>) unless allowed (<a href="-builder/allow-insecure.html">Builder.allowInsecure</a>).</p></div></div>
+  </div>
+  <div class="tabbedcontent">
+    <div class="tabs-section" tabs-section="tabs-section"><button class="section-tab" data-active="" data-togglable="CONSTRUCTOR,TYPE,PROPERTY,FUNCTION">Members</button></div>
+    <div class="tabs-section-body">
+      <div data-togglable="TYPE">
+        <h2 class="tableheader">Types</h2>
+        <div class="table"><a data-name="-2058735703%2FClasslikes%2F387445679" anchor-label="Builder" id="-2058735703%2FClasslikes%2F387445679" data-filterable-set=":neonjs-net/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-net/main" data-filterable-set=":neonjs-net/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-builder/index.html"><span><span>Builder</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-2058735703%2FClasslikes%2F387445679"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-net/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-builder/index.html">Builder</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1960383336%2FClasslikes%2F387445679" anchor-label="Companion" id="-1960383336%2FClasslikes%2F387445679" data-filterable-set=":neonjs-net/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-net/main" data-filterable-set=":neonjs-net/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-companion/index.html"><span><span>Companion</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1960383336%2FClasslikes%2F387445679"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-net/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-companion/index.html">Companion</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div data-togglable="PROPERTY">
+        <h2 class="tableheader">Properties</h2>
+        <div class="table"><a data-name="1712233374%2FProperties%2F387445679" anchor-label="allowAllHosts" id="1712233374%2FProperties%2F387445679" data-filterable-set=":neonjs-net/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-net/main" data-filterable-set=":neonjs-net/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="allow-all-hosts.html"><span>allow</span><wbr></wbr><span>All</span><wbr></wbr><span><span>Hosts</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1712233374%2FProperties%2F387445679"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-net/main"><div class="symbol monospace"><span class="token keyword">val </span><a href="allow-all-hosts.html">allowAllHosts</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></div><div class="brief "><p class="paragraph">Whether any host may be reached (the address rules still apply).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="576245775%2FProperties%2F387445679" anchor-label="allowedAddresses" id="576245775%2FProperties%2F387445679" data-filterable-set=":neonjs-net/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-net/main" data-filterable-set=":neonjs-net/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="allowed-addresses.html"><span>allowed</span><wbr></wbr><span><span>Addresses</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="576245775%2FProperties%2F387445679"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-net/main"><div class="symbol monospace"><span class="token keyword">val </span><a href="allowed-addresses.html">allowedAddresses</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.collections/-list/index.html">List</a><span class="token operator">&lt;</span><a href="../-address-range/index.html">AddressRange</a><span class="token operator">&gt;</span></div><div class="brief "><p class="paragraph">The address ranges (CIDR) exempted from the rule against non-public addresses.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1246844422%2FProperties%2F387445679" anchor-label="allowedHosts" id="1246844422%2FProperties%2F387445679" data-filterable-set=":neonjs-net/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-net/main" data-filterable-set=":neonjs-net/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="allowed-hosts.html"><span>allowed</span><wbr></wbr><span><span>Hosts</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1246844422%2FProperties%2F387445679"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-net/main"><div class="symbol monospace"><span class="token keyword">val </span><a href="allowed-hosts.html">allowedHosts</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.collections/-list/index.html">List</a><span class="token operator">&lt;</span><a href="../-host-pattern/index.html">HostPattern</a><span class="token operator">&gt;</span></div><div class="brief "><p class="paragraph">The hosts that may be reached (patterns: <code class="lang-kotlin">example.com</code>, <code class="lang-kotlin">*.example.com</code>, <code class="lang-kotlin">example.com:8443</code>).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1886949804%2FProperties%2F387445679" anchor-label="allowInsecure" id="1886949804%2FProperties%2F387445679" data-filterable-set=":neonjs-net/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-net/main" data-filterable-set=":neonjs-net/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="allow-insecure.html"><span>allow</span><wbr></wbr><span><span>Insecure</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1886949804%2FProperties%2F387445679"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-net/main"><div class="symbol monospace"><span class="token keyword">val </span><a href="allow-insecure.html">allowInsecure</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></div><div class="brief "><p class="paragraph">Whether <code class="lang-kotlin">http:</code> and <code class="lang-kotlin">ws:</code> are allowed besides <code class="lang-kotlin">https:</code> and <code class="lang-kotlin">wss:</code> (default: false).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="48698920%2FProperties%2F387445679" anchor-label="callTimeoutMillis" id="48698920%2FProperties%2F387445679" data-filterable-set=":neonjs-net/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-net/main" data-filterable-set=":neonjs-net/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="call-timeout-millis.html"><span>call</span><wbr></wbr><span>Timeout</span><wbr></wbr><span><span>Millis</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="48698920%2FProperties%2F387445679"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-net/main"><div class="symbol monospace"><span class="token keyword">val </span><a href="call-timeout-millis.html">callTimeoutMillis</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-long/index.html">Long</a></div><div class="brief "><p class="paragraph">The longest a whole fetch may take, redirects and body included (default: 0, none).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-928527554%2FProperties%2F387445679" anchor-label="client" id="-928527554%2FProperties%2F387445679" data-filterable-set=":neonjs-net/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-net/main" data-filterable-set=":neonjs-net/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="client.html"><span><span>client</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-928527554%2FProperties%2F387445679"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-net/main"><div class="symbol monospace"><span class="token keyword">val </span><a href="client.html">client</a><span class="token operator">: </span><span data-unresolved-link="okhttp3/OkHttpClient///PointingToDeclaration/">OkHttpClient</span><span class="token operator">?</span></div><div class="brief "><p class="paragraph">The host's client, whose connection pool, dispatcher, DNS, TLS settings and interceptors are used (default: a new one). The policy is applied on a client derived from it: redirects, caches, cookies and proxies are not used, and connections go through NeonJS's socket factory, which enforces the address rules. Its dispatcher's limits apply too (OkHttp's default runs 5 requests per host at once, and queues the others).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1779100684%2FProperties%2F387445679" anchor-label="connectTimeoutMillis" id="1779100684%2FProperties%2F387445679" data-filterable-set=":neonjs-net/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-net/main" data-filterable-set=":neonjs-net/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="connect-timeout-millis.html"><span>connect</span><wbr></wbr><span>Timeout</span><wbr></wbr><span><span>Millis</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1779100684%2FProperties%2F387445679"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-net/main"><div class="symbol monospace"><span class="token keyword">val </span><a href="connect-timeout-millis.html">connectTimeoutMillis</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-long/index.html">Long</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-192972014%2FProperties%2F387445679" anchor-label="maxConcurrentRequests" id="-192972014%2FProperties%2F387445679" data-filterable-set=":neonjs-net/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-net/main" data-filterable-set=":neonjs-net/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="max-concurrent-requests.html"><span>max</span><wbr></wbr><span>Concurrent</span><wbr></wbr><span><span>Requests</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-192972014%2FProperties%2F387445679"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-net/main"><div class="symbol monospace"><span class="token keyword">val </span><a href="max-concurrent-requests.html">maxConcurrentRequests</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a></div><div class="brief "><p class="paragraph">The fetches a context may have in flight at once (default: 16).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-2075240151%2FProperties%2F387445679" anchor-label="maxMessageBytes" id="-2075240151%2FProperties%2F387445679" data-filterable-set=":neonjs-net/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-net/main" data-filterable-set=":neonjs-net/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="max-message-bytes.html"><span>max</span><wbr></wbr><span>Message</span><wbr></wbr><span><span>Bytes</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-2075240151%2FProperties%2F387445679"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-net/main"><div class="symbol monospace"><span class="token keyword">val </span><a href="max-message-bytes.html">maxMessageBytes</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-long/index.html">Long</a></div><div class="brief "><p class="paragraph">The largest message a WebSocket receives (default: 32 MiB); a larger one fails the connection.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-817128765%2FProperties%2F387445679" anchor-label="maxResponseBytes" id="-817128765%2FProperties%2F387445679" data-filterable-set=":neonjs-net/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-net/main" data-filterable-set=":neonjs-net/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="max-response-bytes.html"><span>max</span><wbr></wbr><span>Response</span><wbr></wbr><span><span>Bytes</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-817128765%2FProperties%2F387445679"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-net/main"><div class="symbol monospace"><span class="token keyword">val </span><a href="max-response-bytes.html">maxResponseBytes</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-long/index.html">Long</a></div><div class="brief "><p class="paragraph">The largest response body a fetch reads, decoded (default: 32 MiB); a larger one fails the fetch.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="209466721%2FProperties%2F387445679" anchor-label="maxWebSockets" id="209466721%2FProperties%2F387445679" data-filterable-set=":neonjs-net/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-net/main" data-filterable-set=":neonjs-net/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="max-web-sockets.html"><span>max</span><wbr></wbr><span>Web</span><wbr></wbr><span><span>Sockets</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="209466721%2FProperties%2F387445679"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-net/main"><div class="symbol monospace"><span class="token keyword">val </span><a href="max-web-sockets.html">maxWebSockets</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a></div><div class="brief "><p class="paragraph">The WebSockets a context may have open or opening at once (default: 8).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1643852960%2FProperties%2F387445679" anchor-label="readTimeoutMillis" id="-1643852960%2FProperties%2F387445679" data-filterable-set=":neonjs-net/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-net/main" data-filterable-set=":neonjs-net/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="read-timeout-millis.html"><span>read</span><wbr></wbr><span>Timeout</span><wbr></wbr><span><span>Millis</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1643852960%2FProperties%2F387445679"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-net/main"><div class="symbol monospace"><span class="token keyword">val </span><a href="read-timeout-millis.html">readTimeoutMillis</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-long/index.html">Long</a></div><div class="brief "><p class="paragraph">The longest wait for the next bytes of a response (default: 30 s); an open WebSocket has none.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-913450345%2FProperties%2F387445679" anchor-label="userAgent" id="-913450345%2FProperties%2F387445679" data-filterable-set=":neonjs-net/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-net/main" data-filterable-set=":neonjs-net/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="user-agent.html"><span>user</span><wbr></wbr><span><span>Agent</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-913450345%2FProperties%2F387445679"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-net/main"><div class="symbol monospace"><span class="token keyword">val </span><a href="user-agent.html">userAgent</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a></div><div class="brief "><p class="paragraph">The <code class="lang-kotlin">User-Agent</code> of requests that do not set one (default: <code class="lang-kotlin">NeonJS/&lt;version&gt;</code>).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-173607359%2FProperties%2F387445679" anchor-label="writeTimeoutMillis" id="-173607359%2FProperties%2F387445679" data-filterable-set=":neonjs-net/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-net/main" data-filterable-set=":neonjs-net/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="write-timeout-millis.html"><span>write</span><wbr></wbr><span>Timeout</span><wbr></wbr><span><span>Millis</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-173607359%2FProperties%2F387445679"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-net/main"><div class="symbol monospace"><span class="token keyword">val </span><a href="write-timeout-millis.html">writeTimeoutMillis</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-long/index.html">Long</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div data-togglable="FUNCTION">
+        <h2 class="tableheader">Functions</h2>
+        <div class="table"><a data-name="113346736%2FFunctions%2F387445679" anchor-label="allowsHost" id="113346736%2FFunctions%2F387445679" data-filterable-set=":neonjs-net/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-net/main" data-filterable-set=":neonjs-net/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="allows-host.html"><span>allows</span><wbr></wbr><span><span>Host</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="113346736%2FFunctions%2F387445679"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-net/main"><div class="symbol monospace"><span class="token keyword">fun </span><a href="allows-host.html"><span class="token function">allowsHost</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">host<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a><span class="token punctuation">, </span></span><span class="parameter ">port<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></div><div class="brief "><p class="paragraph">Whether <a href="allows-host.html">host</a> (an ASCII host as URLs serialize it) and <a href="allows-host.html">port</a> may be reached by name.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    <div class="footer">
+        <div class="footer--container">
+            <a href="#content" id="go-to-top-link" class="footer--button footer--button_go-to-top"></a>
+            <div class="footer--content">
+                <div>
+                    <span>Generated by </span>
+                    <a class="footer--link footer--link_external" href="https://github.com/Kotlin/dokka">
+                        Dokka
+                    </a>
+                    <div>© 2026 Copyright</div>
+                </div>
+            </div>
+        </div>
+    </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

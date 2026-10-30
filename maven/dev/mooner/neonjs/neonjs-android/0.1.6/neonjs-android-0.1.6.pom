@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <!-- This module was also published with a richer model, Gradle metadata,  -->
+  <!-- which should be used instead. Do not delete the following line which  -->
+  <!-- is to indicate to Gradle or any Gradle module metadata file consumer  -->
+  <!-- that they should prefer consuming it instead. -->
+  <!-- do_not_remove: published-with-gradle-metadata -->
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>dev.mooner.neonjs</groupId>
+  <artifactId>neonjs-android</artifactId>
+  <version>0.1.6</version>
+  <name>NeonJS Android</name>
+  <description>Runs NeonJS JIT code and Java.extend adapters on Android by translating them to dex with dx</description>
+  <url>https://github.com/mooner1022/neon-js</url>
+  <inceptionYear>2026</inceptionYear>
+  <licenses>
+    <license>
+      <name>The Apache License, Version 2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <id>mooner1022</id>
+      <name>mooner1022</name>
+      <url>https://github.com/mooner1022</url>
+    </developer>
+  </developers>
+  <scm>
+    <connection>scm:git:git://github.com/mooner1022/neon-js.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/mooner1022/neon-js.git</developerConnection>
+    <url>https://github.com/mooner1022/neon-js</url>
+  </scm>
+  <dependencies>
+    <dependency>
+      <groupId>dev.mooner.neonjs</groupId>
+      <artifactId>neonjs-core</artifactId>
+      <version>0.1.6</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jetbrains.kotlin</groupId>
+      <artifactId>kotlin-stdlib</artifactId>
+      <version>2.4.20</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.jakewharton.android.repackaged</groupId>
+      <artifactId>dalvik-dx</artifactId>
+      <version>16.0.1</version>
+      <scope>runtime</scope>
+    </dependency>
+  </dependencies>
+</project>

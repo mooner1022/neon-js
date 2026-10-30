@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" charset="UTF-8">
+    <title>Node</title>
+    <link href="../../../images/logo-icon.svg" rel="icon" type="image/svg">
+        <script>var pathToRoot = "../../../";</script>
+    <script>document.documentElement.classList.replace("no-js", "js");</script>
+    <script>const storage = localStorage.getItem("dokka-dark-mode")
+      if (storage == null) {
+        const osDarkSchemePreferred = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+        if (osDarkSchemePreferred === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      } else {
+        const savedDarkMode = JSON.parse(storage)
+        if (savedDarkMode === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      }
+    </script>
+<script type="text/javascript" src="../../../scripts/sourceset_dependencies.js" async="async"></script>
+<link href="../../../styles/style.css" rel="Stylesheet">
+<link href="../../../styles/main.css" rel="Stylesheet">
+<link href="../../../styles/prism.css" rel="Stylesheet">
+<link href="../../../styles/logo-styles.css" rel="Stylesheet">
+<link href="../../../ui-kit/ui-kit.min.css" rel="Stylesheet">
+<script type="text/javascript" src="../../../scripts/safe-local-storage_blocking.js"></script>
+<script type="text/javascript" src="../../../scripts/navigation-loader.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/platform-content-handler.js" async="async"></script>
+<script type="text/javascript" src="../../../scripts/main.js" defer="defer"></script>
+<script type="text/javascript" src="../../../scripts/prism.js" async="async"></script>
+<script type="text/javascript" src="../../../ui-kit/ui-kit.min.js" defer="defer"></script>
+</head>
+<body>
+<div class="root">
+    <header class="navigation theme-dark" id="navigation-wrapper" role="banner">
+            <a class="library-name--link" href="../../../index.html" tabindex="1">
+                    neonjs-core
+            </a>
+        <button class="navigation-controls--btn navigation-controls--btn_toc ui-kit_mobile-only" id="toc-toggle"
+                type="button">Toggle table of contents
+        </button>
+        <div class="navigation-controls--break ui-kit_mobile-only"></div>
+        <div class="library-version" id="library-version">
+0.1.6        </div>
+        <div class="navigation-controls">
+        <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
+                <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
+                        data-filter=":neonjs-core/main">jvm</button>
+            <div class="dropdown filter-section--dropdown" data-role="dropdown" id="filter-section-dropdown">
+                <button class="button button_dropdown filter-section--dropdown-toggle" role="combobox"
+                        data-role="dropdown-toggle"
+                        aria-controls="platform-tags-listbox"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                        aria-label="Toggle source sets"
+                ></button>
+                <ul role="listbox" id="platform-tags-listbox" class="dropdown--list" data-role="dropdown-listbox" aria-label="Target filter">
+                    <div class="dropdown--header"><span>Target filter</span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close target filter">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                        <li role="option" class="dropdown--option platform-selector-option jvm-like" tabindex="0">
+                            <label class="checkbox">
+                                <input type="checkbox" class="checkbox--input" id=":neonjs-core/main"
+                                       data-filter=":neonjs-core/main"/>
+                                <span class="checkbox--icon"></span>
+                                jvm
+                            </label>
+                        </li>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </ul>
+            <button class="navigation-controls--btn navigation-controls--btn_theme" id="theme-toggle-button"
+                    type="button">Switch theme
+            </button>
+            <div class="navigation-controls--btn navigation-controls--btn_search" id="searchBar" role="button">Search in
+                API
+            </div>
+        </div>
+    </header>
+    <div id="container">
+        <nav id="leftColumn" class="sidebar" data-item-type="SECTION" data-item-config='{"defaultSize": 280, "minSize": 200, "maxSize": 400}'>
+            <a class="toc--skip-link" href="#main">Skip to content</a>
+            <div class="dropdown theme-dark_mobile" data-role="dropdown" id="toc-dropdown">
+                <ul role="listbox" id="toc-listbox" class="dropdown--list dropdown--list_toc-list"
+                    data-role="dropdown-listbox" aria-label="Table of contents">
+                    <div class="dropdown--header">
+                            <span>
+                                    neonjs-core
+                            </span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close table of contents">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                    <div class="sidebar--inner" id="sideMenu"></div>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </nav>
+        <div id="resizer" class="resizer" data-item-type="BAR"></div>
+        <div id="main" data-item-type="SECTION" role="main">
+<div class="main-content" data-page-type="classlike" id="content" pageIds="neonjs-core::dev.mooner.neonjs.parser/Node///PointingToDeclaration//-941727813">
+  <div class="breadcrumbs"><a href="../../../index.html">neonjs-core</a><span class="delimiter">/</span><a href="../index.html">dev.mooner.neonjs.parser</a><span class="delimiter">/</span><span class="current">Node</span></div>
+  <div class="cover ">
+    <h1 class="cover"><span><span>Node</span></span></h1>
+    <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">abstract </span><span class="token keyword">class </span><a href="index.html">Node</a></div><p class="paragraph">ESTree-like AST. Positions are source offsets; <a href="line.html">line</a>/<a href="col.html">col</a> are 1-based line and 0-based column of the node start.</p><h4 class="tableheader">Inheritors</h4><div class="table"><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-identifier/index.html">Identifier</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-private-identifier/index.html">PrivateIdentifier</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-number-literal/index.html">NumberLiteral</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-string-literal/index.html">StringLiteral</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-big-int-literal/index.html">BigIntLiteral</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-boolean-literal/index.html">BooleanLiteral</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-null-literal/index.html">NullLiteral</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-reg-exp-literal/index.html">RegExpLiteral</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-template-element/index.html">TemplateElement</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-template-literal/index.html">TemplateLiteral</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-tagged-template/index.html">TaggedTemplate</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-this-expression/index.html">ThisExpression</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-super/index.html">Super</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-array-literal/index.html">ArrayLiteral</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-object-literal/index.html">ObjectLiteral</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-property/index.html">Property</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-spread-element/index.html">SpreadElement</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-unary-expression/index.html">UnaryExpression</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-update-expression/index.html">UpdateExpression</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-binary-expression/index.html">BinaryExpression</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-logical-expression/index.html">LogicalExpression</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-assignment-expression/index.html">AssignmentExpression</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-conditional-expression/index.html">ConditionalExpression</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-call-expression/index.html">CallExpression</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-new-expression/index.html">NewExpression</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-member-expression/index.html">MemberExpression</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-chain-expression/index.html">ChainExpression</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-sequence-expression/index.html">SequenceExpression</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-yield-expression/index.html">YieldExpression</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-await-expression/index.html">AwaitExpression</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-meta-property/index.html">MetaProperty</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-import-call/index.html">ImportCall</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-private-in-expression/index.html">PrivateInExpression</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-array-pattern/index.html">ArrayPattern</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-object-pattern/index.html">ObjectPattern</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-assignment-pattern/index.html">AssignmentPattern</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-rest-element/index.html">RestElement</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-function-node/index.html">FunctionNode</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-class-node/index.html">ClassNode</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-method-definition/index.html">MethodDefinition</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-property-definition/index.html">PropertyDefinition</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-static-block/index.html">StaticBlock</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-program/index.html">Program</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-expression-statement/index.html">ExpressionStatement</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-block-statement/index.html">BlockStatement</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-empty-statement/index.html">EmptyStatement</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-debugger-statement/index.html">DebuggerStatement</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-with-statement/index.html">WithStatement</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-return-statement/index.html">ReturnStatement</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-labeled-statement/index.html">LabeledStatement</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-break-statement/index.html">BreakStatement</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-continue-statement/index.html">ContinueStatement</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-if-statement/index.html">IfStatement</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-switch-case/index.html">SwitchCase</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-switch-statement/index.html">SwitchStatement</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-throw-statement/index.html">ThrowStatement</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-catch-clause/index.html">CatchClause</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-try-statement/index.html">TryStatement</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-while-statement/index.html">WhileStatement</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-do-while-statement/index.html">DoWhileStatement</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-for-statement/index.html">ForStatement</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-for-in-statement/index.html">ForInStatement</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-for-of-statement/index.html">ForOfStatement</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-variable-declarator/index.html">VariableDeclarator</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-variable-declaration/index.html">VariableDeclaration</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-function-declaration/index.html">FunctionDeclaration</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-class-declaration/index.html">ClassDeclaration</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-import-specifier/index.html">ImportSpecifier</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-import-attribute/index.html">ImportAttribute</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-import-declaration/index.html">ImportDeclaration</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-export-specifier/index.html">ExportSpecifier</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-export-named-declaration/index.html">ExportNamedDeclaration</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-export-default-declaration/index.html">ExportDefaultDeclaration</a></div></span></div><div></div></div></div><div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><a href="../-export-all-declaration/index.html">ExportAllDeclaration</a></div></span></div><div></div></div></div></div></div></div>
+  </div>
+  <div class="tabbedcontent">
+    <div class="tabs-section" tabs-section="tabs-section"><button class="section-tab" data-active="" data-togglable="CONSTRUCTOR,TYPE,PROPERTY,FUNCTION">Members</button></div>
+    <div class="tabs-section-body">
+      <div data-togglable="CONSTRUCTOR">
+        <h2 class="tableheader">Constructors</h2>
+        <div class="table"><a data-name="833055414%2FConstructors%2F-941727813" anchor-label="Node" id="833055414%2FConstructors%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-togglable="CONSTRUCTOR" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-node.html"><span><span>Node</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="833055414%2FConstructors%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">constructor</span><span class="token punctuation">(</span><span class="token punctuation">)</span></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div data-togglable="PROPERTY">
+        <h2 class="tableheader">Properties</h2>
+        <div class="table"><a data-name="2093509634%2FProperties%2F-941727813" anchor-label="col" id="2093509634%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="col.html"><span><span>col</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="2093509634%2FProperties%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">var </span><a href="col.html">col</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="374264071%2FProperties%2F-941727813" anchor-label="end" id="374264071%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="end.html"><span><span>end</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="374264071%2FProperties%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">var </span><a href="end.html">end</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1589072604%2FProperties%2F-941727813" anchor-label="line" id="-1589072604%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="line.html"><span><span>line</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1589072604%2FProperties%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">var </span><a href="line.html">line</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1094596346%2FProperties%2F-941727813" anchor-label="parenthesized" id="-1094596346%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="parenthesized.html"><span><span>parenthesized</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1094596346%2FProperties%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">var </span><a href="parenthesized.html">parenthesized</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></div><div class="brief "><p class="paragraph">True when the expression was wrapped in parentheses.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1355104335%2FProperties%2F-941727813" anchor-label="ref" id="1355104335%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="ref.html"><span><span>ref</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1355104335%2FProperties%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-jvm-field/index.html"><span class="token annotation builtin">JvmField</span></a></div></div><span class="token keyword">var </span><a href="ref.html">ref</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span></div><div class="brief "><p class="paragraph">Compiler annotation: resolved reference for identifiers / this / super / new.target.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1064020078%2FProperties%2F-941727813" anchor-label="scope" id="1064020078%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="scope.html"><span><span>scope</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1064020078%2FProperties%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-jvm-field/index.html"><span class="token annotation builtin">JvmField</span></a></div></div><span class="token keyword">var </span><a href="scope.html">scope</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span></div><div class="brief "><p class="paragraph">Compiler annotation: scope created by this node (set by the scope analyzer).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1621716512%2FProperties%2F-941727813" anchor-label="start" id="1621716512%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="start.html"><span><span>start</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1621716512%2FProperties%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">var </span><a href="start.html">start</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    <div class="footer">
+        <div class="footer--container">
+            <a href="#content" id="go-to-top-link" class="footer--button footer--button_go-to-top"></a>
+            <div class="footer--content">
+                <div>
+                    <span>Generated by </span>
+                    <a class="footer--link footer--link_external" href="https://github.com/Kotlin/dokka">
+                        Dokka
+                    </a>
+                    <div>© 2026 Copyright</div>
+                </div>
+            </div>
+        </div>
+    </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

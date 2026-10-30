@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" charset="UTF-8">
+    <title>dev.mooner.neonjs.builtins</title>
+    <link href="../../images/logo-icon.svg" rel="icon" type="image/svg">
+        <script>var pathToRoot = "../../";</script>
+    <script>document.documentElement.classList.replace("no-js", "js");</script>
+    <script>const storage = localStorage.getItem("dokka-dark-mode")
+      if (storage == null) {
+        const osDarkSchemePreferred = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+        if (osDarkSchemePreferred === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      } else {
+        const savedDarkMode = JSON.parse(storage)
+        if (savedDarkMode === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        }
+      }
+    </script>
+<script type="text/javascript" src="../../scripts/sourceset_dependencies.js" async="async"></script>
+<link href="../../styles/style.css" rel="Stylesheet">
+<link href="../../styles/main.css" rel="Stylesheet">
+<link href="../../styles/prism.css" rel="Stylesheet">
+<link href="../../styles/logo-styles.css" rel="Stylesheet">
+<link href="../../ui-kit/ui-kit.min.css" rel="Stylesheet">
+<script type="text/javascript" src="../../scripts/safe-local-storage_blocking.js"></script>
+<script type="text/javascript" src="../../scripts/navigation-loader.js" async="async"></script>
+<script type="text/javascript" src="../../scripts/platform-content-handler.js" async="async"></script>
+<script type="text/javascript" src="../../scripts/main.js" defer="defer"></script>
+<script type="text/javascript" src="../../scripts/prism.js" async="async"></script>
+<script type="text/javascript" src="../../ui-kit/ui-kit.min.js" defer="defer"></script>
+</head>
+<body>
+<div class="root">
+    <header class="navigation theme-dark" id="navigation-wrapper" role="banner">
+            <a class="library-name--link" href="../../index.html" tabindex="1">
+                    neonjs-core
+            </a>
+        <button class="navigation-controls--btn navigation-controls--btn_toc ui-kit_mobile-only" id="toc-toggle"
+                type="button">Toggle table of contents
+        </button>
+        <div class="navigation-controls--break ui-kit_mobile-only"></div>
+        <div class="library-version" id="library-version">
+0.1.6        </div>
+        <div class="navigation-controls">
+        <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
+                <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
+                        data-filter=":neonjs-core/main">jvm</button>
+            <div class="dropdown filter-section--dropdown" data-role="dropdown" id="filter-section-dropdown">
+                <button class="button button_dropdown filter-section--dropdown-toggle" role="combobox"
+                        data-role="dropdown-toggle"
+                        aria-controls="platform-tags-listbox"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                        aria-label="Toggle source sets"
+                ></button>
+                <ul role="listbox" id="platform-tags-listbox" class="dropdown--list" data-role="dropdown-listbox" aria-label="Target filter">
+                    <div class="dropdown--header"><span>Target filter</span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close target filter">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                        <li role="option" class="dropdown--option platform-selector-option jvm-like" tabindex="0">
+                            <label class="checkbox">
+                                <input type="checkbox" class="checkbox--input" id=":neonjs-core/main"
+                                       data-filter=":neonjs-core/main"/>
+                                <span class="checkbox--icon"></span>
+                                jvm
+                            </label>
+                        </li>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </ul>
+            <button class="navigation-controls--btn navigation-controls--btn_theme" id="theme-toggle-button"
+                    type="button">Switch theme
+            </button>
+            <div class="navigation-controls--btn navigation-controls--btn_search" id="searchBar" role="button">Search in
+                API
+            </div>
+        </div>
+    </header>
+    <div id="container">
+        <nav id="leftColumn" class="sidebar" data-item-type="SECTION" data-item-config='{"defaultSize": 280, "minSize": 200, "maxSize": 400}'>
+            <a class="toc--skip-link" href="#main">Skip to content</a>
+            <div class="dropdown theme-dark_mobile" data-role="dropdown" id="toc-dropdown">
+                <ul role="listbox" id="toc-listbox" class="dropdown--list dropdown--list_toc-list"
+                    data-role="dropdown-listbox" aria-label="Table of contents">
+                    <div class="dropdown--header">
+                            <span>
+                                    neonjs-core
+                            </span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close table of contents">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                    <div class="sidebar--inner" id="sideMenu"></div>
+                </ul>
+                <div class="dropdown--overlay"></div>
+            </div>
+        </nav>
+        <div id="resizer" class="resizer" data-item-type="BAR"></div>
+        <div id="main" data-item-type="SECTION" role="main">
+<div class="main-content" data-page-type="package" id="content" pageIds="neonjs-core::dev.mooner.neonjs.builtins////PointingToDeclaration//-941727813">
+  <div class="breadcrumbs"><a href="../../index.html">neonjs-core</a><span class="delimiter">/</span><span class="current">dev.mooner.neonjs.builtins</span></div>
+  <div class="cover ">
+    <h1 class="cover"><span><span>Package-level</span></span> <span><span>declarations</span></span></h1>
+  </div>
+  <div class="tabbedcontent">
+    <div class="tabs-section" tabs-section="tabs-section"><button class="section-tab" data-active="" data-togglable="TYPE">Types</button></div>
+    <div class="tabs-section-body">
+      <div data-togglable="TYPE">
+        <h2 class="tableheader">Types</h2>
+        <div class="table"><a data-name="2004471330%2FClasslikes%2F-941727813" anchor-label="ArrayIteratorObject" id="2004471330%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-array-iterator-object/index.html"><span>Array</span><wbr></wbr><span>Iterator</span><wbr></wbr><span><span>Object</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="2004471330%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-array-iterator-object/index.html">ArrayIteratorObject</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">proto<span class="token operator">: </span><a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">var </span>iterated<span class="token operator">: </span><a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>kind<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a></span></span><span class="token punctuation">)</span> : <a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a></div><div class="brief "><p class="paragraph">Array iterator instance. kind: 0 keys, 1 values, 2 entries.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1523956485%2FClasslikes%2F-941727813" anchor-label="AsyncDisposal" id="-1523956485%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-async-disposal/index.html"><span>Async</span><wbr></wbr><span><span>Disposal</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1523956485%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-async-disposal/index.html">AsyncDisposal</a></div><div class="brief "><p class="paragraph">The DisposeResources loop of an async disposal, suspended at each Await. Protocol: call <a href="-async-disposal/step.html">step</a>; while it returns true, Await <a href="-async-disposal/await-value.html">awaitValue</a> and on rejection report the reason via <a href="-async-disposal/rejected.html">rejected</a> (on fulfillment nothing is reported), then call <a href="-async-disposal/step.html">step</a> again. Once <a href="-async-disposal/step.html">step</a> returns false, <a href="-async-disposal/result.html">result</a> is the resulting completion (null for normal).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1907294550%2FClasslikes%2F-941727813" anchor-label="Builtins" id="-1907294550%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-builtins/index.html"><span><span>Builtins</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1907294550%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-builtins/index.html">Builtins</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-350527890%2FClasslikes%2F-941727813" anchor-label="CollectionIterator" id="-350527890%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-collection-iterator/index.html"><span>Collection</span><wbr></wbr><span><span>Iterator</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-350527890%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-collection-iterator/index.html">CollectionIterator</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">proto<span class="token operator">: </span><a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">var </span>cursor<span class="token operator">: </span><a href="-table-cursor/index.html">TableCursor</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>kind<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a></span></span><span class="token punctuation">)</span> : <a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1246967327%2FClasslikes%2F-941727813" anchor-label="DateTime" id="1246967327%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-date-time/index.html"><span>Date</span><wbr></wbr><span><span>Time</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1246967327%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-date-time/index.html">DateTime</a></div><div class="brief "><p class="paragraph">Time value arithmetic of ECMA-262 §21.4.1 (Day, YearFromTime, MakeDay, TimeClip, ...), the host local time zone (LocalTime / UTC) and the string forms produced by Date.prototype methods.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-277927860%2FClasslikes%2F-941727813" anchor-label="DisposableResource" id="-277927860%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-disposable-resource/index.html"><span>Disposable</span><wbr></wbr><span><span>Resource</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-277927860%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-disposable-resource/index.html">DisposableResource</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>value<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>hint<span class="token operator">: </span><a href="-dispose-hint/index.html">DisposeHint</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>method<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">DisposableResource Record: <span data-unresolved-link="dev.mooner.neonjs.builtins/DisposableResource//#kotlin.Any?#dev.mooner.neonjs.builtins.DisposeHint#kotlin.Any?/PointingToCallableParameters(2)/">method</span> is undefined only for a nullish value added with <a href="-dispose-hint/-a-s-y-n-c/index.html">DisposeHint.ASYNC</a>.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1203096463%2FClasslikes%2F-941727813" anchor-label="DisposeCapability" id="-1203096463%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-dispose-capability/index.html"><span>Dispose</span><wbr></wbr><span><span>Capability</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1203096463%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-dispose-capability/index.html">DisposeCapability</a></div><div class="brief "><p class="paragraph">DisposeCapability Record: the resource stack of a DisposableStack / AsyncDisposableStack or of a block containing <code class="lang-kotlin">using</code> / <code class="lang-kotlin">await using</code> declarations, plus the DisposeResources algorithm over it.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-536885278%2FClasslikes%2F-941727813" anchor-label="DisposeHint" id="-536885278%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-dispose-hint/index.html"><span>Dispose</span><wbr></wbr><span><span>Hint</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-536885278%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">enum </span><a href="-dispose-hint/index.html">DisposeHint</a> : <a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-enum/index.html">Enum</a><span class="token operator">&lt;</span><a href="-dispose-hint/index.html">DisposeHint</a><span class="token operator">&gt; </span></div><div class="brief "><p class="paragraph">The hint of a DisposableResource Record (sync-dispose / async-dispose).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1525311186%2FClasslikes%2F-941727813" anchor-label="ElementType" id="1525311186%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-element-type/index.html"><span>Element</span><wbr></wbr><span><span>Type</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1525311186%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">enum </span><a href="-element-type/index.html">ElementType</a> : <a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-enum/index.html">Enum</a><span class="token operator">&lt;</span><a href="-element-type/index.html">ElementType</a><span class="token operator">&gt; </span></div><div class="brief "><p class="paragraph">Element types of typed arrays / DataView accessors (ECMA-262 Table 71).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-277417081%2FClasslikes%2F-941727813" anchor-label="Float16" id="-277417081%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-float16/index.html"><span><span>Float16</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-277417081%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-float16/index.html">Float16</a></div><div class="brief "><p class="paragraph">IEEE 754 binary16 rounding (Math.f16round, Float16Array).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1204696095%2FClasslikes%2F-941727813" anchor-label="IteratorHelperObject" id="1204696095%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-iterator-helper-object/index.html"><span>Iterator</span><wbr></wbr><span>Helper</span><wbr></wbr><span><span>Object</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1204696095%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-iterator-helper-object/index.html">IteratorHelperObject</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">proto<span class="token operator">: </span><a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>underlying<span class="token operator">: </span><a href="../dev.mooner.neonjs.vm/-iterator-record/index.html">IteratorRecord</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>step<span class="token operator">: </span><span class="token punctuation">(</span><a href="-iterator-helper-object/index.html">IteratorHelperObject</a><span class="token punctuation">)</span><span class="token operator"> -&gt; </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span></span></span><span class="token punctuation">)</span> : <a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a></div><div class="brief "><p class="paragraph">Iterator helper object (%IteratorHelperPrototype% instances).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1740086168%2FClasslikes%2F-941727813" anchor-label="JSArrayBuffer" id="1740086168%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-j-s-array-buffer/index.html"><span>JSArray</span><wbr></wbr><span><span>Buffer</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1740086168%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-j-s-array-buffer/index.html">JSArrayBuffer</a> : <a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a></div><div class="brief "><p class="paragraph">ArrayBuffer or SharedArrayBuffer object.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1233778786%2FClasslikes%2F-941727813" anchor-label="JSDataView" id="1233778786%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-j-s-data-view/index.html"><span>JSData</span><wbr></wbr><span><span>View</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1233778786%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-j-s-data-view/index.html">JSDataView</a> : <a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a></div><div class="brief "><p class="paragraph">DataView instance.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="278484739%2FClasslikes%2F-941727813" anchor-label="JSDate" id="278484739%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-j-s-date/index.html"><span><span>JSDate</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="278484739%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-j-s-date/index.html">JSDate</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">proto<span class="token operator">: </span><a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">var </span>timeValue<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-double/index.html">Double</a></span></span><span class="token punctuation">)</span> : <a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a></div><div class="brief "><p class="paragraph">Date instance: an ordinary object with a <code class="lang-kotlin">[[DateValue]]</code> internal slot holding a time value (or NaN).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1923822953%2FClasslikes%2F-941727813" anchor-label="JSDisposableStack" id="1923822953%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-j-s-disposable-stack/index.html"><span>JSDisposable</span><wbr></wbr><span><span>Stack</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1923822953%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-j-s-disposable-stack/index.html">JSDisposableStack</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">proto<span class="token operator">: </span><a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>isAsync<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></span></span><span class="token punctuation">)</span> : <a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a></div><div class="brief "><p class="paragraph">DisposableStack / AsyncDisposableStack instance (<code class="lang-kotlin">[[DisposableState]]</code> or <code class="lang-kotlin">[[AsyncDisposableState]]</code>).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-960728890%2FClasslikes%2F-941727813" anchor-label="JSFinalizationRegistry" id="-960728890%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-j-s-finalization-registry/index.html"><span>JSFinalization</span><wbr></wbr><span><span>Registry</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-960728890%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-j-s-finalization-registry/index.html">JSFinalizationRegistry</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">proto<span class="token operator">: </span><a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>cleanup<span class="token operator">: </span><a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>realm<span class="token operator">: </span><a href="../dev.mooner.neonjs.runtime/-realm/index.html">Realm</a></span></span><span class="token punctuation">)</span> : <a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="684332566%2FClasslikes%2F-941727813" anchor-label="JSMapObject" id="684332566%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-j-s-map-object/index.html"><span>JSMap</span><wbr></wbr><span><span>Object</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="684332566%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-j-s-map-object/index.html">JSMapObject</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">proto<span class="token operator">: </span><a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>isSet<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></span></span><span class="token punctuation">)</span> : <a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1037124056%2FClasslikes%2F-941727813" anchor-label="JSRegExp" id="-1037124056%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-j-s-reg-exp/index.html"><span>JSReg</span><wbr></wbr><span><span>Exp</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1037124056%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-j-s-reg-exp/index.html">JSRegExp</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">proto<span class="token operator">: </span><a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a><span class="token operator">?</span></span></span><span class="token punctuation">)</span> : <a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a></div><div class="brief "><p class="paragraph">RegExp instance: an ordinary object with the <code class="lang-kotlin">[[OriginalSource]]</code>, <code class="lang-kotlin">[[OriginalFlags]]</code> and <code class="lang-kotlin">[[RegExpMatcher]]</code> slots.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1889235198%2FClasslikes%2F-941727813" anchor-label="JSShadowRealm" id="-1889235198%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-j-s-shadow-realm/index.html"><span>JSShadow</span><wbr></wbr><span><span>Realm</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1889235198%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-j-s-shadow-realm/index.html">JSShadowRealm</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">proto<span class="token operator">: </span><a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>shadowRealm<span class="token operator">: </span><a href="../dev.mooner.neonjs.runtime/-realm/index.html">Realm</a></span></span><span class="token punctuation">)</span> : <a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a></div><div class="brief "><p class="paragraph">ShadowRealm instance: <code class="lang-kotlin">[[ShadowRealm]]</code> slot.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="943446466%2FClasslikes%2F-941727813" anchor-label="JSTypedArray" id="943446466%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-j-s-typed-array/index.html"><span>JSTyped</span><wbr></wbr><span><span>Array</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="943446466%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-j-s-typed-array/index.html">JSTypedArray</a> : <a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a>, <a href="-typed-array-like/index.html">TypedArrayLike</a></div><div class="brief "><p class="paragraph">TypedArray instance: an integer-indexed exotic object viewing an <a href="-j-s-array-buffer/index.html">JSArrayBuffer</a>.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="919260027%2FClasslikes%2F-941727813" anchor-label="JSWeakCollection" id="919260027%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-j-s-weak-collection/index.html"><span>JSWeak</span><wbr></wbr><span><span>Collection</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="919260027%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-j-s-weak-collection/index.html">JSWeakCollection</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">proto<span class="token operator">: </span><a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>isSet<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></span></span><span class="token punctuation">)</span> : <a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-133668906%2FClasslikes%2F-941727813" anchor-label="JSWeakRef" id="-133668906%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-j-s-weak-ref/index.html"><span>JSWeak</span><wbr></wbr><span><span>Ref</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-133668906%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-j-s-weak-ref/index.html">JSWeakRef</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">proto<span class="token operator">: </span><a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter ">target<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a></span></span><span class="token punctuation">)</span> : <a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1983628905%2FClasslikes%2F-941727813" anchor-label="MapKey" id="-1983628905%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-map-key/index.html"><span>Map</span><wbr></wbr><span><span>Key</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1983628905%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-map-key/index.html">MapKey</a></div><div class="brief "><p class="paragraph">Wrapper giving SameValueZero semantics to map keys.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1642307651%2FClasslikes%2F-941727813" anchor-label="ModuleSourceBuiltins" id="1642307651%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-module-source-builtins/index.html"><span>Module</span><wbr></wbr><span>Source</span><wbr></wbr><span><span>Builtins</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1642307651%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-module-source-builtins/index.html">ModuleSourceBuiltins</a></div><div class="brief "><p class="paragraph">%AbstractModuleSource% (source phase imports): the abstract base of module source objects. Not a global.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-471972711%2FClasslikes%2F-941727813" anchor-label="OrderedTable" id="-471972711%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-ordered-table/index.html"><span>Ordered</span><wbr></wbr><span><span>Table</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-471972711%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-ordered-table/index.html">OrderedTable</a></div><div class="brief "><p class="paragraph">Insertion-ordered hash table with tombstones. Live iterators are tracked weakly and re-indexed on compaction, so iteration observes additions and deletions as the spec requires.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="559139609%2FClasslikes%2F-941727813" anchor-label="RawJSONObject" id="559139609%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-raw-j-s-o-n-object/index.html"><span>Raw</span><wbr></wbr><span><span>JSONObject</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="559139609%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-raw-j-s-o-n-object/index.html">RawJSONObject</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>raw<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a></span></span><span class="token punctuation">)</span> : <a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a></div><div class="brief "><p class="paragraph">Object created by JSON.rawJSON (<code class="lang-kotlin">[[IsRawJSON]]</code>).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="82930%2FClasslikes%2F-941727813" anchor-label="RegExpStringIterator" id="82930%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-reg-exp-string-iterator/index.html"><span>Reg</span><wbr></wbr><span>Exp</span><wbr></wbr><span>String</span><wbr></wbr><span><span>Iterator</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="82930%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-reg-exp-string-iterator/index.html">RegExpStringIterator</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">proto<span class="token operator">: </span><a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>matcher<span class="token operator">: </span><a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>string<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>global<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>fullUnicode<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></span></span><span class="token punctuation">)</span> : <a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a></div><div class="brief "><p class="paragraph">%RegExpStringIteratorPrototype% instance (result of <code class="lang-kotlin">RegExp.prototype[Symbol.matchAll]</code>).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1632641962%2FClasslikes%2F-941727813" anchor-label="ShadowRealms" id="-1632641962%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-shadow-realms/index.html"><span>Shadow</span><wbr></wbr><span><span>Realms</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1632641962%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-shadow-realms/index.html">ShadowRealms</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-105327478%2FClasslikes%2F-941727813" anchor-label="SharedDataBlock" id="-105327478%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-shared-data-block/index.html"><span>Shared</span><wbr></wbr><span>Data</span><wbr></wbr><span><span>Block</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-105327478%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-shared-data-block/index.html">SharedDataBlock</a></div><div class="brief "><p class="paragraph">Shared Data Block of a SharedArrayBuffer. One block may be referenced by SharedArrayBuffer objects living in different agents (threads); all of them see the same <span data-unresolved-link="dev.mooner.neonjs.builtins/SharedDataBlock//#kotlin.ByteArray#kotlin.Int#kotlin.Int/PointingToCallableParameters(0)/">data</span>. Growable blocks are allocated at their maximum size up front so <span data-unresolved-link="dev.mooner.neonjs.builtins/SharedDataBlock//#kotlin.ByteArray#kotlin.Int#kotlin.Int/PointingToCallableParameters(0)/">data</span> never changes; only <span data-unresolved-link="dev.mooner.neonjs.builtins/SharedDataBlock//#kotlin.ByteArray#kotlin.Int#kotlin.Int/PointingToCallableParameters(1)/">byteLength</span> grows.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-322173476%2FClasslikes%2F-941727813" anchor-label="StringIteratorObject" id="-322173476%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-string-iterator-object/index.html"><span>String</span><wbr></wbr><span>Iterator</span><wbr></wbr><span><span>Object</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-322173476%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-string-iterator-object/index.html">StringIteratorObject</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">proto<span class="token operator">: </span><a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">var </span>s<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a><span class="token operator">?</span></span></span><span class="token punctuation">)</span> : <a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="416889380%2FClasslikes%2F-941727813" anchor-label="TableCursor" id="416889380%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-table-cursor/index.html"><span>Table</span><wbr></wbr><span><span>Cursor</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="416889380%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-table-cursor/index.html">TableCursor</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>table<span class="token operator">: </span><a href="-ordered-table/index.html">OrderedTable</a></span></span><span class="token punctuation">)</span></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1337079532%2FClasslikes%2F-941727813" anchor-label="TypedArrayLike" id="-1337079532%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-typed-array-like/index.html"><span>Typed</span><wbr></wbr><span>Array</span><wbr></wbr><span><span>Like</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1337079532%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">interface </span><a href="-typed-array-like/index.html">TypedArrayLike</a></div><div class="brief "><p class="paragraph">Implemented by typed arrays so the array iterator can query their length.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-706168309%2FClasslikes%2F-941727813" anchor-label="WrappedFunction" id="-706168309%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-wrapped-function/index.html"><span>Wrapped</span><wbr></wbr><span><span>Function</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-706168309%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-wrapped-function/index.html">WrappedFunction</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">callerRealm<span class="token operator">: </span><a href="../dev.mooner.neonjs.runtime/-realm/index.html">Realm</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>wrappedTarget<span class="token operator">: </span><a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a></span></span><span class="token punctuation">)</span> : <a href="../dev.mooner.neonjs.runtime/-j-s-function/index.html">JSFunction</a></div><div class="brief "><p class="paragraph">Wrapped function exotic object: a callable from another realm. Only primitives and (wrapped) callables cross the boundary; any exception becomes a TypeError of the caller's realm.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-2143915850%2FClasslikes%2F-941727813" anchor-label="WrappedIteratorObject" id="-2143915850%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-wrapped-iterator-object/index.html"><span>Wrapped</span><wbr></wbr><span>Iterator</span><wbr></wbr><span><span>Object</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-2143915850%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="-wrapped-iterator-object/index.html">WrappedIteratorObject</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">proto<span class="token operator">: </span><a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>rec<span class="token operator">: </span><a href="../dev.mooner.neonjs.vm/-iterator-record/index.html">IteratorRecord</a></span></span><span class="token punctuation">)</span> : <a href="../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a></div><div class="brief "><p class="paragraph">%WrapForValidIteratorPrototype% instances.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    <div class="footer">
+        <div class="footer--container">
+            <a href="#content" id="go-to-top-link" class="footer--button footer--button_go-to-top"></a>
+            <div class="footer--content">
+                <div>
+                    <span>Generated by </span>
+                    <a class="footer--link footer--link_external" href="https://github.com/Kotlin/dokka">
+                        Dokka
+                    </a>
+                    <div>© 2026 Copyright</div>
+                </div>
+            </div>
+        </div>
+    </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
