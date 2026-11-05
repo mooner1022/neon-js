@@ -1,4 +1,4 @@
-package dev.mooner.neonjs.python
+package dev.mooner.neonpython
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue

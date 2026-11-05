@@ -70,8 +70,8 @@ stress_modes() {
 
 quick() {
   test262_checkout
-  step "unit tests (neonjs-core, neonjs-python), Test262 runner"
-  gradle :neonjs-core:test :neonjs-python:test :neonjs-test262:installDist
+  step "unit tests (neonjs-core, neonpython), Test262 runner"
+  gradle :neonjs-core:test :neonpython:test :neonjs-test262:installDist
   step "Test262, 1 test in $SAMPLE"
   # (the generated Unicode property tests check RegExp's tables, slowly in the interpreter: full runs them)
   stress_modes --sample "$SAMPLE" --timeout 60000 --exclude built-ins/RegExp/property-escapes/generated

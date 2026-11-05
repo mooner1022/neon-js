@@ -1,4 +1,4 @@
-package dev.mooner.neonjs.python
+package dev.mooner.neonpython
 
 /**
  * Python's bytecode: a stack machine with registers (a function's locals), as JavaScript's is. Each instruction is an

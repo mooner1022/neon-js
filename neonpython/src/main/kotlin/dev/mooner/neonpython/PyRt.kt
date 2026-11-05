@@ -1,4 +1,4 @@
-package dev.mooner.neonjs.python
+package dev.mooner.neonpython
 
 import java.math.BigDecimal
 import java.math.BigInteger

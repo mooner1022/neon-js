@@ -404,8 +404,8 @@ whether the IR split stays JS-regression-free are the unknowns.
   matters more).
 - **Licenses**: CPython `Lib/` and headers are PSF (NOTICE updates needed); Chicory Apache-2.0; if referring to GraalPy
   (UPL) and Pyodide (MPL-2.0) code, **no copying without review**, ideas only.
-- **Module layout (proposal)**: `neonjs-core` (keeps the neutral IR core and the JS dialect) / `neonjs-python`
-  (front end, runtime, builtins, vendored Lib) / `neonjs-wasm` (runtime, WASI, optional JS API) / `neonjs-python-capi`
+- **Module layout (proposal)**: `neonjs-core` (keeps the neutral IR core and the JS dialect) / `neonpython`
+  (NeonPy: front end, runtime, builtins, vendored Lib) / `neonwasm` (runtime, WASI, optional JS API) / `neonpython-capi`
   (bridge + SDK). The project name and Maven coordinates (`neonjs-*`) need a separate decision about a platform rename.
 - **Effort**: over everything above, larger than the current core (54.8K). Each phase should end with its exit
   criteria met, so the plan can stop at any phase (the same principle as OPTIMIZING_TIER.md's "Risks").
@@ -428,7 +428,10 @@ Made (2026-11-05):
 5. Threads: **single-threaded first, designed with a GIL in mind** (per-interpreter state reachable from one place,
    no global mutable state in the runtime, the points where a GIL would be released marked).
 6. **JS's `WebAssembly` API goes with the wasm runtime.**
-7. Naming: once the structure stands.
+7. Naming: the Python implementation is **NeonPy**; its module, artifact and package are `neonpython`
+   (`dev.mooner.neonpython`), as GraalPy's repository is `graalpython` (PyPI's `neonpy` is taken by an abandoned
+   2019 placeholder, `neonpython` is free). JavaScript stays NeonJS; the wasm runtime would be NeonWasm (`neonwasm`).
+   The neutral core's own name comes with its module split.
 
 Consequences for the plan above: §5.2's comparison is settled (our own runtime; Chicory only as a reference); §6's
 order starts with the IR split (docs/IR_NEUTRALITY.md §6) instead of S0's split sketch; W1 includes the JS API; Y3
@@ -461,7 +464,7 @@ language: `def` with positional parameters, `return`, `if`/`elif`/`else`, `while
 
 ### 10.1 The first slice (done, 2026-11-05)
 
-Module `neonjs-python` (package `dev.mooner.neonjs.python`), on the core's language interface (docs/IR_NEUTRALITY.md):
+NeonPy, module `neonpython` (package `dev.mooner.neonpython`), on the core's language interface (docs/IR_NEUTRALITY.md):
 
 | layer | file | what |
 |---|---|---|
@@ -477,7 +480,7 @@ What the core needed (beyond docs/IR_NEUTRALITY.md's steps): blocks of another l
 `GraphBuilder`, `IrCodegen`, `KindSystem`, `OpTable`, `Emit`, `JvmEmitter`, `Kinds`, `Facts`), marked as no stable
 API; `CodeBlock.dialectData`; a graph's identity (the shared baselines' cache) includes its dialect.
 
-Tests (`neonjs-python`, in `tools/check.sh quick`): eleven programs whose expected output CPython 3.14 recorded
+Tests (`neonpython`, in `tools/check.sh quick`): eleven programs whose expected output CPython 3.14 recorded
 (`src/test/resources/programs`), each run interpreted, compiled and adaptive; CPython's exceptions, messages and lines
 for eleven errors in each mode; every block a program ran compiled by the tier (none falling back to the interpreter);
 a loop continuing in compiled code; the front end's tokens, precedence and errors.

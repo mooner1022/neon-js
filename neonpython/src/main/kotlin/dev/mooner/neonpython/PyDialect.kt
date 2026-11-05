@@ -1,4 +1,4 @@
-package dev.mooner.neonjs.python
+package dev.mooner.neonpython
 
 import dev.mooner.neonjs.compiler.CodeBlock
 import dev.mooner.neonjs.jit.Deopt
@@ -291,8 +291,8 @@ class PyBuilder(cb: CodeBlock) : GraphBuilder(cb, Graph(cb, PyOps, PyKinds, Unde
     }
 }
 
-private const val PY_RT = "dev/mooner/neonjs/python/PyRt"
-private const val PY_BOOL = "dev/mooner/neonjs/python/PyBool"
+private const val PY_RT = "dev/mooner/neonpython/PyRt"
+private const val PY_BOOL = "dev/mooner/neonpython/PyBool"
 private const val FRAME = "dev/mooner/neonjs/vm/Frame"
 private const val FRAME_D = "Ldev/mooner/neonjs/vm/Frame;"
 private const val OBJ = "Ljava/lang/Object;"
@@ -450,7 +450,7 @@ class PyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, clas
         return when (i.a) {
             PyOp.FOR_ITER -> {
                 load(v, ANY_KIND)
-                getstatic("dev/mooner/neonjs/python/PyIterator", "STOP", OBJ)
+                getstatic("dev/mooner/neonpython/PyIterator", "STOP", OBJ)
                 IF_ACMPEQ // done: to the loop's exit
             }
             else -> {
@@ -484,7 +484,7 @@ class PyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, clas
         }
         when {
             v === Undefined -> getstatic("dev/mooner/neonjs/runtime/Undefined", "INSTANCE", "Ldev/mooner/neonjs/runtime/Undefined;")
-            v === PyNone -> getstatic("dev/mooner/neonjs/python/PyNone", "INSTANCE", "Ldev/mooner/neonjs/python/PyNone;")
+            v === PyNone -> getstatic("dev/mooner/neonpython/PyNone", "INSTANCE", "Ldev/mooner/neonpython/PyNone;")
             v is PyBool -> getstatic(PY_BOOL, if (v.value) "TRUE" else "FALSE", "L$PY_BOOL;")
             v == null -> mv.visitInsn(ACONST_NULL)
             else -> throw JitBailout("python: constant $v")
@@ -502,7 +502,7 @@ class PyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, clas
                 em.mv.visitInsn(AALOAD)
             }
             v === Undefined -> em.getstatic("dev/mooner/neonjs/runtime/Undefined", "INSTANCE", "Ldev/mooner/neonjs/runtime/Undefined;")
-            v === PyNone -> em.getstatic("dev/mooner/neonjs/python/PyNone", "INSTANCE", "Ldev/mooner/neonjs/python/PyNone;")
+            v === PyNone -> em.getstatic("dev/mooner/neonpython/PyNone", "INSTANCE", "Ldev/mooner/neonpython/PyNone;")
             v is PyBool -> em.getstatic(PY_BOOL, if (v.value) "TRUE" else "FALSE", "L$PY_BOOL;")
             v == null -> em.mv.visitInsn(ACONST_NULL)
             else -> throw JitBailout("python: constant $v at an exit")

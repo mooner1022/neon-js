@@ -1,4 +1,4 @@
-package dev.mooner.neonjs.python
+package dev.mooner.neonpython
 
 /** Python's syntax trees (the slice's statements and expressions; docs/PYTHON_PLATFORM.md §10). */
 sealed class PyNode {

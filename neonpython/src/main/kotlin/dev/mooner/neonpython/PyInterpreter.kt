@@ -1,4 +1,4 @@
-package dev.mooner.neonjs.python
+package dev.mooner.neonpython
 
 import dev.mooner.neonjs.compiler.CodeBlock
 import dev.mooner.neonjs.jit.CompiledCode
