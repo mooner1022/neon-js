@@ -1,7 +1,9 @@
 # A language-neutral optimizing pipeline: what T2 can share (draft)
 
-Status (2026-11-05): a review, not an accepted plan; nothing is implemented. It answers, for the plan in
-`docs/PYTHON_PLATFORM.md`, how much of the optimizing tier (`jit/opt/`, docs/OPTIMIZING_TIER.md) can become a core
+Status (2026-11-05): steps 1 to 6 of §6 are done on branch `ir-neutral-core`, each leaving the classes generated for
+JavaScript unchanged (`tools/check.sh codegen`, docs/TESTING.md); step 7 is not. A toy language compiles and runs on the
+core (`ToyDialectTest`). §8 lists what the steps found and what is left. This document answers, for the plan in
+docs/PYTHON_PLATFORM.md, how much of the optimizing tier (`jit/opt/`, docs/OPTIMIZING_TIER.md) can become a core
 that several languages share, so that a language implementation provides its semantics and gets JVM/ART-shaped
 code (unboxed locals, empty JVM stack at block boundaries, exits outside the main method, size budgets, OSR) without
 writing an optimizer of its own.
@@ -197,15 +199,15 @@ Each step ends with no change in behaviour, checked with `tools/check.sh` (docs/
 generated code, `codegen` (the classes generated before and after compared). All of Test262 in the stress modes
 (`full`) and NeonBench before the pull request.
 
-| step | what | touches | should generated code change |
-|---|---|---|---|
-| 1 | `OpInfo` table for JS; the seven predicates become lookups | `opt/*` | no |
-| 2 | `KindSystem` behind the core's uses of `JT` (T1 unchanged) | `Kinds`, `IrCodegen`, `JvmEmitter` | no |
-| 3 | builder base class (SSA, states, inline shape) + JS builder; `Dialect.emit` with JS's cases and `emitHelper` | `IrBuilder`, `IrCodegen` | no |
-| 4 | `FrameModel`: prologue, parameters, positions, inlined call records, exit payload and resume entry; opaque callee state in `InlineSite` | `IrCodegen`, `Ir.kt`, **`jit/Deopt.kt`, `vm/Frame.kt`** (used by T1 too) | no |
-| 5 | `KnownShapes` → generic facts; `ScalarReplacement` on `OpInfo` | passes | no |
-| 6 | baseline mode (§5's conditions): no-exit inlining, identity and `CodeCache`, `JitBackend` batches, compile time measured | `T2`, `Jit`, `JitBackend` | only in the new mode |
-| 7 | generators and async functions in the core (state machine: resume dispatch, locals saved in the frame) | core, JS dialect, `Deopt` | yes (new coverage) |
+| step | what | touches | should generated code change | done |
+|---|---|---|---|---|
+| 1 | `OpInfo` table for JS; the seven predicates become lookups | `opt/*` | no | `OpInfo`, `JsOps` |
+| 2 | `KindSystem` behind the core's uses of `JT` (T1 unchanged) | `Kinds`, `IrCodegen`, `JvmEmitter` | no | `KindSystem`, `Rep`, `JsKinds` |
+| 3 | builder base class (SSA, states, inline shape) + JS builder; `Dialect.emit` with JS's cases and `emitHelper` | `IrBuilder`, `IrCodegen` | no | `GraphBuilder`/`IrBuilder`, `IrCodegen`/`JsCodegen`, `Emit`/`JsEmit`, `Dialect` |
+| 4 | `FrameModel`: prologue, parameters, positions, inlined call records, exit payload and resume entry; opaque callee state in `InlineSite` | `IrCodegen`, `Ir.kt`, **`jit/Deopt.kt`, `vm/Frame.kt`** (used by T1 too) | no | `InlineSite.frame`, `JsSites`, exit hooks, `Resumer`; `Frame` itself not (§8) |
+| 5 | `KnownShapes` → generic facts; `ScalarReplacement` on `OpInfo` | passes | no | `Facts`/`FactRules`, `OpInfo.fields`/`readsField` |
+| 6 | baseline mode (§5's conditions): no-exit inlining, identity and `CodeCache`, `JitBackend` batches, compile time measured | `T2`, `Jit`, `JitBackend` | only in the new mode | `T2.compileBaselines`, `-Dneonjs.jit.irBaseline`; identity before generating not (§8) |
+| 7 | generators and async functions in the core (state machine: resume dispatch, locals saved in the frame) | core, JS dialect, `Deopt` | yes (new coverage) | no |
 
 Only after these does a second dialect start (Python's, docs/PYTHON_PLATFORM.md). A toy dialect (a few arithmetic and
 call ops over its own small bytecode) between steps 4 and 6 would show whether the interfaces are enough, before
@@ -222,3 +224,40 @@ ops (a Python `BINARY_OP` on two small ints: `Math.addExact` with an exit; an at
 check). The core gives it the mechanisms (guards with exits, kinds and unboxing, LICM of what `OpInfo` marks movable,
 facts after guards, scalar replacement of fixed-field allocations, inlining with frame rebuilding, size budgets, OSR)
 so that the dialect never handles JVM locals, edges, exit methods or ART's limits itself.
+
+## 8. What the steps found, and what is left
+
+Measured on 1 in 20 of Test262 (docs/TESTING.md), HotSpot 25, 8 cores:
+
+| | wall time | notes |
+|---|---|---|
+| compiled mode, T1 baselines | 9.3–9.6 s | every block compiled before it runs: compilation is most of the time |
+| compiled mode, `irBaseline` | 20.8–22.2 s | 50K baselines, 90% sharing a class; 31 left to T1 (`with` and direct eval scopes, code past 8,000 bytes); 0 exits |
+| adaptive mode, T1 baselines | 7.6–7.7 s | |
+| adaptive mode, `irBaseline` | 8.5–8.6 s | 6.8K baselines, 4 left to T1 |
+
+`bench/basic.js` runs as fast on the pipeline's baselines as on T1's (`closures` faster: 49 → 31 ms).
+
+Left, by what it blocks:
+
+- **Generators and async functions** (step 7): neither tier compiles them. Python's iteration runs on generators, so this
+  comes before Python's speed matters; it is also coverage for JavaScript.
+- **The frame** (`vm/Frame.kt`): JavaScript's (`fn: JSClosure?`, `thisValue`, `newTarget`, `env`). The core reads only
+  `code`, `realm.agent`, `args`, `slots`, `pc`, `inlinePc`, and the toy language runs with `fn` null. Whether Python's
+  interpreter uses this class (its function in a field of a common supertype) or a frame of its own (and the core reads
+  frames through an interface) is a decision for Python's runtime, made with its interpreter.
+- **The deoptimization runtime**: exits resume through the dialect's `Resumer`; JavaScript's is `Deopt.resume` and its
+  interpreter. A language's interpreter must resume a frame at a pc with registers and stack (and its inlined calls'
+  frames), as docs/OPTIMIZING_TIER.md describes for JavaScript.
+- **Compile time of baselines**: building and generating each block costs more than T1's one pass. T1 computes an
+  identity from its input before generating and skips equal blocks; baselines hash the generated class instead, after
+  the work. An identity of the graph's inputs (code, constants, inlining decisions, settings) would skip it.
+- **Tier-up from pipeline baselines**: T1 code looks for the tier's code at loop back edges (`JitInput.tierUp`); a
+  pipeline baseline does not yet, so a long loop moves to speculating code only at the next call or on-stack entry.
+- **Op numbers**: a dialect's ops are below 1000 and the core's (`Ir.*`: terminators, homes, inline records, guards)
+  above; JavaScript's own speculative ops (`LOAD_SLOT`, `NEW_THIS`, …) are still in `Ir`, numbered with the core's.
+  Moving them to JavaScript's dialect is bookkeeping.
+- **Profiles**: `ValueProfile`'s kinds are JavaScript's; a language records its own feedback, which only its builder
+  reads.
+- T1 (`JvmCompiler`) stays JavaScript's by design (§5); what it shares with the tier (`Emit`) is neutral.
+
