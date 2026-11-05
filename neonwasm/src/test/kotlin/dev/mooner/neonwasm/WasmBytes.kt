@@ -80,4 +80,7 @@ internal object WasmBytes {
     }
 
     fun code(vararg bodies: ByteArray) = section(10, vec(bodies.toList()))
+
+    /** An active data segment of memory 0 at [offset]. */
+    fun data(offset: Int, bytes: ByteArray) = section(11, vec(listOf(cat(bytes(0, 0x41), s32(offset), bytes(0x0B), u32(bytes.size), bytes))))
 }
