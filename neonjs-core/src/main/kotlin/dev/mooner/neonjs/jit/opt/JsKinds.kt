@@ -47,7 +47,7 @@ internal class JsKinds private constructor(@JvmField val ints: Boolean, private 
                 JT.BOOL -> intKind
                 else -> JT.NUM
             }
-            Op.NOT, Op.RESUME_DISPATCH, JsIr.YSTAR_DONE -> JT.BOOL
+            Op.NOT, Op.RESUME_DISPATCH, JsIr.YSTAR_DONE, JsIr.DISPOSE_MORE -> JT.BOOL
             JsIr.CHECK_NUMBER -> JT.NUM
             Ir.IS_CLOSURE -> JT.BOOL
             JsIr.MATH, JsIr.CHAR_CODE -> JT.NUM

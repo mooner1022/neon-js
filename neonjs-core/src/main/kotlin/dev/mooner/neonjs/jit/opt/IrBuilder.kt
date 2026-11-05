@@ -357,6 +357,13 @@ internal class IrBuilder(
                     if (op == Op.AWAIT) add(cur, Inst(JsIr.AWAIT_RESUMED, arrayOf(stack.last()), 0, 0, 0, pc, stmt))
                 }
                 Op.ITER_NEXT_CALL -> inst(op, arrayOf(regs[a]!!), result = true)
+                // await using: whether a resource is left (pushed last), and what to await for it
+                Op.DISPOSE_STEP -> {
+                    val d = pop()
+                    val more = add(cur, Inst(JsIr.DISPOSE_MORE, arrayOf(d), 0, 0, 0, pc, stmt).also { it.hasResult = true })
+                    stack.add(add(cur, Inst(JsIr.DISPOSE_AWAIT_VALUE, arrayOf(d, more), 0, 0, 0, pc, stmt).also { it.hasResult = true }))
+                    stack.add(more)
+                }
                 // async iteration: the next value, or NotFound to the target where it is done (and pushed only on the way on)
                 Op.ITER_RESULT_STEP, Op.ASYNC_ITER_CLOSE -> {
                     val inputs = if (op == Op.ITER_RESULT_STEP) arrayOf(regs[a]!!, pop()) else arrayOf(regs[a]!!)
@@ -745,7 +752,7 @@ internal class IrBuilder(
         private val BUILT_OPS = setOf(Op.ITER_STEP, Op.FOR_IN_NEXT, Op.JUMP_TABLE, Op.ITER_STEP_U, Op.ITER_REST,
             Op.ITER_CLOSE, Op.ITER_CLOSE_THROW, Op.MAKE_METHOD, Op.MAKE_CLASS, Op.INIT_THIS_REG, Op.GENERATOR_INIT, Op.YIELD,
             Op.YIELD_RAW, Op.AWAIT, Op.AWAIT_IGNORE, Op.AWAIT_CATCH, Op.RESUME_DISPATCH, Op.ITER_NEXT_CALL, Op.ITER_RESULT_STEP,
-            Op.ASYNC_ITER_CLOSE, Op.YSTAR, Op.YSTAR_ASYNC_CALL, Op.YSTAR_ASYNC_RESULT)
+            Op.ASYNC_ITER_CLOSE, Op.YSTAR, Op.YSTAR_ASYNC_CALL, Op.YSTAR_ASYNC_RESULT, Op.DISPOSE_STEP)
 
         /** Calls compiled inlined into one another at most; bytecode ints of one callee and of all of them, at most. */
         const val MAX_INLINE_DEPTH = 3
@@ -760,7 +767,7 @@ internal class IrBuilder(
             Op.STORE_ENV, Op.CHECK_ENV_TDZ, Op.STORE_NAME, Op.STORE_NAME_VAR, Op.INIT_NAME, Op.STORE_GLOBAL,
             Op.INIT_GLOBAL_LEX, Op.INIT_THIS_ENV, Op.INIT_THIS_NAME, Op.PUSH_SCOPE, Op.POP_SCOPE, Op.COPY_SCOPE, Op.SET_ENV,
             Op.PUSH_WITH, Op.ADD_FIELD, Op.ADD_PRIVATE_METHOD, Op.STATIC_PRIVATE_METHOD, Op.RUN_FIELD, Op.DEBUGGER,
-            Op.DECLARE_GLOBALS, Op.DECLARE_EVAL, Op.ADD_DISPOSABLE, Op.DISPOSE_SYNC, Op.CLASS_ELEMENT, Op.CLASS_FINISH,
+            Op.DECLARE_GLOBALS, Op.DECLARE_EVAL, Op.ADD_DISPOSABLE, Op.DISPOSE_SYNC, Op.DISPOSE_AWAITED, Op.DISPOSE_END, Op.CLASS_ELEMENT, Op.CLASS_FINISH,
             Op.CLASS_STATIC_INIT -> false
             else -> true
         }
@@ -786,7 +793,7 @@ internal class IrBuilder(
                 Op.INIT_THIS_ENV, Op.INIT_THIS_NAME, Op.SET_ENV, Op.PUSH_WITH, Op.GET_REF, Op.GET_PROP, Op.DELETE_PROP,
                 Op.TO_PROPERTY_KEY, Op.GET_SUPER_BASE, Op.NEG, Op.TO_NUMBER, Op.NOT, Op.BNOT, Op.TYPEOF, Op.TO_NUMERIC,
                 Op.INC, Op.DEC, Op.TO_STRING, Op.TO_OBJECT, Op.REQUIRE_COERCIBLE, Op.CHECK_OBJECT, Op.GET_PROTO_OF,
-                Op.ARRAY_HOLE, Op.GET_ITERATOR, Op.GET_ASYNC_ITERATOR, Op.FOR_IN_START, Op.CLASS_FINISH, Op.CLASS_STATIC_INIT -> 1
+                Op.ARRAY_HOLE, Op.GET_ITERATOR, Op.GET_ASYNC_ITERATOR, Op.DISPOSE_END, Op.FOR_IN_START, Op.CLASS_FINISH, Op.CLASS_STATIC_INIT -> 1
                 Op.PUT_REF, Op.PUT_PROP, Op.GET_ELEM, Op.DELETE_ELEM, Op.GET_PRIVATE, Op.HAS_PRIVATE, Op.ADD, Op.SUB, Op.MUL,
                 Op.DIV, Op.MOD, Op.EXP, Op.SHL, Op.SAR, Op.SHR, Op.BAND, Op.BOR, Op.BXOR, Op.EQ, Op.NE, Op.SEQ, Op.SNE,
                 Op.LT, Op.GT, Op.LE, Op.GE, Op.INSTANCEOF, Op.IN, Op.CONCAT, Op.NEW_SPREAD, Op.INIT_INSTANCE, Op.ARRAY_PUSH,
@@ -794,7 +801,7 @@ internal class IrBuilder(
                 Op.DYNAMIC_IMPORT_PHASE, Op.ADD_DISPOSABLE, Op.CLASS_DEF_NEW, Op.CLASS_DECORATE, Op.DERIVED_RETURN -> 2
                 Op.GET_SUPER, Op.PUT_ELEM, Op.PUT_PRIVATE, Op.CALL_SPREAD, Op.SUPER_CALL_SPREAD, Op.DEFINE_FIELD_ELEM,
                 Op.DEFINE_GETTER, Op.DEFINE_SETTER, Op.DEFINE_METHOD, Op.ADD_FIELD, Op.ADD_PRIVATE_METHOD,
-                Op.STATIC_PRIVATE_METHOD, Op.RUN_FIELD, Op.DISPOSE_SYNC, Op.CALL_EVAL_SPREAD -> 3
+                Op.STATIC_PRIVATE_METHOD, Op.RUN_FIELD, Op.DISPOSE_SYNC, Op.CALL_EVAL_SPREAD, Op.DISPOSE_BEGIN, Op.DISPOSE_AWAITED -> 3
                 Op.PUT_SUPER, Op.CLASS_ELEMENT -> 4
                 Op.CALL, Op.TAIL_CALL, Op.CALL_EVAL, Op.SUPER_CALL -> a + 2
                 Op.NEW -> a + 1

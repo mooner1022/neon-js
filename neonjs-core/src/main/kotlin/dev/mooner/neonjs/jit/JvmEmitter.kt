@@ -471,6 +471,9 @@ internal interface JsEmit : Emit {
             Op.RESUME_MODE -> { frame(); rt("resumeMode", "($FRAME_D)$OBJ") }
             Op.ADD_DISPOSABLE -> { iconst(a); frame(); rt("addDisposable", "($OBJ${OBJ}I$FRAME_D)V") }
             Op.DISPOSE_SYNC -> { frame(); rt("disposeSync", "($OBJ$OBJ$OBJ$FRAME_D)V") }
+            Op.DISPOSE_BEGIN -> { frame(); rt("disposeBegin", "($OBJ$OBJ$OBJ$FRAME_D)$OBJ") }
+            Op.DISPOSE_AWAITED -> rt("disposeAwaited", "($OBJ$OBJ$OBJ)V")
+            Op.DISPOSE_END -> rt("disposeEnd", "($OBJ)V")
             Op.TEMPLATE_OBJECT -> { frame(); consts(); iconst(a); rt("templateObject", "($FRAME_D${CONSTS_D}I)$OBJ") }
             Op.NEW_REGEXP -> { frame(); consts(); iconst(a); rt("newRegExp", "($FRAME_D${CONSTS_D}I)$OBJ") }
             Op.IMPORT_META -> { frame(); rt("importMeta", "($FRAME_D)$OBJ") }

@@ -87,8 +87,8 @@ class IrTest {
     @Test
     fun unsupportedCodeIsNotBuilt() {
         assertThrows<JitBailout> { build("function f(o) { with (o) { return g() } }") }
-        // (await using is not built yet: DISPOSE_STEP gives two values; its function stays interpreted)
-        assertThrows<JitBailout> { build("async function f() { await using x = null; }") }
+        // (a direct eval's scope is not built: its function stays at its baseline)
+        assertThrows<JitBailout> { build("function f(s) { var x = 1; return eval(s) + x }") }
     }
 
     @Test

@@ -96,6 +96,13 @@ object JsIr {
     const val YSTAR_DONE = 2020
     const val YSTAR_VALUE = 2021
     const val YSTAR_MODE = 2022
+    /**
+     * `await using`'s DISPOSE_STEP (disposal -- awaitValue more) as two: DISPOSE_MORE (disposal), whether a resource is
+     * left to dispose of (stepping to it); DISPOSE_AWAIT_VALUE (disposal, more), what to await for it, undefined where
+     * none is left.
+     */
+    const val DISPOSE_MORE = 2023
+    const val DISPOSE_AWAIT_VALUE = 2024
 
     /**
      * The arithmetic that gives an int of int inputs where the builder gave it a state (Kinds): an exit to that state,
@@ -128,6 +135,8 @@ object JsIr {
         YSTAR_DONE -> "YStarDone"
         YSTAR_VALUE -> "YStarValue"
         YSTAR_MODE -> "YStarMode"
+        DISPOSE_MORE -> "DisposeMore"
+        DISPOSE_AWAIT_VALUE -> "DisposeAwaitValue"
         else -> if (op in 0 until Op.COUNT) Op.names[op] else Ir.name(op)
     }
 }

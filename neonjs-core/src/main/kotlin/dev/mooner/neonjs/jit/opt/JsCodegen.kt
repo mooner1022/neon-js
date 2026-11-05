@@ -961,6 +961,20 @@ internal class JsCodegen(
                 done(i, JT.ANY)
                 return
             }
+            JsIr.DISPOSE_MORE -> {
+                storePc(i)
+                load(i.inputs[0], JT.ANY)
+                rt("disposeStep", "($OBJ)Z")
+                done(i, JT.BOOL)
+                return
+            }
+            JsIr.DISPOSE_AWAIT_VALUE -> {
+                load(i.inputs[0], JT.ANY)
+                load(i.inputs[1], JT.BOOL)
+                rt("disposeAwaitValue", "(${OBJ}Z)$OBJ")
+                done(i, JT.ANY)
+                return
+            }
             JsIr.AWAIT_RESUMED -> {
                 storePc(i)
                 frame()

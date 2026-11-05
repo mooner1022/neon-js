@@ -190,6 +190,18 @@ object JitRt {
     @JvmStatic fun ystarMode(r: Any?, mode: Any?, kind: Int): Any? =
         if (r !is Iteration.YStarDone) mode else Ops.num(if (r.isReturn) 2 else if (kind == Op.YSTAR_ASYNC_CALL) 3 else 0)
 
+    // await using, as the interpreter's DISPOSE_BEGIN, DISPOSE_STEP, DISPOSE_AWAITED and DISPOSE_END
+
+    @JvmStatic fun disposeBegin(cap: Any?, kind: Any?, value: Any?, f: Frame): Any? = Disposal.begin(f.realm, cap, kind, value)
+
+    @JvmStatic fun disposeStep(d: Any?): Boolean = Disposal.step(d)
+
+    @JvmStatic fun disposeAwaitValue(d: Any?, more: Boolean): Any? = if (more) Disposal.awaitValue(d) else Undefined
+
+    @JvmStatic fun disposeAwaited(result: Any?, d: Any?, mode: Any?) = Disposal.awaited(result, d, mode)
+
+    @JvmStatic fun disposeEnd(d: Any?) = Disposal.end(d)
+
     /** RESUME_MODE of [f]: the mode it resumed in, as a number (the frame's back to `next`). */
     @JvmStatic fun resumeMode(f: Frame): Any? {
         val m = f.resumeMode
