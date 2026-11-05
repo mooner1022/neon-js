@@ -39,7 +39,7 @@ internal class IrBuilder(
     speculate: Boolean = T2.SPECULATE,
     /** Whether loops with a call of a parameter are copied on the closure it is (Unswitch). */
     private val unswitch: Boolean = true,
-) : GraphBuilder(cb, Graph(cb, JsOps, JsKinds.of(ints, elems), Undefined), stressExits, speculate) {
+) : GraphBuilder(cb, Graph(cb, JsOps, JsKinds.of(ints, elems), Undefined, JsDialect), stressExits, speculate) {
     /** Bytecode ints of the bodies inlined so far (a budget). */
     private var inlined = 0
 

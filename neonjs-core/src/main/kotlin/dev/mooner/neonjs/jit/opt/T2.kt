@@ -66,7 +66,7 @@ object T2 {
             val name = "dev/mooner/neonjs/jit/T2$" + JvmCompiler.sanitize(cb.name) + "$" + counter.incrementAndGet()
             var g = build(cb, unswitch = true)
             val bytes = try {
-                fun generate() = IrCodegen.generate(g, name, definer.classFileVersion, JvmCompiler.INT32, JvmCompiler.ELEMS)
+                fun generate() = IrCodegen.generate(g, name, definer.classFileVersion)
                 var bytes = try {
                     generate()
                 } catch (e: org.objectweb.asm.MethodTooLargeException) {
@@ -110,7 +110,7 @@ object T2 {
     }
 
     private fun build(cb: CodeBlock, unswitch: Boolean): Graph {
-        val g = IrBuilder(cb, JvmCompiler.INT32, JvmCompiler.ELEMS, stressExits = JvmCompiler.DEOPT_STRESS > 0, unswitch = unswitch).build()
+        val g = Dialects.of(cb).build(cb, stressExits = JvmCompiler.DEOPT_STRESS > 0, unswitch = unswitch)
         if (PRINT != null && cb.name.contains(PRINT)) System.err.println("T2 ${cb.name}:\n${IrPrinter.print(g)}")
         if (VERIFY) IrVerifier.verify(g)
         return g

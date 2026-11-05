@@ -12,7 +12,7 @@ import dev.mooner.neonjs.jit.JsEmit
  * profiles but through a check that exits, and the code generator emits exactly the kinds [resultKind] gives.
  * Without [ints], nothing is INT; without [elems], an element store's result is boxed.
  */
-internal class JsKinds private constructor(private val ints: Boolean, private val elems: Boolean) : KindSystem {
+internal class JsKinds private constructor(@JvmField val ints: Boolean, private val elems: Boolean) : KindSystem {
     private val intKind = if (ints) JT.INT else JT.NUM
 
     override fun rep(kind: Byte): Rep = when (kind) {

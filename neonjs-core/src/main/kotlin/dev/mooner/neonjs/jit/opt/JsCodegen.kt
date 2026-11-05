@@ -28,10 +28,10 @@ internal class JsCodegen(
     g: Graph,
     mv: MethodVisitor,
     kinds: Kinds,
-    ints: Boolean,
+    private val ints: Boolean,
     cw: org.objectweb.asm.ClassWriter,
     className: String,
-) : IrCodegen(g, mv, kinds, ints, cw, className), JsEmit {
+) : IrCodegen(g, mv, kinds, cw, className), JsEmit {
     private val intKind = if (ints) JT.INT else JT.NUM
     // an inlined body reads its own constants and environment, and its calls record their position in Frame.inlinePc
     override fun consts() = mv.visitVarInsn(ALOAD, curSite?.let { constsLocal[it.code]!! } ?: L_CONSTS)

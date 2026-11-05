@@ -26,7 +26,6 @@ internal abstract class IrCodegen(
     protected val g: Graph,
     mv: MethodVisitor,
     protected val kinds: Kinds,
-    protected val ints: Boolean,
     /** The class being generated (its exit methods, [exits], are added to it after `run`). */
     private val cw: org.objectweb.asm.ClassWriter,
     private val className: String,
@@ -564,7 +563,7 @@ internal abstract class IrCodegen(
          * The class [name] (internal form): a T2Code with [g]'s code, constructed with the graph's data and the code
          * block, for class file [version].
          */
-        fun generate(g: Graph, name: String, version: Int, ints: Boolean, elems: Boolean): ByteArray {
+        fun generate(g: Graph, name: String, version: Int): ByteArray {
             val cw = JitClassWriter()
             cw.visit(version, ACC_PUBLIC or ACC_FINAL or ACC_SUPER, name, null, SUPER, null)
             val init = cw.visitMethod(ACC_PUBLIC, "<init>", INIT_D, null, null)
@@ -579,7 +578,7 @@ internal abstract class IrCodegen(
             // run is made in a tree first, to number its locals by use (renumber)
             val mv = MethodNode(ASM9, ACC_PUBLIC or ACC_FINAL, "run", "($FRAME_D)$OBJ", null, null)
             mv.visitCode()
-            JsCodegen(g, mv, Kinds(g.kindSystem), ints, cw, name).emit()
+            g.dialect.codegen(g, mv, Kinds(g.kindSystem), cw, name).emit()
             mv.visitMaxs(0, 0)
             mv.visitEnd()
             renumber(mv, L_REGS)

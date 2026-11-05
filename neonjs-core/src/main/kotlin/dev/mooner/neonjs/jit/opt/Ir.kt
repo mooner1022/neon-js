@@ -16,6 +16,8 @@ class Graph internal constructor(
     @JvmField internal val kindSystem: KindSystem,
     /** What the interpreter holds in a register it writes before reading it (a dead one), as exits pass it. */
     @JvmField internal val deadValue: Any?,
+    /** The language: its builder and code generator. */
+    @JvmField internal val dialect: Dialect,
 ) {
     /** Blocks in reverse post order; the first is the entry. */
     @JvmField val blocks = ArrayList<Block>()
