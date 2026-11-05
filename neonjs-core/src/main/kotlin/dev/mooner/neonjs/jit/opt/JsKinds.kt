@@ -3,7 +3,8 @@ package dev.mooner.neonjs.jit.opt
 import dev.mooner.neonjs.compiler.Op
 import dev.mooner.neonjs.jit.JT
 import dev.mooner.neonjs.jit.JitInput
-import dev.mooner.neonjs.jit.JvmEmitter
+import dev.mooner.neonjs.jit.Emit
+import dev.mooner.neonjs.jit.JsEmit
 
 /**
  * JavaScript's kinds ([JT]): the rules of the baseline's type analysis (JitTypes, ARCHITECTURE "Unboxed numbers")
@@ -69,12 +70,12 @@ internal class JsKinds private constructor(private val ints: Boolean, private va
         else -> JT.NUM // -0 is -0, and ++ / -- can leave the int32 range
     }
 
-    override fun initial(em: JvmEmitter, kind: Byte) {
+    override fun initial(em: Emit, kind: Byte) {
         val r = rep(kind)
-        if (r == Rep.OBJECT) em.pushUndefined() else r.zero(em.mv)
+        if (r == Rep.OBJECT) (em as JsEmit).pushUndefined() else r.zero(em.mv)
     }
 
-    override fun convert(em: JvmEmitter, from: Byte, to: Byte) = em.convert(from, to)
+    override fun convert(em: Emit, from: Byte, to: Byte) = (em as JsEmit).convert(from, to)
 
     override fun osrCode(kind: Byte): Char = when (kind) {
         JT.NUM -> 'N'
@@ -83,7 +84,7 @@ internal class JsKinds private constructor(private val ints: Boolean, private va
         else -> '.'
     }
 
-    override fun osrRead(em: JvmEmitter, kind: Byte) {
+    override fun osrRead(em: Emit, kind: Byte) {
         when (kind) {
             JT.NUM -> em.rt("slotNum", "([Ljava/lang/Object;I)D")
             JT.INT -> em.rt("slotInt", "([Ljava/lang/Object;I)I")

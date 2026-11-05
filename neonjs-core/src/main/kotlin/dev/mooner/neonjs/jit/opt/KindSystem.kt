@@ -1,6 +1,6 @@
 package dev.mooner.neonjs.jit.opt
 
-import dev.mooner.neonjs.jit.JvmEmitter
+import dev.mooner.neonjs.jit.Emit
 import org.objectweb.asm.MethodVisitor
 import org.objectweb.asm.Opcodes.*
 
@@ -61,10 +61,10 @@ internal interface KindSystem {
      * Pushes the value a local of [kind] holds before anything is stored in it (one a handler may read on a path where
      * nothing was: the JVM's verifier wants it assigned): the language's "no value" for an Object.
      */
-    fun initial(em: JvmEmitter, kind: Byte)
+    fun initial(em: Emit, kind: Byte)
 
     /** Converts the value of [from] on the JVM stack to [to] (to [any]: boxes it); fails (JitBailout) where it cannot. */
-    fun convert(em: JvmEmitter, from: Byte, to: Byte)
+    fun convert(em: Emit, from: Byte, to: Byte)
 
     /**
      * On-stack replacement: the letter `JitRt.osrKinds` checks a frame's register against for a value of [kind], '.'
@@ -72,7 +72,7 @@ internal interface KindSystem {
      * the code that reads it as [kind] ([osrRead]).
      */
     fun osrCode(kind: Byte): Char
-    fun osrRead(em: JvmEmitter, kind: Byte)
+    fun osrRead(em: Emit, kind: Byte)
 
     /** [kind] in the IR's printed form ("" for [any]). */
     fun name(kind: Byte): String
