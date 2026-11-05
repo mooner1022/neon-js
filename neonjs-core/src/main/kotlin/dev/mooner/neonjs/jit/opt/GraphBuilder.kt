@@ -62,7 +62,8 @@ internal abstract class GraphBuilder(
         refineKinds(kinds)
         removeDeadCode(kinds)
         if (speculate) Licm.run(g, kinds)
-        if (speculate && KnownShapes.run(g, kinds) { i, v -> replaced[i] = v }) {
+        val facts = if (speculate) g.dialect.facts(g, kinds) else null
+        if (facts != null && Facts.run(g, facts) { i, v -> replaced[i] = v }) {
             // loads that were the values written or read before: their uses have those values' kinds
             resolveAll()
             kinds.infer(g)

@@ -21,6 +21,16 @@ open class OpInfo(@JvmField val name: String, @JvmField val flags: Int, @JvmFiel
      */
     open fun location(i: Inst, g: Graph): Pair<Any?, Int>? = null
 
+    /**
+     * For an allocation whose object's fields are its inputs, in order, and nothing else until written (an object
+     * literal): their keys; null for every other instruction. Scalar replacement does not make such an object where
+     * it is only read.
+     */
+    open fun fields(i: Inst, g: Graph): Array<Any>? = null
+
+    /** For a read of a field of the object that is [i]'s first input: the field's key; null for anything else. */
+    open fun readsField(i: Inst, g: Graph): Any? = null
+
     override fun toString() = name
 
     companion object {
