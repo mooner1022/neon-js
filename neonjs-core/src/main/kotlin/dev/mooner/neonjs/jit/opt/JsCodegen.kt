@@ -168,7 +168,7 @@ internal class JsCodegen(
         val op = i.op
         if (i.virtual) return // allocated by the exits that need it
         when (op) {
-            Ir.PARAM -> {
+            JsIr.PARAM -> {
                 // f.args[a], undefined past its end (JitRt.arg, without a call: ART does not inline helpers here)
                 val none = Label()
                 val end = Label()
@@ -188,7 +188,7 @@ internal class JsCodegen(
                 done(i, JT.ANY)
                 return
             }
-            Ir.CHECK_INTRINSIC -> {
+            JsIr.CHECK_INTRINSIC -> {
                 val l = Label()
                 load(i.inputs[0], JT.ANY)
                 mv.visitInsn(DUP)
@@ -205,7 +205,7 @@ internal class JsCodegen(
                 exits.add(specExit(l, i))
                 return
             }
-            Ir.MATH -> {
+            JsIr.MATH -> {
                 // the arguments as numbers (ToNumber may run valueOf: the position first), then the builtin's Java method
                 for (v in i.inputs) {
                     val k = kindOf(v)
@@ -240,7 +240,7 @@ internal class JsCodegen(
                 done(i, JT.NUM)
                 return
             }
-            Ir.NEW_THIS -> {
+            JsIr.NEW_THIS -> {
                 // (a class's field initializers run code: the position first)
                 storePc(i)
                 load(i.inputs[0], JT.ANY)
@@ -248,7 +248,7 @@ internal class JsCodegen(
                 done(i, JT.ANY)
                 return
             }
-            Ir.CONSTRUCT_RESULT -> {
+            JsIr.CONSTRUCT_RESULT -> {
                 val end = Label()
                 load(i.inputs[0], JT.ANY)
                 mv.visitInsn(DUP)
@@ -349,14 +349,14 @@ internal class JsCodegen(
                 storedPc = -2
                 return
             }
-            Ir.CLOSURE_ENV -> {
+            JsIr.CLOSURE_ENV -> {
                 load(i.inputs[0], JT.ANY)
                 mv.visitTypeInsn(CHECKCAST, CLOSURE)
                 mv.visitFieldInsn(GETFIELD, CLOSURE, "env", "Ldev/mooner/neonjs/runtime/Env;")
                 done(i, JT.ANY)
                 return
             }
-            Ir.INLINE_THIS -> {
+            JsIr.INLINE_THIS -> {
                 load(i.inputs[0], JT.ANY)
                 mv.visitTypeInsn(CHECKCAST, CLOSURE)
                 load(i.inputs[1], JT.ANY)
@@ -364,16 +364,16 @@ internal class JsCodegen(
                 done(i, JT.ANY)
                 return
             }
-            Ir.CHECK_NUMBER, Ir.CHECK_INT32 -> {
+            JsIr.CHECK_NUMBER, JsIr.CHECK_INT32 -> {
                 val v = i.inputs[0]
                 val l = Label()
                 val vk = kindOf(v)
                 if (JT.isNum(vk)) {
                     // a number already (a read replaced by the value it reads): only an int32 check is left, if any
                     // (IrBuilder.foldChecks takes the state of the others)
-                    if (op == Ir.CHECK_NUMBER || vk == JT.INT) {
-                        load(v, if (op == Ir.CHECK_NUMBER) JT.NUM else JT.INT)
-                        done(i, if (op == Ir.CHECK_NUMBER) JT.NUM else JT.INT)
+                    if (op == JsIr.CHECK_NUMBER || vk == JT.INT) {
+                        load(v, if (op == JsIr.CHECK_NUMBER) JT.NUM else JT.INT)
+                        done(i, if (op == JsIr.CHECK_NUMBER) JT.NUM else JT.INT)
                         return
                     }
                     val t = tempD()
@@ -393,7 +393,7 @@ internal class JsCodegen(
                 mv.visitJumpInsn(IFEQ, l)
                 load(v, JT.ANY)
                 unboxNum()
-                if (op == Ir.CHECK_INT32) {
+                if (op == JsIr.CHECK_INT32) {
                     val t = tempD()
                     mv.visitVarInsn(DSTORE, t)
                     mv.visitVarInsn(DLOAD, t)
@@ -406,7 +406,7 @@ internal class JsCodegen(
                 exits.add(specExit(l, i))
                 return
             }
-            Ir.ADD_SLOT -> {
+            JsIr.ADD_SLOT -> {
                 // the receiver's shape and its prototypes' as the cache saw them, an extensible object (PropCache.put's
                 // ADD case), then the transition
                 val l = Label()
@@ -449,7 +449,7 @@ internal class JsCodegen(
                 if (i.state != null) exits.add(specExit(l, i))
                 return
             }
-            Ir.LOAD_SLOT, Ir.STORE_SLOT -> {
+            JsIr.LOAD_SLOT, JsIr.STORE_SLOT -> {
                 // the receiver's property map has the shape the cache saw (then the prototypes' do), else an exit
                 val l = Label()
                 val holder = temp()
@@ -483,7 +483,7 @@ internal class JsCodegen(
                 mv.visitFieldInsn(GETFIELD, "dev/mooner/neonjs/runtime/JSObject", "props", PMAP_D)
                 mv.visitFieldInsn(GETFIELD, PMAP, "values", CONSTS_D)
                 iconst(i.b)
-                if (op == Ir.LOAD_SLOT) {
+                if (op == JsIr.LOAD_SLOT) {
                     mv.visitInsn(AALOAD)
                     done(i, JT.ANY)
                 } else {
@@ -493,7 +493,7 @@ internal class JsCodegen(
                 if (i.state != null) exits.add(specExit(l, i))
                 return
             }
-            Ir.LOAD_GLOBAL_LEX, Ir.LOAD_GLOBAL_SLOT -> {
+            JsIr.LOAD_GLOBAL_LEX, JsIr.LOAD_GLOBAL_SLOT -> {
                 // the checks GlobalCache.load makes, against the entry the site's cache held; else an exit
                 val l = Label()
                 val ge = temp()
@@ -501,7 +501,7 @@ internal class JsCodegen(
                 mv.visitFieldInsn(GETFIELD, FRAME, "realm", REALM_D)
                 mv.visitFieldInsn(GETFIELD, "dev/mooner/neonjs/runtime/Realm", "globalEnv", GLOBAL_ENV_D)
                 mv.visitVarInsn(ASTORE, ge)
-                if (op == Ir.LOAD_GLOBAL_LEX) {
+                if (op == JsIr.LOAD_GLOBAL_LEX) {
                     mv.visitVarInsn(ALOAD, ge)
                     mv.visitFieldInsn(GETFIELD, GLOBAL_ENV, "token", OBJ)
                     mv.visitVarInsn(ALOAD, dataLocal)
@@ -610,7 +610,7 @@ internal class JsCodegen(
             Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD, Op.EXP, Op.BAND, Op.BOR, Op.BXOR, Op.SHL, Op.SAR, Op.SHR,
             Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.SEQ, Op.SNE -> if (binary(i)) return
             Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC -> {
-                if (i.kind == JT.INT && Ir.intArith(op)) return intUnary(i)
+                if (i.kind == JT.INT && JsIr.intArith(op)) return intUnary(i)
                 val t = kindOf(i.inputs[0])
                 if (JT.isNum(t)) {
                     val result = (kinds.system as JsKinds).unaryResult(op, t)
@@ -701,7 +701,7 @@ internal class JsCodegen(
                     return
                 }
             }
-            Ir.LENGTH -> {
+            JsIr.LENGTH -> {
                 val l = Label()
                 val not = Label()
                 val big = Label()
@@ -808,7 +808,7 @@ internal class JsCodegen(
                     return
                 }
             }
-            Ir.CHECK_TDZ -> {
+            JsIr.CHECK_TDZ -> {
                 storePc(i)
                 load(i.inputs[0], JT.ANY)
                 iconst(i.a)
@@ -857,7 +857,7 @@ internal class JsCodegen(
                 done(i, JT.ANY)
                 return
             }
-            Ir.CHAR_CODE -> {
+            JsIr.CHAR_CODE -> {
                 // a JS string (a CharSequence: a rope flattens once) at an int index: its code unit, NaN past its ends;
                 // else the builtin's steps
                 val slow = Label()
@@ -901,7 +901,7 @@ internal class JsCodegen(
                 done(i, JT.NUM)
                 return
             }
-            Ir.PART -> {
+            JsIr.PART -> {
                 load(i.inputs[0], JT.ANY)
                 mv.visitTypeInsn(CHECKCAST, CONSTS_D)
                 iconst(i.a)
@@ -913,7 +913,7 @@ internal class JsCodegen(
         // the baseline's code for the instruction, with Object operands
         storePc(i)
         for (v in i.inputs) load(v, JT.ANY)
-        if (!emitHelper(op, i.pc, i.a, i.b, i.c)) throw JitBailout("no code for ${Ir.name(op)}")
+        if (!emitHelper(op, i.pc, i.a, i.b, i.c)) throw JitBailout("no code for ${JsIr.name(op)}")
         if (i.hasResult) done(i, JT.ANY)
     }
 
@@ -930,7 +930,7 @@ internal class JsCodegen(
         val kr = kindOf(r)
         val cls = JT.binaryClass(op, kl, kr)
         if (cls == JT.GENERIC) return false
-        if (i.kind == JT.INT && (Ir.intArith(op) || i.wraps)) {
+        if (i.kind == JT.INT && (JsIr.intArith(op) || i.wraps)) {
             intBinary(i)
             return true
         }
@@ -1095,7 +1095,7 @@ internal class JsCodegen(
     }
 
     /**
-     * Int32 arithmetic of ints (Ir.intArith, Kinds): an exit before the instruction where the result is not an int32
+     * Int32 arithmetic of ints (JsIr.intArith, Kinds): an exit before the instruction where the result is not an int32
      * or is -0, the int otherwise; an ADD, SUB or `>>>` that wraps (Inst.wraps) has no exit.
      */
     private fun intBinary(i: Inst) {
@@ -1174,7 +1174,7 @@ internal class JsCodegen(
         else if (!i.wraps) throw JitBailout("int arithmetic without its exit")
     }
 
-    /** INC, DEC and NEG of an int (Ir.intArith): an exit before the instruction where the result leaves the int32 range or is -0. */
+    /** INC, DEC and NEG of an int (JsIr.intArith): an exit before the instruction where the result leaves the int32 range or is -0. */
     private fun intUnary(i: Inst) {
         val a = intLocal(i.inputs[0])
         val l = Label()

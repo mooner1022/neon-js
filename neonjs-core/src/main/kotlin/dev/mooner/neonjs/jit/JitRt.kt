@@ -248,7 +248,7 @@ object JitRt {
     // ------------------------------------------------------------------ inlined calls (Inlining)
 
     /**
-     * The object a construction of [fn] (a base constructor) compiled inlined gives its body as `this` (Ir.NEW_THIS),
+     * The object a construction of [fn] (a base constructor) compiled inlined gives its body as `this` (JsIr.NEW_THIS),
      * made as Interpreter.constructClosure makes it: from the constructor's prototype, a class's fields defined.
      */
     @JvmStatic fun newThis(fn: Any?): Any? {
@@ -258,7 +258,7 @@ object JitRt {
         return o
     }
 
-    /** A property added to [o] through the transition to [next] (Ir.ADD_SLOT, its checks made): one call where there were two. */
+    /** A property added to [o] through the transition to [next] (JsIr.ADD_SLOT, its checks made): one call where there were two. */
     @JvmStatic fun addSlot(o: JSObject, next: Shape, v: Any?) = o.ensureProps().addTransition(next, v)
 
     /**

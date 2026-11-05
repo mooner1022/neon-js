@@ -3,7 +3,7 @@ package dev.mooner.neonjs.jit.opt
 /**
  * JavaScript's frame of a call compiled inlined ([InlineSite.frame]): the closure called, `this` as the call binds it
  * (undefined where the callee does not read it), the arguments, the environment; and whether the call is a construction
- * (`new`: `this` is the object made for it, Ir.NEW_THIS, and the result that unless the body returns an object).
+ * (`new`: `this` is the object made for it, JsIr.NEW_THIS, and the result that unless the body returns an object).
  */
 internal const val SITE_CONSTRUCT = 1
 

@@ -1,7 +1,5 @@
 package dev.mooner.neonjs.jit.opt
 
-import dev.mooner.neonjs.compiler.Op
-
 /** Text form of a graph, for tests and debugging. */
 object IrPrinter {
     fun print(g: Graph): String {
@@ -17,10 +15,7 @@ object IrPrinter {
                 if (i.hasResult) sb.append(i).append(" = ")
                 sb.append(g.ops.info(i.op).name)
                 if (i.op == Ir.BRANCH) sb.append('(').append(g.ops.info(i.a).name).append(')')
-                else if (i.op < Op.COUNT && Op.operands[i.op] > 0) {
-                    sb.append(' ').append(i.a)
-                    if (Op.operands[i.op] > 1) sb.append(' ').append(i.b)
-                } else if (i.op == Ir.PARAM || i.op == Ir.CHECK_TDZ) sb.append(' ').append(i.a)
+                else sb.append(g.ops.operandText(i))
                 if (i.inputs.isNotEmpty()) sb.append(' ').append(i.inputs.joinToString(", "))
                 i.state?.let { s -> sb.append(" [pc ").append(s.pc).append(": ").append(s.values.joinToString(", ")).append(']') }
                 if (i.targets.isNotEmpty()) sb.append(" -> ").append(i.targets.joinToString(", "))

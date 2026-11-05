@@ -36,17 +36,17 @@ internal object KnownShapes {
         override fun transfer(i: Inst, facts: HashMap<Any, Any>, ctx: Facts.Ctx) {
             fun objs(v: Value) = facts[Obj(v)] as Fact?
             when (i.op) {
-                Ir.CHECK_NUMBER, Ir.CHECK_INT32 -> {
+                JsIr.CHECK_NUMBER, JsIr.CHECK_INT32 -> {
                     val k = Check(i.op, ctx.r(i.inputs[0]))
                     val held = facts[k]
                     if (held != null) ctx.drop(held as Value) else facts[k] = i
                 }
-                Ir.LOAD_SLOT, Ir.STORE_SLOT -> {
+                JsIr.LOAD_SLOT, JsIr.STORE_SLOT -> {
                     val obj = ctx.r(i.inputs[0])
                     val shape = g.data[i.a]
                     val chain = chainOf(g, i.c)
                     val key = Key(obj, if (chain == null) null else shape, i.b, chain)
-                    if (i.op == Ir.LOAD_SLOT) {
+                    if (i.op == JsIr.LOAD_SLOT) {
                         // (the value read before, unless written since: also where the object's shape changed since
                         // through an ADD_SLOT, which leaves the values; no check is made, so no fact either)
                         val held = facts[key]
@@ -61,14 +61,14 @@ internal object KnownShapes {
                     if (chain == null || (same && fact!!.chain == chain)) known = known or CHAIN
                     mark(i, known, SHAPE or CHAIN)
                     facts[Obj(obj)] = Fact(shape, same && fact!!.extensible, chain ?: if (same) fact!!.chain else null)
-                    if (i.op == Ir.LOAD_SLOT) facts[key] = i
+                    if (i.op == JsIr.LOAD_SLOT) facts[key] = i
                     else {
                         // (another object written there may be this one)
                         facts.keys.removeIf { k -> k is Key && k.slot == i.b }
                         facts[key] = ctx.r(i.inputs[1])
                     }
                 }
-                Ir.ADD_SLOT -> {
+                JsIr.ADD_SLOT -> {
                     val obj = ctx.r(i.inputs[0])
                     val shape = g.data[i.a]
                     val chain = chainOf(g, i.c)
@@ -92,7 +92,7 @@ internal object KnownShapes {
                     facts[Key(obj, null, next.size - 1, null)] = ctx.r(i.inputs[1])
                 }
                 // a new object: extensible (a class's field initializers run code, which may change that)
-                Ir.NEW_THIS -> if (i.a == 0) facts[Obj(i)] = Fact(null, true, null) else forgetObjects(facts)
+                JsIr.NEW_THIS -> if (i.a == 0) facts[Obj(i)] = Fact(null, true, null) else forgetObjects(facts)
                 else -> if (!g.ops.keepsObjects(i, kinds)) forgetObjects(facts)
             }
         }

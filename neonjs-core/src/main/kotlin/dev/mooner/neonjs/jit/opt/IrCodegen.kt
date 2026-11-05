@@ -52,7 +52,7 @@ internal abstract class IrCodegen(
     /** The exit of a speculation [i] makes (counted, and noted where it failed: T2Code.exit). */
     protected fun specExit(l: Label, i: Inst): Exit {
         val code = i.origin ?: i.block!!.site?.code ?: g.code
-        return Exit(l, i.state!!, counted = true, spec = g.dataIndex(Speculation(code, if (i.op == Ir.CHECK_NUMBER || i.op == Ir.CHECK_INT32) (if (i.pc < 0) code.code.size else i.pc) else i.pc)))
+        return Exit(l, i.state!!, counted = true, spec = g.dataIndex(Speculation(code, if (i.pc < 0) code.code.size else i.pc)))
     }
     protected val exits = ArrayList<Exit>()
 
@@ -211,7 +211,7 @@ internal abstract class IrCodegen(
     /** Pushes [v] as kind [want]: unchanged, an int widened, or boxed. */
     protected fun load(v: Value, want: Byte) {
         if (v is Const) return pushConst(v, want)
-        val l = local[v] ?: throw JitBailout("v${v.id} has no local (${v.javaClass.simpleName} ${(v as? Inst)?.let { Ir.name(it.op) + " result " + it.hasResult } ?: ""})")
+        val l = local[v] ?: throw JitBailout("v${v.id} has no local (${v.javaClass.simpleName} ${(v as? Inst)?.let { g.ops.info(it.op).name + " result " + it.hasResult } ?: ""})")
         val k = v.kind
         mv.visitVarInsn(ks.rep(k).load, l)
         ks.convert(this, k, want)
@@ -219,7 +219,7 @@ internal abstract class IrCodegen(
 
     /** Stores the value of kind [k] on the JVM stack as [i]'s result, or drops it when nothing uses [i]. */
     protected fun done(i: Inst, k: Byte) {
-        if (k != i.kind) throw JitBailout("${Ir.name(i.op)} gives kind $k, not ${i.kind}")
+        if (k != i.kind) throw JitBailout("${g.ops.info(i.op).name} gives kind $k, not ${i.kind}")
         val l = local[i]
         if (l == null) ks.rep(k).pop(mv)
         else mv.visitVarInsn(ks.rep(k).store, l)
@@ -498,7 +498,7 @@ internal abstract class IrCodegen(
                 load(i.inputs[0], ks.any)
                 mv.visitInsn(ARETURN)
             }
-            else -> if (!otherTerminator(i)) throw JitBailout("terminator ${Ir.name(i.op)}")
+            else -> if (!otherTerminator(i)) throw JitBailout("terminator ${g.ops.info(i.op).name}")
         }
     }
 

@@ -55,7 +55,7 @@ internal class IrBuilder(
     override fun entry(start: Block): Array<Value> {
         val regs = Array<Value>(cb.numRegs) { dead() }
         cb.paramRegs?.forEachIndexed { i, r ->
-            if (r >= 0) regs[r] = add(start, Inst(Ir.PARAM, NO_VALUES, i, 0, 0, -1, -1).also { it.hasResult = true })
+            if (r >= 0) regs[r] = add(start, Inst(JsIr.PARAM, NO_VALUES, i, 0, 0, -1, -1).also { it.hasResult = true })
         }
         // parameters that only ever received numbers are taken as numbers, leaving at the start otherwise
         val params = cb.profile?.params
@@ -95,20 +95,20 @@ internal class IrBuilder(
             for (i in b.insts) when {
                 JT.isBitwise(i.op) || i.op == Op.BNOT -> asInt.addAll(i.inputs)
                 JT.isCompare(i.op) -> if (i.inputs[0].kind == JT.INT && i.inputs[1].kind == JT.INT) asInt.addAll(i.inputs)
-                Ir.intArith(i.op) && i.kind == JT.INT -> asInt.addAll(i.inputs)
+                JsIr.intArith(i.op) && i.kind == JT.INT -> asInt.addAll(i.inputs)
                 i.op == Op.GET_ELEM || i.op == Op.PUT_ELEM -> asInt.add(i.inputs[1])
             }
         }
         var changed = false
-        for (b in g.blocks) for (i in b.insts) if (i.op == Ir.CHECK_INT32 && i !in asInt) {
-            i.op = Ir.CHECK_NUMBER
+        for (b in g.blocks) for (i in b.insts) if (i.op == JsIr.CHECK_INT32 && i !in asInt) {
+            i.op = JsIr.CHECK_NUMBER
             changed = true
         }
         return changed
     }
 
     /**
-     * Int32 arithmetic (Ir.intArith) pays where its int is used as one: a bitwise operand, an element key, or the
+     * Int32 arithmetic (JsIr.intArith) pays where its int is used as one: a bitwise operand, an element key, or the
      * operand of such arithmetic (through phis); and a remainder always (the double one is a library call). A comparison
      * costs the same on doubles: a counter only compared stays one, as the baseline's (no overflow check). Elsewhere (a sum only read as a number) it would cost an overflow check where doubles cost nothing and can
      * be moved out of a loop, so it is made on doubles: its state goes. Returns whether one changed (kinds are inferred
@@ -128,11 +128,11 @@ internal class IrBuilder(
         while (work.isNotEmpty()) {
             when (val v = work.removeLast()) {
                 is Phi -> v.inputs.forEach { demand(it) }
-                is Inst -> if (Ir.intArith(v.op) || v.op == Op.TO_NUMERIC) v.inputs.forEach { demand(it) }
+                is Inst -> if (JsIr.intArith(v.op) || v.op == Op.TO_NUMERIC) v.inputs.forEach { demand(it) }
             }
         }
         var changed = false
-        for (b in g.blocks) for (i in b.insts) if (Ir.intArith(i.op) && i.state != null && i.kind == JT.INT && i !in demanded) {
+        for (b in g.blocks) for (i in b.insts) if (JsIr.intArith(i.op) && i.state != null && i.kind == JT.INT && i !in demanded) {
             i.state = null
             changed = true
         }
@@ -153,7 +153,7 @@ internal class IrBuilder(
         }
         fun truncated(v: Inst) = uses[v]?.all { it is Inst && JT.isBitwise(it.op) } == true
         for (b in g.blocks) for (i in b.insts) {
-            if (Ir.intArith(i.op) && i.state != null) {
+            if (JsIr.intArith(i.op) && i.state != null) {
                 if (i.kind != JT.INT) i.state = null
                 else if ((i.op == Op.ADD || i.op == Op.SUB) && truncated(i)) {
                     i.wraps = true
@@ -220,9 +220,9 @@ internal class IrBuilder(
     private fun foldChecks(kinds: Kinds) {
         var folded = false
         for (b in g.blocks) for (i in b.insts) {
-            if (i.op != Ir.CHECK_NUMBER && i.op != Ir.CHECK_INT32) continue
+            if (i.op != JsIr.CHECK_NUMBER && i.op != JsIr.CHECK_INT32) continue
             val k = kinds.of(i.inputs[0])
-            if (!JT.isNum(k) || (i.op == Ir.CHECK_INT32 && k != JT.INT)) continue
+            if (!JT.isNum(k) || (i.op == JsIr.CHECK_INT32 && k != JT.INT)) continue
             if (k == i.kind) {
                 replaced[i] = i.inputs[0]
                 folded = true
@@ -290,8 +290,8 @@ internal class IrBuilder(
                     regs[a] = pop()
                     home(a)
                 }
-                Op.LOAD_REG_TDZ -> stack.add(add(cur, Inst(Ir.CHECK_TDZ, arrayOf(regs[a]!!), bb, 0, 0, pc, stmt).also { it.hasResult = true }))
-                Op.CHECK_REG_TDZ -> add(cur, Inst(Ir.CHECK_TDZ, arrayOf(regs[a]!!), bb, 0, 0, pc, stmt))
+                Op.LOAD_REG_TDZ -> stack.add(add(cur, Inst(JsIr.CHECK_TDZ, arrayOf(regs[a]!!), bb, 0, 0, pc, stmt).also { it.hasResult = true }))
+                Op.CHECK_REG_TDZ -> add(cur, Inst(JsIr.CHECK_TDZ, arrayOf(regs[a]!!), bb, 0, 0, pc, stmt))
                 // an inlined body's `this` was bound when it was entered
                 Op.LOAD_THIS -> if (site != null) stack.add(site.thisValue) else inst(op, NO_VALUES, result = true)
                 Op.TO_KEY_FOR_BASE -> {
@@ -350,7 +350,7 @@ internal class IrBuilder(
                     if (s != null && s.construct && v !== s.thisValue) {
                         // a construction gives `this` unless the body returns an object
                         v = if (v is Const && v.value !is JSObject) s.thisValue
-                        else add(cur, Inst(Ir.CONSTRUCT_RESULT, arrayOf(v, s.thisValue), 0, 0, 0, pc, stmt).also { it.hasResult = true })
+                        else add(cur, Inst(JsIr.CONSTRUCT_RESULT, arrayOf(v, s.thisValue), 0, 0, 0, pc, stmt).also { it.hasResult = true })
                     }
                     end()
                     val j = join
@@ -378,7 +378,7 @@ internal class IrBuilder(
                     if (ic == null && ints && speculate && !code.t2FailedAt(pc) && (code.constants[a] as? PropSite)?.key == "length" &&
                         (code.profile?.values?.get(pc)?.toInt() ?: 0) and 0xFF == ValueProfile.INT) {
                         // an array's or a string's length, read in place
-                        val l = before(Inst(Ir.LENGTH, arrayOf(stack.last()), 0, 0, 0, pc, stmt))
+                        val l = before(Inst(JsIr.LENGTH, arrayOf(stack.last()), 0, 0, 0, pc, stmt))
                         pop()
                         add(cur, l).hasResult = true
                         stack.add(l)
@@ -388,7 +388,7 @@ internal class IrBuilder(
                         // then the slot; anything else leaves before the instruction
                         val obj = stack.last()
                         val chain = ic.chain
-                        val load = before(Inst(Ir.LOAD_SLOT, arrayOf(obj), g.dataIndex(ic.shape), ic.slot,
+                        val load = before(Inst(JsIr.LOAD_SLOT, arrayOf(obj), g.dataIndex(ic.shape), ic.slot,
                             if (chain == null) -1 else g.dataIndex(chain), pc, stmt))
                         pop()
                         add(cur, load).hasResult = true
@@ -402,8 +402,8 @@ internal class IrBuilder(
                         // the binding, or the global object's slot, the cache saw; anything else leaves before the
                         // instruction
                         val load = before(
-                            if (ic.shape == null) Inst(Ir.LOAD_GLOBAL_LEX, NO_VALUES, g.dataIndex(ic.token), ic.index, 0, pc, stmt)
-                            else Inst(Ir.LOAD_GLOBAL_SLOT, NO_VALUES, g.dataIndex(ic.shape), ic.slot, ic.epoch, pc, stmt),
+                            if (ic.shape == null) Inst(JsIr.LOAD_GLOBAL_LEX, NO_VALUES, g.dataIndex(ic.token), ic.index, 0, pc, stmt)
+                            else Inst(JsIr.LOAD_GLOBAL_SLOT, NO_VALUES, g.dataIndex(ic.shape), ic.slot, ic.epoch, pc, stmt),
                         )
                         add(cur, load).hasResult = true
                         stack.add(load)
@@ -415,7 +415,7 @@ internal class IrBuilder(
                     if (add != null) {
                         // (obj v -- v): a new own property, through the transition the cache saw
                         val chain = add.chain
-                        val store = before(Inst(Ir.ADD_SLOT, arrayOf(stack[stack.size - 2], stack[stack.size - 1]),
+                        val store = before(Inst(JsIr.ADD_SLOT, arrayOf(stack[stack.size - 2], stack[stack.size - 1]),
                             g.dataIndex(add.shape), g.dataIndex(add.next), if (chain == null) -1 else g.dataIndex(chain), pc, stmt))
                         val v = pop()
                         pop()
@@ -426,7 +426,7 @@ internal class IrBuilder(
                         inst(op, arrayOf(pop(), v), result = true)
                     } else {
                         // (obj v -- v): a writable own data property of the shape the cache saw
-                        val store = before(Inst(Ir.STORE_SLOT, arrayOf(stack[stack.size - 2], stack[stack.size - 1]),
+                        val store = before(Inst(JsIr.STORE_SLOT, arrayOf(stack[stack.size - 2], stack[stack.size - 1]),
                             g.dataIndex(ic.shape), ic.slot, -1, pc, stmt))
                         val v = pop()
                         pop()
@@ -446,7 +446,7 @@ internal class IrBuilder(
                     val inputs = Array(n) { stack[stack.size - n + it] }
                     repeat(n) { stack.removeAt(stack.size - 1) }
                     val pair = add(cur, Inst(op, inputs, a, bb, c, pc, stmt).also { it.hasResult = true })
-                    for (k in 0..1) stack.add(add(cur, Inst(Ir.PART, arrayOf<Value>(pair), k, 0, 0, pc, stmt).also { it.hasResult = true }))
+                    for (k in 0..1) stack.add(add(cur, Inst(JsIr.PART, arrayOf<Value>(pair), k, 0, 0, pc, stmt).also { it.hasResult = true }))
                 }
                 Op.NEW -> {
                     val target = inlineTarget(pc, construct = true)
@@ -471,11 +471,11 @@ internal class IrBuilder(
                         val fn = stack[stack.size - n]
                         val thisV = stack[stack.size - n + 1]
                         val args = Array(a) { stack[stack.size - a + it] }
-                        add(cur, Inst(Ir.CHECK_INTRINSIC, arrayOf(fn), intrinsic, 0, 0, pc, stmt)).state = state(pc)
+                        add(cur, Inst(JsIr.CHECK_INTRINSIC, arrayOf(fn), intrinsic, 0, 0, pc, stmt)).state = state(pc)
                         repeat(n) { stack.removeAt(stack.size - 1) }
                         val r = if (intrinsic == dev.mooner.neonjs.runtime.MathIntrinsic.CHAR_CODE_AT) {
-                            Inst(Ir.CHAR_CODE, arrayOf(thisV, args[0]), intrinsic, 0, 0, pc, stmt)
-                        } else Inst(Ir.MATH, args, intrinsic, 0, 0, pc, stmt)
+                            Inst(JsIr.CHAR_CODE, arrayOf(thisV, args[0]), intrinsic, 0, 0, pc, stmt)
+                        } else Inst(JsIr.MATH, args, intrinsic, 0, 0, pc, stmt)
                         stack.add(add(cur, r.also { it.hasResult = true }))
                     } else if (target == null || stack.size < a + 2) {
                         val n = a + 2
@@ -492,7 +492,7 @@ internal class IrBuilder(
                     if (stack.size < n) throw JitBailout("operand stack underflow at $pc")
                     // arithmetic that may stay on ints (Kinds): an exit before it, its operands on the stack, where the
                     // result is not an int32 (not where that failed before)
-                    val before = if (speculate && ints && Ir.intArith(op) && !code.t2FailedAt(pc)) state(pc) else null
+                    val before = if (speculate && ints && JsIr.intArith(op) && !code.t2FailedAt(pc)) state(pc) else null
                     val inputs = Array(n) { stack[stack.size - n + it] }
                     repeat(n) { stack.removeAt(stack.size - 1) }
                     inst(op, inputs, result = pushes(op)).state = before
@@ -588,13 +588,13 @@ internal class IrBuilder(
             // a construction's `this`, made before the body is entered (as Interpreter.constructClosure makes it)
             val made = if (!construct) null else {
                 val cls = if (target.flags and CodeBlock.CLASS_CTOR != 0) 1 else 0
-                add(start, Inst(Ir.NEW_THIS, arrayOf(fn), cls, 0, 0, pc, stmt).also { it.hasResult = true })
+                add(start, Inst(JsIr.NEW_THIS, arrayOf(fn), cls, 0, 0, pc, stmt).also { it.hasResult = true })
             }
             val enter = add(start, Inst(Ir.INLINE_ENTER, arrayOf(fn), pc, 0, 0, pc, stmt))
-            val env = add(start, Inst(Ir.CLOSURE_ENV, arrayOf(fn), 0, 0, 0, pc, stmt).also { it.hasResult = true })
+            val env = add(start, Inst(JsIr.CLOSURE_ENV, arrayOf(fn), 0, 0, 0, pc, stmt).also { it.hasResult = true })
             val thisValue = if (made != null) made else if (readsThis(target)) {
                 val bound = if (target.flags and (CodeBlock.STRICT or CodeBlock.ARROW) != 0) 1 else 0
-                add(start, Inst(Ir.INLINE_THIS, arrayOf(fn, ops[1]), bound, 0, 0, pc, stmt).also { it.hasResult = true })
+                add(start, Inst(JsIr.INLINE_THIS, arrayOf(fn, ops[1]), bound, 0, 0, pc, stmt).also { it.hasResult = true })
             } else dead()
             val args = Array(argc) { ops[n - argc + it] }
             val calleeSite = InlineSite(site, target, pc, callerState, jsFrame(fn, thisValue, args, env), if (construct) SITE_CONSTRUCT else 0)
@@ -639,8 +639,8 @@ internal class IrBuilder(
      */
     private fun numberCheck(bits: Int): Int? = when {
         bits == 0 || bits and (ValueProfile.INT or ValueProfile.DOUBLE).inv() != 0 -> null
-        bits == ValueProfile.INT && ints -> Ir.CHECK_INT32
-        else -> Ir.CHECK_NUMBER
+        bits == ValueProfile.INT && ints -> JsIr.CHECK_INT32
+        else -> JsIr.CHECK_NUMBER
     }
 
     /**

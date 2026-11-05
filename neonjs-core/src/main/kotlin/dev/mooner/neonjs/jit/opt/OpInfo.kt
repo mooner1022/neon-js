@@ -113,6 +113,9 @@ internal interface OpTable {
     fun keepsObjects(i: Inst, kinds: Kinds): Boolean =
         flags(i, kinds) and (OpInfo.RUNS_CODE or OpInfo.WRITES_HEAP or OpInfo.WRITES_SLOT) == 0
 
+    /** The operands of [i] as the IR's printed form shows them (after its name), "" for none. */
+    fun operandText(i: Inst): String = ""
+
     /** Whether [i] takes its operands as Objects whatever their kinds. */
     fun objectOperands(i: Inst): Boolean = info(i.op).flagsOf(i) and OpInfo.OBJECT_OPERANDS != 0
 }

@@ -37,22 +37,22 @@ internal class JsKinds private constructor(@JvmField val ints: Boolean, private 
         return when (op) {
             Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD, Op.EXP, Op.BAND, Op.BOR, Op.BXOR, Op.SHL, Op.SAR, Op.SHR,
             Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.SEQ, Op.SNE ->
-                // int32 arithmetic speculated (Ir.intArith): an int of ints
-                if (i.state != null && Ir.intArith(op) && kinds.of(inp[0]) == JT.INT && kinds.of(inp[1]) == JT.INT) JT.INT
+                // int32 arithmetic speculated (JsIr.intArith): an int of ints
+                if (i.state != null && JsIr.intArith(op) && kinds.of(inp[0]) == JT.INT && kinds.of(inp[1]) == JT.INT) JT.INT
                 else JT.binaryResult(op, JT.binaryClass(op, kinds.of(inp[0]), kinds.of(inp[1])), intKind)
             Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC ->
-                if (i.state != null && Ir.intArith(op) && kinds.of(inp[0]) == JT.INT) JT.INT else unaryResult(op, kinds.of(inp[0]))
+                if (i.state != null && JsIr.intArith(op) && kinds.of(inp[0]) == JT.INT) JT.INT else unaryResult(op, kinds.of(inp[0]))
             Op.TO_NUMBER -> when (kinds.of(inp[0])) {
                 JT.INT -> JT.INT
                 JT.BOOL -> intKind
                 else -> JT.NUM
             }
             Op.NOT -> JT.BOOL
-            Ir.CHECK_NUMBER -> JT.NUM
+            JsIr.CHECK_NUMBER -> JT.NUM
             Ir.IS_CLOSURE -> JT.BOOL
-            Ir.MATH, Ir.CHAR_CODE -> JT.NUM
-            Ir.LENGTH -> intKind
-            Ir.CHECK_INT32 -> JT.INT
+            JsIr.MATH, JsIr.CHAR_CODE -> JT.NUM
+            JsIr.LENGTH -> intKind
+            JsIr.CHECK_INT32 -> JT.INT
             Op.PUT_ELEM -> {
                 val k = kinds.of(inp[1])
                 val v = kinds.of(inp[2])
