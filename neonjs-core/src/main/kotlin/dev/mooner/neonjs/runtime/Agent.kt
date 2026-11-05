@@ -3,45 +3,24 @@ package dev.mooner.neonjs.runtime
 import dev.mooner.neonjs.compiler.RegExpSite
 import dev.mooner.neonjs.vm.Frame
 
-/** Engine-level configuration consulted by the runtime. */
-class RuntimeConfig {
+/** Engine-level configuration consulted by the runtime: the core's ([VmConfig]) and JavaScript's. */
+class RuntimeConfig : VmConfig() {
     /** Default locale for Intl (BCP 47 tag; null = the host default). */
     @JvmField var defaultLocale: String? = null
     /** Whether `Intl` is installed when the neonjs-intl module is available. */
     @JvmField var intl: Boolean = true
     /** Local time zone for Date / Temporal.Now (null = the host zone, see DateTime.hostZone). */
     @JvmField var timeZone: java.time.ZoneId? = null
-    /** Maximum JS call depth before a RangeError is thrown. */
-    @JvmField var maxCallDepth = 3000
-    /** Execution time limit in milliseconds (0 = unlimited). */
-    @JvmField var maxExecutionMillis = 0L
-    /** Instruction budget (approximate, counted at loop back-edges and calls; 0 = unlimited). */
-    @JvmField var maxStatements = 0L
     /** Rethrow engine-internal errors (debugging) instead of converting them to JS errors. */
     @JvmField var propagateInternalErrors = false
     /** Maximum string length / array length allowed (memory guard). */
     @JvmField var maxStringLength = Rope.MAX_LENGTH
     /** Enable Annex B legacy features (html comments, __proto__, escape, ...). */
     @JvmField var annexB = true
-    /** Bytes the thread may allocate per top-level evaluation (0 = unlimited; HotSpot only). */
-    @JvmField var maxAllocatedBytes = 0L
     /** Whether the limits above restart for each task [Agent.runJobs] runs, and do not run while it waits for one. */
     @JvmField var limitsPerTask = false
     /** Whether eval / Function constructors may compile code at runtime. */
     @JvmField var allowCodeGeneration = true
-    /** dev.mooner.neonjs.ExecutionMode ordinal: 0 interpreter, 1 compiled, 2 adaptive. */
-    @JvmField var executionMode = 0
-    @JvmField var jitThreshold = 1000
-    /**
-     * Whether the optimizing tier is on (docs/OPTIMIZING_TIER.md; NeonEngine.Builder.optimizingTier, or
-     * `-Dneonjs.jit.tier2=true`): the interpreter records value profiles (CodeBlock.profile) in adaptive mode, and each
-     * block whose baseline is installed is compiled again by the tier in the background (JitQueue).
-     */
-    @JvmField var tier2 = java.lang.Boolean.getBoolean("neonjs.jit.tier2")
-    /** Whether code is compiled by background threads (dev.mooner.neonjs.jit.JitQueue) rather than the calling thread. */
-    @JvmField var backgroundJit = true
-    /** Defines generated classes (JIT code, Java.extend adapters); null = dev.mooner.neonjs.jit.CodeDefiners.default. */
-    @JvmField var codeDefiner: dev.mooner.neonjs.jit.CodeDefiner? = null
 }
 
 /** Module loader hooks used by import() and import.meta. */
@@ -68,10 +47,8 @@ const val ARGS_POOL = 16
 @JvmField val FRAME_POOLING: Boolean =
     System.getProperty("neonjs.framePool")?.toBoolean() ?: (System.getProperty("java.vm.name") == "Dalvik")
 
-class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
+class Agent(override val config: RuntimeConfig = RuntimeConfig()) : VmAgent(config) {
     @JvmField var currentRealm: Realm? = null
-    @JvmField var depth = 0
-    @JvmField var maxDepth = config.maxCallDepth
     @JvmField var topFrame: Frame? = null
     /**
      * Frames of calls of compiled code that returned, for the next such calls (Interpreter.invokeClosure, with
@@ -92,11 +69,6 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
     @JvmField val jobs = ArrayDeque<Runnable>()
     @JvmField val symbolRegistry = HashMap<String, JSSymbol>()
 
-    @Volatile @JvmField var interruptRequested = false
-    /** Calls left before the next interrupt check at function entry. */
-    @JvmField var callBudget = 1024
-    @JvmField var deadlineNanos = 0L
-    @JvmField var statementsLeft = Long.MAX_VALUE
 
     /** Hook for `debugger` statements. */
     @JvmField var debuggerHook: ((Frame) -> Unit)? = null
@@ -154,8 +126,6 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
     @JvmField var randomSource: java.util.Random? = null
     /** Clock override for Date.now (sandbox), or null for the system clock. */
     @JvmField var clock: (() -> Double)? = null
-    private var allocationBase = 0L
-
     fun nextRandom(): Double = randomSource?.nextDouble() ?: java.util.concurrent.ThreadLocalRandom.current().nextDouble()
     fun currentTimeMillis(): Double = clock?.invoke() ?: System.currentTimeMillis().toDouble()
 
@@ -170,15 +140,6 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
         return s
     }
 
-    /**
-     * Charges a large allocation of about [bytes] against the allocation budget *before* it happens. The budget is
-     * otherwise only sampled periodically, so a few huge allocations between two checks could exhaust the heap.
-     */
-    fun reserveAllocation(bytes: Long) {
-        if (bytes < 65536 || config.maxAllocatedBytes <= 0 || threadMX == null) return
-        if (threadAllocatedBytes() - allocationBase + bytes > config.maxAllocatedBytes) throw ResourceLimitException("Memory allocation limit exceeded")
-    }
-
     fun hostExceptionToJS(e: dev.mooner.neonjs.vm.HostException, realm: Realm): Any? {
         val h = hostExceptionHandler
         if (h != null) return h(e, realm)
@@ -188,66 +149,6 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
 
     fun onDebugger(f: Frame) {
         debuggerHook?.invoke(f)
-    }
-
-    fun startLimits() {
-        interruptRequested = false
-        restartLimits()
-    }
-
-    /** Gives what runs next the whole time, instruction and allocation budget, keeping a requested interrupt. */
-    fun restartLimits() {
-        deadlineNanos = if (config.maxExecutionMillis > 0) System.nanoTime() + config.maxExecutionMillis * 1_000_000 else 0L
-        statementsLeft = if (config.maxStatements > 0) config.maxStatements else Long.MAX_VALUE
-        if (config.maxAllocatedBytes > 0) allocationBase = threadAllocatedBytes()
-    }
-
-    /**
-     * The state of the limits, for a thread that lets others evaluate meanwhile ([startLimits] replaces it; the
-     * allocation base is that of the thread that started them).
-     */
-    fun saveLimits(): LongArray = longArrayOf(deadlineNanos, statementsLeft, allocationBase)
-
-    fun restoreLimits(saved: LongArray) {
-        deadlineNanos = saved[0]
-        statementsLeft = saved[1]
-        allocationBase = saved[2]
-    }
-
-    private val interrupts = java.util.concurrent.atomic.AtomicLong()
-
-    /** How many interrupts were requested: a change shows one even after [startLimits] cleared [interruptRequested]. */
-    val interruptCount: Long get() = interrupts.get()
-
-    /** Sets [interruptRequested]; callable from any thread. */
-    fun requestInterrupt() {
-        interruptRequested = true
-        interrupts.incrementAndGet()
-    }
-
-    private fun threadAllocatedBytes(): Long {
-        val mx = threadMX ?: return 0L
-        @Suppress("DEPRECATION") // threadId() needs JDK 19 / Android API 36
-        return mx.getThreadAllocatedBytes(Thread.currentThread().id)
-    }
-
-    /** Called periodically from loops; throws a [TerminationException] when limits are exceeded. */
-    fun checkInterrupt() {
-        // sticky until the next top-level evaluation (startLimits), so host code swallowing the exception inside a
-        // callback cannot cancel the interrupt
-        if (interruptRequested) throw InterruptedExecutionException("Execution interrupted")
-        if (deadlineNanos != 0L && System.nanoTime() > deadlineNanos) throw ExecutionTimeoutException("Execution time limit exceeded")
-        statementsLeft -= 4096
-        if (statementsLeft < 0) throw ResourceLimitException("Instruction limit exceeded")
-        if (config.maxAllocatedBytes > 0 && threadMX != null) {
-            if (threadAllocatedBytes() - allocationBase > config.maxAllocatedBytes) throw ResourceLimitException("Memory allocation limit exceeded")
-        }
-    }
-
-    /** The checks of [checkInterrupt] that apply while blocked waiting (no instruction / allocation accounting). */
-    fun checkWaitLimits() {
-        if (interruptRequested) throw InterruptedExecutionException("Execution interrupted")
-        if (deadlineNanos != 0L && System.nanoTime() > deadlineNanos) throw ExecutionTimeoutException("Execution time limit exceeded")
     }
 
     fun enqueueJob(job: Runnable) {
@@ -609,14 +510,6 @@ class Agent(@JvmField val config: RuntimeConfig = RuntimeConfig()) {
 
         /** Longest uninterrupted wait for an external job ([awaitExternal]) between interrupt / deadline checks. */
         @JvmField val WAIT_SLICE_NANOS = java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(50)
-
-        private val threadMX: com.sun.management.ThreadMXBean? = try {
-            (java.lang.management.ManagementFactory.getThreadMXBean() as? com.sun.management.ThreadMXBean)?.also {
-                if (it.isThreadAllocatedMemorySupported && !it.isThreadAllocatedMemoryEnabled) it.isThreadAllocatedMemoryEnabled = true
-            }
-        } catch (_: Throwable) {
-            null
-        }
 
         /**
          * Classes used on error paths are initialized eagerly. A class whose static initializer first runs while the

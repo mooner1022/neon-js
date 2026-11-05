@@ -1,7 +1,7 @@
 package dev.mooner.neonjs.jit
 
 import dev.mooner.neonjs.compiler.CodeUnit
-import dev.mooner.neonjs.runtime.Agent
+import dev.mooner.neonjs.runtime.VmAgent
 import dev.mooner.neonjs.vm.Frame
 
 /** Tier-up policy: decides when code blocks are compiled, and whether the caller waits for the code. */
@@ -21,7 +21,7 @@ object Jit {
      *    queued, so they are usually compiled, in parallel, by the time they are called.
      */
     @JvmStatic
-    fun prepare(cb: CodeUnit, agent: Agent): CompiledCode? {
+    fun prepare(cb: CodeUnit, agent: VmAgent): CompiledCode? {
         val c = cb.compiled
         if (c != null) {
             if (!cb.childrenQueued) queueChildren(cb, agent)
@@ -64,7 +64,7 @@ object Jit {
      * module bodies stay interpreted, as before.
      */
     @JvmStatic
-    fun loop(cb: CodeUnit, agent: Agent): Boolean {
+    fun loop(cb: CodeUnit, agent: VmAgent): Boolean {
         val config = agent.config
         if (cb.compiled != null) return config.executionMode != MODE_INTERPRETER
         cb.invocationCount += 64
@@ -133,17 +133,17 @@ object Jit {
 
     /** Queues [cb], code created at run time (the `Function` constructor), in compiled mode: it is about to be called. */
     @JvmStatic
-    fun prefetch(cb: CodeUnit, agent: Agent) {
+    fun prefetch(cb: CodeUnit, agent: VmAgent) {
         val config = agent.config
         if (config.executionMode == MODE_COMPILED && config.backgroundJit && compilable(cb)) JitQueue.submit(cb, backend(agent), agent)
     }
 
     /** The backend compiling for [agent]: JVM classes defined by its code definer. */
     @JvmStatic
-    fun backend(agent: Agent): JitBackend = ClassBackend(agent.config.codeDefiner ?: CodeDefiners.default, agent.config.tier2)
+    fun backend(agent: VmAgent): JitBackend = ClassBackend(agent.config.codeDefiner ?: CodeDefiners.default, agent.config.tier2)
 
     /** In compiled mode, queues the functions [cb] defines (once per block; not for blocks compiled in advance). */
-    private fun queueChildren(cb: CodeUnit, agent: Agent) {
+    private fun queueChildren(cb: CodeUnit, agent: VmAgent) {
         cb.childrenQueued = true
         val config = agent.config
         if (config.executionMode != MODE_COMPILED || !config.backgroundJit) return
@@ -161,7 +161,7 @@ object Jit {
     fun canCompile(cb: CodeUnit): Boolean = dev.mooner.neonjs.jit.opt.Dialects.of(cb).canCompile(cb)
 
     /** Compiled code for [cb] now: compiled on this thread, taken over from the queue, or awaited from a worker. */
-    private fun compileNow(cb: CodeUnit, agent: Agent): CompiledCode? {
+    private fun compileNow(cb: CodeUnit, agent: VmAgent): CompiledCode? {
         if (!canCompile(cb)) {
             cb.jitFailed = true
             return null
