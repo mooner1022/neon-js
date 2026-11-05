@@ -7,6 +7,7 @@ import dev.mooner.neonjs.SandboxPolicy
 import dev.mooner.neonjs.android.DexCheckingDefiner
 import dev.mooner.neonjs.android.DexCodeDefiner
 import dev.mooner.neonjs.android.DexConverters
+import dev.mooner.neonjs.jit.CodeDefiners
 import dev.mooner.neonjs.jit.JvmCompiler
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
@@ -67,7 +68,7 @@ class D8ConverterTest {
         val d8 = D8Converter()
         val pool = Executors.newFixedThreadPool(8)
         try {
-            val results = pool.invokeAll((1..64).map { Callable { d8.toDex(JvmCompiler.PROBE_CLASS, JvmCompiler.probeClass(61), 26) } })
+            val results = pool.invokeAll((1..64).map { Callable { d8.toDex(CodeDefiners.PROBE_CLASS, CodeDefiners.probeClass(61), 26) } })
             val first = results[0].get()
             for (f in results) {
                 val dex = f.get()

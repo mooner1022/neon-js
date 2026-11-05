@@ -1,7 +1,7 @@
 package dev.mooner.neonjs.jit
 
-import dev.mooner.neonjs.compiler.CodeBlock
-import dev.mooner.neonjs.runtime.Agent
+import dev.mooner.neonjs.compiler.CodeUnit
+import dev.mooner.neonjs.runtime.VmAgent
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
@@ -10,15 +10,15 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater
 
 /**
- * One code block's compilation, attached to the block ([CodeBlock.jitTask]) from the moment it is queued (or a thread
+ * One code block's compilation, attached to the block ([CodeUnit.jitTask]) from the moment it is queued (or a thread
  * starts compiling it) until its code is installed. Exactly one thread compiles it: a background worker, or a thread
  * that needs the code now and takes it over from the queue ([JitQueue.claim]).
  */
 class JitTask internal constructor(
-    @JvmField val cb: CodeBlock,
+    @JvmField val cb: CodeUnit,
     @JvmField val backend: JitBackend,
     /** The agent that queued the block; its queued tasks are withdrawn when its context closes. */
-    @JvmField val owner: Agent?,
+    @JvmField val owner: VmAgent?,
     claimed: Boolean,
 ) {
     internal val state = AtomicInteger(if (claimed) RUNNING else QUEUED)
@@ -59,15 +59,15 @@ object JitQueue {
     private val queue = LinkedBlockingQueue<JitTask>()
     /** Tasks in state QUEUED. */
     private val pending = AtomicInteger()
-    private val TASK: AtomicReferenceFieldUpdater<CodeBlock, Any> =
-        AtomicReferenceFieldUpdater.newUpdater(CodeBlock::class.java, Any::class.java, "jitTask")
+    private val TASK: AtomicReferenceFieldUpdater<CodeUnit, Any> =
+        AtomicReferenceFieldUpdater.newUpdater(CodeUnit::class.java, Any::class.java, "jitTask")
     @Volatile private var started = false
 
     /**
      * Queues [cb] for compilation with [backend]. True if the block is queued or being compiled now (by this call or
      * an earlier one); false if background compilation is off or the queue is full (the caller compiles it itself).
      */
-    fun submit(cb: CodeBlock, backend: JitBackend, owner: Agent?): Boolean {
+    fun submit(cb: CodeUnit, backend: JitBackend, owner: VmAgent?): Boolean {
         if (THREADS <= 0) return false
         if (pending.incrementAndGet() > MAX_PENDING) {
             pending.decrementAndGet()
@@ -140,7 +140,7 @@ object JitQueue {
     }
 
     /** Withdraws the queued tasks of [owner] (its context is closing); blocks being compiled are finished. */
-    fun cancel(owner: Agent) {
+    fun cancel(owner: VmAgent) {
         val it = queue.iterator()
         while (it.hasNext()) {
             val t = it.next()

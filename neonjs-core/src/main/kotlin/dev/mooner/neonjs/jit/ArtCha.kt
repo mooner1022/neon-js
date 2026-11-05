@@ -25,11 +25,11 @@ internal object ArtCha {
     }
 
     private object NotCompiled : CompiledCode {
-        override fun run(f: Frame): Any? = null
+        override fun run(f: dev.mooner.neonjs.vm.VmFrame): Any? = null
     }
 
     private object AlsoNotCompiled : CompiledCode {
-        override fun run(f: Frame): Any? = null
+        override fun run(f: dev.mooner.neonjs.vm.VmFrame): Any? = null
     }
 
     // linked with this object: from then on CompiledCode.run has several implementations, which CHA no longer tracks

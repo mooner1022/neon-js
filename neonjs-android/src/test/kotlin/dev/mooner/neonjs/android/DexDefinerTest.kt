@@ -28,7 +28,7 @@ class DexDefinerTest {
     fun dxIsTheDefaultConverter() {
         assertSame(DxConverter, DexConverters.default, "no other converter on the class path")
         assertEquals(52, DexCodeDefiner().classFileVersion)
-        assertTrue(DexConverters.isDex(DxConverter.toDex(JvmCompiler.PROBE_CLASS, JvmCompiler.probeClass(52), 26)))
+        assertTrue(DexConverters.isDex(DxConverter.toDex(CodeDefiners.PROBE_CLASS, CodeDefiners.probeClass(52), 26)))
     }
 
     @Test

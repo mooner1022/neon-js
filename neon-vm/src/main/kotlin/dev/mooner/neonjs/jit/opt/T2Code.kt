@@ -1,17 +1,16 @@
 package dev.mooner.neonjs.jit.opt
 
-import dev.mooner.neonjs.compiler.CodeBlock
+import dev.mooner.neonjs.compiler.CodeUnit
 import dev.mooner.neonjs.jit.CompiledCode
-import dev.mooner.neonjs.jit.Deopt
 import dev.mooner.neonjs.jit.Jit
-import dev.mooner.neonjs.vm.Frame
+import dev.mooner.neonjs.vm.VmFrame
 
 /**
  * The superclass of the optimizing tier's classes: the code of one block ([block]) with what it was compiled against
  * ([data]: objects the code compares with or reads, which a class cannot hold as constants), and the count of its
  * deoptimizations. Code that deoptimizes too often gives way to the baseline for good ([exit]).
  */
-abstract class T2Code(@JvmField val data: Array<Any?>, @JvmField val block: CodeBlock) : CompiledCode {
+abstract class T2Code(@JvmField val data: Array<Any?>, @JvmField val block: CodeUnit) : CompiledCode {
     @JvmField var deopts = 0
     /** Exits by speculation (indexed as [data]), made when the first is taken; whether the code gave way already. */
     @JvmField var specExits: IntArray? = null
@@ -19,7 +18,7 @@ abstract class T2Code(@JvmField val data: Array<Any?>, @JvmField val block: Code
     /** The definer the code came from, which its block's next compilation uses. */
     @JvmField var definer: dev.mooner.neonjs.jit.CodeDefiner? = null
     /** How an exit continues in the interpreter (the block's language's: T2.compile sets it). */
-    @JvmField var resumer: Resumer = Resumer.JS
+    @JvmField var resumer: Resumer = Resumer.NONE
     /** The loop headers the code can be entered at by on-stack replacement, sorted. */
     @JvmField var osrPcs: IntArray = IntArray(0)
 
@@ -47,12 +46,12 @@ abstract class T2Code(@JvmField val data: Array<Any?>, @JvmField val block: Code
         const val RECOMPILES = 3
 
         /**
-         * An exit of [code] running [f] (Deopt.resume) where the speculation [data] names (a [Speculation]) failed: it is
+         * An exit of [code] running [f] (its resumer) where the speculation [data] names (a [Speculation]) failed: it is
          * noted on its code block, and past [DEOPT_LIMIT] exits (or [SPEC_LIMIT] of this one) the block's baseline runs
          * new activations again (Jit.revert) while the block is compiled again, without the speculations that failed.
          */
         @JvmStatic
-        fun exit(code: T2Code, f: Frame, pc: Int, values: Array<Any?>, inner: Any?, spec: Int): Any? {
+        fun exit(code: T2Code, f: VmFrame, pc: Int, values: Array<Any?>, inner: Any?, spec: Int): Any? {
             val s = code.data[spec] as Speculation
             synchronized(s.code) {
                 (s.code.t2Failed ?: java.util.BitSet().also { s.code.t2Failed = it }).set(s.pc)
@@ -65,7 +64,7 @@ abstract class T2Code(@JvmField val data: Array<Any?>, @JvmField val block: Code
                 T2.reverted.incrementAndGet()
                 val b = code.block
                 if (++b.t2Recompiles > RECOMPILES) b.t2Off = true
-                else code.definer?.let { T2.submit(b, it, f.realm.agent.config.backgroundJit) }
+                else code.definer?.let { T2.submit(b, it, f.agent.config.backgroundJit) }
             }
             return code.resumer.resume(f, pc, values, inner)
         }
@@ -76,16 +75,16 @@ abstract class T2Code(@JvmField val data: Array<Any?>, @JvmField val block: Code
  * How an exit of the optimizing tier's code continues the activation in its language's interpreter: [f], the frame the
  * code runs, at [pc] with [values] (its registers, then its operand stack), the calls compiled inlined around the exit
  * in [inner] (the language's records, innermost first, as its code generator made them). Returns the frame's result,
- * or JitRt.DEOPTED for a frame the interpreter gave the code (on-stack replacement), which goes on with it.
+ * or VmRt.DEOPTED for a frame the interpreter gave the code (on-stack replacement), which goes on with it.
  */
 fun interface Resumer {
-    fun resume(f: Frame, pc: Int, values: Array<Any?>, inner: Any?): Any?
+    fun resume(f: VmFrame, pc: Int, values: Array<Any?>, inner: Any?): Any?
 
     companion object {
-        /** JavaScript's: Deopt.resume, its records Deopt.Inlined. */
-        @JvmField val JS = Resumer { f, pc, values, inner -> Deopt.resume(f, pc, values, inner as Deopt.Inlined?) }
+        /** Before the code's dialect gave its own (T2.instantiate): none. */
+        @JvmField val NONE = Resumer { _, _, _, _ -> throw IllegalStateException("compiled code without its dialect's resumer") }
     }
 }
 
-/** A speculation an exit stands for: made at [pc] of [code] (pc [CodeBlock.code].size: the parameters). */
-class Speculation(@JvmField val code: CodeBlock, @JvmField val pc: Int)
+/** A speculation an exit stands for: made at [pc] of [code] (pc [CodeUnit.code].size: the parameters). */
+class Speculation(@JvmField val code: dev.mooner.neonjs.compiler.CodeUnit, @JvmField val pc: Int)
