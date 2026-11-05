@@ -39,7 +39,8 @@ speculating tier removes and T1, by its rules, cannot.
 | T1   | `JvmCompiler`, one pass, `TypeAnalysis` | no         | yes (`JitInput.identity`)     | as today (`jitThreshold`, OSR) |
 | T2   | IR compiler (new, `jit/opt/`)          | yes        | no (one instance per block)  | hot T1 code, with `tier2` on  |
 
-T1 stays the safety net: it compiles everything T0 runs (but generators and async functions), it is what a block
+T1 stays the safety net: it compiles everything T0 runs (but generators and async functions, whose baselines the tier's
+pipeline makes: docs/IR_NEUTRALITY.md, §9), it is what a block
 returns to when its T2 code is invalidated, and its rules (ARCHITECTURE, "Unboxed numbers", "Inlined calls") do not
 change. T2 is an addition, not a replacement, and not an alternative compiler the user picks instead of T1.
 

@@ -1,8 +1,5 @@
 package dev.mooner.neonjs.jit.opt
 
-import dev.mooner.neonjs.compiler.Op
-import dev.mooner.neonjs.jit.JT
-
 /**
  * Loop-invariant code motion (docs/OPTIMIZING_TIER.md, P4): guards and loads in a loop whose inputs come from outside
  * it, and whose result nothing in the loop can change, move to a block of their own before the loop's header (its
@@ -47,10 +44,14 @@ internal object Licm {
         var opaque = false
         var envStores = false
         val stores = ArrayList<Pair<Any?, Int>>()
-        for (b in body) for (i in b.insts) when {
-            i.op == Ir.STORE_SLOT -> stores.add(g.data[i.a] to i.b)
-            i.op == Op.STORE_ENV -> envStores = true
-            !clean(i, kinds) -> opaque = true
+        val ops = g.ops
+        for (b in body) for (i in b.insts) {
+            val f = ops.info(i.op).flagsOf(i)
+            when {
+                f and OpInfo.WRITES_SLOT != 0 -> stores.add(ops.info(i.op).location(i, g)!!)
+                f and OpInfo.WRITES_ENV != 0 -> envStores = true
+                !ops.clean(i, kinds) -> opaque = true
+            }
         }
         val idom = IrVerifier.dominators(g, index)
         fun dominates(a: Block, b: Block): Boolean {
@@ -63,19 +64,15 @@ internal object Licm {
             return false
         }
         fun stored(shape: Any?, slot: Int) = stores.any { it.first === shape && it.second == slot }
-        fun movable(i: Inst, b: Block): Boolean = when (i.op) {
-            Ir.CHECK_CLOSURE, Ir.CHECK_NUMBER, Ir.CHECK_INT32, Ir.CLOSURE_ENV, Ir.IS_CLOSURE, Ir.CHECK_INTRINSIC -> true
-            Ir.MATH -> i.inputs.all { JT.isNum(kinds.of(it)) }
-            // (after its call's guard, in the same block: moved together)
-            Ir.INLINE_THIS -> i.a == 1
+        fun movable(i: Inst, b: Block): Boolean = when (ops.info(i.op).hoistOf(i)) {
+            OpInfo.HOIST_ALWAYS -> true
+            OpInfo.HOIST_NUMERIC -> ops.numeric(i, kinds)
             // numbers of numbers, without an exit (ART does not move them where an exit's call is in the loop)
-            Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD, Op.EXP, Op.BAND, Op.BOR, Op.BXOR, Op.SHL, Op.SAR, Op.SHR, Op.NEG,
-            Op.BNOT, Op.TO_NUMERIC, Op.TO_NUMBER -> i.state == null && i.inputs.all { JT.isNum(kinds.of(it)) }
-            Ir.LOAD_GLOBAL_LEX, Ir.LENGTH -> !opaque
-            Ir.LOAD_GLOBAL_SLOT -> !opaque && !stored(g.data[i.a], i.b)
-            Ir.LOAD_SLOT -> !opaque && !stored(if (i.c < 0) g.data[i.a] else (g.data[i.c] as Array<*>).last(), i.b)
+            OpInfo.HOIST_NUMERIC_NO_EXIT -> i.state == null && ops.numeric(i, kinds)
+            OpInfo.HOIST_LOAD -> !opaque
+            OpInfo.HOIST_SLOT_LOAD -> !opaque && ops.info(i.op).location(i, g)!!.let { (token, slot) -> !stored(token, slot) }
             // its environment: the header's body's, the same where no instruction of the loop changes the frame's
-            Op.LOAD_ENV -> !opaque && !envStores && b.site === h.site
+            OpInfo.HOIST_ENV_LOAD -> !opaque && !envStores && b.site === h.site
             else -> false
         }
         val e = Block(-1, h.pc, h.site)
@@ -106,20 +103,5 @@ internal object Licm {
         h.preds[k] = e
         h.loopEntry = e
         g.blocks.add(hi, e)
-    }
-
-    /** Whether [i] can neither run code of its own nor write anything (a slot through a shape aside). */
-    private fun clean(i: Inst, kinds: Kinds): Boolean = when (i.op) {
-        Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD, Op.EXP, Op.BAND, Op.BOR, Op.BXOR, Op.SHL, Op.SAR, Op.SHR,
-        Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC, Op.TO_NUMBER, Ir.MATH ->
-            i.inputs.all { JT.isNum(kinds.of(it)) }
-        // (a TDZ check throws, which leaves the loop: no write)
-        Op.SEQ, Op.SNE, Op.NOT, Op.LOAD_ENV, Op.LOAD_ENV_TDZ, Op.NEW_OBJECT_LITERAL, Ir.CONSTRUCT_RESULT -> true
-        // (a class's fields are defined by code)
-        Ir.NEW_THIS -> i.a == 0
-        Ir.CHECK_NUMBER, Ir.CHECK_INT32, Ir.CHECK_CLOSURE, Ir.LOAD_SLOT, Ir.LENGTH, Ir.LOAD_GLOBAL_LEX, Ir.LOAD_GLOBAL_SLOT,
-        Ir.STRESS_EXIT, Ir.CLOSURE_ENV, Ir.IS_CLOSURE, Ir.CHECK_INTRINSIC, Ir.INLINE_THIS, Ir.INLINE_ENTER, Ir.INLINE_EXIT, Ir.SET_HOME, Ir.GOTO, Ir.BRANCH,
-        Ir.SWITCH, Ir.RETURN -> true
-        else -> false
     }
 }

@@ -1,8 +1,5 @@
 package dev.mooner.neonjs.jit.opt
 
-import dev.mooner.neonjs.compiler.Op
-import dev.mooner.neonjs.jit.JT
-
 /**
  * What the shape checks established, used again (docs/OPTIMIZING_TIER.md, P4). A LOAD_SLOT, STORE_SLOT or ADD_SLOT past
  * its checks makes facts about its object: its shape (an ADD_SLOT's: the one it moved to), that it is extensible (an
@@ -24,103 +21,86 @@ internal object KnownShapes {
     const val EXTENSIBLE = 2
     const val CHAIN = 4
 
+    /** JavaScript's facts for [g] (with kinds [kinds]: which instructions keep them). */
+    fun rules(g: Graph, kinds: Kinds): FactRules = Rules(g, kinds)
+
+    /** What is known of an object: its shape, whether it is extensible, its prototypes' shapes. */
+    private data class Obj(val v: Value)
     private data class Fact(val shape: Any?, val extensible: Boolean, val chain: List<Any?>?)
     /** A slot's value: an own slot's by object and slot, a prototype's by the receiver, its shape and the prototypes'. */
     private data class Key(val obj: Value, val shape: Any?, val slot: Int, val chain: List<Any?>?)
-    private class Facts(
-        val objs: HashMap<Value, Fact> = HashMap(),
-        val loads: HashMap<Key, Value> = HashMap(),
-        val checks: HashMap<Pair<Int, Value>, Value> = HashMap(),
-    ) {
-        fun copy() = Facts(HashMap(objs), HashMap(loads), HashMap(checks))
-    }
+    /** A number check of a value: the check (CHECK_NUMBER or CHECK_INT32) and the value. */
+    private data class Check(val op: Int, val v: Value)
 
-    /**
-     * Applies the facts to [g]; [replace] puts a value held in place of a LOAD_SLOT or a number check (removed). Returns
-     * whether one was.
-     */
-    fun run(g: Graph, kinds: Kinds, replace: (Inst, Value) -> Unit): Boolean {
-        val out = HashMap<Block, Facts>()
-        // (replaced here, the builder resolves the uses after)
-        val sub = HashMap<Value, Value>()
-        fun r(v: Value): Value = sub[v] ?: v
-        fun drop(i: Inst, held: Value, it: MutableIterator<Inst>) {
-            replace(i, held)
-            sub[i] = held
-            it.remove()
-        }
-        for (b in g.blocks) {
-            val f = entry(b, out)
-            val it = b.insts.iterator()
-            while (it.hasNext()) {
-                val i = it.next()
-                when (i.op) {
-                    Ir.CHECK_NUMBER, Ir.CHECK_INT32 -> {
-                        val k = i.op to r(i.inputs[0])
-                        val held = f.checks[k]
-                        if (held != null) drop(i, held, it) else f.checks[k] = i
-                    }
-                    Ir.LOAD_SLOT, Ir.STORE_SLOT -> {
-                        val obj = r(i.inputs[0])
-                        val shape = g.data[i.a]
-                        val chain = chainOf(g, i.c)
-                        val key = Key(obj, if (chain == null) null else shape, i.b, chain)
-                        if (i.op == Ir.LOAD_SLOT) {
-                            // (the value read before, unless written since: also where the object's shape changed since
-                            // through an ADD_SLOT, which leaves the values; no check is made, so no fact either)
-                            val held = f.loads[key]
-                            if (held != null) {
-                                drop(i, held, it)
-                                continue
-                            }
-                        }
-                        val fact = f.objs[obj]
-                        val same = fact != null && fact.shape === shape
-                        var known = if (same) SHAPE else 0
-                        if (chain == null || (same && fact!!.chain == chain)) known = known or CHAIN
-                        mark(i, known, SHAPE or CHAIN)
-                        f.objs[obj] = Fact(shape, same && fact!!.extensible, chain ?: if (same) fact!!.chain else null)
-                        if (i.op == Ir.LOAD_SLOT) f.loads[key] = i
-                        else {
-                            // (another object written there may be this one)
-                            f.loads.keys.removeIf { k -> k.slot == i.b }
-                            f.loads[key] = r(i.inputs[1])
+    private class Rules(private val g: Graph, private val kinds: Kinds) : FactRules {
+        override fun transfer(i: Inst, facts: HashMap<Any, Any>, ctx: Facts.Ctx) {
+            fun objs(v: Value) = facts[Obj(v)] as Fact?
+            when (i.op) {
+                JsIr.CHECK_NUMBER, JsIr.CHECK_INT32 -> {
+                    val k = Check(i.op, ctx.r(i.inputs[0]))
+                    val held = facts[k]
+                    if (held != null) ctx.drop(held as Value) else facts[k] = i
+                }
+                JsIr.LOAD_SLOT, JsIr.STORE_SLOT -> {
+                    val obj = ctx.r(i.inputs[0])
+                    val shape = g.data[i.a]
+                    val chain = chainOf(g, i.c)
+                    val key = Key(obj, if (chain == null) null else shape, i.b, chain)
+                    if (i.op == JsIr.LOAD_SLOT) {
+                        // (the value read before, unless written since: also where the object's shape changed since
+                        // through an ADD_SLOT, which leaves the values; no check is made, so no fact either)
+                        val held = facts[key]
+                        if (held != null) {
+                            ctx.drop(held as Value)
+                            return
                         }
                     }
-                    Ir.ADD_SLOT -> {
-                        val obj = r(i.inputs[0])
-                        val shape = g.data[i.a]
-                        val chain = chainOf(g, i.c)
-                        val fact = f.objs[obj]
-                        val same = fact != null && fact.shape === shape
-                        var known = if (same) SHAPE else 0
-                        if (fact != null && fact.extensible) known = known or EXTENSIBLE
-                        if (chain == null || (same && fact!!.chain == chain)) known = known or CHAIN
-                        mark(i, known, SHAPE or EXTENSIBLE or CHAIN)
-                        // another object of that shape may be this one, and any other's prototypes may include it: then
-                        // the property added hides the one a prototype's slot held for its receivers
-                        f.objs.entries.removeIf { (k, v) -> k !== obj && v.shape === shape }
-                        for (e in f.objs.entries) if (e.value.chain != null) e.setValue(e.value.copy(chain = null))
-                        f.loads.keys.removeIf { k -> k.chain != null }
-                        val next = g.data[i.b] as dev.mooner.neonjs.runtime.Shape
-                        f.objs[obj] = Fact(next, true, chain)
-                        // (appended: the last slot of the shape it moved to)
-                        f.loads[Key(obj, null, next.size - 1, null)] = r(i.inputs[1])
-                    }
-                    // a new object: extensible (a class's field initializers run code, which may change that)
-                    Ir.NEW_THIS -> if (i.a == 0) f.objs[i] = Fact(null, true, null) else {
-                        f.objs.clear()
-                        f.loads.clear()
-                    }
-                    else -> if (!keeps(i, kinds)) {
-                        f.objs.clear()
-                        f.loads.clear()
+                    val fact = objs(obj)
+                    val same = fact != null && fact.shape === shape
+                    var known = if (same) SHAPE else 0
+                    if (chain == null || (same && fact!!.chain == chain)) known = known or CHAIN
+                    mark(i, known, SHAPE or CHAIN)
+                    facts[Obj(obj)] = Fact(shape, same && fact!!.extensible, chain ?: if (same) fact!!.chain else null)
+                    if (i.op == JsIr.LOAD_SLOT) facts[key] = i
+                    else {
+                        // (another object written there may be this one)
+                        facts.keys.removeIf { k -> k is Key && k.slot == i.b }
+                        facts[key] = ctx.r(i.inputs[1])
                     }
                 }
+                JsIr.ADD_SLOT -> {
+                    val obj = ctx.r(i.inputs[0])
+                    val shape = g.data[i.a]
+                    val chain = chainOf(g, i.c)
+                    val fact = objs(obj)
+                    val same = fact != null && fact.shape === shape
+                    var known = if (same) SHAPE else 0
+                    if (fact != null && fact.extensible) known = known or EXTENSIBLE
+                    if (chain == null || (same && fact!!.chain == chain)) known = known or CHAIN
+                    mark(i, known, SHAPE or EXTENSIBLE or CHAIN)
+                    // another object of that shape may be this one, and any other's prototypes may include it: then
+                    // the property added hides the one a prototype's slot held for its receivers
+                    facts.entries.removeIf { (k, v) -> k is Obj && k.v !== obj && (v as Fact).shape === shape }
+                    for (e in facts.entries) {
+                        val v = e.value
+                        if (e.key is Obj && (v as Fact).chain != null) e.setValue(v.copy(chain = null))
+                    }
+                    facts.keys.removeIf { k -> k is Key && k.chain != null }
+                    val next = g.data[i.b] as dev.mooner.neonjs.runtime.Shape
+                    facts[Obj(obj)] = Fact(next, true, chain)
+                    // (appended: the last slot of the shape it moved to)
+                    facts[Key(obj, null, next.size - 1, null)] = ctx.r(i.inputs[1])
+                }
+                // a new object: extensible (a class's field initializers run code, which may change that)
+                JsIr.NEW_THIS -> if (i.a == 0) facts[Obj(i)] = Fact(null, true, null) else forgetObjects(facts)
+                else -> if (!g.ops.keepsObjects(i, kinds)) forgetObjects(facts)
             }
-            out[b] = f
         }
-        return sub.isNotEmpty()
+    }
+
+    /** Something may change shapes or run code: what is known of objects goes (number checks stay). */
+    private fun forgetObjects(facts: HashMap<Any, Any>) {
+        facts.keys.removeIf { it is Obj || it is Key }
     }
 
     /** [i] needs no check of [known]; with all of [needed] known, it has no exit. */
@@ -131,31 +111,4 @@ internal object KnownShapes {
 
     /** The prototypes' shapes a check compares (the graph's data [c], an array), or null for none. */
     private fun chainOf(g: Graph, c: Int): List<Any?>? = if (c < 0) null else (g.data[c] as Array<*>).toList()
-
-    private fun entry(b: Block, out: Map<Block, Facts>): Facts {
-        if (b.catchEntry || b.preds.isEmpty()) return Facts()
-        val ins = b.preds.map { out[it] ?: return Facts() }
-        val f = ins[0].copy()
-        for (o in ins.subList(1, ins.size)) {
-            f.objs.entries.removeIf { (k, v) -> o.objs[k] != v }
-            f.loads.entries.removeIf { (k, v) -> o.loads[k] !== v }
-            f.checks.entries.removeIf { (k, v) -> o.checks[k] !== v }
-        }
-        return f
-    }
-
-    /** Whether [i] can neither run code nor change an object's shape (nor write a slot). */
-    private fun keeps(i: Inst, kinds: Kinds): Boolean = when (i.op) {
-        // numbers only: no valueOf
-        Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD, Op.EXP, Op.BAND, Op.BOR, Op.BXOR, Op.SHL, Op.SAR, Op.SHR,
-        Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC, Op.TO_NUMBER, Ir.MATH ->
-            i.inputs.all { JT.isNum(kinds.of(it)) }
-        // (a TDZ check throws: to a catch entry, which starts without facts)
-        Op.SEQ, Op.SNE, Op.NOT, Op.LOAD_ENV, Op.LOAD_ENV_TDZ, Op.STORE_ENV, Op.NEW_OBJECT, Op.NEW_ARRAY, Op.ARRAY_PUSH,
-        Op.ARRAY_HOLE, Op.NEW_OBJECT_LITERAL, Ir.CONSTRUCT_RESULT, Ir.PARAM, Ir.CHECK_TDZ, Ir.CHECK_NUMBER, Ir.CHECK_INT32,
-        Ir.CHECK_CLOSURE, Ir.LENGTH, Ir.LOAD_GLOBAL_LEX, Ir.LOAD_GLOBAL_SLOT, Ir.STRESS_EXIT, Ir.CLOSURE_ENV, Ir.IS_CLOSURE,
-        Ir.CHECK_INTRINSIC, Ir.INLINE_THIS, Ir.INLINE_ENTER, Ir.INLINE_EXIT, Ir.SET_HOME, Ir.LOAD_HOME, Ir.CATCH_VALUE,
-        Ir.GOTO, Ir.BRANCH, Ir.SWITCH -> true
-        else -> false
-    }
 }

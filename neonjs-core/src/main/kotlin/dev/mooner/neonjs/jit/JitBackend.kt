@@ -22,7 +22,41 @@ interface JitBackend {
  * (the optimizing tier on), the code's loops move to the tier's code once it is installed (JitInput.tierUp).
  */
 class ClassBackend(val definer: CodeDefiner, val tierUp: Boolean = false) : JitBackend {
-    override fun compile(blocks: List<CodeBlock>): List<CompiledCode?> = JvmCompiler.compileAll(blocks, definer, tierUp)
+    override fun compile(blocks: List<CodeBlock>): List<CompiledCode?> {
+        // blocks of other languages (CodeBlock.dialect): baselines of the optimizing tier's pipeline only, never T1's,
+        // which reads JavaScript's bytecode
+        if (blocks.any { it.dialect != null }) {
+            val out = arrayOfNulls<CompiledCode>(blocks.size)
+            val js = blocks.indices.filter { blocks[it].dialect == null }
+            val other = blocks.indices.filter { blocks[it].dialect != null }
+            if (js.isNotEmpty()) compile(js.map { blocks[it] }).forEachIndexed { k, c -> out[js[k]] = c }
+            if (other.isNotEmpty() && CodeDefiners.isUsable(definer)) {
+                val ir = dev.mooner.neonjs.jit.opt.T2.compileBaselines(other.map { blocks[it] }, definer, tierUp)
+                for ((k, i) in other.withIndex()) out[i] = ir[k]
+            }
+            return out.asList()
+        }
+        if (!dev.mooner.neonjs.jit.opt.T2.IR_BASELINE) {
+            val out = JvmCompiler.compileAll(blocks, definer, tierUp)
+            // generators and async functions, which the baseline compiler leaves: the optimizing tier's baselines
+            val rest = blocks.indices.filter { out[it] == null && dev.mooner.neonjs.jit.opt.T2.suspendable(blocks[it]) }
+            if (rest.isEmpty() || !CodeDefiners.isUsable(definer)) return out
+            val ir = dev.mooner.neonjs.jit.opt.T2.compileBaselines(rest.map { blocks[it] }, definer, tierUp)
+            return out.toMutableList().also { for ((j, i) in rest.withIndex()) it[i] = ir[j] }
+        }
+        // (testing) the optimizing tier's baselines, the baseline compiler's where it has none
+        val usable = CodeDefiners.isUsable(definer)
+        val ir = if (usable) dev.mooner.neonjs.jit.opt.T2.compileBaselines(blocks.filter { Jit.canCompile(it) }, definer, tierUp) else emptyList()
+        val out = arrayOfNulls<CompiledCode>(blocks.size)
+        var k = 0
+        for ((i, cb) in blocks.withIndex()) if (usable && Jit.canCompile(cb)) out[i] = ir[k++]
+        val rest = blocks.indices.filter { out[it] == null }
+        if (rest.isNotEmpty()) {
+            val t1 = JvmCompiler.compileAll(rest.map { blocks[it] }, definer, tierUp)
+            for ((j, i) in rest.withIndex()) out[i] = t1[j]
+        }
+        return out.asList()
+    }
 
     override fun equals(other: Any?): Boolean = other is ClassBackend && other.definer === definer && other.tierUp == tierUp
     override fun hashCode(): Int = System.identityHashCode(definer) * 31 + (if (tierUp) 1 else 0)

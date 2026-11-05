@@ -424,7 +424,7 @@ object JvmCompiler {
         argKinds: ByteArray? = null,
         /** Whether [JitInput.inlineSites] are compiled inlined. */
         inlining: Boolean = false,
-    ) : JvmEmitter(mv) {
+    ) : JvmEmitter(mv), JsEmit {
         val code = cb.code
         val labels = HashMap<Int, Label>()
         val handlerLabels = HashMap<Int, Label>()

@@ -698,7 +698,7 @@ class T2Test {
                             val cb: CodeBlock = (ctx.eval(n).raw as JSClosure).code
                             val g = IrBuilder(cb, ints = true, elems = true).build()
                             dev.mooner.neonjs.jit.opt.IrVerifier.verify(g)
-                            moved[n] = g.blocks.mapNotNull { it.loopEntry }.flatMap { e -> e.insts.map { dev.mooner.neonjs.jit.opt.Ir.name(it.op) } }
+                            moved[n] = g.blocks.mapNotNull { it.loopEntry }.flatMap { e -> e.insts.map { dev.mooner.neonjs.jit.opt.JsIr.name(it.op) } }
                             cb.baseline ?: JvmCompiler.compile(cb)!!.also { cb.baseline = it; cb.compiled = it }
                             Jit.install(cb, T2.compile(cb, CodeDefiners.default) ?: fail("$n not compiled"))
                         }

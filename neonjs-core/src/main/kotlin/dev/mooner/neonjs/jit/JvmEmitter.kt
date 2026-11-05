@@ -34,24 +34,15 @@ internal class JitClassWriter : org.objectweb.asm.ClassWriter(COMPUTE_FRAMES or 
 }
 
 /**
- * What the code generators of the JIT tiers emit alike: constants, `JitRt` calls, conversions of unboxed values, and
- * the helper call of every instruction whose operands are Objects on the JVM stack ([emitHelper]): the code an
- * instruction gets when nothing about it is specialized. [JvmCompiler]'s generator extends it, as does the optimizing
- * tier's, so that both call the runtime the same way.
+ * What every code generator of the JIT emits alike, whatever the language: JVM locals, constants, calls of the
+ * runtime's static helpers, the interrupt check of a loop's back edge. [JvmEmitter] is the base class of the
+ * generators; [JsEmit] adds what JavaScript's code needs.
  */
-internal abstract class JvmEmitter(@JvmField val mv: MethodVisitor) {
+interface Emit {
+    val mv: MethodVisitor
+
     /** [n] new JVM locals of the method being generated. */
-    abstract fun alloc(n: Int): Int
-
-    /** Pushes the constants array of the code the instruction belongs to (an inlined body's are its own). */
-    open fun consts() = mv.visitVarInsn(ALOAD, L_CONSTS)
-
-    /** The local holding the environment, or `this`, of the inlined body being generated; -1 elsewhere (the frame's). */
-    open fun inlinedEnv(): Int = -1
-    open fun inlinedThis(): Int = -1
-
-    /** Whether the instruction is in an inlined body (its calls record its position in Frame.inlinePc). */
-    open val inInlinedBody: Boolean get() = false
+    fun alloc(n: Int): Int
 
     fun temp(): Int = alloc(1)
 
@@ -70,24 +61,7 @@ internal abstract class JvmEmitter(@JvmField val mv: MethodVisitor) {
 
     fun frame() = mv.visitVarInsn(ALOAD, L_FRAME)
 
-    fun constant(k: Int) {
-        consts()
-        iconst(k)
-        mv.visitInsn(AALOAD)
-    }
-
     fun getstatic(owner: String, field: String, desc: String) = mv.visitFieldInsn(GETSTATIC, owner, field, desc)
-
-    fun pushUndefined() = getstatic("dev/mooner/neonjs/runtime/Undefined", "INSTANCE", "Ldev/mooner/neonjs/runtime/Undefined;")
-
-    fun returnIfTail() {
-        mv.visitInsn(DUP)
-        getstatic("dev/mooner/neonjs/vm/Interpreter", "TAIL", OBJ)
-        val cont = Label()
-        mv.visitJumpInsn(IF_ACMPNE, cont)
-        mv.visitInsn(ARETURN)
-        mv.visitLabel(cont)
-    }
 
     fun packArray(n: Int) {
         val temps = IntArray(n) { temp() }
@@ -102,6 +76,51 @@ internal abstract class JvmEmitter(@JvmField val mv: MethodVisitor) {
         }
     }
 
+    /** A loop back edge: counts down the interrupt budget (L_BUDGET) and checks for interrupts when it runs out. */
+    fun interruptCheck() {
+        val ok = Label()
+        mv.visitIincInsn(L_BUDGET, -1)
+        mv.visitVarInsn(ILOAD, L_BUDGET)
+        mv.visitJumpInsn(IFGT, ok)
+        mv.visitVarInsn(ALOAD, L_AGENT)
+        mv.visitMethodInsn(INVOKEVIRTUAL, "dev/mooner/neonjs/runtime/Agent", "checkInterrupt", "()V", false)
+        iconst(4096)
+        mv.visitVarInsn(ISTORE, L_BUDGET)
+        mv.visitLabel(ok)
+    }
+}
+
+/** A code generator's base: the method it writes ([mv]) and what [Emit] gives every generator. */
+abstract class JvmEmitter(final override val mv: MethodVisitor) : Emit
+
+/**
+ * What JavaScript's code generators emit alike: constants, conversions of unboxed values, and the helper call of
+ * every instruction whose operands are Objects on the JVM stack ([emitHelper]): the code an instruction gets when
+ * nothing about it is specialized. [JvmCompiler]'s generator implements it, as does the optimizing tier's for
+ * JavaScript, so that both call the runtime the same way.
+ */
+internal interface JsEmit : Emit {
+    /** Pushes the constants array of the code the instruction belongs to (an inlined body's are its own). */
+    fun consts() = mv.visitVarInsn(ALOAD, L_CONSTS)
+    /** The local holding the environment, or `this`, of the inlined body being generated; -1 elsewhere (the frame's). */
+    fun inlinedEnv(): Int = -1
+    fun inlinedThis(): Int = -1
+    /** Whether the instruction is in an inlined body (its calls record its position in Frame.inlinePc). */
+    val inInlinedBody: Boolean get() = false
+    fun constant(k: Int) {
+        consts()
+        iconst(k)
+        mv.visitInsn(AALOAD)
+    }
+    fun pushUndefined() = getstatic("dev/mooner/neonjs/runtime/Undefined", "INSTANCE", "Ldev/mooner/neonjs/runtime/Undefined;")
+    fun returnIfTail() {
+        mv.visitInsn(DUP)
+        getstatic("dev/mooner/neonjs/vm/Interpreter", "TAIL", OBJ)
+        val cont = Label()
+        mv.visitJumpInsn(IF_ACMPNE, cont)
+        mv.visitInsn(ARETURN)
+        mv.visitLabel(cont)
+    }
     fun box(kind: Byte) {
         when (kind) {
             JT.NUM -> mv.visitMethodInsn(INVOKESTATIC, "dev/mooner/neonjs/runtime/Ops", "num", "(D)$OBJ", false)
@@ -131,7 +150,6 @@ internal abstract class JvmEmitter(@JvmField val mv: MethodVisitor) {
         mv.visitTypeInsn(CHECKCAST, "java/lang/Double")
         mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Double", "doubleValue", "()D", false)
     }
-
     fun storeTemp(kind: Byte): Int = when (kind) {
         JT.NUM -> tempD().also { mv.visitVarInsn(DSTORE, it) }
         JT.BOOL, JT.INT -> temp().also { mv.visitVarInsn(ISTORE, it) }
@@ -139,7 +157,6 @@ internal abstract class JvmEmitter(@JvmField val mv: MethodVisitor) {
     }
 
     fun loadTemp(kind: Byte, t: Int) = mv.visitVarInsn(when (kind) { JT.NUM -> DLOAD; JT.BOOL, JT.INT -> ILOAD; else -> ALOAD }, t)
-
     fun compareDoubles(op: Int) {
         // NaN: DCMPG gives 1 (so < and <= are false), DCMPL -1 (so > and >= are false); == and != use DCMPL
         val (cmp, jump) = when (op) {
@@ -234,20 +251,6 @@ internal abstract class JvmEmitter(@JvmField val mv: MethodVisitor) {
             else -> rt("truthy", "($OBJ)Z")
         }
     }
-
-    /** A loop back edge: counts down the interrupt budget (L_BUDGET) and checks for interrupts when it runs out. */
-    fun interruptCheck() {
-        val ok = Label()
-        mv.visitIincInsn(L_BUDGET, -1)
-        mv.visitVarInsn(ILOAD, L_BUDGET)
-        mv.visitJumpInsn(IFGT, ok)
-        mv.visitVarInsn(ALOAD, L_AGENT)
-        mv.visitMethodInsn(INVOKEVIRTUAL, "dev/mooner/neonjs/runtime/Agent", "checkInterrupt", "()V", false)
-        iconst(4096)
-        mv.visitVarInsn(ISTORE, L_BUDGET)
-        mv.visitLabel(ok)
-    }
-
     /**
      * The code of instruction [op] at [pc] (operands [a], [b], [c]) whose operands are Objects on the JVM stack and whose
      * results are left there: a `JitRt` (or runtime) call. False, with nothing emitted, for the instructions every
@@ -461,11 +464,16 @@ internal abstract class JvmEmitter(@JvmField val mv: MethodVisitor) {
             Op.STATIC_PRIVATE_METHOD -> { iconst(a); rt("staticPrivateMethod", "($OBJ$OBJ${OBJ}I)V") }
             Op.RUN_FIELD -> { frame(); iconst(pc); rt("runField", "($OBJ$OBJ$OBJ${FRAME_D}I)V") }
             Op.GET_ITERATOR -> { frame(); rt("getIterator", "($OBJ$FRAME_D)$OBJ") }
+            Op.GET_ASYNC_ITERATOR -> { frame(); rt("getAsyncIterator", "($OBJ$FRAME_D)$OBJ") }
             Op.FOR_IN_START -> { frame(); rt("forInStart", "($OBJ$FRAME_D)$OBJ") }
             Op.DEBUGGER -> { frame(); rt("debugger", "($FRAME_D)V") }
             Op.DISPOSE_NEW -> rt("disposeNew", "()$OBJ")
+            Op.RESUME_MODE -> { frame(); rt("resumeMode", "($FRAME_D)$OBJ") }
             Op.ADD_DISPOSABLE -> { iconst(a); frame(); rt("addDisposable", "($OBJ${OBJ}I$FRAME_D)V") }
             Op.DISPOSE_SYNC -> { frame(); rt("disposeSync", "($OBJ$OBJ$OBJ$FRAME_D)V") }
+            Op.DISPOSE_BEGIN -> { frame(); rt("disposeBegin", "($OBJ$OBJ$OBJ$FRAME_D)$OBJ") }
+            Op.DISPOSE_AWAITED -> rt("disposeAwaited", "($OBJ$OBJ$OBJ)V")
+            Op.DISPOSE_END -> rt("disposeEnd", "($OBJ)V")
             Op.TEMPLATE_OBJECT -> { frame(); consts(); iconst(a); rt("templateObject", "($FRAME_D${CONSTS_D}I)$OBJ") }
             Op.NEW_REGEXP -> { frame(); consts(); iconst(a); rt("newRegExp", "($FRAME_D${CONSTS_D}I)$OBJ") }
             Op.IMPORT_META -> { frame(); rt("importMeta", "($FRAME_D)$OBJ") }

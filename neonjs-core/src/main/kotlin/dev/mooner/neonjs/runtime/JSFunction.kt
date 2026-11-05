@@ -33,7 +33,7 @@ fun interface NativeImpl {
 }
 
 /**
- * The Math functions the optimizing tier computes in place (jit/opt: Ir.MATH): ids of [NativeFunction.intrinsic], each
+ * The Math functions the optimizing tier computes in place (jit/opt: JsIr.MATH): ids of [NativeFunction.intrinsic], each
  * computed with the Java method its builtin calls.
  */
 object MathIntrinsic {
@@ -49,7 +49,7 @@ object MathIntrinsic {
     const val CEIL = 10
     const val ATAN2 = 11
     const val POW = 12
-    /** String.prototype.charCodeAt (Ir.CHAR_CODE: a string's code unit in place, the builtin's steps otherwise). */
+    /** String.prototype.charCodeAt (JsIr.CHAR_CODE: a string's code unit in place, the builtin's steps otherwise). */
     const val CHAR_CODE_AT = 13
     const val ROUND = 14
     const val TRUNC = 15

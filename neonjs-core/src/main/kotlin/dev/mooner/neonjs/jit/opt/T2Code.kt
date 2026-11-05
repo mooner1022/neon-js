@@ -18,6 +18,8 @@ abstract class T2Code(@JvmField val data: Array<Any?>, @JvmField val block: Code
     @JvmField var reverted = false
     /** The definer the code came from, which its block's next compilation uses. */
     @JvmField var definer: dev.mooner.neonjs.jit.CodeDefiner? = null
+    /** How an exit continues in the interpreter (the block's language's: T2.compile sets it). */
+    @JvmField var resumer: Resumer = Resumer.JS
     /** The loop headers the code can be entered at by on-stack replacement, sorted. */
     @JvmField var osrPcs: IntArray = IntArray(0)
 
@@ -65,8 +67,23 @@ abstract class T2Code(@JvmField val data: Array<Any?>, @JvmField val block: Code
                 if (++b.t2Recompiles > RECOMPILES) b.t2Off = true
                 else code.definer?.let { T2.submit(b, it, f.realm.agent.config.backgroundJit) }
             }
-            return Deopt.resume(f, pc, values, inner as Deopt.Inlined?)
+            return code.resumer.resume(f, pc, values, inner)
         }
+    }
+}
+
+/**
+ * How an exit of the optimizing tier's code continues the activation in its language's interpreter: [f], the frame the
+ * code runs, at [pc] with [values] (its registers, then its operand stack), the calls compiled inlined around the exit
+ * in [inner] (the language's records, innermost first, as its code generator made them). Returns the frame's result,
+ * or JitRt.DEOPTED for a frame the interpreter gave the code (on-stack replacement), which goes on with it.
+ */
+fun interface Resumer {
+    fun resume(f: Frame, pc: Int, values: Array<Any?>, inner: Any?): Any?
+
+    companion object {
+        /** JavaScript's: Deopt.resume, its records Deopt.Inlined. */
+        @JvmField val JS = Resumer { f, pc, values, inner -> Deopt.resume(f, pc, values, inner as Deopt.Inlined?) }
     }
 }
 

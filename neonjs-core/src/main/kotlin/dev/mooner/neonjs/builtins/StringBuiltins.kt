@@ -87,7 +87,7 @@ internal object StringBuiltins {
         return true
     }
 
-    /** String.prototype.charCodeAt's steps on `this` [t] (the optimizing tier's Ir.CHAR_CODE outside its fast path too). */
+    /** String.prototype.charCodeAt's steps on `this` [t] (the optimizing tier's JsIr.CHAR_CODE outside its fast path too). */
     @JvmStatic
     fun charCodeAt(t: Any?, pos: Any?): Double {
         val s = thisStr(t, "charCodeAt")

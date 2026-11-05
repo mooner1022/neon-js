@@ -9,13 +9,33 @@ import dev.mooner.neonjs.jit.JT
  * whose instructions are in SSA form. A [Value] is defined once: a constant, a parameter, a phi at the start of a
  * block, or an instruction's result.
  */
-class Graph(@JvmField val code: CodeBlock) {
+class Graph(
+    @JvmField val code: CodeBlock,
+    /** What the passes know of the graph's operations, and the kinds of its values. */
+    @JvmField val ops: OpTable,
+    @JvmField val kindSystem: KindSystem,
+    /** What the interpreter holds in a register it writes before reading it (a dead one), as exits pass it. */
+    @JvmField val deadValue: Any?,
+    /** The language: its builder and code generator. */
+    @JvmField val dialect: Dialect,
+) {
     /** Blocks in reverse post order; the first is the entry. */
     @JvmField val blocks = ArrayList<Block>()
     /** The loop headers the generated code can be entered at (IrCodegen's on-stack replacement entries), sorted. */
     @JvmField var osrPcs = IntArray(0)
     /** Objects the code needs at run time (T2Code.data), each once. */
     @JvmField val data = ArrayList<Any?>()
+    /**
+     * Whether the code's frames are interpreted ones from their start (a generator's, an async function's: they suspend):
+     * the entry dispatch sends pc 0 to the start, never to a loop header there (Ir.SUSPEND).
+     */
+    @JvmField var startsInterpreted = false
+    /**
+     * For a baseline (T2.compileBaselines) compiled with the tier on: at a loop back edge whose budget ran out, the code
+     * looks for a later version of its block's code (the tier's) with an entry at that header, and goes on there
+     * (Deopt.tierUp), as the baseline compiler's code does (JitInput.tierUp).
+     */
+    @JvmField var tierUp = false
     /** Whether a loop was copied on a closure test (Unswitch): T2 builds the graph again without that where it is too large. */
     @JvmField var unswitched = false
 
@@ -67,6 +87,12 @@ class Block(@JvmField var id: Int, @JvmField val pc: Int, @JvmField val site: In
      */
     @JvmField var handler: Block? = null
     @JvmField var catchEntry = false
+    /**
+     * Where a suspended activation (a generator's, an async function's) resumes, at its [pc]: entered only by the code's
+     * entry dispatch, its registers and operand stack read from the frame (Ir.RESUME_SLOT); its one predecessor ends
+     * with the SUSPEND that leaves the code.
+     */
+    @JvmField var resumeEntry = false
 
     val term: Inst get() = insts.last()
 
@@ -79,7 +105,7 @@ class Block(@JvmField var id: Int, @JvmField val pc: Int, @JvmField val site: In
 /** An SSA value; [kind] (a [JT] kind) is how generated code holds it: a `double`, an `int`, a boolean `int` or an Object. */
 abstract class Value {
     @JvmField var id = -1
-    @JvmField var kind: Byte = JT.ANY
+    @JvmField var kind: Byte = ANY_KIND
 }
 
 /**
@@ -153,22 +179,19 @@ class Inst(
 class FrameState(@JvmField val pc: Int, @JvmField val values: Array<Value>, @JvmField val site: InlineSite? = null)
 
 /**
- * A call compiled inlined: the callee's [code], the CALL at [callPc] in its caller (the body of [parent], or the
+ * A call compiled inlined: the callee's [code], the call at [callPc] in its caller (the body of [parent], or the
  * function compiled), the caller's state at that call ([callerState]: its registers and the stack below the call's
- * operands), and what a frame of the callee holds: the closure [fn], `this` as the call binds it ([thisValue]; undefined
- * where the callee does not read it), the arguments, the environment.
+ * operands), and what a frame of the callee holds as its language lays it out ([frame]: JavaScript's closure, `this`
+ * as the call binds it, the arguments, the environment), which an exit inside the body passes to the interpreter, in
+ * that order. [flags] are the language's facts about the call (JavaScript's: a construction).
  */
 class InlineSite(
     @JvmField val parent: InlineSite?,
     @JvmField val code: CodeBlock,
     @JvmField val callPc: Int,
     @JvmField val callerState: FrameState,
-    @JvmField var fn: Value,
-    @JvmField var thisValue: Value,
-    @JvmField val args: Array<Value>,
-    @JvmField var env: Value,
-    /** A construction (`new`): [thisValue] is the object made for it (Ir.NEW_THIS), its result that unless the body returns an object. */
-    @JvmField val construct: Boolean = false,
+    @JvmField val frame: Array<Value>,
+    @JvmField val flags: Int = 0,
 ) {
     /** 1 for a call in the function compiled, 2 for a call in that callee's body, and so on. */
     @JvmField val depth: Int = (parent?.depth ?: 0) + 1
@@ -181,22 +204,24 @@ class InlineSite(
         var s: InlineSite? = this
         while (s != null) {
             out.addAll(s.callerState.values)
-            out.add(s.fn)
-            out.add(s.thisValue)
-            out.addAll(s.args)
-            out.add(s.env)
+            out.addAll(s.frame)
             s = s.parent
         }
         return out
     }
+
+    /** Puts [f]'s value in place of each value of the frame (a pass replacing values). */
+    fun mapFrame(f: (Value) -> Value) {
+        for (k in frame.indices) frame[k] = f(frame[k])
+    }
 }
 
-/** The operations of the IR that are not bytecode instructions, and facts about all of them. */
+/**
+ * The operations of the IR that every language's graphs have (docs/IR_NEUTRALITY.md): terminators, exception handlers'
+ * homes, the records and guards of calls compiled inlined, the stress mode's exits. A language's own operations are
+ * its bytecode's (below 1000) and those its builder makes (from 2000: JavaScript's are [JsIr]).
+ */
 object Ir {
-    /** (no inputs) a parameter: [Inst.a] is its index. */
-    const val PARAM = 1000
-    /** (value) a TDZ check of a register's value: ReferenceError if uninitialized, [Inst.a] the name's constant. */
-    const val CHECK_TDZ = 1001
     /** The deopt stress mode's exit (JvmCompiler.DEOPT_STRESS), taken one time in N, to its [Inst.state]. */
     const val STRESS_EXIT = 1002
     /**
@@ -208,25 +233,6 @@ object Ir {
     const val INLINE_ENTER = 1004
     const val INLINE_EXIT = 1005
     /**
-     * (fn, this) `this` as a call of fn binds it (JitRt.inlineThis), [Inst.a] 1 where that is the value given or the
-     * closure's own (strict code, arrows: nothing allocated, LICM may move it); (fn) its environment.
-     */
-    const val INLINE_THIS = 1006
-    const val CLOSURE_ENV = 1007
-    /**
-     * (value) the value as a number (CHECK_NUMBER, a double) or an int32 (CHECK_INT32, not -0), where the profile only
-     * saw such values: anything else exits to [Inst.state], after the instruction that produced it.
-     */
-    const val CHECK_NUMBER = 1008
-    const val CHECK_INT32 = 1009
-    /**
-     * (obj) a property read through the shapes a monomorphic cache saw: [Inst.a] indexes the receiver's shape in the
-     * graph's data, [Inst.c] the shapes of the prototypes up to the holder (or -1: an own property), [Inst.b] the slot.
-     * (obj, value) STORE_SLOT writes an own property so. Another shape exits to [Inst.state], before the instruction.
-     */
-    const val LOAD_SLOT = 1010
-    const val STORE_SLOT = 1011
-    /**
      * Exception handlers: CATCH_VALUE, the first instruction of a catch entry, is the caught exception's value
      * (JitRt.catchValue); SET_HOME(value) keeps register [Inst.a]'s value where a handler reads it when an exception
      * comes (LOAD_HOME, in the catch entry): each register a handler may read is set at the start of every block a range
@@ -236,58 +242,12 @@ object Ir {
     const val SET_HOME = 1013
     const val LOAD_HOME = 1014
     /**
-     * (no inputs) a global variable read through the entry its site's cache held (GlobalCache.load): LOAD_GLOBAL_LEX
-     * reads a lexical binding, [Inst.a] indexing the global environment's token in the graph's data and [Inst.b] being
-     * the binding's index; LOAD_GLOBAL_SLOT reads a data property of the global object, [Inst.a] indexing its shape,
-     * [Inst.b] being the slot and [Inst.c] the environment's lexical epoch. Anything else (another realm, a binding
-     * not initialized, another shape or epoch) exits to [Inst.state], before the instruction.
-     */
-    const val LOAD_GLOBAL_LEX = 1015
-    const val LOAD_GLOBAL_SLOT = 1016
-    /**
      * (fn) whether fn is a closure of the code block [Inst.a] indexes in the graph's data, in the frame's realm (as
      * CHECK_CLOSURE tests, without an exit): a call inlined where its guard failed before branches on it to a call made
      * as a call instead (IrBuilder.inline); [Inst.b] 1 marks a site built so tentatively (Unswitch), [Inst.state] being
      * its guard's.
      */
     const val IS_CLOSURE = 1017
-    /**
-     * (fn) the guard of a builtin computed in place: unless fn is a builtin of intrinsic [Inst.a] (NativeFunction.
-     * intrinsic), an exit to [Inst.state], before the CALL. (args) MATH: that builtin's result, a double, as its Java
-     * method computes it (MathIntrinsic), the arguments taken to numbers first.
-     */
-    const val CHECK_INTRINSIC = 1018
-    const val MATH = 1019
-    /**
-     * (obj, value) a property added through the transition a monomorphic cache saw (PropCache.ADD): the receiver's shape
-     * [Inst.a] (data index), the prototypes' [Inst.c] (or -1), then the map moves to shape [Inst.b] with the value
-     * appended (PropertyMap.addTransition); another shape, a prototype's, or an object not extensible exits to
-     * [Inst.state], before the instruction.
-     */
-    const val ADD_SLOT = 1020
-    /**
-     * (obj) `obj.length` where the profile saw int32s: an array's (its length an int32) or a string's; anything else
-     * exits to [Inst.state], before the instruction.
-     */
-    const val LENGTH = 1021
-    /**
-     * (fn) the object a construction (`new`) of fn compiled inlined gives its body as `this` (JitRt.newThis), [Inst.a]
-     * 1 for a class constructor (its fields are defined first: code runs); (value, obj) CONSTRUCT_RESULT, the result of
-     * such a body's return: the value where it is an object, else obj.
-     */
-    const val NEW_THIS = 1022
-    const val CONSTRUCT_RESULT = 1023
-    /**
-     * (pair) element [Inst.a] of the Object[] a helper returned for two values: MAKE_CLASS's (whose own result is that
-     * pair) prototype, then constructor.
-     */
-    const val PART = 1024
-    /**
-     * (string, index) `string.charCodeAt(index)` behind CHECK_INTRINSIC (MathIntrinsic.CHAR_CODE_AT), a double: a JS
-     * string's code unit at an int index in place, NaN past its ends; anything else through the builtin's steps
-     * (StringBuiltins.charCodeAt: `this` made a string, which may run code).
-     */
-    const val CHAR_CODE = 1025
     /** Terminators. GOTO; BRANCH(value): [Inst.a] is the bytecode jump tested (JUMP_IF_TRUE and the like). */
     const val GOTO = 1100
     const val BRANCH = 1101
@@ -298,47 +258,39 @@ object Ir {
     /** SWITCH(index) the finally dispatch (JUMP_TABLE): to target k for index k, else to the last. */
     const val SWITCH = 1105
 
-    fun isTerminator(op: Int) = op >= GOTO
-
+    /** The core's operations are from 1000 to 1999. */
     /**
-     * The arithmetic that gives an int of int inputs where the builder gave it a state (Kinds): an exit to that state,
-     * before the instruction, where the result is not an int32 (or is -0).
+     * (value?) leaves the code, its activation suspended (a generator's yield, an async function's await): the
+     * interpreter's state at the pc it resumes at ([Inst.state]) and the value it hands over are written to the frame
+     * (the language's suspension, [Inst.a] its kind), and the code returns the interpreter's SUSPENDED. Its target is
+     * the block where the activation resumes ([Block.resumeEntry]), which the code's entry dispatch enters.
      */
-    fun intArith(op: Int) = op == Op.ADD || op == Op.SUB || op == Op.MUL || op == Op.MOD || op == Op.INC || op == Op.DEC || op == Op.NEG
+    const val SUSPEND = 1106
+    /** (no inputs) slot [Inst.a] of the frame (a register, or the operand stack past them), where it resumes. */
+    const val RESUME_SLOT = 1026
 
+    fun isCore(op: Int) = op in 1000..1999
+
+    fun isTerminator(op: Int) = op in GOTO..1999
+
+    /** A core operation's name; "op<n>" for another (a language's: its op table names them). */
     fun name(op: Int): String = when (op) {
-        PARAM -> "Param"
-        CHECK_TDZ -> "CheckTdz"
         STRESS_EXIT -> "StressExit"
         CHECK_CLOSURE -> "CheckClosure"
         INLINE_ENTER -> "InlineEnter"
         INLINE_EXIT -> "InlineExit"
-        INLINE_THIS -> "InlineThis"
-        CLOSURE_ENV -> "ClosureEnv"
-        CHECK_NUMBER -> "CheckNumber"
-        CHECK_INT32 -> "CheckInt32"
-        LOAD_SLOT -> "LoadSlot"
-        STORE_SLOT -> "StoreSlot"
         CATCH_VALUE -> "CatchValue"
         SET_HOME -> "SetHome"
         LOAD_HOME -> "LoadHome"
-        LOAD_GLOBAL_LEX -> "LoadGlobalLex"
-        LOAD_GLOBAL_SLOT -> "LoadGlobalSlot"
         IS_CLOSURE -> "IsClosure"
-        CHECK_INTRINSIC -> "CheckIntrinsic"
-        MATH -> "Math"
-        ADD_SLOT -> "AddSlot"
-        LENGTH -> "Length"
-        NEW_THIS -> "NewThis"
-        CONSTRUCT_RESULT -> "ConstructResult"
-        PART -> "Part"
-        CHAR_CODE -> "CharCode"
-        SWITCH -> "Switch"
         GOTO -> "Goto"
         BRANCH -> "Branch"
         RETURN -> "Return"
         THROW -> "Throw"
         THROW_ERROR -> "ThrowError"
-        else -> Op.names[op]
+        SWITCH -> "Switch"
+        SUSPEND -> "Suspend"
+        RESUME_SLOT -> "ResumeSlot"
+        else -> "op$op"
     }
 }

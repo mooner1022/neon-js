@@ -18,6 +18,8 @@ dependencies {
     implementation(project(":neonjs-android"))
     // class files with missing types for AndroidCheck (also a dependency of neonjs-core)
     implementation("org.ow2.asm:asm:9.9.1")
+    // ClassDiff: classes dumped by the JIT, as text
+    implementation("org.ow2.asm:asm-util:9.9.1")
     d8Runtime(project(":neonjs-android-d8"))
 }
 

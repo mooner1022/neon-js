@@ -181,7 +181,57 @@ object Interpreter {
 
     /** Runs a frame with realm / depth bookkeeping. */
     @JvmStatic
-    fun execute(f: Frame): Any? = execute(f, if (f.isCompiled) f.code.compiled as dev.mooner.neonjs.jit.CompiledCode else null)
+    fun execute(f: Frame): Any? {
+        if (!f.isCompiled) {
+            // a generator's or an async function's frame (interpreted, as it suspends) whose code is compiled: it starts
+            // or resumes there (docs/IR_NEUTRALITY.md, step 7)
+            val c = f.code.compiled
+            if (c != null && f.code.flags and (CodeBlock.GENERATOR or CodeBlock.ASYNC) != 0) {
+                return executeSuspendable(f, c as dev.mooner.neonjs.jit.CompiledCode)
+            }
+        }
+        return execute(f, if (f.isCompiled) f.code.compiled as dev.mooner.neonjs.jit.CompiledCode else null)
+    }
+
+    /**
+     * As [execute] for interpreted frame [f] of code that suspends, with its compiled code [c]: entered where the frame is
+     * (its start, or where it suspended), as on-stack replacement enters a loop; where the code has no entry there or
+     * deoptimizes, the interpreter goes on with the frame.
+     */
+    private fun executeSuspendable(f: Frame, c: dev.mooner.neonjs.jit.CompiledCode): Any? {
+        val agent = f.realm.agent
+        val prevRealm = agent.currentRealm
+        val prevTop = agent.topFrame
+        // (as runFrame: the depth limit and the interrupt budget of a call)
+        if (++agent.depth > agent.maxDepth) {
+            agent.depth--
+            throw JSException.rangeError("Maximum call stack size exceeded")
+        }
+        if (--agent.callBudget < 0) {
+            agent.callBudget = 1024
+            try {
+                agent.checkInterrupt()
+            } catch (t: Throwable) {
+                agent.depth--
+                throw t
+            }
+        }
+        agent.currentRealm = f.realm
+        f.parent = prevTop
+        agent.topFrame = f
+        try {
+            val r = try {
+                c.run(f)
+            } catch (e: Throwable) {
+                throw dev.mooner.neonjs.jit.JitRt.leaveCompiled(e, f)
+            }
+            return if (r === dev.mooner.neonjs.jit.JitRt.NO_OSR || r === dev.mooner.neonjs.jit.JitRt.DEOPTED) run(f) else r
+        } finally {
+            agent.depth--
+            agent.topFrame = prevTop
+            agent.currentRealm = prevRealm
+        }
+    }
 
     /** As [execute] with [f]'s compiled code, the code it was made with (null: interpret it). */
     @JvmStatic

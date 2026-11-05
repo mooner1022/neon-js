@@ -3,8 +3,16 @@ package dev.mooner.neonjs.vm
 import dev.mooner.neonjs.compiler.CodeBlock
 import dev.mooner.neonjs.runtime.*
 
-/** Activation record of an interpreted function, script or eval. Registers and operand stack share [slots]. */
-class Frame(
+/**
+ * Activation record of an interpreted function, script or eval. Registers and operand stack share [slots].
+ *
+ * Open for other languages' frames (docs/IR_NEUTRALITY.md): the optimizing tier's core reads only [code] (its
+ * constants), [realm] (its agent: limits and interrupts), [args] (where a language's parameters come from), [slots],
+ * [sp] and [pc] (an interpreted frame: on-stack replacement, resumption, exits), [inlinePc], and the records of calls
+ * compiled inlined that its language keeps; [fn], [thisValue], [newTarget] and [env] are JavaScript's (null where a
+ * language has none), and a language's own state goes in a subclass.
+ */
+open class Frame(
     @JvmField var fn: JSClosure?,
     @JvmField var code: CodeBlock,
     @JvmField var realm: Realm,
