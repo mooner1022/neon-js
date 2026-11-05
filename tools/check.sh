@@ -59,7 +59,7 @@ stress_modes() {
   t262 "adaptive, t2Stress + deoptStress + osrStress" "-Dneonjs.jit.t2Stress -Dneonjs.jit.deoptStress -Dneonjs.jit.osrStress" --mode adaptive "${scope[@]}"
   # the optimizing tier's baselines (a language without a baseline compiler of its own): no exit may be taken
   NO_EXITS=1 t262 "compiled, irBaseline" "-Dneonjs.jit.irBaseline" --mode compiled "${scope[@]}"
-  t262 "adaptive, irBaseline + t2Stress + deoptStress" "-Dneonjs.jit.irBaseline -Dneonjs.jit.t2Stress -Dneonjs.jit.deoptStress" --mode adaptive "${scope[@]}"
+  t262 "adaptive, irBaseline + t2/deopt/osrStress" "-Dneonjs.jit.irBaseline -Dneonjs.jit.t2Stress -Dneonjs.jit.deoptStress -Dneonjs.jit.osrStress" --mode adaptive "${scope[@]}"
 }
 
 quick() {

@@ -30,7 +30,8 @@ same ones in every run, spread over every directory. Each runs in
 - compiled mode with `irBaseline` (every baseline made by the optimizing tier's pipeline without speculations, T1's
   only where it has none: what a language without a compiler of its own runs, docs/IR_NEUTRALITY.md §5), which must
   take no exit at all;
-- adaptive mode with `irBaseline`, `t2Stress` and `deoptStress` (the tier's speculating code over those baselines).
+- adaptive mode with `irBaseline`, `t2Stress`, `deoptStress` and `osrStress` (the tier's speculating code over those
+  baselines, loops entered in both).
 
 The modes are the ones docs/OPTIMIZING_TIER.md requires before a push, and the baseline modes; the sample keeps them to
 10–40 seconds each.
