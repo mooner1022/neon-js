@@ -573,6 +573,21 @@ B4 (pc 15) <- B3
 Tests: every program also runs adaptive with the tier on; `speculation.py` passes 2**63 in a loop (the exit, the
 failure noted, the speculating code installed).
 
+Speed, ms: medians of 5 runs in one JVM (two such runs), each run a new `PyContext` compiling its code again on the
+calling thread (`jitThreshold` 2, `backgroundJit` off), so compilation is counted. HotSpot 25, Ryzen 7 9800X3D,
+Windows 11; CPython 3.14.6 on the same machine, each program exec'd in its process 5 times. (§10.1's figures came from
+another machine.)
+
+| program | interpreted | compiled | adaptive | adaptive, tier on | CPython 3.14 |
+|---|---|---|---|---|---|
+| `fib(27)` | 79–85 (37–126) | 12–16 | 12–13 | 16–17 | 15–16 |
+| a `while` loop of 3M iterations | 113–127 | 18 | 17–18 | 10 | 66 |
+| primes below 200K (nested loops) | 343–345 | 66–67 | 65–67 | 31 | 203 |
+
+Speculating code about halves the loops (no boxes, no runtime calls for their arithmetic and comparisons): about 6.5
+times CPython's speed there. `fib` gains nothing: calls are most of its time (§10.1), and its 4 ms more are the
+tier's compilation (the same 4 ms at `fib(30)`, 44 → 48, and at `fib(32)`, 114 → 118).
+
 Known limits: the deopt stress mode (`-Dneonjs.jit.deoptStress`) adds no exits to NeonPy's code (`PyBuilder` ignores
 it), so its exit path is tested by real exits only (overflows, other types); no inlining of calls yet. (Generated
 classes are defined in the dialect's class loader, which sees NeonPy's runtime: docs/IR_NEUTRALITY.md §10.)
