@@ -434,6 +434,75 @@ Consequences for the plan above: §5.2's comparison is settled (our own runtime;
 order starts with the IR split (docs/IR_NEUTRALITY.md §6) instead of S0's split sketch; W1 includes the JS API; Y3
 "T2 generic" is the neutral pipeline's baseline mode (no T1 for Python: docs/IR_NEUTRALITY.md §5).
 
+## 10. Representations and the first slice
+
+Decided before any code, since they are the expensive ones to change:
+
+| Python | on the JVM | why |
+|---|---|---|
+| `int` | `java.lang.Long`, `java.math.BigInteger` past 64 bits (normalized back where it fits) | the kind system's `Rep.LONG` holds the small ones unboxed; arithmetic is `Math.*Exact`, an overflow giving a BigInteger (an exit, in speculating code) |
+| `float` | `java.lang.Double` | `Rep.DOUBLE` |
+| `bool` | `PyBool.TRUE` / `PyBool.FALSE` | a subclass of int (`True + 1 == 2`): never `java.lang.Boolean`, whose meaning is JavaScript's |
+| `None` | `PyNone` | |
+| `str` | `PyStr` (a `String` and whether it is all in the BMP: indexing by code point stays O(1) there) | Python indexes by code point, JavaScript's strings by UTF-16 unit: never a bare `String` |
+| `list`, `tuple`, `dict` | `PyList` (an ArrayList), `PyTuple` (an array), `PyDict` (insertion-ordered, keys by Python's equality: `1 == 1.0 == True`) | |
+| function | `PyFunction` (its code block, the globals of its module; defaults later) | |
+| code | a `CodeBlock` whose `dialect` is Python's (`PyDialect`): the optimizing tier's core compiles it (docs/IR_NEUTRALITY.md), never T1 | |
+| frame | `PyFrame : Frame` (its `PyContext` and globals; `fn`, `thisValue`, `newTarget`, `env` null) | `Frame` is open for this |
+| a local without a value | `Undefined`, the core's dead value (`Frame` starts registers with it): `LOAD_FAST_CHECK` raises the UnboundLocalError | one value for the interpreter, exits and on-stack replacement |
+
+`CodeBlock.flags`' GENERATOR, ASYNC and NO_JIT bits mean the same for every language (the core reads them).
+
+The first slice proves the platform: source → tokenizer → parser → compiler → a code block of Python's bytecode →
+Python's interpreter → the core's baselines through the JIT's own tiering (`Jit.prepare`) → the same results. Its
+language: `def` with positional parameters, `return`, `if`/`elif`/`else`, `while`, `for` over `range` and lists,
+`break`/`continue`, assignment and augmented assignment, int/float/str/bool/None, arithmetic and comparisons, `and`,
+`or`, `not`, list/tuple/dict literals, indexing, calls, `print`, `len`, `range`. Then, layer by layer, the rest of §3.
+
+### 10.1 The first slice (done, 2026-11-05)
+
+Module `neonjs-python` (package `dev.mooner.neonjs.python`), on the core's language interface (docs/IR_NEUTRALITY.md):
+
+| layer | file | what |
+|---|---|---|
+| values | `PyValues.kt` | the table above, `PyRange`, `PyIterator`, `PyException` (type, message, line) |
+| runtime | `PyRt.kt`, `PyBuiltins.kt` | each operation's meaning, once, for the interpreter and compiled code alike; `print`, `len`, `range`, `str`, `repr`, `int`, `float`, `bool`, `abs`, `min`, `max`, `sum`, `list`, `tuple`; list, dict and str methods |
+| front end | `PyLexer.kt`, `PyParser.kt` | Python's tokens (INDENT/DEDENT, ints of any size, strings and their escapes); a recursive-descent parser of the slice's grammar (CPython's precedence); what is not supported yet is a SyntaxError saying so |
+| compiler | `PyCompiler.kt`, `PyOp.kt` | a code block per module and function: registers for locals (parameters first) and temporaries, an operand stack empty at every statement; `LOAD_FAST_CHECK` where a local may have no value (a dataflow pass, as CPython's compiler does); the line table; `PyCodeInfo` in `CodeBlock.dialectData` |
+| interpreter | `PyInterpreter.kt` | `PyContext` (output, builtins, the core's agent and realm), `PyFrame`, the dispatch loop; calls through `Jit.prepare`, back edges through `Jit.loop`/`Jit.osr` |
+| dialect | `PyDialect.kt` | `PyBuilder` (the core's `GraphBuilder`), `PyOps`, `PyKinds` (Objects, and bools as JVM ints for branches), `PyCodegen` (calls of `PyRt`), the resumer |
+
+What the core needed (beyond docs/IR_NEUTRALITY.md's steps): blocks of another language go to the tier's pipeline
+(`Jit.canCompile`, `ClassBackend`, `T2.submit`), never to T1; the language interface public (`Dialect`, `Graph`,
+`GraphBuilder`, `IrCodegen`, `KindSystem`, `OpTable`, `Emit`, `JvmEmitter`, `Kinds`, `Facts`), marked as no stable
+API; `CodeBlock.dialectData`; a graph's identity (the shared baselines' cache) includes its dialect.
+
+Tests (`neonjs-python`, in `tools/check.sh quick`): eleven programs whose expected output CPython 3.14 recorded
+(`src/test/resources/programs`), each run interpreted, compiled and adaptive; CPython's exceptions, messages and lines
+for eleven errors in each mode; every block a program ran compiled by the tier (none falling back to the interpreter);
+a loop continuing in compiled code; the front end's tokens, precedence and errors.
+
+Speed, the baselines only (calls of the runtime for every operation, nothing speculated), ms on this machine:
+
+| program | interpreted | compiled | CPython 3.14 |
+|---|---|---|---|
+| `fib(27)` | 80 | 30 | 22 |
+| a `while` loop of 3M iterations | 288 | 47 | 110 |
+| primes below 200K (nested loops) | 800 | 145 | 292 |
+
+Calls are the slow part (a `PyFrame`, `Jit.prepare` and the runtime's dispatch per call).
+
+Known limits of the slice: generated classes are defined in the core's class loader, which must see the language's
+runtime (one class path, as in an app; a separate loader per language needs the dialect to give its own); the
+speculating tier builds no Python graph yet (`PyDialect.build` declines), so Python gets no exits, inlining or
+unboxed ints.
+
+Next, in order: speculation (ints as `Rep.LONG` with overflow exits, floats as `Rep.DOUBLE`, through the core's
+exits and the resumer), which shows the optimizing stages working for a second language; cheaper calls (the callee's
+code called directly, inlining through the core's `InlineSite`); then the language, layer by layer: default and
+keyword arguments, closures, exceptions (`try`, `raise`), classes and the object model (§3.4), generators (the core's
+suspensions), comprehensions, slices, f-strings, modules.
+
 ## References (checked in this review)
 
 - Chicory: [docs](https://docsearch.algolia.com/mcp/docs/repo/dylibso/chicory), [porting the Chicory compiler to Android (2025-07)](https://hn.jakechampion.name/reader/https://blog.evacchi.dev/posts/2025/07/11/wasm-the-hard-way-porting-the-chicory-compiler-to-android), [mcpx4j Android support](https://docs.mcp.run/blog/2025/07/11/android-support-mcpx4j), [Endive](https://bytecodealliance.org/articles/endive-and-the-next-chapter-of-webassembly-on-the-jvm)
