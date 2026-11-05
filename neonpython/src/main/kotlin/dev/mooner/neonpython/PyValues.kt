@@ -67,6 +67,57 @@ class PyStr(@JvmField val s: String) : Comparable<PyStr> {
     }
 }
 
+/** `...` (Ellipsis). */
+object PyEllipsis {
+    override fun toString() = "Ellipsis"
+}
+
+/** bytes: immutable, compared and hashed by content. */
+class PyBytes(@JvmField val b: ByteArray) {
+    override fun equals(other: Any?) = other is PyBytes && other.b.contentEquals(b)
+    override fun hashCode() = b.contentHashCode()
+
+    /** As Python writes it: b'...', printable ASCII as it is, the rest escaped. */
+    fun repr(): String {
+        val q = if (b.contains('\''.code.toByte()) && !b.contains('"'.code.toByte())) '"' else '\''
+        val sb = StringBuilder("b").append(q)
+        for (x in b) {
+            val c = x.toInt() and 0xFF
+            when {
+                c == q.code || c == '\\'.code -> sb.append('\\').append(c.toChar())
+                c == '\t'.code -> sb.append("\\t")
+                c == '\n'.code -> sb.append("\\n")
+                c == '\r'.code -> sb.append("\\r")
+                c < 32 || c >= 127 -> sb.append("\\x").append(Integer.toHexString(c).padStart(2, '0'))
+                else -> sb.append(c.toChar())
+            }
+        }
+        return sb.append(q).toString()
+    }
+
+    override fun toString() = repr()
+}
+
+/** A complex number. */
+class PyComplex(@JvmField val real: Double, @JvmField val imag: Double) {
+    override fun equals(other: Any?) = other is PyComplex && other.real == real && other.imag == imag
+    override fun hashCode() = real.hashCode() * 31 + imag.hashCode()
+
+    /** As Python writes it: `2j`, `(1+2j)`, `(-0-1j)`. */
+    fun repr(): String {
+        fun part(d: Double): String {
+            val s = PyRt.floatRepr(d)
+            return if (s.endsWith(".0")) s.dropLast(2) else s
+        }
+        if (real == 0.0 && 1.0 / real > 0) return part(imag) + "j"
+        val sign = if (imag < 0 || imag == 0.0 && 1.0 / imag < 0) "-" else "+"
+        val im = part(Math.abs(imag))
+        return "(" + part(real) + sign + im + "j)"
+    }
+
+    override fun toString() = repr()
+}
+
 /** A list. */
 class PyList(@JvmField val items: ArrayList<Any?> = ArrayList()) {
     override fun equals(other: Any?) = this === other

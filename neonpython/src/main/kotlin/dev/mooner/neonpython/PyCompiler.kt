@@ -67,7 +67,7 @@ class PyCompiler private constructor(
     companion object {
         /** The code block of module [src]. */
         @JvmStatic fun compileModule(src: String, name: String = "<module>"): CodeUnit {
-            val body = PyParser(src).parseModule()
+            val body = PyParser(src).parseModule().body
             return PyCompiler(name, module = true, params = emptyList(), enclosing = emptySet()).compileBody(body)
         }
     }
@@ -220,8 +220,11 @@ class PyCompiler private constructor(
                 for (b in loop.breaks) patch(b, code.size)
             }
             is FunctionDef -> {
+                val a = s.args
+                if (s.isAsync || s.decoratorList.isNotEmpty() || s.typeParams.isNotEmpty() || a.posonlyargs.isNotEmpty() || a.vararg != null ||
+                    a.kwonlyargs.isNotEmpty() || a.kwarg != null || a.defaults.isNotEmpty()) unsupported("this function definition", s)
                 val outer = if (module) emptySet() else enclosing + locals.keys
-                val c = PyCompiler(s.name, module = false, params = s.params, enclosing = outer)
+                val c = PyCompiler(s.name, module = false, params = a.args.map { it.arg }, enclosing = outer)
                 val cb = c.compileBody(s.body)
                 emit(PyOp.MAKE_FUNCTION, const(cb))
                 storeName(s.name)
@@ -232,17 +235,20 @@ class PyCompiler private constructor(
                 emit(PyOp.RETURN)
             }
             is Global -> if (module) for (n in s.names) globals.add(n)
-            Pass -> {}
-            Break -> {
+            is Pass -> {}
+            is Break -> {
                 val loop = loops.lastOrNull() ?: throw PySyntaxError("'break' outside loop", line, 0)
                 loop.breaks.add(emit(PyOp.JUMP, 0))
             }
-            Continue -> {
+            is Continue -> {
                 val loop = loops.lastOrNull() ?: throw PySyntaxError("'continue' not properly in loop", line, 0)
                 emit(PyOp.JUMP, loop.top)
             }
+            else -> unsupported(s.pyName, s)
         }
     }
+
+    private fun unsupported(what: String, n: Node): Nothing = throw PySyntaxError("$what is not supported yet", n.line, n.col)
 
     private fun block(ss: List<Stmt>) {
         for (s in ss) stmt(s)
@@ -258,15 +264,16 @@ class PyCompiler private constructor(
             is Name -> storeName(t.id)
             is Subscript -> {
                 expr(t.value)
-                expr(t.index)
+                expr(t.slice)
                 emit(PyOp.STORE_SUBSCR)
             }
             is TupleExpr, is ListExpr -> {
+                if ((if (t is TupleExpr) t.elts else (t as ListExpr).elts).any { it is Starred }) unsupported("starred assignment", t)
                 val elts = if (t is TupleExpr) t.elts else (t as ListExpr).elts
                 emit(PyOp.UNPACK, elts.size)
                 for (e in elts) store(e)
             }
-            else -> throw PySyntaxError("cannot assign to this target yet", t.line, 0)
+            else -> unsupported("assignment to this target", t)
         }
     }
 
@@ -285,7 +292,7 @@ class PyCompiler private constructor(
                 val k = temp()
                 expr(t.value)
                 emit(PyOp.STORE_FAST, o)
-                expr(t.index)
+                expr(t.slice)
                 emit(PyOp.STORE_FAST, k)
                 emit(PyOp.LOAD_FAST, o)
                 emit(PyOp.LOAD_FAST, k)
@@ -296,7 +303,7 @@ class PyCompiler private constructor(
                 emit(PyOp.LOAD_FAST, k)
                 emit(PyOp.STORE_SUBSCR)
             }
-            else -> throw PySyntaxError("augmented assignment to this target is not supported yet", s.line, 0)
+            else -> unsupported("augmented assignment to this target", s)
         }
     }
 
@@ -310,33 +317,33 @@ class PyCompiler private constructor(
         }
     }
 
-    private fun binaryOp(op: String, line: Int): Int = when (op) {
-        "+" -> PyOp.ADD
-        "-" -> PyOp.SUB
-        "*" -> PyOp.MUL
-        "/" -> PyOp.TRUEDIV
-        "//" -> PyOp.FLOORDIV
-        "%" -> PyOp.MOD
-        "**" -> PyOp.POW
-        "<<" -> PyOp.LSHIFT
-        ">>" -> PyOp.RSHIFT
-        "&" -> PyOp.BITAND
-        "|" -> PyOp.BITOR
-        "^" -> PyOp.BITXOR
-        else -> throw PySyntaxError("operator '$op' is not supported yet", line, 0)
+    private fun binaryOp(op: OpKind, line: Int): Int = when (op) {
+        OpKind.Add -> PyOp.ADD
+        OpKind.Sub -> PyOp.SUB
+        OpKind.Mult -> PyOp.MUL
+        OpKind.Div -> PyOp.TRUEDIV
+        OpKind.FloorDiv -> PyOp.FLOORDIV
+        OpKind.Mod -> PyOp.MOD
+        OpKind.Pow -> PyOp.POW
+        OpKind.LShift -> PyOp.LSHIFT
+        OpKind.RShift -> PyOp.RSHIFT
+        OpKind.BitAnd -> PyOp.BITAND
+        OpKind.BitOr -> PyOp.BITOR
+        OpKind.BitXor -> PyOp.BITXOR
+        OpKind.MatMult -> throw PySyntaxError("operator '@' is not supported yet", line, 0)
     }
 
-    private fun compareOp(op: String): Int = when (op) {
-        "<" -> PyOp.LT
-        "<=" -> PyOp.LE
-        ">" -> PyOp.GT
-        ">=" -> PyOp.GE
-        "==" -> PyOp.EQ
-        "!=" -> PyOp.NE
-        "is" -> PyOp.IS
-        "is not" -> PyOp.IS_NOT
-        "in" -> PyOp.IN
-        else -> PyOp.NOT_IN
+    private fun compareOp(op: CmpOpKind): Int = when (op) {
+        CmpOpKind.Lt -> PyOp.LT
+        CmpOpKind.LtE -> PyOp.LE
+        CmpOpKind.Gt -> PyOp.GT
+        CmpOpKind.GtE -> PyOp.GE
+        CmpOpKind.Eq -> PyOp.EQ
+        CmpOpKind.NotEq -> PyOp.NE
+        CmpOpKind.Is -> PyOp.IS
+        CmpOpKind.IsNot -> PyOp.IS_NOT
+        CmpOpKind.In -> PyOp.IN
+        CmpOpKind.NotIn -> PyOp.NOT_IN
     }
 
     private fun expr(e: Expr) {
@@ -351,10 +358,10 @@ class PyCompiler private constructor(
             is UnaryOp -> {
                 expr(e.operand)
                 emit(when (e.op) {
-                    "not" -> PyOp.NOT
-                    "-" -> PyOp.NEG
-                    "+" -> PyOp.POS
-                    else -> PyOp.INVERT
+                    UnaryOpKind.Not -> PyOp.NOT
+                    UnaryOpKind.USub -> PyOp.NEG
+                    UnaryOpKind.UAdd -> PyOp.POS
+                    UnaryOpKind.Invert -> PyOp.INVERT
                 })
             }
             is BoolOp -> {
@@ -364,7 +371,7 @@ class PyCompiler private constructor(
                     expr(v)
                     if (k < e.values.size - 1) {
                         emit(PyOp.DUP)
-                        jumps.add(emit(if (e.op == "or") PyOp.POP_JUMP_IF_TRUE else PyOp.POP_JUMP_IF_FALSE, 0))
+                        jumps.add(emit(if (e.op == BoolOpKind.Or) PyOp.POP_JUMP_IF_TRUE else PyOp.POP_JUMP_IF_FALSE, 0))
                         emit(PyOp.POP)
                     }
                 }
@@ -407,6 +414,7 @@ class PyCompiler private constructor(
                 patch(toEnd, code.size)
             }
             is Call -> {
+                if (e.keywords.isNotEmpty() || e.args.any { it is Starred }) unsupported("this call", e)
                 expr(e.func)
                 for (a in e.args) expr(a)
                 emit(PyOp.CALL, e.args.size)
@@ -416,25 +424,30 @@ class PyCompiler private constructor(
                 emit(PyOp.LOAD_ATTR, name(e.attr))
             }
             is Subscript -> {
+                if (e.slice is Slice || e.slice is TupleExpr && (e.slice as TupleExpr).elts.any { it is Slice || it is Starred }) unsupported("slicing", e)
                 expr(e.value)
-                expr(e.index)
+                expr(e.slice)
                 emit(PyOp.SUBSCR)
             }
             is ListExpr -> {
+                if (e.elts.any { it is Starred }) unsupported("unpacking in a list", e)
                 for (x in e.elts) expr(x)
                 emit(PyOp.BUILD_LIST, e.elts.size)
             }
             is TupleExpr -> {
+                if (e.elts.any { it is Starred }) unsupported("unpacking in a tuple", e)
                 for (x in e.elts) expr(x)
                 emit(PyOp.BUILD_TUPLE, e.elts.size)
             }
             is DictExpr -> {
+                if (e.keys.any { it == null }) unsupported("unpacking in a dict", e)
                 for (k in e.keys.indices) {
-                    expr(e.keys[k])
+                    expr(e.keys[k]!!)
                     expr(e.values[k])
                 }
                 emit(PyOp.BUILD_MAP, e.keys.size)
             }
+            else -> unsupported(e.pyName, e)
         }
     }
 

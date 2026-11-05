@@ -372,6 +372,14 @@ object PyRt {
             }
         }
         digits = digits.trimStart('0').trimEnd('0').ifEmpty { "0" }
+        // Java writes two digits at least (4.9E-324) where one reads back the same (Python's 5e-324)
+        if (digits.length == 2) {
+            val one = java.math.BigDecimal(Math.abs(d)).round(java.math.MathContext(1, java.math.RoundingMode.HALF_EVEN))
+            if (one.toDouble() == Math.abs(d)) {
+                digits = one.unscaledValue().toString()
+                exp = one.precision() - one.scale() - 1
+            }
+        }
         val sign = if (d < 0) "-" else ""
         if (exp < -4 || exp >= 16) {
             val mant = if (digits.length == 1) digits else digits[0] + "." + digits.substring(1)
@@ -386,20 +394,36 @@ object PyRt {
         return sign + "0." + "0".repeat(-exp - 1) + digits
     }
 
+    /** A str as repr writes it: quoted, what is not printable (str.isprintable) escaped as \xhh, \uhhhh or \Uhhhhhhhh. */
     @JvmStatic fun strRepr(s: String): String {
         val q = if (s.contains('\'') && !s.contains('"')) '"' else '\''
         val sb = StringBuilder().append(q)
-        for (c in s) {
+        var i = 0
+        while (i < s.length) {
+            val c = s.codePointAt(i)
+            i += Character.charCount(c)
             when {
-                c == q || c == '\\' -> sb.append('\\').append(c)
-                c == '\n' -> sb.append("\\n")
-                c == '\r' -> sb.append("\\r")
-                c == '\t' -> sb.append("\\t")
-                c < ' ' || c == '\u007f' -> sb.append("\\x").append(Integer.toHexString(c.code).padStart(2, '0'))
-                else -> sb.append(c)
+                c == q.code || c == '\\'.code -> sb.append('\\').appendCodePoint(c)
+                c == '\n'.code -> sb.append("\\n")
+                c == '\r'.code -> sb.append("\\r")
+                c == '\t'.code -> sb.append("\\t")
+                printable(c) -> sb.appendCodePoint(c)
+                c < 0x100 -> sb.append("\\x").append(Integer.toHexString(c).padStart(2, '0'))
+                c < 0x10000 -> sb.append("\\u").append(Integer.toHexString(c).padStart(4, '0'))
+                else -> sb.append("\\U").append(Integer.toHexString(c).padStart(8, '0'))
             }
         }
         return sb.append(q).toString()
+    }
+
+    /** str.isprintable of one code point: not a control, format, surrogate, private, unassigned or separator (but ' '). */
+    @JvmStatic fun printable(c: Int): Boolean {
+        if (c == ' '.code) return true
+        return when (Character.getType(c).toByte()) {
+            Character.CONTROL, Character.FORMAT, Character.SURROGATE, Character.PRIVATE_USE, Character.UNASSIGNED,
+            Character.LINE_SEPARATOR, Character.PARAGRAPH_SEPARATOR, Character.SPACE_SEPARATOR -> false
+            else -> true
+        }
     }
 
     // ------------------------------------------------------------------ items, attributes, iteration
