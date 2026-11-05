@@ -140,6 +140,26 @@ class PyProgramsTest {
             "x = 'a' < 1\n" to Triple("TypeError", "'<' not supported between instances of 'str' and 'int'", 1),
             "a, b = [1, 2, 3]\n" to Triple("ValueError", "too many values to unpack (expected 2, got 3)", 1),
             "def r(n):\n    return r(n + 1)\nr(0)\n" to Triple("RecursionError", "maximum recursion depth exceeded", 2),
+            // calls and their arguments (M1)
+            "def f(a, b):\n    pass\nf(1)\n" to Triple("TypeError", "f() missing 1 required positional argument: 'b'", 3),
+            "def f(a, *, k):\n    pass\nf(1)\n" to Triple("TypeError", "f() missing 1 required keyword-only argument: 'k'", 3),
+            "def f(a):\n    pass\nf(1, z=2)\n" to Triple("TypeError", "f() got an unexpected keyword argument 'z'", 3),
+            "def f(a):\n    pass\nf(1, a=2)\n" to Triple("TypeError", "f() got multiple values for argument 'a'", 3),
+            "def f(a, /):\n    pass\nf(a=1)\n" to Triple("TypeError", "f() got some positional-only arguments passed as keyword arguments: 'a'", 3),
+            "def f(a=1, b=2):\n    pass\nf(1, 2, 3)\n" to Triple("TypeError", "f() takes from 0 to 2 positional arguments but 3 were given", 3),
+            "def f():\n    pass\nf(*1)\n" to Triple("TypeError", "__main__.f() argument after * must be an iterable, not int", 3),
+            "def f(**k):\n    pass\nf(**{'a': 1}, **{'a': 2})\n" to Triple("TypeError", "__main__.f() got multiple values for keyword argument 'a'", 3),
+            "len(x=1)\n" to Triple("TypeError", "len() takes no keyword arguments", 1),
+            // closures, del, assert, unpacking
+            "def outer():\n    def inner():\n        return x\n    r = inner()\n    x = 1\n    return r\nouter()\n" to
+                Triple("NameError", "cannot access free variable 'x' where it is not associated with a value in enclosing scope", 3),
+            "def f():\n    del y\n    y = 1\nf()\n" to Triple("UnboundLocalError", "cannot access local variable 'y' where it is not associated with a value", 2),
+            "del undefined_name\n" to Triple("NameError", "name 'undefined_name' is not defined", 1),
+            "assert 1 == 2, 'boom'\n" to Triple("AssertionError", "boom", 1),
+            "x = 0\nassert x\n" to Triple("AssertionError", "", 2),
+            "a, *b, c = [1]\n" to Triple("ValueError", "not enough values to unpack (expected at least 2, got 1)", 1),
+            "[*1]\n" to Triple("TypeError", "Value after * must be an iterable, not int", 1),
+            "{**1}\n" to Triple("TypeError", "'int' object is not a mapping", 1),
         )
         for (mode in Mode.entries) for ((src, want) in cases) {
             val e = try {
@@ -173,7 +193,7 @@ class PyProgramsTest {
         @JvmStatic
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
-            "speculation",
+            "speculation", "functions", "closures", "unpacking",
         )
 
         /** The code blocks of [cb] and every function it defines. */

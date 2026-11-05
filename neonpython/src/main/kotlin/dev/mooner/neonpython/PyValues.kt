@@ -163,14 +163,36 @@ class PyDict {
     override fun hashCode() = System.identityHashCode(this)
 }
 
-/** A function: its code ([PyCompiler]), the globals of its module, its name. */
+/**
+ * A function: its code ([PyCompiler]), the globals of its module, its name; its defaults, keyword-only defaults and
+ * closure (the cells of its free variables) as SET_FUNCTION_ATTRIBUTE gave them.
+ */
 class PyFunction(@JvmField val code: CodeUnit, @JvmField val globals: PyDict, @JvmField val name: String) {
+    @JvmField val info: PyCodeInfo = code.dialectData as PyCodeInfo
+    /** Its parameters' count: the registers a call's arguments fill. */
     @JvmField val params: Int = code.formalCount
-    override fun toString() = "<function $name>"
+    @JvmField val qualname: String = info.qualname
+    @JvmField var defaults: PyTuple? = null
+    @JvmField var kwdefaults: PyDict? = null
+    @JvmField var closure: Array<Any?>? = null
+
+    /** Whether a call of exactly [params] positional arguments needs no binding (no keyword-only, *args, **kwargs). */
+    @JvmField val simple: Boolean = info.kwonlyCount == 0 && !info.varargs && !info.varkw
+
+    override fun toString() = "<function $qualname>"
 }
 
-/** A function of the runtime's (print, len...). */
+/**
+ * A function of the runtime's (print, len...): [impl] with positional arguments, [kwImpl] (where it takes any) with
+ * keyword arguments too.
+ */
 class PyBuiltin(@JvmField val name: String, @JvmField val impl: (PyContext, Array<Any?>) -> Any?) {
+    @JvmField var kwImpl: ((PyContext, Array<Any?>, PyDict) -> Any?)? = null
+
+    constructor(name: String, impl: (PyContext, Array<Any?>) -> Any?, kwImpl: (PyContext, Array<Any?>, PyDict) -> Any?) : this(name, impl) {
+        this.kwImpl = kwImpl
+    }
+
     override fun toString() = "<built-in function $name>"
 }
 

@@ -107,6 +107,8 @@ object PyIr {
     /** (a b): comparison a (LT..NE) of ints, of floats. */
     const val INT_CMP = 508
     const val FLOAT_CMP = 509
+    /** (seq) UNPACK_EX's a + 1 + b items in an Object[] (a before the starred target, b after), then ITEM of them. */
+    const val UNPACK_EX_ARRAY = 510
 }
 
 /**
@@ -185,7 +187,7 @@ object PyKinds : KindSystem {
 
 /** What the passes know of Python's operations: most may run code and throw; a few only compute or allocate. */
 object PyOps : OpTable {
-    private val infos = arrayOfNulls<OpInfo>(PyIr.FLOAT_CMP + 1).also { t ->
+    private val infos = arrayOfNulls<OpInfo>(PyIr.UNPACK_EX_ARRAY + 1).also { t ->
         for (op in 0 until PyOp.COUNT) if (PyOp.names[op] != null) t[op] = OpInfo(PyOp.name(op), PyGeneric.of(op)?.flags ?: OpInfo.ANYTHING)
         t[PyOp.IS] = OpInfo("IS", OpInfo.REMOVABLE)
         t[PyOp.IS_NOT] = OpInfo("IS_NOT", OpInfo.REMOVABLE)
@@ -195,6 +197,7 @@ object PyOps : OpTable {
         t[PyIr.CHECK_BOUND] = OpInfo("CheckBound", OpInfo.THROWS)
         t[PyIr.UNPACK_ARRAY] = OpInfo("UnpackArray", OpInfo.ANYTHING)
         t[PyIr.ITEM] = OpInfo("Item", OpInfo.REMOVABLE)
+        t[PyIr.UNPACK_EX_ARRAY] = OpInfo("UnpackExArray", OpInfo.ANYTHING)
         // a check's result is its input unboxed; arithmetic of numbers only computes (an exit goes with it)
         t[PyIr.CHECK_INT] = OpInfo("CheckInt", OpInfo.REMOVABLE or OpInfo.UNBOXES, OpInfo.HOIST_ALWAYS)
         t[PyIr.CHECK_FLOAT] = OpInfo("CheckFloat", OpInfo.REMOVABLE or OpInfo.UNBOXES, OpInfo.HOIST_ALWAYS)
@@ -261,7 +264,7 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
         }
 
         override fun regWritten(pc: Int): Int = when (bc[pc]) {
-            PyOp.STORE_FAST -> bc[pc + 1]
+            PyOp.STORE_FAST, PyOp.DELETE_FAST -> bc[pc + 1]
             PyOp.FOR_ITER -> bc[pc + 2]
             else -> -1
         }
@@ -349,6 +352,16 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
                 PyOp.STORE_FAST -> {
                     regs[a] = pop()
                     home(a)
+                }
+                PyOp.DELETE_FAST -> {
+                    regs[a] = dead()
+                    home(a)
+                }
+                PyOp.UNPACK_EX -> {
+                    val arr = inst(PyIr.UNPACK_EX_ARRAY, arrayOf(pop()), result = true)
+                    pop()
+                    // the first item on top
+                    for (k in a + bb downTo 0) stack.add(add(cur, Inst(PyIr.ITEM, arrayOf(arr), k, 0, 0, pc, stmt)).also { it.hasResult = true })
                 }
                 PyOp.POP -> pop()
                 PyOp.DUP -> {
@@ -463,7 +476,7 @@ class PyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, clas
                 next = i.inputs.size
             }
         }
-        py(gen.method, gen.descriptor)
+        mv.visitMethodInsn(INVOKESTATIC, gen.owner, gen.method, gen.descriptor, false)
         if (gen.result) done(i, ANY_KIND)
     }
 
@@ -563,6 +576,14 @@ class PyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, clas
                 load(i.inputs[0], ANY_KIND)
                 iconst(i.a)
                 py("item", "(${OBJ}I)$OBJ")
+                done(i, ANY_KIND)
+            }
+            PyIr.UNPACK_EX_ARRAY -> {
+                storePc(i)
+                load(i.inputs[0], ANY_KIND)
+                iconst(i.a)
+                iconst(i.b)
+                mv.visitMethodInsn(INVOKESTATIC, Generic.CALLS, "unpackEx", "(${OBJ}II)$OBJS", false)
                 done(i, ANY_KIND)
             }
             PyIr.CHECK_INT, PyIr.CHECK_FLOAT -> {

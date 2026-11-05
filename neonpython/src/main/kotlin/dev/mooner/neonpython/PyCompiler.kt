@@ -7,6 +7,17 @@ import dev.mooner.neonjs.compiler.CodeUnit
  * locals by register, and the source line of each statement's pc (pairs in [CodeUnit.lineTable]).
  */
 class PyCodeInfo(@JvmField val name: String, @JvmField val localNames: Array<String>, @JvmField val module: Boolean) {
+    /** Its function's qualified name (`f.<locals>.g`), which call errors give. */
+    @JvmField var qualname: String = name
+    /** Positional parameters (positional-only ones among them, first), keyword-only ones, *args, **kwargs. */
+    @JvmField var argcount = 0
+    @JvmField var posonlyCount = 0
+    @JvmField var kwonlyCount = 0
+    @JvmField var varargs = false
+    @JvmField var varkw = false
+    /** The parameters' names, in their registers' order. */
+    @JvmField var paramNames: List<String> = emptyList()
+
     /**
      * The operand types the interpreter saw at each arithmetic and comparison instruction, by pc ([PyProfile]): made
      * when the optimizing tier is on (VmConfig.tier2), read by its speculating graphs ([PyBuilder]). Written without
@@ -30,24 +41,20 @@ class PyCodeInfo(@JvmField val name: String, @JvmField val localNames: Array<Str
 }
 
 /**
- * Compiles a module's syntax trees ([PyParser]) to code blocks of [PyOp]'s bytecode, of the [PyDialect]: a module's
- * code, whose names are its globals, and each function's, whose names are locals (registers: its parameters first)
- * where it assigns them and does not declare them `global`, globals (or builtins) otherwise. Registers after the
- * locals hold temporaries (an iterator, a comparison's middle operand); the operand stack is empty at every
- * statement, and so at every loop header.
+ * Compiles a module's syntax trees ([PyParser]) to code blocks of [PyOp]'s bytecode, of the [PyDialect], with the
+ * scopes [PySymtable] found: a module's code, whose names are its globals; each function's, whose locals are
+ * registers (its parameters first), whose cells (locals its nested functions read) and free variables (an enclosing
+ * function's cells) are registers holding a cell, and whose other names are globals or builtins. Registers after the
+ * names hold temporaries (an iterator, a comparison's middle operand); the operand stack is empty at every statement,
+ * and so at every loop header.
  */
-class PyCompiler private constructor(
-    private val name: String,
-    private val module: Boolean,
-    params: List<String>,
-    /** The locals of the enclosing functions (nested functions do not close over them yet). */
-    private val enclosing: Set<String>,
-) {
+class PyCompiler private constructor(private val st: PySymtable, private val scope: Scope, private val name: String) {
+    private val module = scope.type == Scope.Type.MODULE
     private val code = IntArrayList()
     private val constants = ArrayList<Any?>()
     private val constIndex = HashMap<Any, Int>()
+    /** The register of each local, cell and free variable. */
     private val locals = LinkedHashMap<String, Int>()
-    private val globals = HashSet<String>()
     private var regs = 0
     private val lines = IntArrayList()
     private var line = 0
@@ -58,22 +65,29 @@ class PyCompiler private constructor(
     }
     private val loops = ArrayList<Loop>()
 
-    private val paramCount = params.size
-
     init {
-        for (p in params) locals[p] = regs++
+        if (!module) {
+            for (p in scope.params) locals[p] = regs++
+            for (n in scope.flags.keys) {
+                val k = scope.kind(n)
+                if ((k == Scope.Kind.LOCAL || k == Scope.Kind.CELL) && n !in locals) locals[n] = regs++
+            }
+            for (n in scope.frees) if (n !in locals) locals[n] = regs++
+        }
     }
 
     companion object {
         /** The code block of module [src]. */
         @JvmStatic fun compileModule(src: String, name: String = "<module>"): CodeUnit {
-            val body = PyParser(src).parseModule().body
-            return PyCompiler(name, module = true, params = emptyList(), enclosing = emptySet()).compileBody(body)
+            val m = PyParser(src).parseModule()
+            val st = PySymtable.build(m)
+            return PyCompiler(st, st.scopes[m]!!, name).compileBody(m.body, null)
         }
     }
 
-    private fun compileBody(body: List<Stmt>): CodeUnit {
-        if (!module) scanLocals(body)
+    /** The code of [body]; [args], a function's parameters. */
+    private fun compileBody(body: List<Stmt>, args: Arguments?): CodeUnit {
+        prologue()
         for (s in body) stmt(s)
         // the end of the code: return None
         loadConst(PyNone)
@@ -84,49 +98,42 @@ class PyCompiler private constructor(
         cb.constants = constants.toTypedArray()
         cb.numRegs = regs
         cb.maxStack = maxStack(cb.code)
-        cb.formalCount = paramCount
-        cb.paramRegs = IntArray(paramCount) { it }
+        cb.formalCount = scope.params.size
+        cb.paramRegs = IntArray(scope.params.size) { it }
         cb.lineTable = lines.toArray()
         cb.dialect = PyDialect
         val names = Array(regs) { "" }
         for ((n, r) in locals) names[r] = n
-        cb.dialectData = PyCodeInfo(name, names, module)
+        val info = PyCodeInfo(name, names, module)
+        info.qualname = scope.qualname
+        if (args != null) {
+            info.posonlyCount = args.posonlyargs.size
+            info.argcount = args.posonlyargs.size + args.args.size
+            info.kwonlyCount = args.kwonlyargs.size
+            info.varargs = args.vararg != null
+            info.varkw = args.kwarg != null
+            info.paramNames = scope.params.toList()
+        }
+        cb.dialectData = info
         return cb
     }
 
-    // ------------------------------------------------------------------ scopes
-
-    /** A function's locals: the names it assigns (targets, `for`, `def`) and does not declare `global`. */
-    private fun scanLocals(body: List<Stmt>) {
-        val assigned = LinkedHashSet<String>()
-        fun target(e: Expr) {
-            when (e) {
-                is Name -> assigned.add(e.id)
-                is TupleExpr -> e.elts.forEach { target(it) }
-                is ListExpr -> e.elts.forEach { target(it) }
-                else -> {}
-            }
+    /** A function's start: its cells made (a parameter's holding its argument), its free variables' cells taken. */
+    private fun prologue() {
+        if (module) return
+        for (n in scope.cells) {
+            val r = locals[n]!!
+            if (n in scope.params) {
+                emit(PyOp.LOAD_FAST, r)
+                emit(PyOp.MAKE_CELL)
+            } else emit(PyOp.NEW_CELL)
+            emit(PyOp.STORE_FAST, r)
         }
-        fun visit(ss: List<Stmt>) {
-            for (s in ss) when (s) {
-                is Assign -> s.targets.forEach { target(it) }
-                is AugAssign -> target(s.target)
-                is For -> { target(s.target); visit(s.body); visit(s.orelse) }
-                is While -> { visit(s.body); visit(s.orelse) }
-                is If -> { visit(s.body); visit(s.orelse) }
-                is FunctionDef -> assigned.add(s.name)
-                is Global -> for (n in s.names) {
-                    if (n in locals) throw PySyntaxError("name '$n' is parameter and global", s.line, 0)
-                    globals.add(n)
-                }
-                else -> {}
-            }
+        for ((k, n) in scope.frees.withIndex()) {
+            emit(PyOp.LOAD_FREE, k)
+            emit(PyOp.STORE_FAST, locals[n]!!)
         }
-        visit(body)
-        for (n in assigned) if (n !in globals && n !in locals) locals[n] = regs++
     }
-
-    private fun isLocal(n: String) = !module && n in locals
 
     // ------------------------------------------------------------------ emitting
 
@@ -155,6 +162,48 @@ class PyCompiler private constructor(
 
     private fun temp(): Int = regs++
 
+    private fun unsupported(what: String, n: Node): Nothing = throw PySyntaxError("$what is not supported yet", n.line, n.col)
+
+    // ------------------------------------------------------------------ names
+
+    private fun loadName(n: String) {
+        when (scope.kind(n)) {
+            Scope.Kind.LOCAL -> if (module) emit(PyOp.LOAD_GLOBAL, name(n)) else emit(PyOp.LOAD_FAST, locals[n]!!)
+            Scope.Kind.CELL, Scope.Kind.FREE -> {
+                emit(PyOp.LOAD_FAST, locals[n]!!)
+                emit(PyOp.CELL_GET, name(n), if (scope.kind(n) == Scope.Kind.FREE) 1 else 0)
+            }
+            else -> emit(PyOp.LOAD_GLOBAL, name(n))
+        }
+    }
+
+    private fun storeName(n: String) {
+        when (scope.kind(n)) {
+            Scope.Kind.LOCAL -> if (module) emit(PyOp.STORE_GLOBAL, name(n)) else emit(PyOp.STORE_FAST, locals[n]!!)
+            Scope.Kind.CELL, Scope.Kind.FREE -> {
+                emit(PyOp.LOAD_FAST, locals[n]!!)
+                emit(PyOp.CELL_SET)
+            }
+            else -> emit(PyOp.STORE_GLOBAL, name(n))
+        }
+    }
+
+    private fun deleteName(n: String) {
+        when (scope.kind(n)) {
+            Scope.Kind.LOCAL -> if (module) emit(PyOp.DELETE_GLOBAL, name(n)) else {
+                // (a local without a value is an UnboundLocalError: loading it, as the check after this does)
+                emit(PyOp.LOAD_FAST, locals[n]!!)
+                emit(PyOp.POP)
+                emit(PyOp.DELETE_FAST, locals[n]!!)
+            }
+            Scope.Kind.CELL, Scope.Kind.FREE -> {
+                emit(PyOp.LOAD_FAST, locals[n]!!)
+                emit(PyOp.CELL_DELETE, name(n), if (scope.kind(n) == Scope.Kind.FREE) 1 else 0)
+            }
+            else -> emit(PyOp.DELETE_GLOBAL, name(n))
+        }
+    }
+
     // ------------------------------------------------------------------ statements
 
     private fun stmt(s: Stmt) {
@@ -175,6 +224,17 @@ class PyCompiler private constructor(
                 }
             }
             is AugAssign -> augAssign(s)
+            is AnnAssign -> {
+                if (s.value != null) {
+                    expr(s.value)
+                    store(s.target)
+                } else when (val t = s.target) {
+                    // (an annotation alone evaluates its target's parts, not the target)
+                    is Attribute -> { expr(t.value); emit(PyOp.POP) }
+                    is Subscript -> { expr(t.value); emit(PyOp.POP); expr(t.slice); emit(PyOp.POP) }
+                    else -> {}
+                }
+            }
             is If -> {
                 expr(s.test)
                 val toElse = emit(PyOp.POP_JUMP_IF_FALSE, 0)
@@ -201,6 +261,7 @@ class PyCompiler private constructor(
                 for (b in loop.breaks) patch(b, code.size)
             }
             is For -> {
+                if (s.isAsync) unsupported("async for", s)
                 expr(s.iter)
                 emit(PyOp.GET_ITER)
                 val it = temp()
@@ -220,42 +281,80 @@ class PyCompiler private constructor(
                 for (b in loop.breaks) patch(b, code.size)
             }
             is FunctionDef -> {
-                val a = s.args
-                if (s.isAsync || s.decoratorList.isNotEmpty() || s.typeParams.isNotEmpty() || a.posonlyargs.isNotEmpty() || a.vararg != null ||
-                    a.kwonlyargs.isNotEmpty() || a.kwarg != null || a.defaults.isNotEmpty()) unsupported("this function definition", s)
-                val outer = if (module) emptySet() else enclosing + locals.keys
-                val c = PyCompiler(s.name, module = false, params = a.args.map { it.arg }, enclosing = outer)
-                val cb = c.compileBody(s.body)
-                emit(PyOp.MAKE_FUNCTION, const(cb))
+                if (s.isAsync) unsupported("async def", s)
+                if (s.typeParams.isNotEmpty()) unsupported("type parameters", s)
+                for (d in s.decoratorList) expr(d)
+                makeFunction(s, s.name, s.args, s.body)
+                repeat(s.decoratorList.size) { emit(PyOp.CALL, 1) }
                 storeName(s.name)
             }
             is Return -> {
-                if (module) throw PySyntaxError("'return' outside function", s.line, 0)
+                if (module) throw PySyntaxError("'return' outside function", s.line, s.col)
                 if (s.value == null) loadConst(PyNone) else expr(s.value)
                 emit(PyOp.RETURN)
             }
-            is Global -> if (module) for (n in s.names) globals.add(n)
-            is Pass -> {}
+            is Delete -> for (t in s.targets) delete(t)
+            is Assert -> {
+                expr(s.test)
+                val ok = emit(PyOp.POP_JUMP_IF_TRUE, 0)
+                if (s.msg != null) {
+                    expr(s.msg)
+                    emit(PyOp.ASSERT_FAIL, 1)
+                } else emit(PyOp.ASSERT_FAIL, 0)
+                patch(ok, code.size)
+            }
+            is Global, is Nonlocal, is Pass -> {}
             is Break -> {
-                val loop = loops.lastOrNull() ?: throw PySyntaxError("'break' outside loop", line, 0)
+                val loop = loops.lastOrNull() ?: throw PySyntaxError("'break' outside loop", s.line, s.col)
                 loop.breaks.add(emit(PyOp.JUMP, 0))
             }
             is Continue -> {
-                val loop = loops.lastOrNull() ?: throw PySyntaxError("'continue' not properly in loop", line, 0)
+                val loop = loops.lastOrNull() ?: throw PySyntaxError("'continue' not properly in loop", s.line, s.col)
                 emit(PyOp.JUMP, loop.top)
             }
-            else -> unsupported(s.pyName, s)
+            is ClassDef -> unsupported("class", s)
+            is Try -> unsupported(if (s.star) "try with except*" else "try", s)
+            is Raise -> unsupported("raise", s)
+            is With -> unsupported(if (s.isAsync) "async with" else "with", s)
+            is Match -> unsupported("match", s)
+            is Import, is ImportFrom -> unsupported("import", s)
+            is TypeAlias -> unsupported("type", s)
         }
     }
-
-    private fun unsupported(what: String, n: Node): Nothing = throw PySyntaxError("$what is not supported yet", n.line, n.col)
 
     private fun block(ss: List<Stmt>) {
         for (s in ss) stmt(s)
     }
 
-    private fun storeName(n: String) {
-        if (isLocal(n)) emit(PyOp.STORE_FAST, locals[n]!!) else emit(PyOp.STORE_GLOBAL, name(n))
+    /**
+     * A function (or a lambda, [body] a return of its expression): its defaults, keyword-only defaults and the cells
+     * of its free variables evaluated here, then the function made of its code.
+     */
+    private fun makeFunction(node: Node, fname: String, args: Arguments, body: List<Stmt>) {
+        val child = st.scopes[node]!!
+        var flags = 0
+        if (args.defaults.isNotEmpty()) {
+            for (d in args.defaults) expr(d)
+            emit(PyOp.BUILD_TUPLE, args.defaults.size)
+            flags = flags or 1
+        }
+        val kwd = args.kwonlyargs.indices.filter { args.kwDefaults[it] != null }
+        if (kwd.isNotEmpty()) {
+            for (i in kwd) {
+                loadConst(PyStr(args.kwonlyargs[i].arg))
+                expr(args.kwDefaults[i]!!)
+            }
+            emit(PyOp.BUILD_MAP, kwd.size)
+            flags = flags or 2
+        }
+        if (child.frees.isNotEmpty()) {
+            for (n in child.frees) emit(PyOp.LOAD_FAST, locals[n] ?: throw IllegalStateException("no cell for $n in $name"))
+            emit(PyOp.BUILD_TUPLE, child.frees.size)
+            flags = flags or 8
+        }
+        val cb = PyCompiler(st, child, fname).compileBody(body, args)
+        emit(PyOp.MAKE_FUNCTION, const(cb))
+        for (flag in intArrayOf(8, 2, 1)) if (flags and flag != 0) emit(PyOp.SET_FUNCTION_ATTRIBUTE, flag)
     }
 
     /** Stores the value on top of the stack to [t]. */
@@ -263,22 +362,44 @@ class PyCompiler private constructor(
         when (t) {
             is Name -> storeName(t.id)
             is Subscript -> {
+                if (t.slice is Slice) unsupported("slicing", t)
                 expr(t.value)
                 expr(t.slice)
                 emit(PyOp.STORE_SUBSCR)
             }
             is TupleExpr, is ListExpr -> {
-                if ((if (t is TupleExpr) t.elts else (t as ListExpr).elts).any { it is Starred }) unsupported("starred assignment", t)
                 val elts = if (t is TupleExpr) t.elts else (t as ListExpr).elts
-                emit(PyOp.UNPACK, elts.size)
-                for (e in elts) store(e)
+                val star = elts.indexOfFirst { it is Starred }
+                if (star < 0) emit(PyOp.UNPACK, elts.size)
+                else emit(PyOp.UNPACK_EX, star, elts.size - star - 1)
+                for (e in elts) store(if (e is Starred) e.value else e)
             }
+            is Attribute -> unsupported("assignment to an attribute", t)
             else -> unsupported("assignment to this target", t)
         }
     }
 
+    private fun delete(t: Expr) {
+        when (t) {
+            is Name -> deleteName(t.id)
+            is Subscript -> {
+                if (t.slice is Slice) unsupported("slicing", t)
+                expr(t.value)
+                expr(t.slice)
+                emit(PyOp.DELETE_SUBSCR)
+            }
+            is Attribute -> {
+                expr(t.value)
+                emit(PyOp.DELETE_ATTR, name(t.attr))
+            }
+            is TupleExpr -> t.elts.forEach { delete(it) }
+            is ListExpr -> t.elts.forEach { delete(it) }
+            else -> throw PySyntaxError("cannot delete expression", t.line, t.col)
+        }
+    }
+
     private fun augAssign(s: AugAssign) {
-        val op = binaryOp(s.op, s.line)
+        val op = binaryOp(s.op, s)
         when (val t = s.target) {
             is Name -> {
                 loadName(t.id)
@@ -287,6 +408,7 @@ class PyCompiler private constructor(
                 storeName(t.id)
             }
             is Subscript -> {
+                if (t.slice is Slice) unsupported("slicing", t)
                 // obj and key once: in temporaries
                 val o = temp()
                 val k = temp()
@@ -309,15 +431,7 @@ class PyCompiler private constructor(
 
     // ------------------------------------------------------------------ expressions
 
-    private fun loadName(n: String) {
-        when {
-            isLocal(n) -> emit(PyOp.LOAD_FAST, locals[n]!!)
-            n in enclosing && n !in globals -> throw PySyntaxError("closures are not supported yet (name '$n' of an enclosing function)", line, 0)
-            else -> emit(PyOp.LOAD_GLOBAL, name(n))
-        }
-    }
-
-    private fun binaryOp(op: OpKind, line: Int): Int = when (op) {
+    private fun binaryOp(op: OpKind, n: Node): Int = when (op) {
         OpKind.Add -> PyOp.ADD
         OpKind.Sub -> PyOp.SUB
         OpKind.Mult -> PyOp.MUL
@@ -330,7 +444,7 @@ class PyCompiler private constructor(
         OpKind.BitAnd -> PyOp.BITAND
         OpKind.BitOr -> PyOp.BITOR
         OpKind.BitXor -> PyOp.BITXOR
-        OpKind.MatMult -> throw PySyntaxError("operator '@' is not supported yet", line, 0)
+        OpKind.MatMult -> unsupported("operator '@'", n)
     }
 
     private fun compareOp(op: CmpOpKind): Int = when (op) {
@@ -353,7 +467,7 @@ class PyCompiler private constructor(
             is BinOp -> {
                 expr(e.left)
                 expr(e.right)
-                emit(binaryOp(e.op, e.line))
+                emit(binaryOp(e.op, e))
             }
             is UnaryOp -> {
                 expr(e.operand)
@@ -413,42 +527,140 @@ class PyCompiler private constructor(
                 expr(e.orelse)
                 patch(toEnd, code.size)
             }
-            is Call -> {
-                if (e.keywords.isNotEmpty() || e.args.any { it is Starred }) unsupported("this call", e)
-                expr(e.func)
-                for (a in e.args) expr(a)
-                emit(PyOp.CALL, e.args.size)
+            is NamedExpr -> {
+                expr(e.value)
+                emit(PyOp.DUP)
+                storeName(e.target.id)
             }
+            is Lambda -> makeFunction(e, "<lambda>", e.args, listOf(Return(e.body).also { it.line = e.line; it.col = e.col }))
+            is Call -> call(e)
             is Attribute -> {
                 expr(e.value)
                 emit(PyOp.LOAD_ATTR, name(e.attr))
             }
             is Subscript -> {
-                if (e.slice is Slice || e.slice is TupleExpr && (e.slice as TupleExpr).elts.any { it is Slice || it is Starred }) unsupported("slicing", e)
+                if (e.slice is Slice || e.slice is TupleExpr && (e.slice as TupleExpr).elts.any { it is Slice }) unsupported("slicing", e)
                 expr(e.value)
                 expr(e.slice)
                 emit(PyOp.SUBSCR)
             }
             is ListExpr -> {
-                if (e.elts.any { it is Starred }) unsupported("unpacking in a list", e)
-                for (x in e.elts) expr(x)
-                emit(PyOp.BUILD_LIST, e.elts.size)
+                if (e.elts.none { it is Starred }) {
+                    for (x in e.elts) expr(x)
+                    emit(PyOp.BUILD_LIST, e.elts.size)
+                } else unpackingList(e.elts)
             }
             is TupleExpr -> {
-                if (e.elts.any { it is Starred }) unsupported("unpacking in a tuple", e)
-                for (x in e.elts) expr(x)
-                emit(PyOp.BUILD_TUPLE, e.elts.size)
+                if (e.elts.none { it is Starred }) {
+                    for (x in e.elts) expr(x)
+                    emit(PyOp.BUILD_TUPLE, e.elts.size)
+                } else {
+                    unpackingList(e.elts)
+                    emit(PyOp.LIST_TO_TUPLE)
+                }
             }
             is DictExpr -> {
-                if (e.keys.any { it == null }) unsupported("unpacking in a dict", e)
-                for (k in e.keys.indices) {
+                val first = e.keys.indexOfFirst { it == null }.let { if (it < 0) e.keys.size else it }
+                for (k in 0 until first) {
                     expr(e.keys[k]!!)
                     expr(e.values[k])
                 }
-                emit(PyOp.BUILD_MAP, e.keys.size)
+                emit(PyOp.BUILD_MAP, first)
+                for (k in first until e.keys.size) {
+                    val key = e.keys[k]
+                    if (key == null) {
+                        expr(e.values[k])
+                        emit(PyOp.DICT_UPDATE)
+                    } else {
+                        expr(key)
+                        expr(e.values[k])
+                        emit(PyOp.MAP_ADD)
+                    }
+                }
             }
-            else -> unsupported(e.pyName, e)
+            is Starred -> throw PySyntaxError("can't use starred expression here", e.line, e.col)
+            is SetExpr, is SetComp -> unsupported("sets", e)
+            is ListComp, is DictComp, is GeneratorExp -> unsupported("comprehensions", e)
+            is Yield, is YieldFrom -> unsupported("yield", e)
+            is Await -> unsupported("await", e)
+            is JoinedStr, is FormattedValue -> unsupported("f-strings", e)
+            is TemplateStr, is Interpolation -> unsupported("t-strings", e)
+            is Slice -> unsupported("slicing", e)
         }
+    }
+
+    /** A list of [elts], `*x` among them: the items before the first `*x` built, the rest appended or extended. */
+    private fun unpackingList(elts: List<Expr>) {
+        val first = elts.indexOfFirst { it is Starred }.let { if (it < 0) elts.size else it }
+        for (k in 0 until first) expr(elts[k])
+        emit(PyOp.BUILD_LIST, first)
+        for (k in first until elts.size) {
+            val x = elts[k]
+            if (x is Starred) {
+                expr(x.value)
+                emit(PyOp.LIST_EXTEND)
+            } else {
+                expr(x)
+                emit(PyOp.LIST_APPEND)
+            }
+        }
+    }
+
+    /**
+     * A call: CALL with positional arguments, CALL_KW with keyword arguments too (their names a tuple constant),
+     * CALL_EX with `*` or `**` (the positional arguments a list, the keyword arguments a list of dicts).
+     */
+    private fun call(e: Call) {
+        val seen = HashSet<String>()
+        for (k in e.keywords) if (k.arg != null && !seen.add(k.arg)) throw PySyntaxError("keyword argument repeated: ${k.arg}", k.line, k.col)
+        expr(e.func)
+        val unpacking = e.args.any { it is Starred } || e.keywords.any { it.arg == null }
+        if (!unpacking) {
+            for (a in e.args) expr(a)
+            if (e.keywords.isEmpty()) {
+                emit(PyOp.CALL, e.args.size)
+                return
+            }
+            for (k in e.keywords) expr(k.value)
+            loadConst(PyTuple(Array(e.keywords.size) { PyStr(e.keywords[it].arg!!) }))
+            emit(PyOp.CALL_KW, e.args.size + e.keywords.size)
+            return
+        }
+        val first = e.args.indexOfFirst { it is Starred }.let { if (it < 0) e.args.size else it }
+        for (k in 0 until first) expr(e.args[k])
+        emit(PyOp.BUILD_LIST, first)
+        for (k in first until e.args.size) {
+            val x = e.args[k]
+            if (x is Starred) {
+                expr(x.value)
+                emit(PyOp.WRAP_STAR)
+            } else expr(x)
+            emit(PyOp.LIST_APPEND)
+        }
+        if (e.keywords.isEmpty()) {
+            emit(PyOp.CALL_EX, 0)
+            return
+        }
+        emit(PyOp.BUILD_LIST, 0)
+        var k = 0
+        while (k < e.keywords.size) {
+            val kw = e.keywords[k]
+            if (kw.arg == null) {
+                expr(kw.value)
+                k++
+            } else {
+                var n = 0
+                while (k < e.keywords.size && e.keywords[k].arg != null) {
+                    loadConst(PyStr(e.keywords[k].arg!!))
+                    expr(e.keywords[k].value)
+                    k++
+                    n++
+                }
+                emit(PyOp.BUILD_MAP, n)
+            }
+            emit(PyOp.LIST_APPEND)
+        }
+        emit(PyOp.CALL_EX, 1)
     }
 
     // ------------------------------------------------------------------ after emitting
@@ -476,7 +688,8 @@ class PyCompiler private constructor(
         while (work.isNotEmpty()) {
             val pc = work.removeLast()
             val op = bc[pc]
-            val d = depth[pc] + PyOp.stackEffect(op, if (PyOp.operands[op] > 0) bc[pc + 1] else 0)
+            val n = PyOp.operands[op]
+            val d = depth[pc] + PyOp.stackEffect(op, if (n > 0) bc[pc + 1] else 0, if (n > 1) bc[pc + 2] else 0)
             if (d < 0) throw IllegalStateException("operand stack underflow at $pc in $name")
             if (d > max) max = d
             for (s in successors(bc, pc)) {
@@ -490,16 +703,16 @@ class PyCompiler private constructor(
     }
 
     /**
-     * Each LOAD_FAST of a local that may have no value there (on some path from the start, nothing stored it) becomes a
-     * LOAD_FAST_CHECK, which raises the UnboundLocalError (CPython's compiler does the same): a forward dataflow of the
-     * registers that may be unbound, parameters bound at the start.
+     * Each LOAD_FAST of a local that may have no value there (on some path from the start, nothing stored it, or a
+     * del took it) becomes a LOAD_FAST_CHECK, which raises the UnboundLocalError (CPython's compiler does the same): a
+     * forward dataflow of the registers that may be unbound, parameters bound at the start.
      */
     private fun markUnbound(bc: IntArray) {
         if (module) return
         val n = regs
         val maybe = arrayOfNulls<java.util.BitSet>(bc.size)
         val start = java.util.BitSet(n)
-        start.set(paramCount, n)
+        start.set(scope.params.size, n)
         maybe[0] = start
         val work = ArrayDeque<Int>()
         work.add(0)
@@ -508,6 +721,7 @@ class PyCompiler private constructor(
             val out = maybe[pc]!!.clone() as java.util.BitSet
             val op = bc[pc]
             if (op == PyOp.STORE_FAST) out.clear(bc[pc + 1])
+            if (op == PyOp.DELETE_FAST) out.set(bc[pc + 1])
             for (s in successors(bc, pc)) {
                 // FOR_ITER writes its value register only on the way into the loop's body
                 val o = if (op == PyOp.FOR_ITER && s == pc + PyOp.length(op)) (out.clone() as java.util.BitSet).also { it.clear(bc[pc + 2]) } else out

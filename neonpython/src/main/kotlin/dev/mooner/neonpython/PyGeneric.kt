@@ -22,6 +22,8 @@ internal class Generic(
     @JvmField val throws: Boolean = true,
     @JvmField val popsPerA: Int = 0,
     @JvmField val flags: Int = OpInfo.ANYTHING,
+    /** the class whose static method it calls */
+    @JvmField val owner: String = RT,
 ) {
     /** Its JVM method descriptor. */
     val descriptor: String = buildString {
@@ -38,6 +40,11 @@ internal class Generic(
     }
 
     fun popped(a: Int) = pops + popsPerA * a
+
+    companion object {
+        const val RT = "dev/mooner/neonpython/PyRt"
+        const val CALLS = "dev/mooner/neonpython/PyCalls"
+    }
 }
 
 /**
@@ -52,6 +59,26 @@ internal object PyGeneric {
         t[PyOp.LOAD_ATTR] = Generic("loadAttr", "vk", pops = 1, result = true)
         t[PyOp.MAKE_FUNCTION] = Generic("makeFunction", "fk", pops = 0, result = true, throws = false,
             flags = OpInfo.REMOVABLE or OpInfo.ALLOCATES)
+        val c = Generic.CALLS
+        t[PyOp.CALL_KW] = Generic("callKw", "fvn", pops = 2, popsPerA = 1, result = true, owner = c)
+        t[PyOp.CALL_EX] = Generic("callEx", "fvn", pops = 2, popsPerA = 1, result = true, owner = c)
+        t[PyOp.MAKE_CELL] = Generic("makeCell", "v", pops = 1, result = true, throws = false, owner = c, flags = OpInfo.REMOVABLE or OpInfo.ALLOCATES)
+        t[PyOp.NEW_CELL] = Generic("newCell", "", pops = 0, result = true, throws = false, owner = c, flags = OpInfo.REMOVABLE or OpInfo.ALLOCATES)
+        t[PyOp.LOAD_FREE] = Generic("loadFree", "fa", pops = 0, result = true, throws = false, owner = c)
+        t[PyOp.CELL_GET] = Generic("cellGet", "vkb", pops = 1, result = true, owner = c)
+        t[PyOp.CELL_SET] = Generic("cellSet", "vv", pops = 2, result = false, throws = false, owner = c)
+        t[PyOp.CELL_DELETE] = Generic("cellDelete", "vkb", pops = 1, result = false, owner = c)
+        t[PyOp.SET_FUNCTION_ATTRIBUTE] = Generic("setFunctionAttribute", "vva", pops = 2, result = true, throws = false, owner = c)
+        t[PyOp.LIST_APPEND] = Generic("listAppend", "vv", pops = 2, result = true, throws = false, owner = c)
+        t[PyOp.LIST_EXTEND] = Generic("listExtend", "vv", pops = 2, result = true, owner = c)
+        t[PyOp.LIST_TO_TUPLE] = Generic("listToTuple", "v", pops = 1, result = true, throws = false, owner = c)
+        t[PyOp.MAP_ADD] = Generic("mapAdd", "vvv", pops = 3, result = true, owner = c)
+        t[PyOp.DICT_UPDATE] = Generic("dictUpdate", "vv", pops = 2, result = true, owner = c)
+        t[PyOp.DELETE_GLOBAL] = Generic("deleteGlobal", "fk", pops = 0, result = false, owner = c)
+        t[PyOp.DELETE_SUBSCR] = Generic("deleteSubscr", "vv", pops = 2, result = false, owner = c)
+        t[PyOp.DELETE_ATTR] = Generic("deleteAttr", "vk", pops = 1, result = false, owner = c)
+        t[PyOp.ASSERT_FAIL] = Generic("assertFail", "n", pops = 0, popsPerA = 1, result = false, owner = c)
+        t[PyOp.WRAP_STAR] = Generic("wrapStar", "v", pops = 1, result = true, throws = false, owner = c, flags = OpInfo.REMOVABLE or OpInfo.ALLOCATES)
     }
 
     @JvmStatic fun of(op: Int): Generic? = table.getOrNull(op)

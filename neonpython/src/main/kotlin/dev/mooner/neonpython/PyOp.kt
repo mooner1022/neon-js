@@ -91,11 +91,57 @@ object PyOp {
     /** k ( -- function) of the code constants[k], in this module */
     const val MAKE_FUNCTION = 79
 
-    const val COUNT = 80
+    // functions and scopes (docs/PYTHON_PLATFORM.md §11, M1)
+    /** n (f a1..am v1..vk names -- r): a call with keyword arguments, n = m + k, names a tuple of the k names */
+    const val CALL_KW = 80
+    /** a (f args [kwargs] -- r): a call with unpacking: args a list; kwargs (a = 1) a list of mappings */
+    const val CALL_EX = 81
+    /** (v -- cell) */
+    const val MAKE_CELL = 82
+    /** ( -- cell) a cell without a value */
+    const val NEW_CELL = 83
+    /** k ( -- cell) the cell of the function's free variable k */
+    const val LOAD_FREE = 84
+    /** k free (cell -- v) its value, or the error naming constants[k] (a free variable's where free is 1) */
+    const val CELL_GET = 85
+    /** (v cell -- ) */
+    const val CELL_SET = 86
+    /** k free (cell -- ) */
+    const val CELL_DELETE = 87
+    /** flag (attr fn -- fn): its defaults (1), keyword-only defaults (2), closure (8) */
+    const val SET_FUNCTION_ATTRIBUTE = 88
+    /** (list v -- list) */
+    const val LIST_APPEND = 89
+    /** (list iterable -- list) */
+    const val LIST_EXTEND = 90
+    /** (list -- tuple) */
+    const val LIST_TO_TUPLE = 91
+    /** (dict k v -- dict) */
+    const val MAP_ADD = 92
+    /** (dict mapping -- dict) */
+    const val DICT_UPDATE = 93
+    /** before after (seq -- items): before items, a list of the rest but after, after items, the first on top */
+    const val UNPACK_EX = 94
+    /** r ( -- ) local r without a value */
+    const val DELETE_FAST = 95
+    /** k ( -- ) */
+    const val DELETE_GLOBAL = 96
+    /** (obj key -- ) */
+    const val DELETE_SUBSCR = 97
+    /** k (obj -- ) */
+    const val DELETE_ATTR = 98
+    /** a (msg if a -- ) an AssertionError */
+    const val ASSERT_FAIL = 99
+    /** (v -- starred) a call's `*v`, which CALL_EX unpacks (its errors name the function) */
+    const val WRAP_STAR = 100
+
+    const val COUNT = 200
 
     @JvmField val operands = IntArray(COUNT).also { o ->
         for (op in intArrayOf(LOAD_CONST, LOAD_FAST, LOAD_FAST_CHECK, STORE_FAST, LOAD_GLOBAL, STORE_GLOBAL, JUMP, POP_JUMP_IF_FALSE,
-            POP_JUMP_IF_TRUE, CALL, BUILD_LIST, BUILD_TUPLE, BUILD_MAP, LOAD_ATTR, UNPACK, MAKE_FUNCTION)) o[op] = 1
+            POP_JUMP_IF_TRUE, CALL, BUILD_LIST, BUILD_TUPLE, BUILD_MAP, LOAD_ATTR, UNPACK, MAKE_FUNCTION, CALL_KW, CALL_EX, LOAD_FREE,
+            SET_FUNCTION_ATTRIBUTE, DELETE_FAST, DELETE_GLOBAL, DELETE_ATTR, ASSERT_FAIL)) o[op] = 1
+        for (op in intArrayOf(CELL_GET, CELL_DELETE, UNPACK_EX)) o[op] = 2
         o[FOR_ITER] = 3
     }
 
@@ -111,7 +157,13 @@ object PyOp {
     fun length(op: Int) = 1 + operands[op]
 
     /** The change of the operand stack's depth the instruction [op] with operand [a] makes. */
-    fun stackEffect(op: Int, a: Int): Int = when (op) {
+    fun stackEffect(op: Int, a: Int, b: Int = 0): Int = when (op) {
+        CALL_KW, CALL_EX -> -1 - a
+        NEW_CELL, LOAD_FREE -> 1
+        CELL_SET, DELETE_SUBSCR, MAP_ADD -> -2
+        CELL_DELETE, SET_FUNCTION_ATTRIBUTE, LIST_APPEND, LIST_EXTEND, DICT_UPDATE, DELETE_ATTR -> -1
+        UNPACK_EX -> a + b
+        ASSERT_FAIL -> -a
         LOAD_CONST, LOAD_FAST, LOAD_FAST_CHECK, LOAD_GLOBAL, DUP, MAKE_FUNCTION -> 1
         STORE_FAST, STORE_GLOBAL, POP, POP_JUMP_IF_FALSE, POP_JUMP_IF_TRUE, RETURN -> -1
         in ADD..BITXOR, in LT..NOT_IN, SUBSCR -> -1

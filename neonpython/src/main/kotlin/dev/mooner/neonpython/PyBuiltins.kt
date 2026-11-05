@@ -24,10 +24,23 @@ object PyBuiltins {
         fun def(name: String, impl: (PyContext, Array<Any?>) -> Any?) {
             d[PyStr(name)] = PyBuiltin(name, impl)
         }
-        def("print") { ctx, args ->
-            ctx.out.append(args.joinToString(" ") { PyRt.str(it) }).append('\n')
-            PyNone
+        // print(*objects, sep=' ', end='\n', file=None, flush=False)
+        fun print(ctx: PyContext, args: Array<Any?>, kw: PyDict?): Any? {
+            var sep = " "
+            var end = "\n"
+            if (kw != null) for ((k, v) in kw.map) {
+                when ((k.v as PyStr).s) {
+                    "sep" -> sep = if (v === PyNone) " " else (v as? PyStr)?.s ?: throw PyRt.typeError("sep must be None or a string, not ${PyTypes.name(v)}")
+                    "end" -> end = if (v === PyNone) "\n" else (v as? PyStr)?.s ?: throw PyRt.typeError("end must be None or a string, not ${PyTypes.name(v)}")
+                    "flush" -> {}
+                    "file" -> if (v !== PyNone) throw PyRt.typeError("print(file=...) is not supported yet")
+                    else -> throw PyRt.typeError("print() got an unexpected keyword argument '${k.v}'")
+                }
+            }
+            ctx.out.append(args.joinToString(sep) { PyRt.str(it) }).append(end)
+            return PyNone
         }
+        d[PyStr("print")] = PyBuiltin("print", { ctx, args -> print(ctx, args, null) }, { ctx, args, kw -> print(ctx, args, kw) })
         def("len") { _, args ->
             argc("len", args, 1)
             when (val v = args[0]) {

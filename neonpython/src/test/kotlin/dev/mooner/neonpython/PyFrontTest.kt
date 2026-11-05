@@ -61,6 +61,28 @@ class PyFrontTest {
     }
 
     @Test
+    fun scopeErrorsAreCPythons() {
+        // (message and line as CPython 3.14's compile gives them)
+        val cases = listOf(
+            "def f():\n    nonlocal x\n" to ("no binding for nonlocal 'x' found" to 2),
+            "nonlocal x\n" to ("nonlocal declaration not allowed at module level" to 1),
+            "def f(a):\n    global a\n" to ("name 'a' is parameter and global" to 2),
+            "def f(a, a): pass\n" to ("duplicate argument 'a' in function definition" to 1),
+            "f(a=1, a=2)\n" to ("keyword argument repeated: a" to 1),
+            "def f():\n    x = 1\n    global x\n" to ("name 'x' is assigned to before global declaration" to 3),
+            "def f():\n    print(x)\n    global x\n" to ("name 'x' is used prior to global declaration" to 3),
+            "return 1\n" to ("'return' outside function" to 1),
+            "break\n" to ("'break' outside loop" to 1),
+            "def g():\n    x = 1\n    def h():\n        x = 2\n        nonlocal x\n" to ("name 'x' is assigned to before nonlocal declaration" to 5),
+            "def f(): yield\nclass C:\n    yield\n" to ("'yield' outside function" to 3),
+        )
+        for ((src, want) in cases) {
+            val e = assertThrows<PySyntaxError>(src) { PyCompiler.compileModule(src) }
+            assertEquals(want, e.msg to e.line, src)
+        }
+    }
+
+    @Test
     fun localsThatMayHaveNoValueAreChecked() {
         val cb = PyCompiler.compileModule("def f(a):\n  if a:\n    b = 1\n  c = 2\n  return a + b + c\n")
         val f = cb.constants.filterIsInstance<dev.mooner.neonjs.compiler.CodeUnit>().single()

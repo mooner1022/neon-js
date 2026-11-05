@@ -37,7 +37,9 @@ class PyContext(@JvmField val out: Appendable = StringBuilder(), config: VmConfi
  * value too), which LOAD_FAST_CHECK raises an UnboundLocalError for; an interpreted frame starts with its parameters'
  * registers holding the arguments.
  */
-class PyFrame(@JvmField val code: CodeUnit, @JvmField val ctx: PyContext, @JvmField val globals: PyDict, args: Array<Any?>, compiled: CompiledCode?) :
+class PyFrame(@JvmField val code: CodeUnit, @JvmField val ctx: PyContext, @JvmField val globals: PyDict, args: Array<Any?>, compiled: CompiledCode?,
+              /** the cells of its function's free variables (LOAD_FREE) */
+              @JvmField val closure: Array<Any?>? = null) :
     VmFrame(args, if (compiled != null) NO_SLOTS else slotsFor(code), code.numRegs) {
     override val unit: CodeUnit get() = code
     override val agent: VmAgent get() = ctx.agent
@@ -53,16 +55,22 @@ class PyFrame(@JvmField val code: CodeUnit, @JvmField val ctx: PyContext, @JvmFi
  * on in compiled code once there is some (Jit.loop, Jit.osr), as JavaScript's interpreter does.
  */
 object PyInterpreter {
+    /** Calls [fn] with positional [args]: as they are where they are its parameters, else bound (PyCalls.bind). */
     @JvmStatic
     fun call(ctx: PyContext, fn: PyFunction, args: Array<Any?>): Any? {
-        val code = fn.code
-        if (args.size != fn.params) {
-            val n = fn.params
-            throw PyRt.typeError("${fn.name}() takes $n positional argument${if (n == 1) "" else "s"} but ${args.size} ${if (args.size == 1) "was" else "were"} given")
-        }
-        val c = Jit.prepare(code, ctx.agent)
-        return runFrame(PyFrame(code, ctx, fn.globals, args, c), c)
+        val a = if (args.size == fn.params && fn.simple) args else PyCalls.bind(fn, args, NO_ARGS, NO_ARGS)
+        return callBound(ctx, fn, a)
     }
+
+    /** Calls [fn] with [args] its parameters' values, in its registers' order. */
+    @JvmStatic
+    fun callBound(ctx: PyContext, fn: PyFunction, args: Array<Any?>): Any? {
+        val code = fn.code
+        val c = Jit.prepare(code, ctx.agent)
+        return runFrame(PyFrame(code, ctx, fn.globals, args, c, fn.closure), c)
+    }
+
+    private val NO_ARGS = arrayOfNulls<Any?>(0)
 
     /** Runs [f] (with [c], or interpreted), with the agent's call depth and interrupts kept. */
     private fun runFrame(f: PyFrame, c: CompiledCode?): Any? {
@@ -241,7 +249,12 @@ object PyInterpreter {
                             pc += 2
                         }
                         PyOp.MAKE_FUNCTION -> { s[sp++] = PyRt.makeFunction(f, k[bc[pc + 1]]); pc += 2 }
-                        else -> throw IllegalStateException("bad opcode ${bc[pc]} at $pc in ${cb.name}")
+                        else -> {
+                            // the rarer instructions (calls with keywords, closures, displays with unpacking, del)
+                            f.pc = opStart
+                            sp = ext(f, s, bc, pc, sp)
+                            pc += PyOp.length(bc[pc])
+                        }
                     }
                 }
             } catch (e: PyException) {
@@ -261,6 +274,72 @@ object PyInterpreter {
             }
             if (r !== VmRt.NO_OSR) return r
         }
+    }
+
+    /** The instruction at [pc] of [f]'s code, one that does not jump ([run]'s rarer ones): the new top of the stack. */
+    private fun ext(f: PyFrame, s: Array<Any?>, bc: IntArray, pc: Int, top: Int): Int {
+        var sp = top
+        val k = f.code.constants
+        val a = if (PyOp.operands[bc[pc]] > 0) bc[pc + 1] else 0
+        fun pop(): Any? {
+            val v = s[--sp]
+            s[sp] = null
+            return v
+        }
+        fun popN(n: Int): Array<Any?> {
+            val out = arrayOfNulls<Any?>(n)
+            for (i in n - 1 downTo 0) out[i] = pop()
+            return out
+        }
+        when (val op = bc[pc]) {
+            PyOp.CALL_KW, PyOp.CALL_EX -> {
+                val rest = popN(a + 1)
+                val fn = s[sp - 1]
+                s[sp - 1] = if (op == PyOp.CALL_KW) PyCalls.callKw(f, fn, rest) else PyCalls.callEx(f, fn, rest)
+            }
+            PyOp.MAKE_CELL -> s[sp - 1] = PyCalls.makeCell(s[sp - 1])
+            PyOp.NEW_CELL -> s[sp++] = PyCalls.newCell()
+            PyOp.LOAD_FREE -> s[sp++] = PyCalls.loadFree(f, a)
+            PyOp.CELL_GET -> s[sp - 1] = PyCalls.cellGet(s[sp - 1], k[a], bc[pc + 2])
+            PyOp.CELL_SET -> {
+                val cell = pop()
+                PyCalls.cellSet(pop(), cell)
+            }
+            PyOp.CELL_DELETE -> PyCalls.cellDelete(pop(), k[a], bc[pc + 2])
+            PyOp.SET_FUNCTION_ATTRIBUTE -> {
+                val fn = pop()
+                s[sp - 1] = PyCalls.setFunctionAttribute(s[sp - 1], fn, a)
+            }
+            PyOp.LIST_APPEND, PyOp.LIST_EXTEND, PyOp.DICT_UPDATE -> {
+                val v = pop()
+                s[sp - 1] = when (op) {
+                    PyOp.LIST_APPEND -> PyCalls.listAppend(s[sp - 1], v)
+                    PyOp.LIST_EXTEND -> PyCalls.listExtend(s[sp - 1], v)
+                    else -> PyCalls.dictUpdate(s[sp - 1], v)
+                }
+            }
+            PyOp.LIST_TO_TUPLE -> s[sp - 1] = PyCalls.listToTuple(s[sp - 1])
+            PyOp.WRAP_STAR -> s[sp - 1] = PyCalls.wrapStar(s[sp - 1])
+            PyOp.MAP_ADD -> {
+                val v = pop()
+                val key = pop()
+                s[sp - 1] = PyCalls.mapAdd(s[sp - 1], key, v)
+            }
+            PyOp.UNPACK_EX -> {
+                val items = PyCalls.unpackEx(pop(), a, bc[pc + 2])
+                for (i in items.indices.reversed()) s[sp++] = items[i]
+            }
+            PyOp.DELETE_FAST -> s[a] = null
+            PyOp.DELETE_GLOBAL -> PyCalls.deleteGlobal(f, k[a])
+            PyOp.DELETE_SUBSCR -> {
+                val key = pop()
+                PyCalls.deleteSubscr(pop(), key)
+            }
+            PyOp.DELETE_ATTR -> PyCalls.deleteAttr(pop(), k[a])
+            PyOp.ASSERT_FAIL -> PyCalls.assertFail(popN(a))
+            else -> throw IllegalStateException("bad opcode $op at $pc in ${f.code.name}")
+        }
+        return sp
     }
 
     /**
