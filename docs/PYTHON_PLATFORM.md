@@ -545,13 +545,40 @@ Speed, the baselines only (calls of the runtime for every operation, nothing spe
 
 Calls are the slow part (a `PyFrame`, `Jit.prepare` and the runtime's dispatch per call).
 
-Known limits of the slice: the speculating tier builds no Python graph yet (`PyDialect.build` declines), so Python
-gets no exits, inlining or unboxed ints. (Generated classes are defined in the dialect's class loader, which sees
-NeonPy's runtime: docs/IR_NEUTRALITY.md §10.)
+### 10.2 Speculation (done, 2026-11-05)
 
-Next, in order: speculation (ints as `Rep.LONG` with overflow exits, floats as `Rep.DOUBLE`, through the core's
-exits and the resumer), which shows the optimizing stages working for a second language; cheaper calls (the callee's
-code called directly, inlining through the core's `InlineSite`); then the language, layer by layer: default and
+With the tier on (`VmConfig.tier2`), NeonPy's blocks get speculating code over their baselines, the core's second
+language to get it. The interpreter notes the operand types of each arithmetic and comparison instruction
+(`PyProfile`: both Longs, both Doubles, other); where only ints or only floats were seen there, and no exit was taken
+there before, `PyBuilder` builds the operation unboxed: `CHECK_INT`/`CHECK_FLOAT` (exit where a value is another),
+`INT_OP` (`+ - * // % & | ^`, negation on `long`s: exit where Python's result leaves 64 bits or the operation would
+raise), `FLOAT_OP`, `INT_CMP`/`FLOAT_CMP` (JVM booleans). An exit writes the frame and goes on in the interpreter,
+which does the operation again (a BigInteger, the exception); the core notes the failed speculation and compiles the
+block again without it. Ints are `long`s and floats `double`s in the code (`PyKinds`), boxed where something takes an
+Object, checked at on-stack replacement entries (`PyRt.osrKinds`). The core's LICM moves invariant checks out of loops.
+
+The loop of `while i < n: s += i & 7; i += 1`, as built:
+
+```
+B3 (pc 8) <- B2, B4 loop
+  v2 = phi k0, v9 :int
+  v3 = phi k0, v11 :int
+  v5 = IntCmp LT v3, v1 :bool          (v1 = CheckInt of the argument n, moved before the loop)
+B4 (pc 15) <- B3
+  v7 = Int BITAND v3, k1 :int
+  v9 = Int ADD v2, v7 [exit at pc 22] :int
+  v11 = Int ADD v3, k2 [exit at pc 29] :int
+```
+
+Tests: every program also runs adaptive with the tier on; `speculation.py` passes 2**63 in a loop (the exit, the
+failure noted, the speculating code installed).
+
+Known limits: the deopt stress mode (`-Dneonjs.jit.deoptStress`) adds no exits to NeonPy's code (`PyBuilder` ignores
+it), so its exit path is tested by real exits only (overflows, other types); no inlining of calls yet. (Generated
+classes are defined in the dialect's class loader, which sees NeonPy's runtime: docs/IR_NEUTRALITY.md §10.)
+
+Next, in order: cheaper calls (the callee's code called directly, inlining through the core's `InlineSite`); then the
+language, layer by layer: default and
 keyword arguments, closures, exceptions (`try`, `raise`), classes and the object model (§3.4), generators (the core's
 suspensions), comprehensions, slices, f-strings, modules.
 

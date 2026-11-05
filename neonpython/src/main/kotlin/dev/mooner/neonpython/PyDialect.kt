@@ -43,6 +43,7 @@ import org.objectweb.asm.Opcodes.*
  * ([PyCodeInfo.profile]), unboxed, exiting to the interpreter where a value is another or an int leaves 64 bits.
  */
 object PyDialect : Dialect {
+    // (the deopt stress mode's exits, stressExits, are not made: NeonPy's exits are tested by real ones)
     override fun build(cb: CodeUnit, stressExits: Boolean, unswitch: Boolean, baseline: Boolean): Graph =
         PyBuilder(cb, speculate = !baseline).build()
 

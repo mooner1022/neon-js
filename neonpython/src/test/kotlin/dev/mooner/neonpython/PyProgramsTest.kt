@@ -114,10 +114,13 @@ class PyProgramsTest {
 
     @Test
     fun loopsGoOnInCompiledCode() {
-        val before = Jit.osrEntered.get()
-        val (out, _) = run(resource("loops.py"), Mode.ADAPTIVE)
-        assertEquals(resource("loops.out"), out)
-        assertTrue(Jit.osrEntered.get() > before, "no loop entered compiled code (${T2.baselineReasons.keys})")
+        // (speculating too: an entry there passes the check of its registers' kinds, ints into `long`s)
+        for (mode in listOf(Mode.ADAPTIVE, Mode.SPECULATING)) {
+            val before = Jit.osrEntered.get()
+            val (out, _) = run(resource("loops.py"), mode)
+            assertEquals(resource("loops.out"), out, "$mode")
+            assertTrue(Jit.osrEntered.get() > before, "$mode: no loop entered compiled code (${T2.baselineReasons.keys})")
+        }
     }
 
     /** CPython 3.14's exception, its message and line for each program (recorded with CPython). */
