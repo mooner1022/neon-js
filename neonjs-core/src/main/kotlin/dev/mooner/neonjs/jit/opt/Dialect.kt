@@ -11,8 +11,11 @@ import org.objectweb.asm.MethodVisitor
  * [IrCodegen]). Everything between, the passes and the code's frame, exits and entries, is the core's.
  */
 internal interface Dialect {
-    /** The graph of [cb] for the optimizing tier, or a JitBailout where it has none. */
-    fun build(cb: CodeBlock, stressExits: Boolean, unswitch: Boolean): Graph
+    /**
+     * The graph of [cb] for the optimizing tier, or a JitBailout where it has none. A [baseline]'s speculates on nothing
+     * and has no exits but the stress mode's (docs/IR_NEUTRALITY.md §5).
+     */
+    fun build(cb: CodeBlock, stressExits: Boolean, unswitch: Boolean, baseline: Boolean = false): Graph
 
     /** How its code's exits continue in its interpreter. */
     val resumer: Resumer
@@ -36,8 +39,9 @@ internal object JsDialect : Dialect {
 
     override fun facts(g: Graph, kinds: Kinds): FactRules = KnownShapes.rules(g, kinds)
 
-    override fun build(cb: CodeBlock, stressExits: Boolean, unswitch: Boolean): Graph =
-        IrBuilder(cb, JvmCompiler.INT32, JvmCompiler.ELEMS, stressExits = stressExits, unswitch = unswitch).build()
+    override fun build(cb: CodeBlock, stressExits: Boolean, unswitch: Boolean, baseline: Boolean): Graph =
+        IrBuilder(cb, JvmCompiler.INT32, JvmCompiler.ELEMS, stressExits = stressExits, unswitch = unswitch,
+            speculate = T2.SPECULATE && !baseline, exits = !baseline).build()
 
     override fun codegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, className: String): IrCodegen =
         JsCodegen(g, mv, kinds, (g.kindSystem as JsKinds).ints, cw, className)

@@ -22,7 +22,21 @@ interface JitBackend {
  * (the optimizing tier on), the code's loops move to the tier's code once it is installed (JitInput.tierUp).
  */
 class ClassBackend(val definer: CodeDefiner, val tierUp: Boolean = false) : JitBackend {
-    override fun compile(blocks: List<CodeBlock>): List<CompiledCode?> = JvmCompiler.compileAll(blocks, definer, tierUp)
+    override fun compile(blocks: List<CodeBlock>): List<CompiledCode?> {
+        if (!dev.mooner.neonjs.jit.opt.T2.IR_BASELINE) return JvmCompiler.compileAll(blocks, definer, tierUp)
+        // (testing) the optimizing tier's baselines, the baseline compiler's where it has none
+        val usable = CodeDefiners.isUsable(definer)
+        val ir = if (usable) dev.mooner.neonjs.jit.opt.T2.compileBaselines(blocks.map { it }.filter { JvmCompiler.canCompile(it) }, definer) else emptyList()
+        val out = arrayOfNulls<CompiledCode>(blocks.size)
+        var k = 0
+        for ((i, cb) in blocks.withIndex()) if (usable && JvmCompiler.canCompile(cb)) out[i] = ir[k++]
+        val rest = blocks.indices.filter { out[it] == null }
+        if (rest.isNotEmpty()) {
+            val t1 = JvmCompiler.compileAll(rest.map { blocks[it] }, definer, tierUp)
+            for ((j, i) in rest.withIndex()) out[i] = t1[j]
+        }
+        return out.asList()
+    }
 
     override fun equals(other: Any?): Boolean = other is ClassBackend && other.definer === definer && other.tierUp == tierUp
     override fun hashCode(): Int = System.identityHashCode(definer) * 31 + (if (tierUp) 1 else 0)

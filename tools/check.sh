@@ -43,7 +43,10 @@ t262() {
     fail "Test262, $name"
   }
   printf '%-44s %s  (%ss)\n' "$name" "$(printf '%s\n' "$out" | grep -E '^TOTAL' | sed 's/  (.*//')" "$(( $(date +%s) - start ))"
-  printf '%s\n' "$out" | grep -E '^(T2 compiled|JIT deoptimizations)' | sed 's/^/    /' || true
+  printf '%s\n' "$out" | grep -E '^(T2 compiled|T2 baselines|JIT deoptimizations)' | sed 's/^/    /' || true
+  if [ -n "${NO_EXITS:-}" ] && ! printf '%s\n' "$out" | grep -q '^JIT deoptimizations=0 '; then
+    fail "Test262, $name: code without speculations exited ($(printf '%s\n' "$out" | grep '^JIT deoptimizations'))"
+  fi
 }
 
 # the JIT modes every check runs: the stress modes force each tier's code, exits and on-stack replacement entries
@@ -54,6 +57,9 @@ stress_modes() {
   t262 "compiled, t2Stress + deoptStress" "-Dneonjs.jit.t2Stress -Dneonjs.jit.deoptStress" --mode compiled "${scope[@]}"
   t262 "adaptive, t2Stress + osrStress" "-Dneonjs.jit.t2Stress -Dneonjs.jit.osrStress" --mode adaptive "${scope[@]}"
   t262 "adaptive, t2Stress + deoptStress + osrStress" "-Dneonjs.jit.t2Stress -Dneonjs.jit.deoptStress -Dneonjs.jit.osrStress" --mode adaptive "${scope[@]}"
+  # the optimizing tier's baselines (a language without a baseline compiler of its own): no exit may be taken
+  NO_EXITS=1 t262 "compiled, irBaseline" "-Dneonjs.jit.irBaseline" --mode compiled "${scope[@]}"
+  t262 "adaptive, irBaseline + t2Stress + deoptStress" "-Dneonjs.jit.irBaseline -Dneonjs.jit.t2Stress -Dneonjs.jit.deoptStress" --mode adaptive "${scope[@]}"
 }
 
 quick() {

@@ -5,7 +5,7 @@ suite run once before a large pull request. `tools/check.sh` has the three level
 
 | level | command | what | time (8 cores) |
 |---|---|---|---|
-| quick | `tools/check.sh quick` | neonjs-core's unit tests; a fixed 1 in 20 of Test262 in the interpreter and in the JIT's stress modes | ~1.5–2 min |
+| quick | `tools/check.sh quick` | neonjs-core's unit tests; a fixed 1 in 20 of Test262 in the interpreter and in the JIT's stress modes | ~2.5–3 min |
 | codegen | `tools/check.sh codegen [REF]` | the classes the JIT generates for that part of Test262, against those of REF (default `main`) | ~1.5 min (~3 the first time for a REF) |
 | full | `tools/check.sh full` | what CI runs, then all of Test262 in the stress modes | long: before a large pull request |
 
@@ -26,9 +26,14 @@ same ones in every run, spread over every directory. Each runs in
 - compiled mode with `t2Stress` (every block compiled by T1, then by T2 at once);
 - the same with `deoptStress` (exits taken one time in three, so every exit's state is used);
 - adaptive mode with `t2Stress` and `osrStress` (every loop entered compiled after its first iteration), with and
-  without `deoptStress`.
+  without `deoptStress`;
+- compiled mode with `irBaseline` (every baseline made by the optimizing tier's pipeline without speculations, T1's
+  only where it has none: what a language without a compiler of its own runs, docs/IR_NEUTRALITY.md §5), which must
+  take no exit at all;
+- adaptive mode with `irBaseline`, `t2Stress` and `deoptStress` (the tier's speculating code over those baselines).
 
-The modes are the ones docs/OPTIMIZING_TIER.md requires before a push; the sample keeps them to about 15 seconds each.
+The modes are the ones docs/OPTIMIZING_TIER.md requires before a push, and the baseline modes; the sample keeps them to
+10–40 seconds each.
 The generated Unicode property tests (`built-ins/RegExp/property-escapes/generated`) are left out: they check RegExp's
 tables and take most of the interpreter's time. The timeout is 60 s rather than 10, so that a loaded machine does not
 fail a test.

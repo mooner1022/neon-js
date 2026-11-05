@@ -49,6 +49,19 @@ object T2 {
     @JvmField val inlinedCalls = AtomicLong()
     @JvmField val failedCount = AtomicLong()
     @JvmField val failureReasons = ConcurrentHashMap<String, AtomicLong>()
+    /** Baselines this tier compiled ([compileBaselines]), and those it could not, by reason. */
+    @JvmField val baselines = AtomicLong()
+    @JvmField val baselinesFailed = AtomicLong()
+    /** Baselines whose class another block's code had defined already. */
+    @JvmField val baselinesShared = AtomicLong()
+    @JvmField val baselineReasons = ConcurrentHashMap<String, AtomicLong>()
+
+    /**
+     * Testing: with `-Dneonjs.jit.irBaseline`, the baseline of a JavaScript block is this tier's ([compileBaselines]),
+     * the baseline compiler's (T1) only where this tier cannot compile the block: what a language without a compiler of
+     * its own runs (docs/IR_NEUTRALITY.md §5).
+     */
+    @JvmField val IR_BASELINE: Boolean = System.getProperty("neonjs.jit.irBaseline").let { it != null && it != "false" }
 
     init {
         // Debugging: `-Dneonjs.jit.t2Stats` prints the counters when the process exits
@@ -63,55 +76,161 @@ object T2 {
     fun compile(cb: CodeBlock, definer: CodeDefiner): CompiledCode? {
         try {
             if (cb.t2Off) throw JitBailout("deoptimized too often")
-            val name = "dev/mooner/neonjs/jit/T2$" + JvmCompiler.sanitize(cb.name) + "$" + counter.incrementAndGet()
-            var g = build(cb, unswitch = true)
-            val bytes = try {
-                fun generate() = IrCodegen.generate(g, name, definer.classFileVersion)
-                var bytes = try {
-                    generate()
-                } catch (e: org.objectweb.asm.MethodTooLargeException) {
-                    if (!g.unswitched) throw e
-                    null
-                }
-                // loops copied made the method too large: again without copies
-                if (g.unswitched && (bytes == null || IrCodegen.codeLength(bytes, "run") > MAX_CODE)) {
-                    g = build(cb, unswitch = false)
-                    bytes = generate()
-                }
-                val size = IrCodegen.codeLength(bytes!!, "run")
-                if (size > MAX_CODE) throw JitBailout("code of $size bytes: past what the JVM compiles")
-                bytes
-            } catch (e: JitBailout) {
-                if (System.getProperty("neonjs.jit.t2Debug") != null && e.message!!.contains("no local") && debugShown.incrementAndGet() <= 2) {
-                    System.err.println("T2DEBUG ${cb.name}: ${e.message}\n${cb.sourceText()?.take(800)}\n${IrPrinter.print(g)}")
-                }
-                throw e
-            }
-            JvmCompiler.DUMP_DIR?.let { dir -> runCatching { java.io.File(dir, name.substringAfterLast('/') + ".class").writeBytes(bytes) } }
-            val cls = definer.define(name.replace('/', '.'), bytes, JvmCompiler::class.java.classLoader)
-            val code = cls.getDeclaredConstructor(Array<Any?>::class.java, CodeBlock::class.java).newInstance(g.data.toTypedArray(), cb) as T2Code
-            code.osrPcs = g.osrPcs
-            code.resumer = g.dialect.resumer
-            code.definer = definer
+            val (g, c) = generate(cb, definer, baseline = false)
+            val cls = definer.define(c.name, c.bytes, JvmCompiler::class.java.classLoader)
+            val code = instantiate(cls, g, cb, definer)
             compiledCount.incrementAndGet()
             return code
         } catch (e: Throwable) {
-            val reason = when (e) {
-                is JitBailout -> (e.message ?: "bailout").replace(Regex("\\d+"), "N")
-                is org.objectweb.asm.MethodTooLargeException -> "method too large"
-                else -> {
-                    if (System.getProperty("neonjs.jit.debug") != null) e.printStackTrace()
-                    "${e.javaClass.simpleName}: ${e.message}"
-                }
-            }
             failedCount.incrementAndGet()
-            failureReasons.computeIfAbsent(reason.take(120)) { AtomicLong() }.incrementAndGet()
+            failureReasons.computeIfAbsent(reason(e)) { AtomicLong() }.incrementAndGet()
             return null
         }
     }
 
-    private fun build(cb: CodeBlock, unswitch: Boolean): Graph {
-        val g = Dialects.of(cb).build(cb, stressExits = JvmCompiler.DEOPT_STRESS > 0, unswitch = unswitch)
+    /**
+     * Baselines (docs/IR_NEUTRALITY.md §5): the code of each of [blocks] made by this tier without speculations or exits
+     * (but the stress mode's), the code a block runs before the tier's speculating code and goes back to when that
+     * deoptimizes. Defined by [definer] in one batch, as the baseline compiler's are. Element i is `blocks[i]`'s code,
+     * the baseline installed already, or null (counted, with the reason) where the tier cannot compile it. Never throws.
+     */
+    fun compileBaselines(blocks: List<CodeBlock>, definer: CodeDefiner): List<CompiledCode?> {
+        val out = arrayOfNulls<CompiledCode>(blocks.size)
+        val made = ArrayList<Int>()
+        val graphs = ArrayList<Graph>()
+        val classes = ArrayList<dev.mooner.neonjs.jit.GeneratedClass>()
+        for ((i, cb) in blocks.withIndex()) {
+            (cb.baseline as CompiledCode?)?.let { out[i] = it; continue }
+            try {
+                val (g, c) = generate(cb, definer, baseline = true)
+                made.add(i)
+                graphs.add(g)
+                classes.add(c)
+            } catch (e: Throwable) {
+                baselineFailed(e)
+            }
+        }
+        if (classes.isEmpty()) return out.asList()
+        val loader = JvmCompiler::class.java.classLoader
+        val known = baselineClasses(definer)
+        // the classes not defined yet, each once
+        val fresh = LinkedHashMap<String, dev.mooner.neonjs.jit.GeneratedClass>()
+        for (c in classes) if (known[c.name]?.get() == null) fresh.putIfAbsent(c.name, c)
+        val news = fresh.values.toList()
+        // one batch; class by class where the definer rejects it, so that one bad class fails alone
+        val defined: List<Class<*>?> = if (news.isEmpty()) emptyList() else try {
+            definer.defineAll(news, loader)
+        } catch (e: Throwable) {
+            news.map { c -> try { definer.define(c.name, c.bytes, loader) } catch (e2: Throwable) { null } }
+        }
+        for ((k, cls) in defined.withIndex()) if (cls != null) known[news[k].name] = java.lang.ref.WeakReference(cls)
+        // (a class's first block in the batch that defined it is not a share)
+        val first = HashSet<String>()
+        for ((k, c) in classes.withIndex()) {
+            val cls = known[c.name]?.get()
+            val i = made[k]
+            if (cls == null) {
+                baselineFailed(JitBailout("class not defined"))
+                continue
+            }
+            if (c.name !in fresh || !first.add(c.name)) baselinesShared.incrementAndGet()
+            try {
+                out[i] = instantiate(cls, graphs[k], blocks[i], definer)
+                baselines.incrementAndGet()
+            } catch (e: Throwable) {
+                baselineFailed(e)
+            }
+        }
+        return out.asList()
+    }
+
+    private fun baselineFailed(e: Throwable) {
+        baselinesFailed.incrementAndGet()
+        baselineReasons.computeIfAbsent(reason(e)) { AtomicLong() }.incrementAndGet()
+    }
+
+    /** [cb]'s graph and class, within the JVM's size limits; a JitBailout (or another exception) where it has none. */
+    private fun generate(cb: CodeBlock, definer: CodeDefiner, baseline: Boolean): Pair<Graph, dev.mooner.neonjs.jit.GeneratedClass> {
+        val name = if (baseline) BASELINE_NAME else "dev/mooner/neonjs/jit/T2$" + JvmCompiler.sanitize(cb.name) + "$" + counter.incrementAndGet()
+        var g = build(cb, unswitch = true, baseline = baseline)
+        val bytes = try {
+            fun generate() = IrCodegen.generate(g, name, definer.classFileVersion)
+            var bytes = try {
+                generate()
+            } catch (e: org.objectweb.asm.MethodTooLargeException) {
+                if (!g.unswitched) throw e
+                null
+            }
+            // loops copied made the method too large: again without copies
+            if (g.unswitched && (bytes == null || IrCodegen.codeLength(bytes, "run") > MAX_CODE)) {
+                g = build(cb, unswitch = false, baseline = baseline)
+                bytes = generate()
+            }
+            val size = IrCodegen.codeLength(bytes!!, "run")
+            if (size > MAX_CODE) throw JitBailout("code of $size bytes: past what the JVM compiles")
+            bytes
+        } catch (e: JitBailout) {
+            if (System.getProperty("neonjs.jit.t2Debug") != null && e.message!!.contains("no local") && debugShown.incrementAndGet() <= 2) {
+                System.err.println("T2DEBUG ${cb.name}: ${e.message}\n${cb.sourceText()?.take(800)}\n${IrPrinter.print(g)}")
+            }
+            throw e
+        }
+        val (final, out) = if (baseline) named(bytes) else name to bytes
+        JvmCompiler.DUMP_DIR?.let { dir -> runCatching { java.io.File(dir, final.substringAfterLast('/') + ".class").writeBytes(out) } }
+        return g to dev.mooner.neonjs.jit.GeneratedClass(final.replace('/', '.'), out)
+    }
+
+    /**
+     * A baseline's class holds nothing of its block's (the block's objects are its instance's data, its constants are
+     * read from the frame): blocks whose code is the same share one class. Generated as [BASELINE_NAME], the class is
+     * named after a hash of its bytes, written over the placeholder's 16 digits in them (the name's every occurrence:
+     * the same length, so the class file stays valid).
+     */
+    private fun named(bytes: ByteArray): Pair<String, ByteArray> {
+        val hash = java.security.MessageDigest.getInstance("SHA-1").digest(bytes).joinToString("") { "%02x".format(it) }.take(16)
+        val final = BASELINE_NAME.replace(BASELINE_HASH, hash)
+        val from = BASELINE_NAME.toByteArray()
+        val to = final.toByteArray()
+        val out = bytes.copyOf()
+        var k = 0
+        while (k <= out.size - from.size) {
+            var same = true
+            for (j in from.indices) if (out[k + j] != from[j]) { same = false; break }
+            if (same) {
+                System.arraycopy(to, 0, out, k, to.size)
+                k += from.size
+            } else k++
+        }
+        return final to out
+    }
+
+    private const val BASELINE_HASH = "0000000000000000"
+    private const val BASELINE_NAME = "dev/mooner/neonjs/jit/T2\$base\$" + BASELINE_HASH
+
+    /** Baseline classes by name (a hash of their code), per definer, weakly: a class goes when no block's code uses it. */
+    private val baselineClasses = java.util.WeakHashMap<CodeDefiner, ConcurrentHashMap<String, java.lang.ref.WeakReference<Class<*>>>>()
+
+    private fun baselineClasses(definer: CodeDefiner) = synchronized(baselineClasses) { baselineClasses.getOrPut(definer) { ConcurrentHashMap() } }
+
+    private fun instantiate(cls: Class<*>, g: Graph, cb: CodeBlock, definer: CodeDefiner): T2Code {
+        val code = cls.getDeclaredConstructor(Array<Any?>::class.java, CodeBlock::class.java).newInstance(g.data.toTypedArray(), cb) as T2Code
+        code.osrPcs = g.osrPcs
+        code.resumer = g.dialect.resumer
+        code.definer = definer
+        return code
+    }
+
+    private fun reason(e: Throwable): String = when (e) {
+        is JitBailout -> (e.message ?: "bailout").replace(Regex("\\d+"), "N")
+        is org.objectweb.asm.MethodTooLargeException -> "method too large"
+        else -> {
+            if (System.getProperty("neonjs.jit.debug") != null) e.printStackTrace()
+            "${e.javaClass.simpleName}: ${e.message}"
+        }
+    }.take(120)
+
+    private fun build(cb: CodeBlock, unswitch: Boolean, baseline: Boolean): Graph {
+        val g = Dialects.of(cb).build(cb, stressExits = JvmCompiler.DEOPT_STRESS > 0, unswitch = unswitch, baseline = baseline)
         if (PRINT != null && cb.name.contains(PRINT)) System.err.println("T2 ${cb.name}:\n${IrPrinter.print(g)}")
         if (VERIFY) IrVerifier.verify(g)
         return g

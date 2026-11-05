@@ -39,6 +39,11 @@ internal class IrBuilder(
     speculate: Boolean = T2.SPECULATE,
     /** Whether loops with a call of a parameter are copied on the closure it is (Unswitch). */
     private val unswitch: Boolean = true,
+    /**
+     * Whether the code may exit (false: a baseline, docs/IR_NEUTRALITY.md §5): without, a call inlined is a branch on
+     * the closure to its body or to the call made as a call, and nothing else speculates ([speculate] false too).
+     */
+    private val exits: Boolean = true,
 ) : GraphBuilder(cb, Graph(cb, JsOps, JsKinds.of(ints, elems), Undefined, JsDialect), stressExits, speculate) {
     /** Bytecode ints of the bodies inlined so far (a budget). */
     private var inlined = 0
@@ -561,7 +566,7 @@ internal class IrBuilder(
             // function is called as a call, on a branch of its own; elsewhere the guard leaves before the call, which the
             // interpreter then makes. A parameter never assigned is the same all through a loop: its site is built so
             // tentatively, the guard's state kept (Unswitch copies the loop on the test, or makes it a guard)
-            val polymorphic = code.t2FailedAt(pc)
+            val polymorphic = code.t2FailedAt(pc) || !exits
             val tentative = !polymorphic && unswitch && speculate && site == null && unassignedParams.any { regs[it] === fn }
             var start = cur
             var other: Block? = null
