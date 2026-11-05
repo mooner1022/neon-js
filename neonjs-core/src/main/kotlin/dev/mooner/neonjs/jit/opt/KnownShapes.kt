@@ -1,8 +1,5 @@
 package dev.mooner.neonjs.jit.opt
 
-import dev.mooner.neonjs.compiler.Op
-import dev.mooner.neonjs.jit.JT
-
 /**
  * What the shape checks established, used again (docs/OPTIMIZING_TIER.md, P4). A LOAD_SLOT, STORE_SLOT or ADD_SLOT past
  * its checks makes facts about its object: its shape (an ADD_SLOT's: the one it moved to), that it is extensible (an
@@ -112,7 +109,7 @@ internal object KnownShapes {
                         f.objs.clear()
                         f.loads.clear()
                     }
-                    else -> if (!keeps(i, kinds)) {
+                    else -> if (!g.ops.keepsObjects(i, kinds)) {
                         f.objs.clear()
                         f.loads.clear()
                     }
@@ -142,20 +139,5 @@ internal object KnownShapes {
             f.checks.entries.removeIf { (k, v) -> o.checks[k] !== v }
         }
         return f
-    }
-
-    /** Whether [i] can neither run code nor change an object's shape (nor write a slot). */
-    private fun keeps(i: Inst, kinds: Kinds): Boolean = when (i.op) {
-        // numbers only: no valueOf
-        Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD, Op.EXP, Op.BAND, Op.BOR, Op.BXOR, Op.SHL, Op.SAR, Op.SHR,
-        Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC, Op.TO_NUMBER, Ir.MATH ->
-            i.inputs.all { JT.isNum(kinds.of(it)) }
-        // (a TDZ check throws: to a catch entry, which starts without facts)
-        Op.SEQ, Op.SNE, Op.NOT, Op.LOAD_ENV, Op.LOAD_ENV_TDZ, Op.STORE_ENV, Op.NEW_OBJECT, Op.NEW_ARRAY, Op.ARRAY_PUSH,
-        Op.ARRAY_HOLE, Op.NEW_OBJECT_LITERAL, Ir.CONSTRUCT_RESULT, Ir.PARAM, Ir.CHECK_TDZ, Ir.CHECK_NUMBER, Ir.CHECK_INT32,
-        Ir.CHECK_CLOSURE, Ir.LENGTH, Ir.LOAD_GLOBAL_LEX, Ir.LOAD_GLOBAL_SLOT, Ir.STRESS_EXIT, Ir.CLOSURE_ENV, Ir.IS_CLOSURE,
-        Ir.CHECK_INTRINSIC, Ir.INLINE_THIS, Ir.INLINE_ENTER, Ir.INLINE_EXIT, Ir.SET_HOME, Ir.LOAD_HOME, Ir.CATCH_VALUE,
-        Ir.GOTO, Ir.BRANCH, Ir.SWITCH -> true
-        else -> false
     }
 }

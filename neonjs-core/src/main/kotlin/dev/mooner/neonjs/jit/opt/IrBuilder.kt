@@ -279,19 +279,9 @@ internal class IrBuilder(
                 site(b.site)
             }
             var removed = false
-            for (b in g.blocks) if (b.insts.removeAll { it.hasResult && !it.virtual && it !in used && pure(it, kinds) }) removed = true
+            for (b in g.blocks) if (b.insts.removeAll { it.hasResult && !it.virtual && it !in used && g.ops.removable(it, kinds) }) removed = true
         } while (removed)
         removeDeadPhis()
-    }
-
-    /** Whether [i] does nothing but compute its result (or exit: a speculation). */
-    private fun pure(i: Inst, kinds: Kinds): Boolean = when (i.op) {
-        Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD, Op.EXP, Op.BAND, Op.BOR, Op.BXOR, Op.SHL, Op.SAR, Op.SHR,
-        Op.LT, Op.GT, Op.LE, Op.GE, Op.EQ, Op.NE, Op.NEG, Op.BNOT, Op.INC, Op.DEC, Op.TO_NUMERIC, Op.TO_NUMBER, Ir.MATH ->
-            i.inputs.all { JT.isNum(kinds.of(it)) }
-        Op.SEQ, Op.SNE, Op.NOT, Op.LOAD_ENV, Ir.CHECK_NUMBER, Ir.CHECK_INT32, Ir.LOAD_SLOT, Ir.LOAD_GLOBAL_LEX,
-        Ir.LOAD_GLOBAL_SLOT, Ir.CLOSURE_ENV, Ir.LENGTH, Ir.CONSTRUCT_RESULT -> true
-        else -> false
     }
 
     private fun newBlock(pc: Int, site: InlineSite?): Block = Block(-1, pc, site).also { made.add(it) }
@@ -1157,19 +1147,12 @@ internal class IrBuilder(
         var dropped = false
         for (b in g.blocks) for (i in b.insts) {
             if (i.op != Ir.CHECK_NUMBER && i.op != Ir.CHECK_INT32) continue
-            if (uses[i].orEmpty().all { it is Inst && takesObject(it) }) {
+            if (uses[i].orEmpty().all { it is Inst && g.ops.objectOperands(it) }) {
                 replaced[i] = i.inputs[0]
                 dropped = true
             }
         }
         if (dropped) resolveAll()
-    }
-
-    /** Whether [i] takes all its operands as Objects, whatever their kinds. */
-    private fun takesObject(i: Inst): Boolean = when (i.op) {
-        Ir.RETURN, Ir.THROW, Op.CALL, Op.NEW, Op.STORE_ENV, Op.STORE_GLOBAL, Op.PUT_PROP, Ir.STORE_SLOT, Ir.ADD_SLOT,
-        Op.NEW_OBJECT_LITERAL, Op.ARRAY_PUSH, Ir.NEW_THIS, Ir.CONSTRUCT_RESULT -> true
-        else -> false
     }
 
     /** Puts the values [replaced] gives in place of those replaced, everywhere, and removes those (phis, instructions). */

@@ -67,14 +67,16 @@ quick() {
 
 # dumps DIR RUNNER VARIANT: the classes generated for the sample, compiled on the calling thread (deterministic)
 dumps() {
-  local dir=$1 runner=$2 variant=$3 opts
+  local dir=$1 runner=$2 variant=$3 opts mode=compiled
   case $variant in
     t2) opts="-Dneonjs.jit.t2Stress" ;;
     stress) opts="-Dneonjs.jit.t2Stress -Dneonjs.jit.deoptStress" ;;
+    # (profiles and caches filled by the interpreter first: the speculations, LICM, the facts after guards)
+    adaptive) opts="-Dneonjs.jit.t2Stress -Dneonjs.jit.osrStress"; mode=adaptive ;;
   esac
   rm -rf "$dir"
   mkdir -p "$dir"
-  JAVA_OPTS="$opts -Dneonjs.jit.dump=$ROOT/$dir" "$runner" --root "$TEST262" --threads "$THREADS" --mode compiled \
+  JAVA_OPTS="$opts -Dneonjs.jit.dump=$ROOT/$dir" "$runner" --root "$TEST262" --threads "$THREADS" --mode $mode \
     --sync-jit --sample "$SAMPLE" --timeout 60000 --exclude built-ins/RegExp/property-escapes/generated > "$dir.log" 2>&1 || { tail -20 "$dir.log"; fail "dumping classes ($variant) with $runner"; }
 }
 
@@ -85,16 +87,18 @@ codegen() {
   base=build/check/base
   step "the JIT's classes against $ref (${sha:0:12})"
   gradle :neonjs-test262:installDist
-  if [ ! -d build/check/dumps/$sha-t2 ] || [ ! -d build/check/dumps/$sha-stress ]; then
+  local variants="t2 stress adaptive" v missing=
+  for v in $variants; do [ -d build/check/dumps/$sha-$v ] || missing=1; done
+  if [ -n "$missing" ]; then
     if [ -d $base ]; then git -C $base checkout -q -f --detach "$sha"; else git worktree add -q --detach $base "$sha"; fi
     # REF's engine with this runner (whose options the dumps need: --sync-jit, --sample, --exclude)
     rm -rf $base/neonjs-test262/src
     cp -R neonjs-test262/src neonjs-test262/build.gradle.kts $base/neonjs-test262/
     (cd $base && ./gradlew -q $GRADLE_ARGS :neonjs-test262:installDist) || fail "building $ref"
-    for v in t2 stress; do dumps build/check/dumps/$sha-$v $base/$RUNNER $v; done
+    for v in $variants; do dumps build/check/dumps/$sha-$v $base/$RUNNER $v; done
   fi
   local status=0
-  for v in t2 stress; do
+  for v in $variants; do
     dumps build/check/dumps/current-$v "$RUNNER" $v
     printf '%-8s ' "$v:"
     java -cp "$LIB" dev.mooner.neonjs.test262.ClassDiffKt build/check/dumps/$sha-$v build/check/dumps/current-$v --show 10 || status=1

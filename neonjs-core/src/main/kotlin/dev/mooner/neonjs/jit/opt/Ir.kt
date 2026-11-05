@@ -9,7 +9,7 @@ import dev.mooner.neonjs.jit.JT
  * whose instructions are in SSA form. A [Value] is defined once: a constant, a parameter, a phi at the start of a
  * block, or an instruction's result.
  */
-class Graph(@JvmField val code: CodeBlock) {
+class Graph internal constructor(@JvmField val code: CodeBlock, /** What the passes know of the graph's operations. */ @JvmField internal val ops: OpTable = JsOps) {
     /** Blocks in reverse post order; the first is the entry. */
     @JvmField val blocks = ArrayList<Block>()
     /** The loop headers the generated code can be entered at (IrCodegen's on-stack replacement entries), sorted. */

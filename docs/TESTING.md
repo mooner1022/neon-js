@@ -6,7 +6,7 @@ suite run once before a large pull request. `tools/check.sh` has the three level
 | level | command | what | time (8 cores) |
 |---|---|---|---|
 | quick | `tools/check.sh quick` | neonjs-core's unit tests; a fixed 1 in 20 of Test262 in the interpreter and in the JIT's stress modes | ~1.5–2 min |
-| codegen | `tools/check.sh codegen [REF]` | the classes the JIT generates for that part of Test262, against those of REF (default `main`) | ~1 min (~2 the first time for a REF) |
+| codegen | `tools/check.sh codegen [REF]` | the classes the JIT generates for that part of Test262, against those of REF (default `main`) | ~1.5 min (~3 the first time for a REF) |
 | full | `tools/check.sh full` | what CI runs, then all of Test262 in the stress modes | long: before a large pull request |
 
 Run *quick* after each change, *codegen* after each change that should not change the code generated (a refactoring of
@@ -36,11 +36,17 @@ fail a test.
 ## Generated code unchanged
 
 A refactoring of the compilers (docs/IR_NEUTRALITY.md's steps) should not change one instruction of what they generate.
-`codegen` checks that directly: it builds REF in a worktree (`build/check/base`, with this runner), runs the sample in
-compiled mode with `t2Stress` (and again with `deoptStress`) compiling on the calling thread (`--sync-jit`: the code
-then depends on nothing but the test), dumps every class (`-Dneonjs.jit.dump`), does the same with the working tree and
-compares the two with `ClassDiffKt` (neonjs-test262): the same classes, as many of each, with the same code as ASM
-prints it. T2's class names end with a counter, which is removed first; T1's end with a hash of their input.
+`codegen` checks that directly: it builds REF in a worktree (`build/check/base`, with this runner), runs the sample
+compiling on the calling thread (`--sync-jit`: the code then depends on nothing but the test) in three variants,
+dumps every class (`-Dneonjs.jit.dump`), does the same with the working tree and compares the two with `ClassDiffKt`
+(neonjs-test262): the same classes, as many of each, with the same code as ASM prints it. T2's class names end with a
+counter, which is removed first; T1's end with a hash of their input. The variants:
+
+- `t2`: compiled mode, `t2Stress`: every block by T1 and T2, before it runs;
+- `stress`: the same with `deoptStress` (the stress exits in both tiers' code);
+- `adaptive`: adaptive mode, `t2Stress` and `osrStress`: blocks compiled after the interpreter filled their profiles and
+  caches, so that the speculations and the passes using them (LICM, the facts after shape checks) have something to
+  do. Turning LICM off changes classes in all three.
 
 REF's dumps are kept in `build/check/dumps/<commit>-*`, so comparing against the same REF again only dumps the working
 tree. `ClassDiffKt BEFORE AFTER --show N` can compare any two dump directories.
