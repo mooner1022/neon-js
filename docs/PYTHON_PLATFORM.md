@@ -498,9 +498,9 @@ Decided before any code, since they are the expensive ones to change:
 | `str` | `PyStr` (a `String` and whether it is all in the BMP: indexing by code point stays O(1) there) | Python indexes by code point, JavaScript's strings by UTF-16 unit: never a bare `String` |
 | `list`, `tuple`, `dict` | `PyList` (an ArrayList), `PyTuple` (an array), `PyDict` (insertion-ordered, keys by Python's equality: `1 == 1.0 == True`) | |
 | function | `PyFunction` (its code block, the globals of its module; defaults later) | |
-| code | a `CodeBlock` whose `dialect` is Python's (`PyDialect`): the optimizing tier's core compiles it (docs/IR_NEUTRALITY.md), never T1 | |
-| frame | `PyFrame : Frame` (its `PyContext` and globals; `fn`, `thisValue`, `newTarget`, `env` null) | `Frame` is open for this |
-| a local without a value | `Undefined`, the core's dead value (`Frame` starts registers with it): `LOAD_FAST_CHECK` raises the UnboundLocalError | one value for the interpreter, exits and on-stack replacement |
+| code | a `CodeUnit` (the core's) whose `dialect` is Python's (`PyDialect`): the optimizing tier's core compiles it (docs/IR_NEUTRALITY.md), never T1 | |
+| frame | `PyFrame : VmFrame` (its code unit, `PyContext` and globals) | the core's frame (docs/IR_NEUTRALITY.md §10): no JavaScript in it |
+| a local without a value | null, the dead value of NeonPy's graphs: `LOAD_FAST_CHECK` raises the UnboundLocalError (no Python value is null: None is `PyNone`) | one value for the interpreter, exits and on-stack replacement |
 
 `CodeBlock.flags`' GENERATOR, ASYNC and NO_JIT bits mean the same for every language (the core reads them).
 
@@ -520,13 +520,15 @@ NeonPy, module `neonpython` (package `dev.mooner.neonpython`), on the core's lan
 | runtime | `PyRt.kt`, `PyBuiltins.kt` | each operation's meaning, once, for the interpreter and compiled code alike; `print`, `len`, `range`, `str`, `repr`, `int`, `float`, `bool`, `abs`, `min`, `max`, `sum`, `list`, `tuple`; list, dict and str methods |
 | front end | `PyLexer.kt`, `PyParser.kt` | Python's tokens (INDENT/DEDENT, ints of any size, strings and their escapes); a recursive-descent parser of the slice's grammar (CPython's precedence); what is not supported yet is a SyntaxError saying so |
 | compiler | `PyCompiler.kt`, `PyOp.kt` | a code block per module and function: registers for locals (parameters first) and temporaries, an operand stack empty at every statement; `LOAD_FAST_CHECK` where a local may have no value (a dataflow pass, as CPython's compiler does); the line table; `PyCodeInfo` in `CodeBlock.dialectData` |
-| interpreter | `PyInterpreter.kt` | `PyContext` (output, builtins, the core's agent and realm), `PyFrame`, the dispatch loop; calls through `Jit.prepare`, back edges through `Jit.loop`/`Jit.osr` |
+| interpreter | `PyInterpreter.kt` | `PyContext` (output, builtins, the core's agent: `VmAgent`), `PyFrame`, the dispatch loop; calls through `Jit.prepare`, back edges through `Jit.loop`/`Jit.osr` |
 | dialect | `PyDialect.kt` | `PyBuilder` (the core's `GraphBuilder`), `PyOps`, `PyKinds` (Objects, and bools as JVM ints for branches), `PyCodegen` (calls of `PyRt`), the resumer |
 
 What the core needed (beyond docs/IR_NEUTRALITY.md's steps): blocks of another language go to the tier's pipeline
 (`Jit.canCompile`, `ClassBackend`, `T2.submit`), never to T1; the language interface public (`Dialect`, `Graph`,
 `GraphBuilder`, `IrCodegen`, `KindSystem`, `OpTable`, `Emit`, `JvmEmitter`, `Kinds`, `Facts`), marked as no stable
-API; `CodeBlock.dialectData`; a graph's identity (the shared baselines' cache) includes its dialect.
+API; `CodeBlock.dialectData`; a graph's identity (the shared baselines' cache) includes its dialect. Then the core
+became a module of its own (docs/IR_NEUTRALITY.md §10, `neon-vm`): NeonPy depends on it alone, with no JavaScript on
+its class path (no realm, no `Undefined`, no `FunctionKind`).
 
 Tests (`neonpython`, in `tools/check.sh quick`): eleven programs whose expected output CPython 3.14 recorded
 (`src/test/resources/programs`), each run interpreted, compiled and adaptive; CPython's exceptions, messages and lines
@@ -543,10 +545,9 @@ Speed, the baselines only (calls of the runtime for every operation, nothing spe
 
 Calls are the slow part (a `PyFrame`, `Jit.prepare` and the runtime's dispatch per call).
 
-Known limits of the slice: generated classes are defined in the core's class loader, which must see the language's
-runtime (one class path, as in an app; a separate loader per language needs the dialect to give its own); the
-speculating tier builds no Python graph yet (`PyDialect.build` declines), so Python gets no exits, inlining or
-unboxed ints.
+Known limits of the slice: the speculating tier builds no Python graph yet (`PyDialect.build` declines), so Python
+gets no exits, inlining or unboxed ints. (Generated classes are defined in the dialect's class loader, which sees
+NeonPy's runtime: docs/IR_NEUTRALITY.md §10.)
 
 Next, in order: speculation (ints as `Rep.LONG` with overflow exits, floats as `Rep.DOUBLE`, through the core's
 exits and the resumer), which shows the optimizing stages working for a second language; cheaper calls (the callee's

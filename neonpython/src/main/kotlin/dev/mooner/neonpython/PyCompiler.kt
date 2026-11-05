@@ -1,15 +1,14 @@
 package dev.mooner.neonpython
 
-import dev.mooner.neonjs.compiler.CodeBlock
-import dev.mooner.neonjs.parser.FunctionKind
+import dev.mooner.neonjs.compiler.CodeUnit
 
 /**
- * What a Python code block keeps besides its bytecode ([CodeBlock.dialectData]): its function's name, the names of its
- * locals by register, and the source line of each statement's pc (pairs in [CodeBlock.lineTable]).
+ * What a Python code block keeps besides its bytecode ([CodeUnit.dialectData]): its function's name, the names of its
+ * locals by register, and the source line of each statement's pc (pairs in [CodeUnit.lineTable]).
  */
 class PyCodeInfo(@JvmField val name: String, @JvmField val localNames: Array<String>, @JvmField val module: Boolean) {
     /** The line of the statement at or before [pc] of [cb]. */
-    fun lineAt(cb: CodeBlock, pc: Int): Int {
+    fun lineAt(cb: CodeUnit, pc: Int): Int {
         val lt = cb.lineTable
         var line = -1
         var k = 0
@@ -58,19 +57,19 @@ class PyCompiler private constructor(
 
     companion object {
         /** The code block of module [src]. */
-        @JvmStatic fun compileModule(src: String, name: String = "<module>"): CodeBlock {
+        @JvmStatic fun compileModule(src: String, name: String = "<module>"): CodeUnit {
             val body = PyParser(src).parseModule()
             return PyCompiler(name, module = true, params = emptyList(), enclosing = emptySet()).compileBody(body)
         }
     }
 
-    private fun compileBody(body: List<Stmt>): CodeBlock {
+    private fun compileBody(body: List<Stmt>): CodeUnit {
         if (!module) scanLocals(body)
         for (s in body) stmt(s)
         // the end of the code: return None
         loadConst(PyNone)
         emit(PyOp.RETURN)
-        val cb = CodeBlock(name, FunctionKind.NORMAL)
+        val cb = CodeUnit(name)
         cb.code = code.toArray()
         markUnbound(cb.code)
         cb.constants = constants.toTypedArray()
@@ -78,7 +77,6 @@ class PyCompiler private constructor(
         cb.maxStack = maxStack(cb.code)
         cb.formalCount = paramCount
         cb.paramRegs = IntArray(paramCount) { it }
-        cb.length = paramCount
         cb.lineTable = lines.toArray()
         cb.dialect = PyDialect
         val names = Array(regs) { "" }
@@ -138,7 +136,7 @@ class PyCompiler private constructor(
     private fun const(v: Any?): Int {
         // (1, 1.0 and True are different constants: the key holds the class)
         val key: Any = if (v == null) PyNone else Pair(v.javaClass, if (v is Double) java.lang.Double.doubleToRawLongBits(v) else v)
-        if (v is CodeBlock) return constants.size.also { constants.add(v) }
+        if (v is CodeUnit) return constants.size.also { constants.add(v) }
         return constIndex.getOrPut(key) { constants.size.also { constants.add(v) } }
     }
 

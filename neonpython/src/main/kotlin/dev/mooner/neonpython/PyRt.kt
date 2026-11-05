@@ -520,10 +520,10 @@ object PyRt {
         return d
     }
 
-    /** [v], local [r] of [f]'s function, or an UnboundLocalError where it has no value (Undefined). */
-    @JvmStatic fun checkBound(v: Any?, r: Int, f: dev.mooner.neonjs.vm.Frame): Any? {
-        if (v !== dev.mooner.neonjs.runtime.Undefined) return v
-        val n = (f.code.dialectData as PyCodeInfo).localNames[r]
+    /** [v], local [r] of [f]'s function, or an UnboundLocalError where it has no value (null). */
+    @JvmStatic fun checkBound(v: Any?, r: Int, f: dev.mooner.neonjs.vm.VmFrame): Any? {
+        if (v != null) return v
+        val n = (f.unit.dialectData as PyCodeInfo).localNames[r]
         throw PyException("UnboundLocalError", "cannot access local variable '$n' where it is not associated with a value")
     }
 
@@ -564,23 +564,23 @@ object PyRt {
     // ------------------------------------------------------------------ names, functions, calls
 
     /** The global [name] of [f]'s module, else the builtin, else a NameError. */
-    @JvmStatic fun loadGlobal(f: dev.mooner.neonjs.vm.Frame, name: Any?): Any? {
+    @JvmStatic fun loadGlobal(f: dev.mooner.neonjs.vm.VmFrame, name: Any?): Any? {
         val pf = f as PyFrame
         return pf.globals[name] ?: pf.ctx.builtins[name] ?: throw PyException("NameError", "name '$name' is not defined")
     }
 
-    @JvmStatic fun storeGlobal(f: dev.mooner.neonjs.vm.Frame, name: Any?, v: Any?) {
+    @JvmStatic fun storeGlobal(f: dev.mooner.neonjs.vm.VmFrame, name: Any?, v: Any?) {
         (f as PyFrame).globals[name] = v
     }
 
     /** A function of [code] (a code block of [PyCompiler]'s), in [f]'s module. */
-    @JvmStatic fun makeFunction(f: dev.mooner.neonjs.vm.Frame, code: Any?): Any? {
-        val cb = code as dev.mooner.neonjs.compiler.CodeBlock
+    @JvmStatic fun makeFunction(f: dev.mooner.neonjs.vm.VmFrame, code: Any?): Any? {
+        val cb = code as dev.mooner.neonjs.compiler.CodeUnit
         return PyFunction(cb, (f as PyFrame).globals, (cb.dialectData as PyCodeInfo).name)
     }
 
     /** Calls [fn] with [args], from frame [f]. */
-    @JvmStatic fun call(f: dev.mooner.neonjs.vm.Frame, fn: Any?, args: Array<Any?>): Any? {
+    @JvmStatic fun call(f: dev.mooner.neonjs.vm.VmFrame, fn: Any?, args: Array<Any?>): Any? {
         val ctx = (f as PyFrame).ctx
         return when (fn) {
             is PyFunction -> PyInterpreter.call(ctx, fn, args)

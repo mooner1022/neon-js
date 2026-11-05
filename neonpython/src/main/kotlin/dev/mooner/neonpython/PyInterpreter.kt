@@ -1,23 +1,20 @@
 package dev.mooner.neonpython
 
-import dev.mooner.neonjs.compiler.CodeBlock
+import dev.mooner.neonjs.compiler.CodeUnit
 import dev.mooner.neonjs.jit.CompiledCode
 import dev.mooner.neonjs.jit.Jit
-import dev.mooner.neonjs.jit.JitRt
-import dev.mooner.neonjs.runtime.Agent
-import dev.mooner.neonjs.runtime.Realm
-import dev.mooner.neonjs.runtime.RuntimeConfig
-import dev.mooner.neonjs.runtime.Undefined
-import dev.mooner.neonjs.vm.Frame
+import dev.mooner.neonjs.jit.VmRt
+import dev.mooner.neonjs.runtime.VmAgent
+import dev.mooner.neonjs.runtime.VmConfig
+import dev.mooner.neonjs.vm.VmFrame
 
 /**
- * A Python interpreter's state: where print writes ([out]), the builtins, and the core's agent (call depth, interrupts,
- * the execution mode and the JIT's settings: [RuntimeConfig]) and realm, which frames carry. One thread at a time
- * (docs/PYTHON_PLATFORM.md: single-threaded, its state in one place for a GIL later).
+ * A Python interpreter's state: where print writes ([out]), the builtins, and the execution core's agent (call depth,
+ * limits and interrupts, the execution mode and the JIT's settings: [VmConfig]), which frames carry. One thread at a
+ * time (docs/PYTHON_PLATFORM.md: single-threaded, its state in one place for a GIL later).
  */
-class PyContext(@JvmField val out: Appendable = StringBuilder(), config: RuntimeConfig = RuntimeConfig()) {
-    @JvmField val agent = Agent(config)
-    @JvmField val realm = Realm(agent)
+class PyContext(@JvmField val out: Appendable = StringBuilder(), config: VmConfig = VmConfig()) {
+    @JvmField val agent = VmAgent(config)
     @JvmField val builtins: PyDict = PyBuiltins.module()
 
     /** Runs the module [src]; returns its globals. */
@@ -35,12 +32,20 @@ class PyContext(@JvmField val out: Appendable = StringBuilder(), config: Runtime
 }
 
 /**
- * A Python activation: the core's frame (registers, then the operand stack, in its slots; its pc), with the context and
- * the globals of the function's module. Registers without a value hold Undefined ([Frame]'s, the optimizing tier's
- * dead value), which LOAD_FAST_CHECK raises an UnboundLocalError for.
+ * A Python activation: the core's frame (registers, then the operand stack, in its slots; its pc), with its code, the
+ * context and the globals of the function's module. Registers without a value hold null (the optimizing tier's dead
+ * value too), which LOAD_FAST_CHECK raises an UnboundLocalError for; an interpreted frame starts with its parameters'
+ * registers holding the arguments.
  */
-class PyFrame(code: CodeBlock, @JvmField val ctx: PyContext, @JvmField val globals: PyDict, args: Array<Any?>, compiled: CompiledCode?) :
-    Frame(null, code, ctx.realm, null, args, null, null, compiled)
+class PyFrame(@JvmField val code: CodeUnit, @JvmField val ctx: PyContext, @JvmField val globals: PyDict, args: Array<Any?>, compiled: CompiledCode?) :
+    VmFrame(args, if (compiled != null) NO_SLOTS else slotsFor(code), code.numRegs) {
+    override val unit: CodeUnit get() = code
+    override val agent: VmAgent get() = ctx.agent
+
+    init {
+        if (compiled == null) for (i in args.indices) slots[i] = args[i]
+    }
+}
 
 /**
  * Python's interpreter of [PyOp]'s bytecode, and its calls: a function runs its block's compiled code where the JIT's
@@ -59,10 +64,9 @@ object PyInterpreter {
         return runFrame(PyFrame(code, ctx, fn.globals, args, c), c)
     }
 
-    /** Runs [f] (with [c], or interpreted), with the agent's call depth, interrupts and top frame kept. */
+    /** Runs [f] (with [c], or interpreted), with the agent's call depth and interrupts kept. */
     private fun runFrame(f: PyFrame, c: CompiledCode?): Any? {
-        val agent = f.realm.agent
-        val prevTop = agent.topFrame
+        val agent = f.ctx.agent
         if (++agent.depth > agent.maxDepth) {
             agent.depth--
             throw PyException("RecursionError", "maximum recursion depth exceeded")
@@ -76,10 +80,6 @@ object PyInterpreter {
                 throw t
             }
         }
-        val prevRealm = agent.currentRealm
-        agent.currentRealm = f.realm
-        f.parent = prevTop
-        agent.topFrame = f
         try {
             return if (c == null) run(f) else c.run(f)
         } catch (e: PyException) {
@@ -93,12 +93,10 @@ object PyInterpreter {
             throw PyException("RecursionError", "maximum recursion depth exceeded")
         } finally {
             agent.depth--
-            agent.topFrame = prevTop
-            agent.currentRealm = prevRealm
         }
     }
 
-    private fun unbound(cb: CodeBlock, r: Int): PyException {
+    private fun unbound(cb: CodeUnit, r: Int): PyException {
         val n = (cb.dialectData as PyCodeInfo).localNames[r]
         return PyException("UnboundLocalError", "cannot access local variable '$n' where it is not associated with a value")
     }
@@ -124,7 +122,7 @@ object PyInterpreter {
                         PyOp.LOAD_FAST -> { s[sp++] = s[bc[pc + 1]]; pc += 2 }
                         PyOp.LOAD_FAST_CHECK -> {
                             val v = s[bc[pc + 1]]
-                            if (v === Undefined) throw unbound(cb, bc[pc + 1])
+                            if (v == null) throw unbound(cb, bc[pc + 1])
                             s[sp++] = v
                             pc += 2
                         }
@@ -248,13 +246,13 @@ object PyInterpreter {
             f.pc = pc
             f.sp = sp
             val r = Jit.osr(f)
-            if (r === JitRt.DEOPTED) {
+            if (r === VmRt.DEOPTED) {
                 // the compiled code left for the interpreter (PyDialect's resumer): the frame continues here
                 pc = f.pc
                 sp = f.sp
                 continue
             }
-            if (r !== JitRt.NO_OSR) return r
+            if (r !== VmRt.NO_OSR) return r
         }
     }
 
@@ -262,8 +260,8 @@ object PyInterpreter {
      * Every Jit.LOOP_CHECK loop iterations: the agent's interrupts and the JIT's policy (Jit.loop); at a backward jump
      * with an empty operand stack ([sp] at the registers' end), whether the loop goes on in compiled code.
      */
-    private fun backEdge(f: Frame, sp: Int): Boolean {
-        val agent = f.realm.agent
+    private fun backEdge(f: PyFrame, sp: Int): Boolean {
+        val agent = f.ctx.agent
         agent.checkInterrupt()
         val cb = f.code
         return Jit.loop(cb, agent) && sp == cb.numRegs

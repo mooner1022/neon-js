@@ -1,11 +1,11 @@
 package dev.mooner.neonpython
 
-import dev.mooner.neonjs.compiler.CodeBlock
-import dev.mooner.neonjs.jit.Deopt
+import dev.mooner.neonjs.compiler.CodeUnit
 import dev.mooner.neonjs.jit.Emit
 import dev.mooner.neonjs.jit.JitBailout
-import dev.mooner.neonjs.jit.JitRt
 import dev.mooner.neonjs.jit.JvmEmitter
+import dev.mooner.neonjs.jit.VmDeopt
+import dev.mooner.neonjs.jit.VmRt
 import dev.mooner.neonjs.jit.opt.ANY_KIND
 import dev.mooner.neonjs.jit.opt.Block
 import dev.mooner.neonjs.jit.opt.Const
@@ -26,7 +26,7 @@ import dev.mooner.neonjs.jit.opt.Phi
 import dev.mooner.neonjs.jit.opt.Rep
 import dev.mooner.neonjs.jit.opt.Resumer
 import dev.mooner.neonjs.jit.opt.Value
-import dev.mooner.neonjs.runtime.Undefined
+import dev.mooner.neonjs.vm.VmFrame
 import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.MethodVisitor
 import org.objectweb.asm.Opcodes.*
@@ -41,7 +41,7 @@ import org.objectweb.asm.Opcodes.*
  * built yet.
  */
 object PyDialect : Dialect {
-    override fun build(cb: CodeBlock, stressExits: Boolean, unswitch: Boolean, baseline: Boolean): Graph {
+    override fun build(cb: CodeUnit, stressExits: Boolean, unswitch: Boolean, baseline: Boolean): Graph {
         if (!baseline) throw JitBailout("python: no speculation yet")
         return PyBuilder(cb).build()
     }
@@ -49,10 +49,12 @@ object PyDialect : Dialect {
     /** An exit's state into the frame's slots, and the interpreter on from its pc (no exit is made yet but the core's). */
     override val resumer: Resumer = Resumer { f, pc, values, _ ->
         val entered = !f.isCompiled
-        Deopt.write(f, values)
+        VmDeopt.write(f, values)
         f.pc = pc
-        if (entered) JitRt.DEOPTED else PyInterpreter.run(f as PyFrame)
+        if (entered) VmRt.DEOPTED else PyInterpreter.run(f as PyFrame)
     }
+
+    override fun interpret(f: VmFrame): Any? = PyInterpreter.run(f as PyFrame)
 
     override fun identityExtras(g: Graph, out: java.io.DataOutputStream) {
         val t = backEdgeTargets(g.code.code)
@@ -158,7 +160,7 @@ object PyOps : OpTable {
 }
 
 /** The graph of a Python code block: its registers from its arguments, each instruction built as its bytecode's. */
-class PyBuilder(cb: CodeBlock) : GraphBuilder(cb, Graph(cb, PyOps, PyKinds, Undefined, PyDialect), stressExits = false, speculate = false) {
+class PyBuilder(cb: CodeUnit) : GraphBuilder(cb, Graph(cb, PyOps, PyKinds, null, PyDialect), stressExits = false, speculate = false) {
     override fun unbuildable(): String? = null
     override fun root(): Body = PyBody(cb)
 
@@ -166,7 +168,7 @@ class PyBuilder(cb: CodeBlock) : GraphBuilder(cb, Graph(cb, PyOps, PyKinds, Unde
         if (r < cb.formalCount) add(start, Inst(PyIr.ARG, NO_VALUES, r, 0, 0, -1, -1)).also { it.hasResult = true } else dead()
     }
 
-    private inner class PyBody(code: CodeBlock) : Body(code, null) {
+    private inner class PyBody(code: CodeUnit) : Body(code, null) {
         override fun length(pc: Int): Int = PyOp.length(bc[pc])
         override fun operand(pc: Int, k: Int): Int = if (k <= PyOp.operands[bc[pc]]) bc[pc + k] else 0
 
@@ -214,7 +216,7 @@ class PyBuilder(cb: CodeBlock) : GraphBuilder(cb, Graph(cb, PyOps, PyKinds, Unde
                 PyOp.LOAD_FAST_CHECK -> {
                     val v = regs[a]!!
                     // only the dead value is none, and a phi may be it (an instruction's result never is)
-                    if (v is Phi || v is Const && v.value === Undefined) inst(PyIr.CHECK_BOUND, arrayOf(v), result = true)
+                    if (v is Phi || v is Const && v.value == null) inst(PyIr.CHECK_BOUND, arrayOf(v), result = true)
                     else stack.add(v)
                 }
                 PyOp.STORE_FAST -> {
@@ -293,8 +295,8 @@ class PyBuilder(cb: CodeBlock) : GraphBuilder(cb, Graph(cb, PyOps, PyKinds, Unde
 
 private const val PY_RT = "dev/mooner/neonpython/PyRt"
 private const val PY_BOOL = "dev/mooner/neonpython/PyBool"
-private const val FRAME = "dev/mooner/neonjs/vm/Frame"
-private const val FRAME_D = "Ldev/mooner/neonjs/vm/Frame;"
+private const val FRAME = "dev/mooner/neonjs/vm/VmFrame"
+private const val FRAME_D = "Ldev/mooner/neonjs/vm/VmFrame;"
 private const val OBJ = "Ljava/lang/Object;"
 private const val OBJS = "[Ljava/lang/Object;"
 
@@ -483,7 +485,6 @@ class PyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, clas
             return
         }
         when {
-            v === Undefined -> getstatic("dev/mooner/neonjs/runtime/Undefined", "INSTANCE", "Ldev/mooner/neonjs/runtime/Undefined;")
             v === PyNone -> getstatic("dev/mooner/neonpython/PyNone", "INSTANCE", "Ldev/mooner/neonpython/PyNone;")
             v is PyBool -> getstatic(PY_BOOL, if (v.value) "TRUE" else "FALSE", "L$PY_BOOL;")
             v == null -> mv.visitInsn(ACONST_NULL)
@@ -496,12 +497,11 @@ class PyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, clas
         when {
             c.k >= 0 && (c.code == null || c.code === g.code) -> {
                 em.frame()
-                em.mv.visitFieldInsn(GETFIELD, FRAME, "code", "Ldev/mooner/neonjs/compiler/CodeBlock;")
-                em.mv.visitFieldInsn(GETFIELD, "dev/mooner/neonjs/compiler/CodeBlock", "constants", OBJS)
+                em.mv.visitMethodInsn(INVOKEVIRTUAL, FRAME, "getUnit", "()Ldev/mooner/neonjs/compiler/CodeUnit;", false)
+                em.mv.visitFieldInsn(GETFIELD, "dev/mooner/neonjs/compiler/CodeUnit", "constants", OBJS)
                 em.iconst(c.k)
                 em.mv.visitInsn(AALOAD)
             }
-            v === Undefined -> em.getstatic("dev/mooner/neonjs/runtime/Undefined", "INSTANCE", "Ldev/mooner/neonjs/runtime/Undefined;")
             v === PyNone -> em.getstatic("dev/mooner/neonpython/PyNone", "INSTANCE", "Ldev/mooner/neonpython/PyNone;")
             v is PyBool -> em.getstatic(PY_BOOL, if (v.value) "TRUE" else "FALSE", "L$PY_BOOL;")
             v == null -> em.mv.visitInsn(ACONST_NULL)
@@ -520,7 +520,7 @@ class PyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, clas
         override fun alloc(n: Int): Int = top.also { top += n }
     }
 
-    override val deadValue: Any? get() = Undefined
+    override val deadValue: Any? get() = null
 
     override fun backEdgeTargets(): IntArray = PyDialect.backEdgeTargets(g.code.code)
 

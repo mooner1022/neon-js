@@ -1,6 +1,6 @@
 package dev.mooner.neonpython
 
-import dev.mooner.neonjs.compiler.CodeBlock
+import dev.mooner.neonjs.compiler.CodeUnit
 import java.math.BigInteger
 
 /*
@@ -113,7 +113,7 @@ class PyDict {
 }
 
 /** A function: its code ([PyCompiler]), the globals of its module, its name. */
-class PyFunction(@JvmField val code: CodeBlock, @JvmField val globals: PyDict, @JvmField val name: String) {
+class PyFunction(@JvmField val code: CodeUnit, @JvmField val globals: PyDict, @JvmField val name: String) {
     @JvmField val params: Int = code.formalCount
     override fun toString() = "<function $name>"
 }

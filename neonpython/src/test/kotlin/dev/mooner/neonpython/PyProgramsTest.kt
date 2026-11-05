@@ -1,10 +1,10 @@
 package dev.mooner.neonpython
 
-import dev.mooner.neonjs.compiler.CodeBlock
+import dev.mooner.neonjs.compiler.CodeUnit
 import dev.mooner.neonjs.jit.Jit
 import dev.mooner.neonjs.jit.opt.T2
 import dev.mooner.neonjs.jit.opt.T2Code
-import dev.mooner.neonjs.runtime.RuntimeConfig
+import dev.mooner.neonjs.runtime.VmConfig
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assertions.fail
@@ -22,7 +22,7 @@ import org.junit.jupiter.params.provider.MethodSource
 class PyProgramsTest {
     enum class Mode { INTERPRETED, COMPILED, ADAPTIVE }
 
-    private fun config(mode: Mode) = RuntimeConfig().apply {
+    private fun config(mode: Mode) = VmConfig().apply {
         executionMode = when (mode) {
             Mode.INTERPRETED -> Jit.MODE_INTERPRETER
             Mode.COMPILED -> Jit.MODE_COMPILED
@@ -153,6 +153,6 @@ class PyProgramsTest {
         )
 
         /** The code blocks of [cb] and every function it defines. */
-        fun blocks(cb: CodeBlock): List<CodeBlock> = listOf(cb) + cb.constants.filterIsInstance<CodeBlock>().flatMap { blocks(it) }
+        fun blocks(cb: CodeUnit): List<CodeUnit> = listOf(cb) + cb.constants.filterIsInstance<CodeUnit>().flatMap { blocks(it) }
     }
 }

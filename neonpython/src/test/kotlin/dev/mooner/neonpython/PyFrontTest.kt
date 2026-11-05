@@ -84,7 +84,7 @@ class PyFrontTest {
     @Test
     fun localsThatMayHaveNoValueAreChecked() {
         val cb = PyCompiler.compileModule("def f(a):\n  if a:\n    b = 1\n  c = 2\n  return a + b + c\n")
-        val f = cb.constants.filterIsInstance<dev.mooner.neonjs.compiler.CodeBlock>().single()
+        val f = cb.constants.filterIsInstance<dev.mooner.neonjs.compiler.CodeUnit>().single()
         val loads = ArrayList<Pair<Int, Int>>()
         var pc = 0
         while (pc < f.code.size) {
