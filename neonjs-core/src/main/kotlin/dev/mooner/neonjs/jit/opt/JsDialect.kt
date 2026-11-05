@@ -5,13 +5,21 @@ import dev.mooner.neonjs.compiler.CodeUnit
 import dev.mooner.neonjs.jit.CodeDefiner
 import dev.mooner.neonjs.jit.CodeDefiners
 import dev.mooner.neonjs.jit.CompiledCode
+import dev.mooner.neonjs.jit.Deopt
+import dev.mooner.neonjs.jit.JitRt
 import dev.mooner.neonjs.jit.JvmCompiler
+import dev.mooner.neonjs.runtime.Null
+import dev.mooner.neonjs.runtime.Undefined
+import dev.mooner.neonjs.vm.Frame
+import dev.mooner.neonjs.vm.Interpreter
+import dev.mooner.neonjs.vm.VmFrame
 import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.MethodVisitor
 
 /** JavaScript, with the baseline's int32 and element settings (JvmCompiler.INT32, JvmCompiler.ELEMS). */
 internal object JsDialect : Dialect {
-    override val resumer: Resumer get() = Resumer.JS
+    /** Deopt.resume, its records Deopt.Inlined. */
+    override val resumer: Resumer = Resumer { f, pc, values, inner -> Deopt.resume(f as Frame, pc, values, inner as Deopt.Inlined?) }
 
     override fun facts(g: Graph, kinds: Kinds): FactRules = KnownShapes.rules(g, kinds)
 
@@ -37,6 +45,23 @@ internal object JsDialect : Dialect {
      */
     override fun canCompile(cb: CodeUnit): Boolean =
         (cb as CodeBlock).strictPcs == null && (JvmCompiler.canCompile(cb) || T2.suspendable(cb))
+
+    override fun interpret(f: VmFrame): Any? = Interpreter.run(f as Frame)
+
+    override fun leaveCompiled(e: Throwable, f: VmFrame): Throwable = JitRt.leaveCompiled(e, f as Frame)
+
+    override fun dropInlined(f: VmFrame) = JitRt.dropInlined(f as Frame)
+
+    /** undefined, null, true and false (constants of no index). */
+    override fun constIdentity(value: Any, out: java.io.DataOutputStream): Boolean {
+        when {
+            value === Undefined -> out.writeByte('u'.code)
+            value === Null -> out.writeByte('n'.code)
+            value is Boolean -> { out.writeByte('b'.code); out.writeBoolean(value) }
+            else -> return false
+        }
+        return true
+    }
 
     /** Eval code and module bodies are compiled at neither their calls nor their loops; functions and classic scripts are. */
     override fun compilesAtLoops(cb: CodeUnit): Boolean =

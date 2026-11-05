@@ -21,7 +21,7 @@ class CodeVersionsTest {
     /** A later version that counts its activations and runs them with [base]. */
     private class Counting(val base: CompiledCode) : CompiledCode {
         var runs = 0
-        override fun run(f: Frame): Any? {
+        override fun run(f: dev.mooner.neonjs.vm.VmFrame): Any? {
             runs++
             return base.run(f)
         }
@@ -69,7 +69,7 @@ class CodeVersionsTest {
             ctx.eval("function f() { return 1 } f()")
             val cb = codeOf(ctx, "f")
             assertNull(cb.baseline)
-            assertFalse(Jit.install(cb, object : CompiledCode { override fun run(f: Frame): Any? = error("not installed") }))
+            assertFalse(Jit.install(cb, object : CompiledCode { override fun run(f: dev.mooner.neonjs.vm.VmFrame): Any? = error("not installed") }))
             assertNull(cb.compiled)
             assertEquals("1", ctx.eval("String(f())").asString())
         }

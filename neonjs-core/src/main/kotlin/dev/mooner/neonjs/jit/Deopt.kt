@@ -36,28 +36,10 @@ object Deopt {
         @JvmField val inner: Inlined?,
     )
 
-    /** Exits taken, and those inside calls compiled inlined; loops moved to a later version of their code ([tierUp]). */
+    /** Exits taken, and those inside calls compiled inlined; loops moved to a later version of their code (VmDeopt). */
     @JvmField val count = AtomicLong()
     @JvmField val inlinedCount = AtomicLong()
-    @JvmField val tierUps = AtomicLong()
-
-    /**
-     * Continues [f], whose code found a later version of its block's code installed at a loop back edge (JitRt.canTierUp),
-     * in that version: the frame becomes interpreted at the loop header [pc] with the registers [values], then enters
-     * the new code there by on-stack replacement; where that code declines the entry or deoptimizes, the interpreter goes
-     * on. Returns the frame's result, or [JitRt.DEOPTED] when the code was given [f] interpreted (as [resume]).
-     */
-    @JvmStatic
-    fun tierUp(f: Frame, pc: Int, values: Array<Any?>): Any? {
-        tierUps.incrementAndGet()
-        val entered = !f.isCompiled
-        JitRt.dropInlined(f)
-        write(f, values)
-        f.pc = pc
-        val r = Jit.osr(f)
-        if (r !== JitRt.NO_OSR && r !== JitRt.DEOPTED) return r
-        return if (entered) JitRt.DEOPTED else Interpreter.run(f)
-    }
+    @JvmField val tierUps: AtomicLong = VmDeopt.tierUps
 
     /**
      * Continues [f], the frame of an activation of compiled code, in the interpreter: at [pc] with [values] (registers,
@@ -75,7 +57,7 @@ object Deopt {
         val entered = !f.isCompiled
         // the calls compiled code ran inlined in the frame end here: they get frames of their own (finishCall)
         JitRt.dropInlined(f)
-        write(f, values)
+        VmDeopt.write(f, values)
         f.pc = pc
         if (inner != null) {
             inlinedCount.incrementAndGet()
@@ -109,7 +91,7 @@ object Deopt {
     private fun call(c: Inlined, construct: Boolean): Any? {
         val fn = c.fn
         val g = Frame(fn, fn.code, fn.realm, c.thisValue, c.args, if (construct) fn else Undefined, c.env, null)
-        write(g, c.values)
+        VmDeopt.write(g, c.values)
         g.pc = c.pc
         // a call of its own completes once the frame is on the agent's frame chain (Interpreter.run)
         if (c.inner != null) g.deoptCall = c.inner
@@ -117,22 +99,5 @@ object Deopt {
         val r = if (r0 === Interpreter.TAIL) Interpreter.callClosure(g.tailFn!!, g.tailThis, g.tailArgs!!) else r0
         // (as Interpreter.constructClosure)
         return if (construct) r as? JSObject ?: c.thisValue else r
-    }
-
-    /** Gives [f] slots (it keeps them if it has some) holding [values]: its registers, then its operand stack. */
-    @JvmStatic
-    fun write(f: Frame, values: Array<Any?>) {
-        val code = f.code
-        if (values.size < code.numRegs || values.size > code.numRegs + code.maxStack) {
-            throw IllegalStateException("deoptimization state of ${values.size} values for ${code.numRegs} registers")
-        }
-        var s = f.slots
-        if (s === Frame.NO_SLOTS) {
-            s = arrayOfNulls(code.numRegs + code.maxStack)
-            f.slots = s
-        }
-        values.copyInto(s)
-        java.util.Arrays.fill(s, values.size, s.size, null)
-        f.sp = values.size
     }
 }

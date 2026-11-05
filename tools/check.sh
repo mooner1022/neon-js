@@ -117,7 +117,7 @@ codegen() {
     printf '%-8s ' "$v:"
     # (SUBSET=1: a change that compiles more, every class of REF's there unchanged, more allowed)
     java -cp "$LIB" dev.mooner.neonjs.test262.ClassDiffKt build/check/dumps/$sha-$v build/check/dumps/current-$v --show 10 \
-      ${SUBSET:+--subset} || status=1
+      ${SUBSET:+--subset} --equiv tools/codegen-equiv.txt || status=1
   done
   [ $status -eq 0 ] || fail "generated code differs from $ref"
 }

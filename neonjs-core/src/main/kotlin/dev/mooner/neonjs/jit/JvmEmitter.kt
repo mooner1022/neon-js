@@ -18,6 +18,15 @@ internal const val CODEBLOCK_D = "Ldev/mooner/neonjs/compiler/CodeBlock;"
 internal const val REALM_D = "Ldev/mooner/neonjs/runtime/Realm;"
 internal const val AGENT_D = "Ldev/mooner/neonjs/runtime/Agent;"
 internal const val CONSTS_D = "[Ljava/lang/Object;"
+// the core's classes (docs/IR_NEUTRALITY.md §10)
+internal const val VM_FRAME = "dev/mooner/neonjs/vm/VmFrame"
+internal const val VM_FRAME_D = "Ldev/mooner/neonjs/vm/VmFrame;"
+internal const val VM_AGENT = "dev/mooner/neonjs/runtime/VmAgent"
+internal const val VM_AGENT_D = "Ldev/mooner/neonjs/runtime/VmAgent;"
+internal const val CODE_UNIT = "dev/mooner/neonjs/compiler/CodeUnit"
+internal const val CODE_UNIT_D = "Ldev/mooner/neonjs/compiler/CodeUnit;"
+internal const val VM_RT = "dev/mooner/neonjs/jit/VmRt"
+internal const val VM_DEOPT = "dev/mooner/neonjs/jit/VmDeopt"
 
 internal const val L_FRAME = 1
 internal const val L_CONSTS = 2
@@ -61,6 +70,9 @@ interface Emit {
 
     fun frame() = mv.visitVarInsn(ALOAD, L_FRAME)
 
+    /** The class of the agent the code's L_AGENT holds: the core's, or the language's own subclass (JavaScript's Agent). */
+    val agentClass: String get() = VM_AGENT
+
     fun getstatic(owner: String, field: String, desc: String) = mv.visitFieldInsn(GETSTATIC, owner, field, desc)
 
     fun packArray(n: Int) {
@@ -83,7 +95,7 @@ interface Emit {
         mv.visitVarInsn(ILOAD, L_BUDGET)
         mv.visitJumpInsn(IFGT, ok)
         mv.visitVarInsn(ALOAD, L_AGENT)
-        mv.visitMethodInsn(INVOKEVIRTUAL, "dev/mooner/neonjs/runtime/Agent", "checkInterrupt", "()V", false)
+        mv.visitMethodInsn(INVOKEVIRTUAL, agentClass, "checkInterrupt", "()V", false)
         iconst(4096)
         mv.visitVarInsn(ISTORE, L_BUDGET)
         mv.visitLabel(ok)
@@ -100,6 +112,9 @@ abstract class JvmEmitter(final override val mv: MethodVisitor) : Emit
  * JavaScript, so that both call the runtime the same way.
  */
 internal interface JsEmit : Emit {
+    /** JavaScript's Agent (its code's L_AGENT, from the frame's realm). */
+    override val agentClass: String get() = AGENT
+
     /** Pushes the constants array of the code the instruction belongs to (an inlined body's are its own). */
     fun consts() = mv.visitVarInsn(ALOAD, L_CONSTS)
     /** The local holding the environment, or `this`, of the inlined body being generated; -1 elsewhere (the frame's). */

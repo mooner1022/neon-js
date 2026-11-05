@@ -5,7 +5,7 @@ import dev.mooner.neonjs.compiler.CodeUnit
 import dev.mooner.neonjs.jit.CodeDefiners
 import dev.mooner.neonjs.jit.CompiledCode
 import dev.mooner.neonjs.jit.Emit
-import dev.mooner.neonjs.jit.FRAME
+import dev.mooner.neonjs.jit.VM_FRAME
 import dev.mooner.neonjs.jit.JitBailout
 import dev.mooner.neonjs.jit.Jit
 import dev.mooner.neonjs.jit.JvmEmitter
@@ -113,6 +113,7 @@ class ToyDialectTest {
 
 // ---------------------------------------------------------------------- the toy language
 
+internal const val TOY_RT = "dev/mooner/neonjs/jit/opt/ToyRt"
 internal const val T_CONST = 0
 internal const val T_LOAD = 1
 internal const val T_STORE = 2
@@ -128,6 +129,10 @@ private val NAMES = arrayOf("Const", "Load", "Store", "Add", "Lt", "Jump", "Jump
 object ToyRt {
     @JvmStatic fun add(a: Any?, b: Any?): Any? = if (a is Double && b is Double) a + b else a.toString() + b.toString()
     @JvmStatic fun lt(a: Any?, b: Any?): Boolean = (a as Double) < (b as Double)
+
+    /** On-stack replacement: each register whose letter is 'N' holds a number. */
+    @JvmStatic fun osrKinds(slots: Array<Any?>, kinds: String): Boolean = kinds.indices.all { kinds[it] != 'N' || slots[it] is Double }
+    @JvmStatic fun slotNum(slots: Array<Any?>, r: Int): Double = slots[r] as? Double ?: 0.0
 }
 
 /** Kinds: anything (an Object), a number (a double), a boolean (an int). */
@@ -168,7 +173,11 @@ internal object ToyKinds : KindSystem {
 
     override fun osrCode(kind: Byte): Char = if (kind == NUM) 'N' else '.'
     override fun osrRead(em: Emit, kind: Byte) {
-        if (kind == NUM) em.rt("slotNum", "([Ljava/lang/Object;I)D") else em.mv.visitInsn(AALOAD)
+        if (kind == NUM) em.mv.visitMethodInsn(INVOKESTATIC, TOY_RT, "slotNum", "([Ljava/lang/Object;I)D", false) else em.mv.visitInsn(AALOAD)
+    }
+    override fun osrCheck(em: Emit, kinds: String) {
+        em.mv.visitLdcInsn(kinds)
+        em.mv.visitMethodInsn(INVOKESTATIC, TOY_RT, "osrKinds", "([Ljava/lang/Object;Ljava/lang/String;)Z", false)
     }
 
     override fun name(kind: Byte): String = when (kind) {
@@ -273,7 +282,7 @@ internal class ToyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWr
         when (i.op) {
             T_ARG -> {
                 frame()
-                mv.visitFieldInsn(GETFIELD, FRAME, "args", "[Ljava/lang/Object;")
+                mv.visitFieldInsn(GETFIELD, VM_FRAME, "args", "[Ljava/lang/Object;")
                 iconst(i.a)
                 mv.visitInsn(AALOAD)
                 done(i, ANY_KIND)

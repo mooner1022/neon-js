@@ -84,6 +84,12 @@ internal class JsKinds private constructor(@JvmField val ints: Boolean, private 
         else -> '.'
     }
 
+    /** JitRt.osrKinds: 'N' a number, 'I' an int32, 'B' a boolean. */
+    override fun osrCheck(em: Emit, kinds: String) {
+        em.mv.visitLdcInsn(kinds)
+        em.rt("osrKinds", "([Ljava/lang/Object;Ljava/lang/String;)Z")
+    }
+
     override fun osrRead(em: Emit, kind: Byte) {
         when (kind) {
             JT.NUM -> em.rt("slotNum", "([Ljava/lang/Object;I)D")

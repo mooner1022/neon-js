@@ -2,7 +2,7 @@ package dev.mooner.neonjs.jit
 
 import dev.mooner.neonjs.compiler.CodeUnit
 import dev.mooner.neonjs.runtime.VmAgent
-import dev.mooner.neonjs.vm.Frame
+import dev.mooner.neonjs.vm.VmFrame
 
 /** Tier-up policy: decides when code blocks are compiled, and whether the caller waits for the code. */
 object Jit {
@@ -77,31 +77,32 @@ object Jit {
     }
 
     /**
-     * On-stack replacement: continues interpreted frame [f] in its code block's compiled code, at the loop header
-     * [Frame.pc] with the registers in [Frame.slots] and an empty operand stack (see [CompiledCode]). Returns the
-     * frame's result, or [JitRt.NO_OSR] (nothing done) when the code has no entry there. Called by the interpreter
-     * outside its exception dispatch: exceptions leave the frame as they leave compiled code (JitRt.leaveCompiled).
+     * On-stack replacement: continues interpreted frame [f] in its code unit's compiled code, at the loop header
+     * [VmFrame.pc] with the registers in [VmFrame.slots] and an empty operand stack (see [CompiledCode]). Returns the
+     * frame's result, or [VmRt.NO_OSR] (nothing done) when the code has no entry there. Called by the interpreter
+     * outside its exception dispatch: exceptions leave the frame as they leave compiled code (Dialect.leaveCompiled).
      */
     @JvmStatic
-    fun osr(f: Frame): Any? {
-        val c = f.code.compiled as CompiledCode
-        var r = if (c is dev.mooner.neonjs.jit.opt.T2Code && !c.hasEntry(f.pc)) JitRt.NO_OSR else enter(c, f)
+    fun osr(f: VmFrame): Any? {
+        val unit = f.unit
+        val c = unit.compiled as CompiledCode
+        var r = if (c is dev.mooner.neonjs.jit.opt.T2Code && !c.hasEntry(f.pc)) VmRt.NO_OSR else enter(c, f)
         // the optimizing tier's code declines a frame whose registers lack the kinds it speculated on (it changed
         // nothing then): the baseline, which takes any, continues the loop, and the tier's code is not tried there again
-        if (r === JitRt.NO_OSR && c is dev.mooner.neonjs.jit.opt.T2Code) {
+        if (r === VmRt.NO_OSR && c is dev.mooner.neonjs.jit.opt.T2Code) {
             c.declined(f.pc)
-            val b = f.code.baseline as CompiledCode?
+            val b = unit.baseline as CompiledCode?
             if (b != null && b !== c) r = enter(b, f)
         }
-        (if (r === JitRt.NO_OSR) osrMissed else osrEntered).incrementAndGet()
+        (if (r === VmRt.NO_OSR) osrMissed else osrEntered).incrementAndGet()
         return r
     }
 
-    private fun enter(c: CompiledCode, f: Frame): Any? = try {
+    private fun enter(c: CompiledCode, f: VmFrame): Any? = try {
         c.run(f)
     } catch (e: Throwable) {
         osrEntered.incrementAndGet()
-        throw JitRt.leaveCompiled(e, f)
+        throw dev.mooner.neonjs.jit.opt.Dialects.of(f.unit).leaveCompiled(e, f)
     }
 
     /** Loops continued in compiled code ([osr]), and attempts at a pc the code has no entry at. */

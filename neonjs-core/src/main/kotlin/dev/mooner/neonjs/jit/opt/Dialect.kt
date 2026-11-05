@@ -4,6 +4,7 @@ import dev.mooner.neonjs.compiler.CodeUnit
 import dev.mooner.neonjs.jit.CodeDefiner
 import dev.mooner.neonjs.jit.CodeDefiners
 import dev.mooner.neonjs.jit.CompiledCode
+import dev.mooner.neonjs.vm.VmFrame
 import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.MethodVisitor
 
@@ -51,6 +52,27 @@ interface Dialect {
      */
     fun compileBaselines(blocks: List<CodeUnit>, definer: CodeDefiner, tierUp: Boolean): List<CompiledCode?> =
         if (CodeDefiners.isUsable(definer)) T2.compileBaselines(blocks, definer, tierUp) else arrayOfNulls<CompiledCode>(blocks.size).asList()
+
+    /**
+     * Continues [f], an interpreted frame of this language, in its interpreter from its pc, and returns its result (a
+     * loop whose later code declined the frame, VmDeopt.tierUp).
+     */
+    fun interpret(f: VmFrame): Any? = throw UnsupportedOperationException("${javaClass.simpleName} has no interpreter")
+
+    /**
+     * What [e], thrown by compiled code running [f], is as it leaves the frame (JavaScript's notes where in the frame it
+     * was thrown); the records of the calls compiled inlined in [f] go ([dropInlined]).
+     */
+    fun leaveCompiled(e: Throwable, f: VmFrame): Throwable = e
+
+    /** Drops the records of the calls compiled code ran inlined in [f] (the frame goes on in the interpreter). */
+    fun dropInlined(f: VmFrame) {}
+
+    /**
+     * Writes the identity of constant [value] (GraphIdentity) where the language tells its own constants apart (its
+     * singletons) and returns true; false for the core's way (by index in the constants, by value, by class and text).
+     */
+    fun constIdentity(value: Any, out: java.io.DataOutputStream): Boolean = false
 }
 
 /** The dialect of each code block. */

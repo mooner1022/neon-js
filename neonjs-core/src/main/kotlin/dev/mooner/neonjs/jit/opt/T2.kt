@@ -293,7 +293,7 @@ object T2 {
     private fun baselineClasses(definer: CodeDefiner) = synchronized(baselineClasses) { baselineClasses.getOrPut(definer) { ConcurrentHashMap() } }
 
     private fun instantiate(cls: Class<*>, g: Graph, cb: CodeUnit, definer: CodeDefiner): T2Code {
-        val code = cls.getDeclaredConstructor(Array<Any?>::class.java, dev.mooner.neonjs.compiler.CodeBlock::class.java).newInstance(g.data.toTypedArray(), cb) as T2Code
+        val code = cls.getDeclaredConstructor(Array<Any?>::class.java, CodeUnit::class.java).newInstance(g.data.toTypedArray(), cb) as T2Code
         code.osrPcs = g.osrPcs
         code.resumer = g.dialect.resumer
         code.definer = definer

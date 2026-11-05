@@ -100,7 +100,7 @@ abstract class IrCodegen(
         mv.visitVarInsn(ALOAD, 0)
         frame()
         for (v in params) load(v, v.kind)
-        val desc = "($FRAME_D" + params.joinToString("") { typeOf(it.kind) } + ")$OBJ"
+        val desc = "($frameDesc" + params.joinToString("") { typeOf(it.kind) } + ")$OBJ"
         mv.visitMethodInsn(INVOKESPECIAL, className, "exit$n", desc, false)
         mv.visitInsn(ARETURN)
         exitMethod(n, e, params, desc)
@@ -181,7 +181,7 @@ abstract class IrCodegen(
             // (its frame is an interpreted one: they are there), then the language's suspension
             val slots = em.temp()
             m.visitVarInsn(ALOAD, L_FRAME)
-            m.visitFieldInsn(GETFIELD, FRAME, "slots", CONSTS_D)
+            m.visitFieldInsn(GETFIELD, frameClass, "slots", CONSTS_D)
             m.visitVarInsn(ASTORE, slots)
             for ((k, v) in s.values.withIndex()) {
                 m.visitVarInsn(ALOAD, slots)
@@ -203,7 +203,7 @@ abstract class IrCodegen(
             m.visitVarInsn(ALOAD, L_FRAME)
             em.iconst(s.pc)
             array(s.values)
-            m.visitMethodInsn(INVOKESTATIC, "dev/mooner/neonjs/jit/Deopt", "tierUp", "(${FRAME_D}I$CONSTS_D)$OBJ", false)
+            m.visitMethodInsn(INVOKESTATIC, VM_DEOPT, "tierUp", "(${VM_FRAME_D}I$CONSTS_D)$OBJ", false)
             m.visitInsn(ARETURN)
             m.visitMaxs(0, 0)
             m.visitEnd()
@@ -216,7 +216,7 @@ abstract class IrCodegen(
         m.visitVarInsn(ALOAD, inner)
         if (e.counted) {
             em.iconst(e.spec)
-            m.visitMethodInsn(INVOKESTATIC, SUPER, "exit", "(L$SUPER;${FRAME_D}I$CONSTS_D${OBJ}I)$OBJ", false)
+            m.visitMethodInsn(INVOKESTATIC, SUPER, "exit", "(L$SUPER;${VM_FRAME_D}I$CONSTS_D${OBJ}I)$OBJ", false)
         } else stressExit(em)
         m.visitInsn(ARETURN)
         m.visitMaxs(0, 0)
@@ -272,13 +272,10 @@ abstract class IrCodegen(
     // ------------------------------------------------------------------ entries
 
     private fun prologue() {
-        frame()
-        mv.visitFieldInsn(GETFIELD, FRAME, "code", CODEBLOCK_D)
-        mv.visitFieldInsn(GETFIELD, CODEBLOCK, "constants", CONSTS_D)
+        entry()
+        loadConstants()
         mv.visitVarInsn(ASTORE, L_CONSTS)
-        frame()
-        mv.visitFieldInsn(GETFIELD, FRAME, "realm", REALM_D)
-        mv.visitFieldInsn(GETFIELD, "dev/mooner/neonjs/runtime/Realm", "agent", AGENT_D)
+        loadAgent()
         mv.visitVarInsn(ASTORE, L_AGENT)
         iconst(4096)
         mv.visitVarInsn(ISTORE, L_BUDGET)
@@ -373,13 +370,13 @@ abstract class IrCodegen(
         val normal = Label()
         val none = Label()
         frame()
-        mv.visitFieldInsn(GETFIELD, FRAME, "slots", CONSTS_D)
-        getstatic(FRAME, "NO_SLOTS", CONSTS_D)
+        mv.visitFieldInsn(GETFIELD, frameClass, "slots", CONSTS_D)
+        getstatic(frameClass, "NO_SLOTS", CONSTS_D)
         mv.visitJumpInsn(IF_ACMPEQ, normal)
         if (entries.isNotEmpty() || resumes.isNotEmpty() || start) {
             val starts = Array(entries.size) { Label() }
             frame()
-            mv.visitFieldInsn(GETFIELD, FRAME, "pc", "I")
+            mv.visitFieldInsn(GETFIELD, frameClass, "pc", "I")
             if (resumes.isEmpty() && !start) mv.visitLookupSwitchInsn(none, IntArray(entries.size) { entries[it].pc }, starts)
             else {
                 val keys = java.util.TreeMap<Int, Label>()
@@ -397,7 +394,7 @@ abstract class IrCodegen(
              */
             fun registers(b: Block) {
                 frame()
-                mv.visitFieldInsn(GETFIELD, FRAME, "slots", CONSTS_D)
+                mv.visitFieldInsn(GETFIELD, frameClass, "slots", CONSTS_D)
                 mv.visitVarInsn(ASTORE, slots)
                 val regs = b.entryRegs!!
                 val kinds = CharArray(regs.size) { r ->
@@ -406,8 +403,7 @@ abstract class IrCodegen(
                 }
                 if (kinds.any { it != '.' }) {
                     mv.visitVarInsn(ALOAD, slots)
-                    mv.visitLdcInsn(String(kinds).trimEnd('.'))
-                    rt("osrKinds", "(${CONSTS_D}Ljava/lang/String;)Z")
+                    ks.osrCheck(this, String(kinds).trimEnd('.'))
                     mv.visitJumpInsn(IFEQ, none)
                 }
                 for ((r, v) in regs.withIndex()) {
@@ -458,7 +454,7 @@ abstract class IrCodegen(
             }
         }
         mv.visitLabel(none)
-        getstatic(RT, "NO_OSR", OBJ)
+        getstatic(VM_RT, "NO_OSR", OBJ)
         mv.visitInsn(ARETURN)
         mv.visitLabel(normal)
     }
@@ -511,7 +507,7 @@ abstract class IrCodegen(
     /** Where a suspended activation resumes: slot [Inst.a] of the frame, as the interpreter holds it. */
     private fun resumeSlot(i: Inst) {
         frame()
-        mv.visitFieldInsn(GETFIELD, FRAME, "slots", CONSTS_D)
+        mv.visitFieldInsn(GETFIELD, frameClass, "slots", CONSTS_D)
         iconst(i.a)
         mv.visitInsn(AALOAD)
         done(i, ks.any)
@@ -550,13 +546,13 @@ abstract class IrCodegen(
         mv.visitVarInsn(ILOAD, L_BUDGET)
         mv.visitJumpInsn(IFGT, ok)
         mv.visitVarInsn(ALOAD, L_AGENT)
-        mv.visitMethodInsn(INVOKEVIRTUAL, "dev/mooner/neonjs/runtime/Agent", "checkInterrupt", "()V", false)
+        mv.visitMethodInsn(INVOKEVIRTUAL, agentClass, "checkInterrupt", "()V", false)
         iconst(4096)
         mv.visitVarInsn(ISTORE, L_BUDGET)
         frame()
         mv.visitVarInsn(ALOAD, 0)
         iconst(s.pc)
-        rt("canTierUp", "(${FRAME_D}${OBJ}I)Z")
+        mv.visitMethodInsn(INVOKESTATIC, VM_RT, "canTierUp", "(${VM_FRAME_D}${OBJ}I)Z", false)
         mv.visitJumpInsn(IFEQ, ok)
         val l = Label()
         exits.add(Exit(l, FrameState(s.pc, edgeRegs(b, s, s.entryRegs!!), null), counted = false, tierUp = true))
@@ -608,6 +604,30 @@ abstract class IrCodegen(
     }
 
     // ------------------------------------------------------------------ the language's
+
+    /**
+     * The class of the language's frames: the owner of the frame fields the code reads (`slots`, `pc`), the parameter of
+     * its exit methods. The core's [VmFrame] (dev.mooner.neonjs.vm.VmFrame), or the language's subclass, which [entry]
+     * casts the frame `run` gets to.
+     */
+    protected open val frameClass: String get() = VM_FRAME
+    private val frameDesc: String get() = "L$frameClass;"
+
+    /** At the start of `run`: the frame in L_FRAME as the language's [frameClass] (`run` takes a VmFrame). */
+    protected open fun entry() {}
+
+    /** Pushes the constants of the code unit compiled. */
+    protected open fun loadConstants() {
+        frame()
+        mv.visitMethodInsn(INVOKEVIRTUAL, VM_FRAME, "getUnit", "()$CODE_UNIT_D", false)
+        mv.visitFieldInsn(GETFIELD, CODE_UNIT, "constants", CONSTS_D)
+    }
+
+    /** Pushes the agent running the frame (as [agentClass]). */
+    protected open fun loadAgent() {
+        frame()
+        mv.visitMethodInsn(INVOKEVIRTUAL, VM_FRAME, "getAgent", "()$VM_AGENT_D", false)
+    }
 
     /** The code of [i], an instruction that is no terminator (nothing for a virtual one, which exits allocate). */
     protected abstract fun inst(i: Inst)
@@ -669,14 +689,14 @@ abstract class IrCodegen(
         frame()
         iconst(i.stmt)
         // an inlined body's position: Frame.pc stays at its call
-        mv.visitFieldInsn(PUTFIELD, FRAME, if (curSite != null) "inlinePc" else "pc", "I")
+        mv.visitFieldInsn(PUTFIELD, frameClass, if (curSite != null) "inlinePc" else "pc", "I")
         storedPc = i.stmt
     }
 
     companion object {
         /** The class [name] (internal form) implementing CompiledCode with [g]'s code, for class file [version]. */
         internal const val SUPER = "dev/mooner/neonjs/jit/opt/T2Code"
-        private const val INIT_D = "([Ljava/lang/Object;$CODEBLOCK_D)V"
+        private const val INIT_D = "([Ljava/lang/Object;$CODE_UNIT_D)V"
 
         /**
          * The class [name] (internal form): a T2Code with [g]'s code, constructed with the graph's data and the code
@@ -695,7 +715,7 @@ abstract class IrCodegen(
             init.visitMaxs(0, 0)
             init.visitEnd()
             // run is made in a tree first, to number its locals by use (renumber)
-            val mv = MethodNode(ASM9, ACC_PUBLIC or ACC_FINAL, "run", "($FRAME_D)$OBJ", null, null)
+            val mv = MethodNode(ASM9, ACC_PUBLIC or ACC_FINAL, "run", "($VM_FRAME_D)$OBJ", null, null)
             mv.visitCode()
             g.dialect.codegen(g, mv, Kinds(g.kindSystem), cw, name).emit()
             mv.visitMaxs(0, 0)
