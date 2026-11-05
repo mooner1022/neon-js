@@ -35,8 +35,10 @@ class PyProgramsTest {
         backgroundJit = false
     }
 
+    // (line ends as LF: a Windows checkout with core.autocrlf has CRLF, and so has CPython's output recorded there)
     private fun resource(name: String): String =
-        javaClass.getResourceAsStream("/programs/$name")?.readBytes()?.toString(Charsets.UTF_8) ?: fail("no resource $name")
+        javaClass.getResourceAsStream("/programs/$name")?.readBytes()?.toString(Charsets.UTF_8)?.replace("\r\n", "\n")
+            ?: fail("no resource $name")
 
     private fun run(src: String, mode: Mode): Pair<String, PyDict> {
         val out = StringBuilder()
