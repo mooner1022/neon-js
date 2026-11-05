@@ -5,6 +5,8 @@ plugins {
 description = "JavaScript engine for the JVM and Android: ES2025+, a security sandbox, Java interop and a JVM bytecode JIT"
 
 dependencies {
+    // the execution core (docs/IR_NEUTRALITY.md §10): its classes are part of this module's API
+    api(project(":neon-vm"))
     implementation("org.ow2.asm:asm:9.9.1")
     implementation("org.ow2.asm:asm-tree:9.9.1")
     implementation("org.ow2.asm:asm-util:9.9.1")

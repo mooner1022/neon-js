@@ -1,6 +1,5 @@
 package dev.mooner.neonjs.jit.opt
 
-import dev.mooner.neonjs.compiler.CodeBlock
 import dev.mooner.neonjs.compiler.CodeUnit
 import dev.mooner.neonjs.jit.CodeDefiners
 import dev.mooner.neonjs.jit.CompiledCode
@@ -9,11 +8,9 @@ import dev.mooner.neonjs.jit.VM_FRAME
 import dev.mooner.neonjs.jit.JitBailout
 import dev.mooner.neonjs.jit.Jit
 import dev.mooner.neonjs.jit.JvmEmitter
-import dev.mooner.neonjs.parser.FunctionKind
-import dev.mooner.neonjs.runtime.Agent
-import dev.mooner.neonjs.runtime.Realm
-import dev.mooner.neonjs.runtime.RuntimeConfig
-import dev.mooner.neonjs.vm.Frame
+import dev.mooner.neonjs.runtime.VmAgent
+import dev.mooner.neonjs.runtime.VmConfig
+import dev.mooner.neonjs.vm.VmFrame
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -27,7 +24,8 @@ import org.objectweb.asm.Opcodes.*
  * A language other than JavaScript on the optimizing tier's core (docs/IR_NEUTRALITY.md): a toy stack bytecode with
  * registers, numbers, `+`, `<`, jumps and returns, given to the core as a dialect (its builder, op table, kinds and code
  * generator, a few dozen lines each), compiled through the same driver as JavaScript (T2.compileBaselines,
- * T2.compile), and run. Whatever the core still assumes of JavaScript shows here.
+ * T2.compile, the JIT's policy), and run in a frame of its own. The core's module has no JavaScript on its class path
+ * (docs/IR_NEUTRALITY.md §10): whatever the core still assumed of it would not compile, or would fail here.
  */
 @Timeout(60)
 class ToyDialectTest {
@@ -46,7 +44,7 @@ class ToyDialectTest {
         // the tier-up policy's path (Jit.prepare, the queue, ClassBackend): the optimizing tier's baseline, never the
         // baseline compiler's (T1 reads JavaScript's bytecode)
         val cb = sumLoop()
-        val agent = Agent(RuntimeConfig().apply {
+        val agent = VmAgent(VmConfig().apply {
             executionMode = Jit.MODE_COMPILED
             backgroundJit = false
         })
@@ -54,7 +52,7 @@ class ToyDialectTest {
         assertTrue(code is T2Code, "not the tier's code: $code (${T2.baselineReasons.keys})")
         assertEquals(50.0 * (2.0 + 3.0), run(cb, code!!, 50.0, 2.0, 3.0))
         // NO_JIT keeps a block of another language interpreted, as JavaScript's
-        val off = sumLoop().also { it.flags = it.flags or CodeBlock.NO_JIT }
+        val off = sumLoop().also { it.flags = it.flags or CodeUnit.NO_JIT }
         assertEquals(null, Jit.prepare(off, agent))
     }
 
@@ -77,8 +75,8 @@ class ToyDialectTest {
      * `s = 0; i = 0; while (i < n) { s = s + (a + b); i = i + 1 }; return s`, with n, a, b its arguments; with
      * [constants], `s + (2 + 3)` instead.
      */
-    private fun sumLoop(constants: Boolean = false): CodeBlock {
-        val cb = CodeBlock("sumLoop", FunctionKind.NORMAL)
+    private fun sumLoop(constants: Boolean = false): CodeUnit {
+        val cb = CodeUnit("sumLoop")
         // registers: 0 n, 1 a, 2 b, 3 s, 4 i
         cb.constants = arrayOf(0.0, 1.0, 2.0, 3.0)
         val (ra, rb) = if (constants) T_CONST to T_CONST else T_LOAD to T_LOAD
@@ -103,13 +101,15 @@ class ToyDialectTest {
         return cb
     }
 
-    private fun run(cb: CodeBlock, code: CompiledCode, n: Double, a: Any, b: Any): Any? {
+    private fun run(cb: CodeUnit, code: CompiledCode, n: Double, a: Any, b: Any): Any? {
         cb.compiled = code
-        val realm = Realm(Agent())
-        val f = Frame(null, cb, realm, null, arrayOf(n, a, b), null, null)
-        return code.run(f)
+        return code.run(ToyFrame(cb, VmAgent(VmConfig()), arrayOf(n, a, b)))
     }
 }
+
+/** The toy language's frame: its code unit and agent, its arguments; made for compiled code (no slots). */
+internal class ToyFrame(override val unit: CodeUnit, override val agent: VmAgent, args: Array<Any?>) :
+    VmFrame(args, NO_SLOTS, unit.numRegs)
 
 // ---------------------------------------------------------------------- the toy language
 

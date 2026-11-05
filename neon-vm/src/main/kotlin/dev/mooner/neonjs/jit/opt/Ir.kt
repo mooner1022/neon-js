@@ -1,8 +1,6 @@
 package dev.mooner.neonjs.jit.opt
 
 import dev.mooner.neonjs.compiler.CodeUnit
-import dev.mooner.neonjs.compiler.Op
-import dev.mooner.neonjs.jit.JT
 
 /**
  * The optimizing tier's intermediate representation (docs/OPTIMIZING_TIER.md, "IR"): a control flow graph of [Block]s
@@ -102,7 +100,7 @@ class Block(@JvmField var id: Int, @JvmField val pc: Int, @JvmField val site: In
     override fun toString() = "B$id"
 }
 
-/** An SSA value; [kind] (a [JT] kind) is how generated code holds it: a `double`, an `int`, a boolean `int` or an Object. */
+/** An SSA value; [kind] (a kind of the language's KindSystem) is how generated code holds it: a `double`, an `int`, a boolean `int` or an Object. */
 abstract class Value {
     @JvmField var id = -1
     @JvmField var kind: Byte = ANY_KIND
@@ -222,7 +220,7 @@ class InlineSite(
  * its bytecode's (below 1000) and those its builder makes (from 2000: JavaScript's are [JsIr]).
  */
 object Ir {
-    /** The deopt stress mode's exit (JvmCompiler.DEOPT_STRESS), taken one time in N, to its [Inst.state]. */
+    /** The deopt stress mode's exit (Jit.DEOPT_STRESS), taken one time in N, to its [Inst.state]. */
     const val STRESS_EXIT = 1002
     /**
      * (fn) the guard of a call compiled inlined: [Inst.a] indexes the callee's code block in the graph's data; unless

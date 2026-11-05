@@ -314,7 +314,7 @@ internal class IrBuilder(
                 Op.LOAD_REG_TDZ -> stack.add(add(cur, Inst(JsIr.CHECK_TDZ, arrayOf(regs[a]!!), bb, 0, 0, pc, stmt).also { it.hasResult = true }))
                 Op.CHECK_REG_TDZ -> add(cur, Inst(JsIr.CHECK_TDZ, arrayOf(regs[a]!!), bb, 0, 0, pc, stmt))
                 // an inlined body's `this` was bound when it was entered
-                Op.LOAD_THIS -> if (site != null) stack.add(site.thisValue) else inst(op, NO_VALUES, result = true)
+                Op.LOAD_THIS -> site.let { s -> if (s != null) stack.add(s.thisValue) else inst(op, NO_VALUES, result = true) }
                 Op.TO_KEY_FOR_BASE -> {
                     // (obj key -- obj key')
                     val key = pop()

@@ -4,6 +4,7 @@ import dev.mooner.neonjs.compiler.Op
 import dev.mooner.neonjs.jit.JT
 import dev.mooner.neonjs.jit.JitInput
 import dev.mooner.neonjs.jit.Emit
+import dev.mooner.neonjs.jit.rt
 import dev.mooner.neonjs.jit.JsEmit
 
 /**

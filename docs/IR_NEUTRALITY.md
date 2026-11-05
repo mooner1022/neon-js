@@ -351,3 +351,23 @@ step, or differ only by the renames listed for it, and are checked that way. The
 Done when: `neon-vm` compiles with no JavaScript on its class path, NeonPy's compile class path holds `neon-vm` and
 not `neonjs-core`, the quick check passes, the normalized codegen check passes, `bench/basic.js` is as fast, and the
 full check passes before the pull request.
+
+### 10.2 Where it stands
+
+Steps a–e are done. `neon-vm` holds, in their packages as before:
+- the JIT's policy and queue (`Jit`, `JitQueue`, `JitBackend`, `ClassBackend`) and the `CodeDefiner` SPI;
+- `CompiledCode`, `JitBailout`, `Emit`/`JvmEmitter` and the names generated code uses;
+- `VmRt`, `VmDeopt`, `CodeUnit`, `VmFrame`, `VmConfig`, `VmAgent` and the `TerminationException` family;
+- the optimizing tier's neutral core (`jit.opt`: IR, builder and code generator bases, kinds, op tables, the passes,
+  graph identity, `T2`, `T2Code`).
+
+It compiles with no JavaScript on its class path. `ToyDialectTest` runs there with a frame (`ToyFrame : VmFrame`), a
+code unit and an agent of the core's own: the core is tested without JavaScript. `neonjs-core` depends on it (`api`),
+and so does everything built on `neonjs-core`. A language's code is defined in its dialect's class loader, which sees
+its runtime.
+
+JavaScript's generated classes, against f186d45 (step 8): the same classes are compiled (41,119, 42,157 and 11,554 in
+the three variants). As generated, 5,672, 5,704 and 1,105 names differ; modulo `tools/codegen-equiv.txt`, none.
+`bench/basic.js` in compiled mode is as fast (medians of 8 runs).
+
+Left: f, NeonPy on `neon-vm` alone (its branch); the core's own name and packages.

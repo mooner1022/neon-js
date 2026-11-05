@@ -51,6 +51,14 @@ object Jit {
      * that runs is entered compiled after its first iteration (for tests).
      */
     @JvmField val OSR_STRESS = System.getProperty("neonjs.jit.osrStress") != null
+
+    /**
+     * Testing deoptimization: with `-Dneonjs.jit.deoptStress=N` (N > 0; 3 without a value), code compiled from then on
+     * has exits at its start, its loop headers, the start and loop headers of the bodies it inlines, and after each
+     * inlined call, and one in N exits reached leaves the activation to the interpreter there. Part of the class
+     * identity; tests change it between compilations.
+     */
+    @JvmField @Volatile var DEOPT_STRESS: Int = System.getProperty("neonjs.jit.deoptStress")?.let { it.toIntOrNull() ?: 3 } ?: 0
     @JvmField val LOOP_CHECK = if (OSR_STRESS) 1 else 4096
 
     /**

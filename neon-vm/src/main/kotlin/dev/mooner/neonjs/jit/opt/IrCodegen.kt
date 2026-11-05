@@ -695,7 +695,7 @@ abstract class IrCodegen(
 
     companion object {
         /** The class [name] (internal form) implementing CompiledCode with [g]'s code, for class file [version]. */
-        internal const val SUPER = "dev/mooner/neonjs/jit/opt/T2Code"
+        const val SUPER = "dev/mooner/neonjs/jit/opt/T2Code"
         private const val INIT_D = "([Ljava/lang/Object;$CODE_UNIT_D)V"
 
         /**

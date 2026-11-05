@@ -4,7 +4,8 @@ The libraries are published as `dev.mooner.neonjs:<module>`:
 
 | Artifact | Contents |
 |---|---|
-| `dev.mooner.neonjs:neonjs-core` | the engine |
+| `dev.mooner.neonjs:neon-vm` | the execution core `neonjs-core` runs on (working name; not a stable API) |
+| `dev.mooner.neonjs:neonjs-core` | the engine (depends on `neon-vm`) |
 | `dev.mooner.neonjs:neonjs-intl` | ECMA-402 and the non-ISO Temporal calendars (ICU4J) |
 | `dev.mooner.neonjs:neonjs-net` | `fetch` and `WebSocket` (OkHttp), within a network policy |
 | `dev.mooner.neonjs:neonjs-node` | Node.js APIs (`node:` modules, `require`, `Buffer`) |

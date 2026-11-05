@@ -13,7 +13,7 @@ import dev.mooner.neonjs.compiler.CodeUnit
  * Anything else makes the object escape: a write, an input of any other instruction (a call, a store into another
  * object, a return), a phi, a register an on-stack replacement entry loads.
  */
-internal object ScalarReplacement {
+object ScalarReplacement {
     /** Replaces what it can in [g]; returns whether anything changed. */
     fun run(g: Graph): Boolean {
         val candidates = HashMap<Inst, Array<Any>>()

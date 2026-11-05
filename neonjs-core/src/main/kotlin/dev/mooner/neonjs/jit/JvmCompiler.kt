@@ -120,9 +120,6 @@ class JitInput(
     }
 }
 
-/** Thrown when a code block cannot be compiled (unsupported instruction, method too large). */
-class JitBailout(msg: String) : RuntimeException(msg, null, false, false)
-
 /**
  * Translates NeonJS stack bytecode into a JVM class implementing [CompiledCode]. The JS operand stack maps onto the
  * JVM operand stack, registers onto JVM locals, and exception handler ranges onto JVM exception tables; complex
@@ -277,31 +274,6 @@ object JvmCompiler {
             }
         }
     }
-
-    /** Binary name of the class [CodeDefiners.isUsable] defines to test a definer. */
-    const val PROBE_CLASS = "dev.mooner.neonjs.jit.JSProbe"
-
-    /** A trivial [CompiledCode] class (its run returns null) for testing a definer. */
-    fun probeClass(version: Int): ByteArray {
-        val cw = JitClassWriter()
-        cw.visit(version, ACC_PUBLIC or ACC_FINAL or ACC_SUPER, PROBE_CLASS.replace('.', '/'), null, "java/lang/Object", arrayOf("dev/mooner/neonjs/jit/CompiledCode"))
-        val init = cw.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null)
-        init.visitCode()
-        init.visitVarInsn(ALOAD, 0)
-        init.visitMethodInsn(INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false)
-        init.visitInsn(RETURN)
-        init.visitMaxs(0, 0)
-        init.visitEnd()
-        val mv = cw.visitMethod(ACC_PUBLIC or ACC_FINAL, "run", "($VM_FRAME_D)$OBJ", null, null)
-        mv.visitCode()
-        mv.visitInsn(ACONST_NULL)
-        mv.visitInsn(ARETURN)
-        mv.visitMaxs(0, 0)
-        mv.visitEnd()
-        cw.visitEnd()
-        return cw.toByteArray()
-    }
-
     /**
      * Whether generated classes carry the source file name and line numbers (JVM debug info). JS stack traces do not use
      * them (they come from the frame's pc), only JVM tools do; without them, code blocks that differ only in their
@@ -357,13 +329,10 @@ object JvmCompiler {
      */
     internal val ELEMS = System.getProperty("neonjs.jit.elem") != "false"
 
-    /**
-     * Testing deoptimization: with `-Dneonjs.jit.deoptStress=N` (N > 0; 3 without a value), code compiled from then on
-     * has exits (Gen.stressExit) at its start, its loop headers, the start and loop headers of the bodies it inlines,
-     * and after each inlined call, and one in N exits reached (JitRt.stressExit) leaves the activation to the
-     * interpreter there (Deopt). Part of the class identity; tests change it between compilations.
-     */
-    @JvmField @Volatile var DEOPT_STRESS: Int = System.getProperty("neonjs.jit.deoptStress")?.let { it.toIntOrNull() ?: 3 } ?: 0
+    /** Jit.DEOPT_STRESS (the core's: T1 and the tier alike). */
+    var DEOPT_STRESS: Int
+        get() = Jit.DEOPT_STRESS
+        set(v) { Jit.DEOPT_STRESS = v }
 
     /** Debugging: `-Dneonjs.jit.dump=DIR` writes every generated class there. */
     internal val DUMP_DIR: String? = System.getProperty("neonjs.jit.dump")
