@@ -44,7 +44,7 @@ abstract class IrCodegen(
     protected var curSite: InlineSite? = null
     /** The locals holding T2Code.data and each code block's constants (the function compiled's: L_CONSTS). */
     protected var dataLocal = -1
-    protected val constsLocal = HashMap<dev.mooner.neonjs.compiler.CodeBlock, Int>()
+    protected val constsLocal = HashMap<dev.mooner.neonjs.compiler.CodeUnit, Int>()
 
     /** The exits reached from `run`: the label of each, its state, and whether an assumption failed there. */
     /** An exit, or ([suspend]) a suspension, which writes the state to the frame and returns SUSPENDED instead. */
@@ -290,7 +290,7 @@ abstract class IrCodegen(
             mv.visitVarInsn(ks.rep(k).store, l)
         }
         constsLocal[g.code] = L_CONSTS
-        val codes = LinkedHashSet<dev.mooner.neonjs.compiler.CodeBlock>()
+        val codes = LinkedHashSet<dev.mooner.neonjs.compiler.CodeUnit>()
         for (b in g.blocks) {
             b.site?.let { codes.add(it.code) }
             for (p in b.phis) for (v in p.inputs) if (v is Const && v.k >= 0 && v.code != null) codes.add(v.code)

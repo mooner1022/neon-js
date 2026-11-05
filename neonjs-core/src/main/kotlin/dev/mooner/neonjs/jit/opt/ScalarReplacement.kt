@@ -1,6 +1,6 @@
 package dev.mooner.neonjs.jit.opt
 
-import dev.mooner.neonjs.compiler.CodeBlock
+import dev.mooner.neonjs.compiler.CodeUnit
 
 /**
  * Scalar replacement (docs/OPTIMIZING_TIER.md, P4): an allocation whose fields are its inputs ([OpInfo.fields]: an object
@@ -75,7 +75,7 @@ internal object ScalarReplacement {
     }
 
     /** The code block [i] belongs to: its inlined body's, or the function compiled's. */
-    fun codeOf(g: Graph, i: Inst): CodeBlock = i.block?.site?.code ?: g.code
+    fun codeOf(g: Graph, i: Inst): CodeUnit = i.block?.site?.code ?: g.code
 
     /** The key [i] reads from its first input ([OpInfo.readsField]), or null. */
     private fun readKey(g: Graph, i: Inst): Any? = g.ops.info(i.op).readsField(i, g)

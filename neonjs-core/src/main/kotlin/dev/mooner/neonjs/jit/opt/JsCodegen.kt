@@ -39,7 +39,7 @@ internal class JsCodegen(
     override val inInlinedBody: Boolean get() = curSite != null
 
     /** In an exit method: pushes the constants of [cb], the frame's code block's or one in T2Code.data. */
-    private fun constantsOf(em: JsEmit, cb: dev.mooner.neonjs.compiler.CodeBlock) {
+    private fun constantsOf(em: JsEmit, cb: dev.mooner.neonjs.compiler.CodeUnit) {
         if (cb === g.code) {
             em.mv.visitVarInsn(ALOAD, L_FRAME)
             em.mv.visitFieldInsn(GETFIELD, FRAME, "code", CODEBLOCK_D)

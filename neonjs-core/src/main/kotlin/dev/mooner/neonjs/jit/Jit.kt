@@ -1,6 +1,6 @@
 package dev.mooner.neonjs.jit
 
-import dev.mooner.neonjs.compiler.CodeBlock
+import dev.mooner.neonjs.compiler.CodeUnit
 import dev.mooner.neonjs.runtime.Agent
 import dev.mooner.neonjs.vm.Frame
 
@@ -21,7 +21,7 @@ object Jit {
      *    queued, so they are usually compiled, in parallel, by the time they are called.
      */
     @JvmStatic
-    fun prepare(cb: CodeBlock, agent: Agent): CompiledCode? {
+    fun prepare(cb: CodeUnit, agent: Agent): CompiledCode? {
         val c = cb.compiled
         if (c != null) {
             if (!cb.childrenQueued) queueChildren(cb, agent)
@@ -64,13 +64,13 @@ object Jit {
      * module bodies stay interpreted, as before.
      */
     @JvmStatic
-    fun loop(cb: CodeBlock, agent: Agent): Boolean {
+    fun loop(cb: CodeUnit, agent: Agent): Boolean {
         val config = agent.config
         if (cb.compiled != null) return config.executionMode != MODE_INTERPRETER
         cb.invocationCount += 64
         if (config.executionMode != MODE_ADAPTIVE || cb.jitFailed || cb.jitTask != null) return false
         if (cb.invocationCount < config.jitThreshold && !OSR_STRESS) return false
-        if (cb.flags and CodeBlock.TOP_LEVEL != 0 && cb.flags and CodeBlock.SCRIPT == 0) return false
+        if (!dev.mooner.neonjs.jit.opt.Dialects.of(cb).compilesAtLoops(cb)) return false
         if (!compilable(cb)) return false
         if (config.backgroundJit && !OSR_STRESS && JitQueue.submit(cb, backend(agent), agent)) return false
         return compileNow(cb, agent) != null
@@ -115,7 +115,7 @@ object Jit {
      * already running keep the version they started with.
      */
     @JvmStatic
-    fun install(cb: CodeBlock, code: CompiledCode): Boolean {
+    fun install(cb: CodeUnit, code: CompiledCode): Boolean {
         if (cb.baseline == null) return false
         cb.compiled = code
         return true
@@ -123,17 +123,17 @@ object Jit {
 
     /** Makes [cb]'s baseline the code new activations run again, if [code] is the one they run now. */
     @JvmStatic
-    fun revert(cb: CodeBlock, code: CompiledCode) {
+    fun revert(cb: CodeUnit, code: CompiledCode) {
         val b = cb.baseline ?: return
         COMPILED.compareAndSet(cb, code, b)
     }
 
-    private val COMPILED: java.util.concurrent.atomic.AtomicReferenceFieldUpdater<CodeBlock, Any> =
-        java.util.concurrent.atomic.AtomicReferenceFieldUpdater.newUpdater(CodeBlock::class.java, Any::class.java, "compiled")
+    private val COMPILED: java.util.concurrent.atomic.AtomicReferenceFieldUpdater<CodeUnit, Any> =
+        java.util.concurrent.atomic.AtomicReferenceFieldUpdater.newUpdater(CodeUnit::class.java, Any::class.java, "compiled")
 
     /** Queues [cb], code created at run time (the `Function` constructor), in compiled mode: it is about to be called. */
     @JvmStatic
-    fun prefetch(cb: CodeBlock, agent: Agent) {
+    fun prefetch(cb: CodeUnit, agent: Agent) {
         val config = agent.config
         if (config.executionMode == MODE_COMPILED && config.backgroundJit && compilable(cb)) JitQueue.submit(cb, backend(agent), agent)
     }
@@ -143,27 +143,26 @@ object Jit {
     fun backend(agent: Agent): JitBackend = ClassBackend(agent.config.codeDefiner ?: CodeDefiners.default, agent.config.tier2)
 
     /** In compiled mode, queues the functions [cb] defines (once per block; not for blocks compiled in advance). */
-    private fun queueChildren(cb: CodeBlock, agent: Agent) {
+    private fun queueChildren(cb: CodeUnit, agent: Agent) {
         cb.childrenQueued = true
         val config = agent.config
         if (config.executionMode != MODE_COMPILED || !config.backgroundJit) return
         var backend: JitBackend? = null
         for (k in cb.constants) {
-            if (k is CodeBlock && compilable(k)) JitQueue.submit(k, backend ?: backend(agent).also { backend = it }, agent)
+            if (k is CodeUnit && compilable(k)) JitQueue.submit(k, backend ?: backend(agent).also { backend = it }, agent)
         }
     }
 
-    private fun compilable(cb: CodeBlock): Boolean =
-        cb.compiled == null && !cb.jitFailed && cb.jitTask == null && cb.strictPcs == null && canCompile(cb)
+    private fun compilable(cb: CodeUnit): Boolean =
+        cb.compiled == null && !cb.jitFailed && cb.jitTask == null && canCompile(cb)
 
     /** Whether some tier compiles [cb], as its language says (Dialect.canCompile). */
     @JvmStatic
-    fun canCompile(cb: CodeBlock): Boolean = dev.mooner.neonjs.jit.opt.Dialects.of(cb).canCompile(cb)
+    fun canCompile(cb: CodeUnit): Boolean = dev.mooner.neonjs.jit.opt.Dialects.of(cb).canCompile(cb)
 
     /** Compiled code for [cb] now: compiled on this thread, taken over from the queue, or awaited from a worker. */
-    private fun compileNow(cb: CodeBlock, agent: Agent): CompiledCode? {
-        // code with strict regions inside sloppy code (CodeBlock.strictPcs) is rare: keep it interpreted
-        if (cb.strictPcs != null || !canCompile(cb)) {
+    private fun compileNow(cb: CodeUnit, agent: Agent): CompiledCode? {
+        if (!canCompile(cb)) {
             cb.jitFailed = true
             return null
         }

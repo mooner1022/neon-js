@@ -1,6 +1,7 @@
 package dev.mooner.neonjs.jit.opt
 
 import dev.mooner.neonjs.compiler.CodeBlock
+import dev.mooner.neonjs.compiler.CodeUnit
 import dev.mooner.neonjs.jit.CodeDefiners
 import dev.mooner.neonjs.jit.CompiledCode
 import dev.mooner.neonjs.jit.Emit
@@ -196,7 +197,7 @@ internal object ToyOps : OpTable {
 }
 
 internal object ToyDialect : Dialect {
-    override fun build(cb: CodeBlock, stressExits: Boolean, unswitch: Boolean, baseline: Boolean): Graph =
+    override fun build(cb: CodeUnit, stressExits: Boolean, unswitch: Boolean, baseline: Boolean): Graph =
         ToyBuilder(cb, speculate = !baseline).build()
 
     override val resumer: Resumer get() = Resumer { _, _, _, _ -> error("the toy language has no exits") }
@@ -207,13 +208,13 @@ internal object ToyDialect : Dialect {
         ToyCodegen(g, mv, kinds, cw, className)
 }
 
-internal class ToyBuilder(cb: CodeBlock, speculate: Boolean) :
+internal class ToyBuilder(cb: CodeUnit, speculate: Boolean) :
     GraphBuilder(cb, Graph(cb, ToyOps, ToyKinds, null, ToyDialect), stressExits = false, speculate = speculate) {
     override fun unbuildable(): String? = null
     override fun root(): Body = ToyBody(cb)
     override fun entry(start: Block): Array<Value> = Array(cb.numRegs) { dead() }
 
-    private inner class ToyBody(code: CodeBlock) : Body(code, null) {
+    private inner class ToyBody(code: CodeUnit) : Body(code, null) {
         override fun length(pc: Int): Int = if (bc[pc] == T_ADD || bc[pc] == T_LT || bc[pc] == T_RETURN) 1 else 2
         override fun operand(pc: Int, k: Int): Int = if (k == 1 && length(pc) == 2) bc[pc + 1] else 0
         override fun targets(pc: Int): IntArray? {

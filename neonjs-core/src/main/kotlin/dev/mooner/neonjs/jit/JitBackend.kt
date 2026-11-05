@@ -1,6 +1,6 @@
 package dev.mooner.neonjs.jit
 
-import dev.mooner.neonjs.compiler.CodeBlock
+import dev.mooner.neonjs.compiler.CodeUnit
 
 /**
  * Turns code blocks into [CompiledCode]. The tiering policy ([Jit]) and the background compiler hand it batches of
@@ -14,7 +14,7 @@ interface JitBackend {
      * Compiled code for each of [blocks] (null where a block cannot be compiled). Compiling several blocks at once
      * lets a backend share fixed costs between them; one failing block must not fail the others. Never throws.
      */
-    fun compile(blocks: List<CodeBlock>): List<CompiledCode?>
+    fun compile(blocks: List<CodeUnit>): List<CompiledCode?>
 }
 
 /**
@@ -23,7 +23,7 @@ interface JitBackend {
  * optimizing tier on), the code's loops move to the tier's code once it is installed (JitInput.tierUp).
  */
 class ClassBackend(val definer: CodeDefiner, val tierUp: Boolean = false) : JitBackend {
-    override fun compile(blocks: List<CodeBlock>): List<CompiledCode?> {
+    override fun compile(blocks: List<CodeUnit>): List<CompiledCode?> {
         if (blocks.isEmpty()) return emptyList()
         val first = dev.mooner.neonjs.jit.opt.Dialects.of(blocks[0])
         if (blocks.all { dev.mooner.neonjs.jit.opt.Dialects.of(it) === first }) return first.compileBaselines(blocks, definer, tierUp)

@@ -1,6 +1,6 @@
 package dev.mooner.neonjs.jit.opt
 
-import dev.mooner.neonjs.compiler.CodeBlock
+import dev.mooner.neonjs.compiler.CodeUnit
 import dev.mooner.neonjs.jit.CodeDefiner
 import dev.mooner.neonjs.jit.CompiledCode
 import dev.mooner.neonjs.jit.Jit
@@ -79,8 +79,8 @@ object T2 {
     @JvmField val SUSPENDABLE: Boolean = System.getProperty("neonjs.jit.suspendable") != "false"
 
     /** Whether [cb] is a generator's or an async function's that this tier compiles ([SUSPENDABLE]). */
-    fun suspendable(cb: CodeBlock): Boolean =
-        SUSPENDABLE && cb.flags and (CodeBlock.GENERATOR or CodeBlock.ASYNC) != 0 && cb.flags and CodeBlock.NO_JIT == 0
+    fun suspendable(cb: CodeUnit): Boolean =
+        SUSPENDABLE && cb.flags and (CodeUnit.GENERATOR or CodeUnit.ASYNC) != 0 && cb.flags and CodeUnit.NO_JIT == 0
 
     @JvmField val IR_BASELINE: Boolean = System.getProperty("neonjs.jit.irBaseline").let { it != null && it != "false" }
 
@@ -97,7 +97,7 @@ object T2 {
     }
 
     /** [cb]'s code, compiled by this tier and defined by [definer], or null (counted, with the reason) when it cannot be. */
-    fun compile(cb: CodeBlock, definer: CodeDefiner): CompiledCode? {
+    fun compile(cb: CodeUnit, definer: CodeDefiner): CompiledCode? {
         try {
             if (cb.t2Off) throw JitBailout("deoptimized too often")
             val (g, c) = generate(cb, definer, baseline = false)
@@ -118,7 +118,7 @@ object T2 {
      * deoptimizes. Defined by [definer] in one batch, as the baseline compiler's are. Element i is `blocks[i]`'s code,
      * the baseline installed already, or null (counted, with the reason) where the tier cannot compile it. Never throws.
      */
-    fun compileBaselines(blocks: List<CodeBlock>, definer: CodeDefiner, tierUp: Boolean = false): List<CompiledCode?> {
+    fun compileBaselines(blocks: List<CodeUnit>, definer: CodeDefiner, tierUp: Boolean = false): List<CompiledCode?> {
         val out = arrayOfNulls<CompiledCode>(blocks.size)
         val made = ArrayList<Int>()
         val graphs = ArrayList<Graph>()
@@ -211,14 +211,14 @@ object T2 {
     }
 
     /** [cb]'s graph and class, within the JVM's size limits; a JitBailout (or another exception) where it has none. */
-    private fun generate(cb: CodeBlock, definer: CodeDefiner, baseline: Boolean): Pair<Graph, dev.mooner.neonjs.jit.GeneratedClass> {
+    private fun generate(cb: CodeUnit, definer: CodeDefiner, baseline: Boolean): Pair<Graph, dev.mooner.neonjs.jit.GeneratedClass> {
         val name = if (baseline) BASELINE_NAME else "dev/mooner/neonjs/jit/T2$" + JvmCompiler.sanitize(cb.name) + "$" + counter.incrementAndGet()
         var g = timedBuild(cb, unswitch = true, baseline = baseline)
         val c = generateClass(g, cb, definer, name, baseline) { build(cb, unswitch = false, baseline = baseline).also { g = it } }
         return g to c
     }
 
-    private fun timedBuild(cb: CodeBlock, unswitch: Boolean, baseline: Boolean): Graph {
+    private fun timedBuild(cb: CodeUnit, unswitch: Boolean, baseline: Boolean): Graph {
         val t0 = System.nanoTime()
         return build(cb, unswitch, baseline).also { buildNanos.addAndGet(System.nanoTime() - t0) }
     }
@@ -227,7 +227,7 @@ object T2 {
      * The class of graph [g0] (of [cb]), named [name] (a baseline's after a hash of its code), within the JVM's size
      * limits: where loops copied (Unswitch) made it too large, again from the graph [again] builds without copies.
      */
-    private fun generateClass(g0: Graph, cb: CodeBlock, definer: CodeDefiner, name: String, baseline: Boolean, again: () -> Graph): dev.mooner.neonjs.jit.GeneratedClass {
+    private fun generateClass(g0: Graph, cb: CodeUnit, definer: CodeDefiner, name: String, baseline: Boolean, again: () -> Graph): dev.mooner.neonjs.jit.GeneratedClass {
         var g = g0
         val t1 = System.nanoTime()
         val bytes = try {
@@ -248,7 +248,7 @@ object T2 {
             bytes
         } catch (e: JitBailout) {
             if (System.getProperty("neonjs.jit.t2Debug") != null && e.message!!.contains("no local") && debugShown.incrementAndGet() <= 2) {
-                System.err.println("T2DEBUG ${cb.name}: ${e.message}\n${cb.sourceText()?.take(800)}\n${IrPrinter.print(g)}")
+                System.err.println("T2DEBUG ${cb.name}: ${e.message}\n${(cb as? dev.mooner.neonjs.compiler.CodeBlock)?.sourceText()?.take(800)}\n${IrPrinter.print(g)}")
             }
             throw e
         }
@@ -292,8 +292,8 @@ object T2 {
 
     private fun baselineClasses(definer: CodeDefiner) = synchronized(baselineClasses) { baselineClasses.getOrPut(definer) { ConcurrentHashMap() } }
 
-    private fun instantiate(cls: Class<*>, g: Graph, cb: CodeBlock, definer: CodeDefiner): T2Code {
-        val code = cls.getDeclaredConstructor(Array<Any?>::class.java, CodeBlock::class.java).newInstance(g.data.toTypedArray(), cb) as T2Code
+    private fun instantiate(cls: Class<*>, g: Graph, cb: CodeUnit, definer: CodeDefiner): T2Code {
+        val code = cls.getDeclaredConstructor(Array<Any?>::class.java, dev.mooner.neonjs.compiler.CodeBlock::class.java).newInstance(g.data.toTypedArray(), cb) as T2Code
         code.osrPcs = g.osrPcs
         code.resumer = g.dialect.resumer
         code.definer = definer
@@ -309,7 +309,7 @@ object T2 {
         }
     }.take(120)
 
-    private fun build(cb: CodeBlock, unswitch: Boolean, baseline: Boolean): Graph {
+    private fun build(cb: CodeUnit, unswitch: Boolean, baseline: Boolean): Graph {
         val g = Dialects.of(cb).build(cb, stressExits = JvmCompiler.DEOPT_STRESS > 0, unswitch = unswitch, baseline = baseline)
         if (PRINT != null && cb.name.contains(PRINT)) System.err.println("T2 ${cb.name}:\n${IrPrinter.print(g)}")
         if (VERIFY) IrVerifier.verify(g)
@@ -327,13 +327,13 @@ object T2 {
      * Compiles [cb] on the tier's background thread (on the calling thread without [background]) and installs the code
      * over its baseline, which runs meanwhile.
      */
-    fun submit(cb: CodeBlock, definer: CodeDefiner, background: Boolean = true) {
+    fun submit(cb: CodeUnit, definer: CodeDefiner, background: Boolean = true) {
         if (cb.t2Off || !Jit.canCompile(cb)) return
         if (background) queue.execute { compileOver(cb, definer) } else compileOver(cb, definer)
     }
 
     /** Compiles [cb] with [definer] and installs the code over its baseline (the stress mode). */
-    fun compileOver(cb: CodeBlock, definer: CodeDefiner) {
+    fun compileOver(cb: CodeUnit, definer: CodeDefiner) {
         val code = compile(cb, definer) ?: return
         Jit.install(cb, code)
     }

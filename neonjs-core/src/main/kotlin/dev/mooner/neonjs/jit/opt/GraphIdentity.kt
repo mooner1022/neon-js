@@ -47,7 +47,7 @@ internal object GraphIdentity {
             return sites[s]!!
         }
         fun block(b: Block?) = out.writeInt(if (b == null) -1 else blocks[b] ?: -2)
-        fun codeRef(cb: dev.mooner.neonjs.compiler.CodeBlock?) =
+        fun codeRef(cb: dev.mooner.neonjs.compiler.CodeUnit?) =
             out.writeInt(if (cb == null || cb === g.code) -1 else g.dataIndex(cb.constants))
         fun value(v: Value) {
             if (v !is Const) {

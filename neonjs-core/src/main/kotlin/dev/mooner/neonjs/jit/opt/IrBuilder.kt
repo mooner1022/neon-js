@@ -45,15 +45,18 @@ internal class IrBuilder(
      */
     private val exits: Boolean = true,
 ) : GraphBuilder(cb, Graph(cb, JsOps, JsKinds.of(ints, elems), Undefined, JsDialect), stressExits, speculate) {
+    /** The block compiled, as JavaScript's (GraphBuilder's is the core's code unit). */
+    private val jcb: CodeBlock = cb
+
     /** Bytecode ints of the bodies inlined so far (a budget). */
     private var inlined = 0
 
     override fun unbuildable(): String? =
-        if ((cb.isGenerator || cb.isAsync) && !T2.SUSPENDABLE) "generator or async" else null
+        if ((jcb.isGenerator || jcb.isAsync) && !T2.SUSPENDABLE) "generator or async" else null
 
     override fun root(): Body {
-        g.startsInterpreted = cb.isGenerator || cb.isAsync
-        return JsBody(cb, null)
+        g.startsInterpreted = jcb.isGenerator || jcb.isAsync
+        return JsBody(jcb, null)
     }
 
     override fun entry(start: Block): Array<Value> {
@@ -62,7 +65,7 @@ internal class IrBuilder(
             if (r >= 0) regs[r] = add(start, Inst(JsIr.PARAM, NO_VALUES, i, 0, 0, -1, -1).also { it.hasResult = true })
         }
         // parameters that only ever received numbers are taken as numbers, leaving at the start otherwise
-        val params = cb.profile?.params
+        val params = jcb.profile?.params
         // (not where such a check failed before: CodeBlock.t2Failed, the parameters' bit)
         if (speculate && params != null && !cb.t2FailedAt(cb.code.size)) {
             val entry = FrameState(0, regs.copyOf())
@@ -236,6 +239,9 @@ internal class IrBuilder(
     }
     /** A JavaScript function's body: its bytecode decoded, each instruction built. */
     private inner class JsBody(code: CodeBlock, site: InlineSite?, outerHandler: Block? = null) : Body(code, site, outerHandler) {
+        /** The body's code, as JavaScript's (Body's is the core's code unit). */
+        private val jcode: CodeBlock = code
+
         override fun length(pc: Int): Int = Op.length(bc, pc)
 
         override fun operand(pc: Int, k: Int): Int = if (Op.operands[bc[pc]] >= k) bc[pc + k] else 0
@@ -443,7 +449,7 @@ internal class IrBuilder(
                 Op.GET_PROP -> {
                     val ic = if (code.t2FailedAt(pc)) null else monomorphic(code.constants[a], PropCache.DATA)
                     if (ic == null && ints && speculate && !code.t2FailedAt(pc) && (code.constants[a] as? PropSite)?.key == "length" &&
-                        (code.profile?.values?.get(pc)?.toInt() ?: 0) and 0xFF == ValueProfile.INT) {
+                        (jcode.profile?.values?.get(pc)?.toInt() ?: 0) and 0xFF == ValueProfile.INT) {
                         // an array's or a string's length, read in place
                         val l = before(Inst(JsIr.LENGTH, arrayOf(stack.last()), 0, 0, 0, pc, stmt))
                         pop()
@@ -569,7 +575,7 @@ internal class IrBuilder(
             if (speculate && (op == Op.GET_PROP || op == Op.GET_ELEM || op == Op.LOAD_ENV || op == Op.LOAD_ENV_TDZ ||
                     op == Op.LOAD_GLOBAL || op == Op.CALL) && !code.t2FailedAt(pc)) {
                 val top = stack.lastOrNull()
-                val bits = code.profile?.values?.get(pc)?.toInt()?.and(0xFF) ?: 0
+                val bits = jcode.profile?.values?.get(pc)?.toInt()?.and(0xFF) ?: 0
                 if (top is Inst && top.pc == pc && top.block?.site == site) numberCheck(bits)?.let { check ->
                     val i = Inst(check, arrayOf(top), 0, 0, 0, pc, stmt)
                     i.state = state(pc + len)
@@ -589,8 +595,8 @@ internal class IrBuilder(
             // (where a call made there was another function before, CodeBlock.t2Failed, the call is made as a call when
             // it is another again: inline)
             if (depth >= maxInlineDepth) return null
-            val fb = code.callFeedback
-            val target = (if (fb == null) (if (construct) null else code.callHint(pc))
+            val fb = jcode.callFeedback
+            val target = (if (fb == null) (if (construct) null else jcode.callHint(pc))
             else fb.getOrNull(pc)?.takeIf { it.count >= Inlining.MIN_COUNT }?.target) ?: return null
             // (helpers read the strictness of the innermost call the frame records, JitRt.strict: a body that runs one is
             // not quiet, QuietInlines, and records its call)
@@ -611,7 +617,7 @@ internal class IrBuilder(
         /** The Math builtin (MathIntrinsic) the CALL at [pc] with [argc] arguments always called, or 0. */
         private fun intrinsicAt(pc: Int, argc: Int): Int {
             if (!speculate || code.t2FailedAt(pc)) return 0
-            val id = code.callFeedback?.getOrNull(pc)?.intrinsic ?: return 0
+            val id = jcode.callFeedback?.getOrNull(pc)?.intrinsic ?: return 0
             return if (id > 0 && dev.mooner.neonjs.runtime.MathIntrinsic.arity(id) == argc) id else 0
         }
 

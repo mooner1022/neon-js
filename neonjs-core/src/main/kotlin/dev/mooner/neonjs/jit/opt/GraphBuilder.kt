@@ -1,6 +1,6 @@
 package dev.mooner.neonjs.jit.opt
 
-import dev.mooner.neonjs.compiler.CodeBlock
+import dev.mooner.neonjs.compiler.CodeUnit
 import dev.mooner.neonjs.jit.JitBailout
 
 /**
@@ -17,7 +17,7 @@ import dev.mooner.neonjs.jit.JitBailout
  * (Part of the core's interface for languages: public for NeonJS's language modules, not a stable API.)
  */
 abstract class GraphBuilder(
-    protected val cb: CodeBlock,
+    protected val cb: CodeUnit,
     @JvmField protected val g: Graph,
     /** Whether the code gets the deopt stress mode's exits: at the start and the loop headers of each body. */
     protected val stressExits: Boolean,
@@ -134,7 +134,7 @@ abstract class GraphBuilder(
      * block where the callee's returns meet).
      */
     protected abstract inner class Body(
-        @JvmField val code: CodeBlock,
+        @JvmField val code: CodeUnit,
         @JvmField val site: InlineSite?,
         /** For an inlined body: the handler around its call. */
         @JvmField val outerHandler: Block? = null,

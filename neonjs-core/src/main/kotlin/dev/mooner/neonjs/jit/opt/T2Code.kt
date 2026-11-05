@@ -88,4 +88,4 @@ fun interface Resumer {
 }
 
 /** A speculation an exit stands for: made at [pc] of [code] (pc [CodeBlock.code].size: the parameters). */
-class Speculation(@JvmField val code: CodeBlock, @JvmField val pc: Int)
+class Speculation(@JvmField val code: dev.mooner.neonjs.compiler.CodeUnit, @JvmField val pc: Int)

@@ -1,6 +1,6 @@
 package dev.mooner.neonjs.jit.opt
 
-import dev.mooner.neonjs.compiler.CodeBlock
+import dev.mooner.neonjs.compiler.CodeUnit
 import dev.mooner.neonjs.compiler.Op
 import dev.mooner.neonjs.jit.JT
 
@@ -10,7 +10,7 @@ import dev.mooner.neonjs.jit.JT
  * block, or an instruction's result.
  */
 class Graph(
-    @JvmField val code: CodeBlock,
+    @JvmField val code: CodeUnit,
     /** What the passes know of the graph's operations, and the kinds of its values. */
     @JvmField val ops: OpTable,
     @JvmField val kindSystem: KindSystem,
@@ -112,7 +112,7 @@ abstract class Value {
  * A constant: a JS value known when compiling. [k] is its index in the constants of code block [code] when it is read
  * from them (a string or another object constant), else -1.
  */
-class Const(@JvmField val value: Any?, @JvmField val k: Int = -1, @JvmField val code: CodeBlock? = null) : Value() {
+class Const(@JvmField val value: Any?, @JvmField val k: Int = -1, @JvmField val code: CodeUnit? = null) : Value() {
     override fun toString() = when (value) {
         is CharSequence -> "\"" + value.toString().take(20) + "\""
         null -> "null!"
@@ -154,7 +154,7 @@ class Inst(
      */
     @JvmField var virtual = false
     /** For an instruction LICM moved out of its loop: the code block it was made from (its exits note failures there). */
-    @JvmField var origin: dev.mooner.neonjs.compiler.CodeBlock? = null
+    @JvmField var origin: dev.mooner.neonjs.compiler.CodeUnit? = null
     /**
      * For int32 arithmetic whose every use truncates to 32 bits (ADD, SUB, SHR: IrBuilder.intArith): the int result
      * wraps around, with no exit.
@@ -187,7 +187,7 @@ class FrameState(@JvmField val pc: Int, @JvmField val values: Array<Value>, @Jvm
  */
 class InlineSite(
     @JvmField val parent: InlineSite?,
-    @JvmField val code: CodeBlock,
+    @JvmField val code: CodeUnit,
     @JvmField val callPc: Int,
     @JvmField val callerState: FrameState,
     @JvmField val frame: Array<Value>,
