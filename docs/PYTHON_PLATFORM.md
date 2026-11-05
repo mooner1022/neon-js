@@ -284,7 +284,7 @@ To do this, the code version contract (`baseline`/`compiled`) has to allow that 
 ### 5.1 Two halves
 
 ```
- C extension source ──(wasi-sdk/emscripten + Python.h for our ABI)──► .wasm
+ C extension source ──(wasi-sdk + our Python.h, ahead of time)────────► .wasm
                                                                       │
  Python runtime (JVM)                                                 ▼
    PyObject (JVM heap) ◄──── C-API bridge (handles/mirrors, refcount↔GC) ────► wasm instance (linear memory)
@@ -305,9 +305,14 @@ To do this, the code version contract (`baseline`/`compiled`) has to allow that 
 | sandbox integration | instruction budget, interrupts, memory limits all built in | **needs checking** whether its interrupt/fuel hooks fit the Agent's limits |
 | fit with the project | consistent with its from-scratch policy (RegExp, Temporal…) | external dependency (Apache-2.0) |
 
-- Recommendation: if "slow is fine", **an interpreter first**. Prototype quickly with Chicory to check whether the C-API
-  bridge works, then decide on our own implementation once we see how well it integrates with the sandbox and
-  Android. Either way, wasm → JVM translation should go through `CodeDefiner` (ARCHITECTURE.md:318).
+- Decided (§9): **our own runtime, NeonWasm** (`neonwasm`). An interpreter and the spec tests first; then wasm becomes
+  **a dialect of the neutral core** (docs/IR_NEUTRALITY.md): wasm's value types map onto the core's representations
+  (i32/i64/f64 to `Rep.INT`/`LONG`/`DOUBLE`; f32 needs a `Rep.FLOAT`), and the core gives it SSA, on-stack
+  replacement, interrupt budgets, the tiering policy and `CodeDefiner` (hidden classes on the JVM, dex on Android).
+  Chicory stays a reference.
+- **Large functions** are the translation's main risk: C compiled with inlining makes wasm functions past the JVM's
+  64 KB method limit and HotSpot's 8,000-byte JIT limit (CPython's own evaluation loop, for §5.3's compatibility mode,
+  certainly). They need splitting; one left to the interpreter is slow.
 - wasmtime-java and other native bindings conflict with the Android/no-natives constraint, so they are out.
 - Needed features: MVP + multi-value, bulk memory, sign-ext, non-trapping float-to-int, reference types (function
   tables), **exception handling** (C++ extensions; or emscripten's `invoke_*` trampoline style), setjmp/longjmp
@@ -325,17 +330,24 @@ To do this, the code version contract (`baseline`/`compiled`) has to allow that 
 | choice | what | pros | cons |
 |---|---|---|---|
 | **(1) our own SDK + limited API (abi3)** | wasi-sdk + our `Python.h` (`Py_LIMITED_API`), extensions rebuilt from source | the smallest API surface. In the 3.12+ limited API, `Py_INCREF`/`Py_DECREF` are opaque function calls (gh-105387), so refcounts can be emulated without struct access | many key packages (numpy…) do not support the limited API |
-| **(2) Pyodide/pyemscripten binary compatibility** | load prebuilt wheels like `pyemscripten_2026_0_wasm32` (PEP 783) | no need to build numpy/pandas/scipy and the like | full CPython ABI (struct layouts, macros) + emscripten dynamic linking (`dylink.0`, GOT, `__memory_base`) + emscripten's JS-implemented `env.*` imports in Kotlin. Bound to one Python/emscripten version |
+| **(2a) NeonPy + Pyodide's extensions** | load prebuilt wheels like `pyemscripten_2026_0_wasm32` (PEP 783) into NeonPy | no need to build numpy/pandas/scipy and the like | they are built against the full CPython API: every object passed to C must be a CPython struct in linear memory (`Py_INCREF` writes `ob_refcnt`, macros read layouts), plus emscripten dynamic linking (`dylink.0`, GOT, `__memory_base`) and emscripten's JS-implemented imports in Kotlin. Bound to one Python/emscripten version. The cpyext problem, years |
+| **(2b) Pyodide compatibility mode** | Pyodide as it is (its CPython main module and its packages) on NeonWasm | Pyodide's package set (numpy, pandas) works, unmodified; no ABI to emulate (CPython is there) | only emscripten's runtime imports, the `dylink.0` loader and a virtual FS to write, but that Python is CPython at wasm-translated speed, not NeonPy (no T2), and its objects are not NeonPy's (a bridge, as Pyodide's JS ↔ Python one) |
 | **(3) HPy** | a handle-based API | cleanest for GC/handles | packages ported to HPy are few (current status **unconfirmed**) |
 | **(4) ctypes/cffi-style FFI** | Python calls plain C libraries (no CPython API) compiled to wasm | **by far the most feasible**: the bridge is only a type mapping + memory copies | not CPython extensions (no numpy) |
 
-- Recommended order: **(4) → (1) → (2) under review**. (4) gets wasm runtime + Python integration + sandbox up
-  quickly; (1) is the first CPython extension compatibility; (2) is a separate project to judge once (1)'s handle
-  bridge works.
+- Decided order (§9): **(4) → (1) on the main path; (2b) once NeonWasm runs; (2a) only on evidence from (2b)**. (4)
+  gets the wasm runtime, Python integration and the sandbox up quickly; (1) is the first CPython extension
+  compatibility; (2b) gives Pyodide's packages to those who need them, and is NeonWasm's hardest test (CPython itself)
+  and a differential reference for NeonPy.
+- Whatever the choice: pure-Python wheels (`py3-none-any`, from PyPI or Pyodide) run on NeonPy as they are, and
+  Pyodide's build recipes and patches are where our own wasi-sdk builds of a package start.
+- Toolchain (§9): **wasi-sdk** (clang/LLVM's wasm32 backend with wasi-libc) builds C for NeonPy: plain modules whose
+  imports are WASI and ours, no JS glue. Emscripten only builds Pyodide's own packages (2b). Our own C compiler is not
+  worth it (C17 with GCC extensions, an optimizer, a libc: years for nothing a build tool lacks).
 - Running CPython itself compiled to wasm (as Pyodide does) as the main path would give up T2 entirely, so it is not
-  recommended. It is useful as a **differential testing reference**, or a "compatibility mode" later.
+  the main path: it is (2b), the **compatibility mode**, and a **differential testing reference**.
 
-### 5.4 Designing the C-API bridge (for (1)/(2))
+### 5.4 Designing the C-API bridge (for (1)/(2a))
 
 - **Handles/mirrors**: when a JVM object goes to C, it gets a mirror struct in linear memory (`ob_refcnt`, `ob_type`,
   + per-type layouts the macros read directly: `PyTupleObject.ob_item`, `PyListObject`, `PyBytesObject.ob_sval`,
@@ -361,8 +373,33 @@ To do this, the code version contract (`baseline`/`compiled`) has to allow that 
 
 - Pure C libraries (zlib, sqlite, libyaml-style) through (4): feasible.
 - Small and medium extensions through the limited API (1): feasible, depending on how well the bridge holds up.
-- numpy/pandas-scale ((2), or the non-limited API): **a separate, multi-year project.** GraalPy spent years here.
-  The goal should be explicitly "the small and medium extensions first".
+- numpy/pandas-scale on NeonPy itself ((2a), or the non-limited API): **a separate, multi-year project.** GraalPy
+  spent years here. The goal is explicitly "the small and medium extensions first"; numpy/pandas come through (2b).
+
+### 5.6 Where native code is compiled, and where it runs
+
+- **C → wasm: ahead of time only**, on a build machine (a package's CI, our package index). Not on devices: clang
+  compiled to wasm could run on NeonWasm, but at tens of MB and slowly, for no common need.
+- **The `.wasm` is CPU-independent**: one build for every Android ABI and the desktop JVM, where native `.so` files
+  are one per ABI. One wheel platform tag of ours suffices; an index of prebuilt packages (as Pyodide keeps) spares
+  users compiling.
+- **wasm → code runs on the device**, at a time the engine picks (§9's decision 2), as JavaScript's does:
+
+  | when | for | cost |
+  |---|---|---|
+  | interpreted | immediate start, no generated code (the safest for store policies) | the slowest |
+  | translated on the device when hot (default, with the interpreter first) | packages downloaded at run time too | translation time and memory; ART runs dex loaded at run time with its JIT, not ahead of time |
+  | translated when the app is built (a Gradle plugin, later) | packages bundled with the app | none at run time: ART compiles them ahead of time (baseline profiles apply) |
+
+  On the device this is `neonjs-android`'s path as it is: classes to dex (`DexCodeDefiner`), loaded in memory
+  (`InMemoryDexClassLoader`, API 26), optionally cached as read-only files in `codeCacheDir` (Android 14's rule for
+  dynamically loaded code) and reused, keyed by the module's hash and the translator's version.
+- **Google Play**: the Device and Network Abuse policy forbids downloading executable code (dex, JAR, `.so`) from
+  outside Play, except "code that runs in a virtual machine or an interpreter where either provides indirect access to
+  Android APIs"; interpreted code loaded at run time must not allow policy violations. Sandboxed wasm and Python fit
+  the exception as JavaScript engines do; downloaded wasm translated to dex on the device is less clear-cut and
+  should be checked against the policy's current text before release. The conservative setting: packages bundled and
+  translated at build time; downloaded ones interpreted.
 
 ---
 
@@ -375,10 +412,11 @@ To do this, the code version contract (`baseline`/`compiled`) has to allow that 
 | **Y2: stdlib + sandbox** (~15K+) | the Kotlin C modules of §3.7, sandbox policy, host interop, CLI | `re`, `json`, `datetime`, `collections`, `itertools`, `asyncio` basics; `SecurityTest`-level sandbox tests |
 | **Y3: T2 generic** (~5K + split) | IR core/dialect split, Python dialect, T2-generic as the baseline, OSR, generator state machines | Python tests pass with `t2Stress` + `deoptStress`; Test262 unchanged; MethodSizeTest |
 | **Y4: T2 speculation** (~5–8K) | small int/float speculation, type versions + attribute slots, dict-version globals, inlining, intrinsics, LICM | in-house benchmark (the pyperformance subset is a candidate) faster than the interpreter by N× |
-| **W1: wasm runtime** (~8–12K; parallel with Y1) | validation, interpreter, WASI preview1, sandbox integration, (optional) JS `WebAssembly` API | the wasm spec tests; WPT `wasm/jsapi` (if the JS API is done) |
+| **W1: wasm runtime, NeonWasm** (~8–12K; parallel with Y1) | validation, interpreter, WASI preview1, sandbox integration, then translation as a dialect of the core (`Rep.FLOAT`, large functions split), (optional) JS `WebAssembly` API | the wasm spec tests interpreted and translated; WPT `wasm/jsapi` (if the JS API is done) |
 | **W2: FFI (4)** (~3K) | ctypes/cffi-style calls into C libraries | zlib/sqlite compiled to wasm usable from Python |
 | **W3: C-API (1)** (~15K+) | handles/mirrors, type slots, buffer protocol, our SDK (`Python.h`, libpython stub, build script) | a few limited-API packages built and their tests passing |
-| **W4: under review** | Pyodide/pyemscripten ABI (2) | decided separately |
+| **W4: Pyodide compatibility mode (2b)** (~3–5K) | emscripten's runtime imports in Kotlin, the `dylink.0` loader, a virtual FS, Pyodide's CPython and packages on NeonWasm, a bridge to NeonPy's objects | Pyodide's own tests of numpy/pandas (a subset) pass on the JVM and on Android |
+| **W5: under review** | Pyodide's extensions inside NeonPy (2a) | only on evidence from W4 |
 
 S0 is chosen by **risk**, not convenience. The parser is a known problem; whether the C-API bridge is feasible and
 whether the IR split stays JS-regression-free are the unknowns.
@@ -432,6 +470,16 @@ Made (2026-11-05):
    (`dev.mooner.neonpython`), as GraalPy's repository is `graalpython` (PyPI's `neonpy` is taken by an abandoned
    2019 placeholder, `neonpython` is free). JavaScript stays NeonJS; the wasm runtime would be NeonWasm (`neonwasm`).
    The neutral core's own name comes with its module split.
+
+Made later the same day:
+
+8. **NeonPy's C toolchain is wasi-sdk** (clang/LLVM, wasi-libc): C → wasm ahead of time only. Emscripten only for
+   Pyodide's own packages (2b). No C compiler of ours (§5.3).
+9. **wasm → JVM/dex is ours (NeonWasm)**: an interpreter first, then a dialect of the neutral core (§5.2).
+10. **Native code ships as `.wasm`** (CPU-independent) and runs on devices interpreted, translated when hot (cached),
+    or translated at app build time; downloaded packages within Play's policy (§5.6).
+11. **Pyodide's packages: through a compatibility mode (2b)**, Pyodide as it is on NeonWasm, after W1; the main path
+    stays NeonPy with (4) and (1); Pyodide's extensions inside NeonPy (2a) only on evidence from (2b) (§5.3).
 
 Consequences for the plan above: §5.2's comparison is settled (our own runtime; Chicory only as a reference); §6's
 order starts with the IR split (docs/IR_NEUTRALITY.md §6) instead of S0's split sketch; W1 includes the JS API; Y3
