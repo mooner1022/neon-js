@@ -23,6 +23,19 @@ interface JitBackend {
  */
 class ClassBackend(val definer: CodeDefiner, val tierUp: Boolean = false) : JitBackend {
     override fun compile(blocks: List<CodeBlock>): List<CompiledCode?> {
+        // blocks of other languages (CodeBlock.dialect): baselines of the optimizing tier's pipeline only, never T1's,
+        // which reads JavaScript's bytecode
+        if (blocks.any { it.dialect != null }) {
+            val out = arrayOfNulls<CompiledCode>(blocks.size)
+            val js = blocks.indices.filter { blocks[it].dialect == null }
+            val other = blocks.indices.filter { blocks[it].dialect != null }
+            if (js.isNotEmpty()) compile(js.map { blocks[it] }).forEachIndexed { k, c -> out[js[k]] = c }
+            if (other.isNotEmpty() && CodeDefiners.isUsable(definer)) {
+                val ir = dev.mooner.neonjs.jit.opt.T2.compileBaselines(other.map { blocks[it] }, definer, tierUp)
+                for ((k, i) in other.withIndex()) out[i] = ir[k]
+            }
+            return out.asList()
+        }
         if (!dev.mooner.neonjs.jit.opt.T2.IR_BASELINE) {
             val out = JvmCompiler.compileAll(blocks, definer, tierUp)
             // generators and async functions, which the baseline compiler leaves: the optimizing tier's baselines

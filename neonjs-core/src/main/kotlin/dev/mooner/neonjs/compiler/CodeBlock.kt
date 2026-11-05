@@ -247,6 +247,8 @@ class CodeBlock(@JvmField val name: String, @JvmField val kind: FunctionKind) {
      * generator, docs/IR_NEUTRALITY.md); null for JavaScript's.
      */
     @JvmField var dialect: Any? = null
+    /** What the block's language keeps of it besides its bytecode (another language's names of locals, say); null for JavaScript. */
+    @JvmField var dialectData: Any? = null
     /**
      * The pcs where a speculation of the optimizing tier failed (an exit taken), which its next compilations of this
      * block, or of blocks inlining it, do not make again (bit [code].size: the parameters); and how many times the block

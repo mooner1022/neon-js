@@ -13,8 +13,10 @@ import dev.mooner.neonjs.jit.JitBailout
  * Exception handlers: each handler's entry is a block of its own that only exceptions reach; the registers a handler
  * may read are kept in homes ([Body.At.home]) wherever they change in a range it covers. Exits ([FrameState]) leave
  * registers dead at their pc as [dead], so that they keep no value alive.
+ *
+ * (Part of the core's interface for languages: public for NeonJS's language modules, not a stable API.)
  */
-internal abstract class GraphBuilder(
+abstract class GraphBuilder(
     protected val cb: CodeBlock,
     @JvmField protected val g: Graph,
     /** Whether the code gets the deopt stress mode's exits: at the start and the loop headers of each body. */

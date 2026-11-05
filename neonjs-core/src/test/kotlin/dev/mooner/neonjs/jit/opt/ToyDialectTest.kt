@@ -6,10 +6,12 @@ import dev.mooner.neonjs.jit.CompiledCode
 import dev.mooner.neonjs.jit.Emit
 import dev.mooner.neonjs.jit.FRAME
 import dev.mooner.neonjs.jit.JitBailout
+import dev.mooner.neonjs.jit.Jit
 import dev.mooner.neonjs.jit.JvmEmitter
 import dev.mooner.neonjs.parser.FunctionKind
 import dev.mooner.neonjs.runtime.Agent
 import dev.mooner.neonjs.runtime.Realm
+import dev.mooner.neonjs.runtime.RuntimeConfig
 import dev.mooner.neonjs.vm.Frame
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -36,6 +38,23 @@ class ToyDialectTest {
         assertEquals(50.0 * (2.0 + 3.0), run(cb, code!!, 50.0, 2.0, 3.0))
         // operands that are not numbers take the generic path (the language's helper): 0.0 + ("a" + "b")
         assertEquals("0.0ab", run(cb, code, 1.0, "a", "b"))
+    }
+
+    @Test
+    fun theJitGivesAnotherLanguageTheTiersBaseline() {
+        // the tier-up policy's path (Jit.prepare, the queue, ClassBackend): the optimizing tier's baseline, never the
+        // baseline compiler's (T1 reads JavaScript's bytecode)
+        val cb = sumLoop()
+        val agent = Agent(RuntimeConfig().apply {
+            executionMode = Jit.MODE_COMPILED
+            backgroundJit = false
+        })
+        val code = Jit.prepare(cb, agent)
+        assertTrue(code is T2Code, "not the tier's code: $code (${T2.baselineReasons.keys})")
+        assertEquals(50.0 * (2.0 + 3.0), run(cb, code!!, 50.0, 2.0, 3.0))
+        // NO_JIT keeps a block of another language interpreted, as JavaScript's
+        val off = sumLoop().also { it.flags = it.flags or CodeBlock.NO_JIT }
+        assertEquals(null, Jit.prepare(off, agent))
     }
 
     @Test

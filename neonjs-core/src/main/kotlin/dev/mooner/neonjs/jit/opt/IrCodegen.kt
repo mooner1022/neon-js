@@ -22,7 +22,7 @@ import org.objectweb.asm.tree.VarInsnNode
  * slots into the local of the value the register holds there; `f.pc` is the current statement whenever something can
  * throw or call; loop back edges count down the interrupt budget.
  */
-internal abstract class IrCodegen(
+abstract class IrCodegen(
     protected val g: Graph,
     mv: MethodVisitor,
     protected val kinds: Kinds,

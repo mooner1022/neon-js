@@ -265,6 +265,18 @@ Left, not tied to JavaScript, and done since (step 8):
   objects (`JSGenerator.step`, as for array iterators): a for-of over a generator that only yields 208–242 → 105–114 ms,
   a Fibonacci generator 31–65 → 17–19 ms (adaptive, HotSpot).
 
+After step 8, what a language besides JavaScript needed of the core (found with Python's first slice, which comes
+separately: docs/PYTHON_PLATFORM.md):
+
+- **Another language's blocks go to the tier's pipeline**: `Jit.canCompile` takes a block with a dialect (unless
+  `NO_JIT`), `ClassBackend` sends such blocks to `T2.compileBaselines` (a batch of both is split), `T2.submit` asks
+  `Jit.canCompile`. T1 never sees them (`ToyDialectTest.theJitGivesAnotherLanguageTheTiersBaseline`).
+- **The language interface is public** (`Dialect`, `Graph`'s constructor and the fields a builder reads,
+  `GraphBuilder`, `IrCodegen`, `KindSystem`, `OpTable`, `Emit`, `JvmEmitter`, `Kinds`, `Facts`, `FactRules`), each
+  marked as the interface of NeonJS's language modules, not a stable API.
+- `CodeBlock.dialectData`: what a language keeps of a block besides its bytecode (Python: its locals' names).
+- A graph's identity includes its dialect: two languages' graphs never share a baseline class.
+
 Left:
 
 - **Inlining a generator into the loop consuming it** (its yields becoming jumps into the loop's body): what is left of

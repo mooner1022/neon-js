@@ -38,7 +38,7 @@ internal class JitClassWriter : org.objectweb.asm.ClassWriter(COMPUTE_FRAMES or 
  * runtime's static helpers, the interrupt check of a loop's back edge. [JvmEmitter] is the base class of the
  * generators; [JsEmit] adds what JavaScript's code needs.
  */
-internal interface Emit {
+interface Emit {
     val mv: MethodVisitor
 
     /** [n] new JVM locals of the method being generated. */
@@ -91,7 +91,7 @@ internal interface Emit {
 }
 
 /** A code generator's base: the method it writes ([mv]) and what [Emit] gives every generator. */
-internal abstract class JvmEmitter(final override val mv: MethodVisitor) : Emit
+abstract class JvmEmitter(final override val mv: MethodVisitor) : Emit
 
 /**
  * What JavaScript's code generators emit alike: constants, conversions of unboxed values, and the helper call of

@@ -328,7 +328,7 @@ object T2 {
      * over its baseline, which runs meanwhile.
      */
     fun submit(cb: CodeBlock, definer: CodeDefiner, background: Boolean = true) {
-        if (cb.t2Off || !(JvmCompiler.canCompile(cb) || suspendable(cb))) return
+        if (cb.t2Off || !Jit.canCompile(cb)) return
         if (background) queue.execute { compileOver(cb, definer) } else compileOver(cb, definer)
     }
 

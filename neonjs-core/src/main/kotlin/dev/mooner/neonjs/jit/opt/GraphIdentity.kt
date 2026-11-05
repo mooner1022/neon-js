@@ -17,7 +17,7 @@ import java.io.DataOutputStream
  */
 internal object GraphIdentity {
     /** Changes when what is hashed, or the code generated from it, changes. */
-    private const val FORMAT = 1
+    private const val FORMAT = 2
 
     fun of(g: Graph, classFileVersion: Int): String {
         val md = java.security.MessageDigest.getInstance("SHA-256")
@@ -26,6 +26,8 @@ internal object GraphIdentity {
         out.writeInt(classFileVersion)
         out.writeBoolean(g.startsInterpreted)
         out.writeBoolean(g.tierUp)
+        // (the language: its ops' numbers mean what its dialect says)
+        out.writeUTF(g.dialect.javaClass.name)
         g.dialect.identityExtras(g, out)
         // every value and block numbered first (a value may be used before the block defining it, through a phi)
         val ids = HashMap<Value, Int>()

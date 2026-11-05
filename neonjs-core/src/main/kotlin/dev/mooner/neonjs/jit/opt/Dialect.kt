@@ -9,8 +9,10 @@ import org.objectweb.asm.MethodVisitor
  * A language of the optimizing tier (docs/IR_NEUTRALITY.md): how its code blocks become graphs ([build]: its
  * [GraphBuilder], [OpTable] and [KindSystem]) and how their instructions become JVM code ([codegen]: its
  * [IrCodegen]). Everything between, the passes and the code's frame, exits and entries, is the core's.
+ *
+ * (Part of the core's interface for languages: public for NeonJS's language modules, not a stable API.)
  */
-internal interface Dialect {
+interface Dialect {
     /**
      * The graph of [cb] for the optimizing tier, or a JitBailout where it has none. A [baseline]'s speculates on nothing
      * and has no exits but the stress mode's (docs/IR_NEUTRALITY.md §5).

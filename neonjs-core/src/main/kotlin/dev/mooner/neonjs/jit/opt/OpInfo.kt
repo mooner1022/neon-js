@@ -84,10 +84,10 @@ open class OpInfo(@JvmField val name: String, @JvmField val flags: Int, @JvmFiel
 }
 
 /**
- * The operations of a language's IR: those of its bytecode and those its builder makes. (Internal until the kind system
- * it asks about is an interface of its own: docs/IR_NEUTRALITY.md, step 2.)
+ * The operations of a language's IR: those of its bytecode and those its builder makes.
+ * (Part of the core's interface for languages: public for NeonJS's language modules, not a stable API.)
  */
-internal interface OpTable {
+interface OpTable {
     fun info(op: Int): OpInfo
 
     /** Whether every input of [i] is a number. */

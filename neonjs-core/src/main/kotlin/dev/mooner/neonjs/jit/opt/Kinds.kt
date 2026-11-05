@@ -5,7 +5,7 @@ package dev.mooner.neonjs.jit.opt
  * of their inputs' (kinds only rise), and every instruction's result is the one its language's kind system gives for
  * its inputs' kinds. A register's home (exception handlers) holds the join of what is stored in it.
  */
-internal class Kinds(@JvmField val system: KindSystem) {
+class Kinds(@JvmField val system: KindSystem) {
     /** Kind of a constant. */
     fun constKind(v: Any?): Byte = system.constKind(v)
 

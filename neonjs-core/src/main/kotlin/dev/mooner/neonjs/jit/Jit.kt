@@ -161,7 +161,9 @@ object Jit {
      * tier's pipeline (dev.mooner.neonjs.jit.opt.T2.suspendable).
      */
     @JvmStatic
-    fun canCompile(cb: CodeBlock): Boolean = JvmCompiler.canCompile(cb) || dev.mooner.neonjs.jit.opt.T2.suspendable(cb)
+    fun canCompile(cb: CodeBlock): Boolean =
+        if (cb.dialect != null) cb.flags and CodeBlock.NO_JIT == 0 // another language's: the tier's pipeline only
+        else JvmCompiler.canCompile(cb) || dev.mooner.neonjs.jit.opt.T2.suspendable(cb)
 
     /** Compiled code for [cb] now: compiled on this thread, taken over from the queue, or awaited from a worker. */
     private fun compileNow(cb: CodeBlock, agent: Agent): CompiledCode? {

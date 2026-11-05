@@ -38,7 +38,7 @@ enum class Rep(@JvmField val desc: String, @JvmField val load: Int, @JvmField va
  * A kind must say the truth on every path: it comes from what an operation produces by definition or from a check that
  * exits otherwise (a speculation), never from a profile alone.
  */
-internal interface KindSystem {
+interface KindSystem {
     /** The kind of a value about which nothing is known, held as an Object: [ANY_KIND] in every kind system. */
     val any: Byte get() = ANY_KIND
 

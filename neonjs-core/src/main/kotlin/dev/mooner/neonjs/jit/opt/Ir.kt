@@ -9,15 +9,15 @@ import dev.mooner.neonjs.jit.JT
  * whose instructions are in SSA form. A [Value] is defined once: a constant, a parameter, a phi at the start of a
  * block, or an instruction's result.
  */
-class Graph internal constructor(
+class Graph(
     @JvmField val code: CodeBlock,
     /** What the passes know of the graph's operations, and the kinds of its values. */
-    @JvmField internal val ops: OpTable,
-    @JvmField internal val kindSystem: KindSystem,
+    @JvmField val ops: OpTable,
+    @JvmField val kindSystem: KindSystem,
     /** What the interpreter holds in a register it writes before reading it (a dead one), as exits pass it. */
-    @JvmField internal val deadValue: Any?,
+    @JvmField val deadValue: Any?,
     /** The language: its builder and code generator. */
-    @JvmField internal val dialect: Dialect,
+    @JvmField val dialect: Dialect,
 ) {
     /** Blocks in reverse post order; the first is the entry. */
     @JvmField val blocks = ArrayList<Block>()

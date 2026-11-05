@@ -8,7 +8,7 @@ package dev.mooner.neonjs.jit.opt
  * A block with one predecessor starts with its facts, one with several (all built before it) with those all of them
  * hold, and a loop header (its back edges are built after it), a catch entry or a resumption with none.
  */
-internal object Facts {
+object Facts {
     /**
      * What an instruction is given to change the facts with: a value an earlier one stood for ([r]: the value held in
      * place of one dropped), and [drop], which puts a value known in place of the instruction (removed).
@@ -64,7 +64,7 @@ internal object Facts {
  * A language's facts after guards ([Facts]): keys and what they hold, in one map (the keys of different facts of
  * different classes, values compared with `equals`).
  */
-internal interface FactRules {
+interface FactRules {
     /** Instruction [i] with [facts] holding before it: changes them as it establishes or may end some. */
     fun transfer(i: Inst, facts: HashMap<Any, Any>, ctx: Facts.Ctx)
 }
