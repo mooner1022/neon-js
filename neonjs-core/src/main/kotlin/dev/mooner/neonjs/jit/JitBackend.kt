@@ -18,42 +18,19 @@ interface JitBackend {
 }
 
 /**
- * The JVM bytecode backend: [JvmCompiler] generates classes, [definer] defines them, a batch at a time. With [tierUp]
- * (the optimizing tier on), the code's loops move to the tier's code once it is installed (JitInput.tierUp).
+ * The JVM bytecode backend: each block's language compiles its baselines (`Dialect.compileBaselines`: JavaScript's T1,
+ * the optimizing tier's pipeline for the others), [definer] defines the classes, a batch at a time. With [tierUp] (the
+ * optimizing tier on), the code's loops move to the tier's code once it is installed (JitInput.tierUp).
  */
 class ClassBackend(val definer: CodeDefiner, val tierUp: Boolean = false) : JitBackend {
     override fun compile(blocks: List<CodeBlock>): List<CompiledCode?> {
-        // blocks of other languages (CodeBlock.dialect): baselines of the optimizing tier's pipeline only, never T1's,
-        // which reads JavaScript's bytecode
-        if (blocks.any { it.dialect != null }) {
-            val out = arrayOfNulls<CompiledCode>(blocks.size)
-            val js = blocks.indices.filter { blocks[it].dialect == null }
-            val other = blocks.indices.filter { blocks[it].dialect != null }
-            if (js.isNotEmpty()) compile(js.map { blocks[it] }).forEachIndexed { k, c -> out[js[k]] = c }
-            if (other.isNotEmpty() && CodeDefiners.isUsable(definer)) {
-                val ir = dev.mooner.neonjs.jit.opt.T2.compileBaselines(other.map { blocks[it] }, definer, tierUp)
-                for ((k, i) in other.withIndex()) out[i] = ir[k]
-            }
-            return out.asList()
-        }
-        if (!dev.mooner.neonjs.jit.opt.T2.IR_BASELINE) {
-            val out = JvmCompiler.compileAll(blocks, definer, tierUp)
-            // generators and async functions, which the baseline compiler leaves: the optimizing tier's baselines
-            val rest = blocks.indices.filter { out[it] == null && dev.mooner.neonjs.jit.opt.T2.suspendable(blocks[it]) }
-            if (rest.isEmpty() || !CodeDefiners.isUsable(definer)) return out
-            val ir = dev.mooner.neonjs.jit.opt.T2.compileBaselines(rest.map { blocks[it] }, definer, tierUp)
-            return out.toMutableList().also { for ((j, i) in rest.withIndex()) it[i] = ir[j] }
-        }
-        // (testing) the optimizing tier's baselines, the baseline compiler's where it has none
-        val usable = CodeDefiners.isUsable(definer)
-        val ir = if (usable) dev.mooner.neonjs.jit.opt.T2.compileBaselines(blocks.filter { Jit.canCompile(it) }, definer, tierUp) else emptyList()
+        if (blocks.isEmpty()) return emptyList()
+        val first = dev.mooner.neonjs.jit.opt.Dialects.of(blocks[0])
+        if (blocks.all { dev.mooner.neonjs.jit.opt.Dialects.of(it) === first }) return first.compileBaselines(blocks, definer, tierUp)
+        // a batch of several languages: each language's blocks together
         val out = arrayOfNulls<CompiledCode>(blocks.size)
-        var k = 0
-        for ((i, cb) in blocks.withIndex()) if (usable && Jit.canCompile(cb)) out[i] = ir[k++]
-        val rest = blocks.indices.filter { out[it] == null }
-        if (rest.isNotEmpty()) {
-            val t1 = JvmCompiler.compileAll(rest.map { blocks[it] }, definer, tierUp)
-            for ((j, i) in rest.withIndex()) out[i] = t1[j]
+        for ((d, ks) in blocks.indices.groupBy { dev.mooner.neonjs.jit.opt.Dialects.of(blocks[it]) }) {
+            d.compileBaselines(ks.map { blocks[it] }, definer, tierUp).forEachIndexed { n, c -> out[ks[n]] = c }
         }
         return out.asList()
     }

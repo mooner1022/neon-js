@@ -244,9 +244,9 @@ class CodeBlock(@JvmField val name: String, @JvmField val kind: FunctionKind) {
     @JvmField var t2Off = false
     /**
      * The optimizing tier's dialect of the block's language (a jit.opt.Dialect: its builder, ops, kinds and code
-     * generator, docs/IR_NEUTRALITY.md); null for JavaScript's.
+     * generator, how its baselines are compiled, docs/IR_NEUTRALITY.md): JavaScript's for the JS compiler's blocks.
      */
-    @JvmField var dialect: Any? = null
+    @JvmField var dialect: Any? = dev.mooner.neonjs.jit.opt.JsDialect
     /** What the block's language keeps of it besides its bytecode (another language's names of locals, say); null for JavaScript. */
     @JvmField var dialectData: Any? = null
     /**
