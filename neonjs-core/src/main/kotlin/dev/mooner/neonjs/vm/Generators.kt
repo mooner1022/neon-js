@@ -12,6 +12,55 @@ class JSGenerator(proto: JSObject?, @JvmField var frame: Frame?) : JSObject(prot
         const val SUSPENDED_YIELD = 1
         const val EXECUTING = 2
         const val COMPLETED = 3
+
+        /** [step]'s answer for a result passed through as it came (in [rawResult]). */
+        @JvmField val RAW = Any()
+    }
+
+    /** The result [step] passed through (YIELD_RAW), until read. */
+    @JvmField var rawResult: Any? = null
+
+    /**
+     * `next(undefined)` for for-of (Iteration.stepValue, where the generator's next is its realm's intrinsic one): the
+     * value yielded, or NotFound where the generator is done (its return value unread: for-of drops it), without the
+     * iterator result object next would make: that object would be fresh, so reading it is unobservable. A result yield*
+     * passes through as it came (YIELD_RAW: the inner iterator's) comes back as [RAW], the result in [rawResult], to be
+     * read as any iterator's.
+     */
+    fun step(): Any? {
+        when (state) {
+            EXECUTING -> throw JSException.typeError("Generator is already running")
+            COMPLETED -> return NotFound
+            SUSPENDED_START -> {}
+            else -> {
+                val f = frame!!
+                f.slots[f.sp++] = Undefined
+                f.resumeMode = Frame.MODE_NEXT
+            }
+        }
+        val f = frame!!
+        state = EXECUTING
+        val r: Any?
+        try {
+            r = Interpreter.execute(f)
+        } catch (t: Throwable) {
+            state = COMPLETED
+            frame = null
+            throw t
+        }
+        if (r === Interpreter.SUSPENDED) {
+            state = SUSPENDED_YIELD
+            val v = f.suspendValue
+            f.suspendValue = null
+            if (f.suspendKind == Frame.SUSPEND_YIELD_RAW) {
+                rawResult = v
+                return RAW
+            }
+            return v
+        }
+        state = COMPLETED
+        frame = null
+        return NotFound
     }
 
     fun resume(realm: Realm, value: Any?, mode: Int): Any? {

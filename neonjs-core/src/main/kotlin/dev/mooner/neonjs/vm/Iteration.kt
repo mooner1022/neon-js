@@ -81,6 +81,20 @@ object Iteration {
             if (v === NotFound) rec.done = true
             return v
         }
+        if (it is JSGenerator && nm is NativeFunction && nm === nm.realm.generatorNext && nm.realm.agent.currentRealm === nm.realm) {
+            // a generator's intrinsic next: its result object unmade (JSGenerator.step), but one yield* passes through
+            val v = try {
+                it.step()
+            } catch (e: Throwable) {
+                rec.done = true
+                throw e
+            }
+            if (v === NotFound) rec.done = true
+            if (v !== JSGenerator.RAW) return v
+            val raw = it.rawResult
+            it.rawResult = null
+            return resultValue(rec, raw)
+        }
         val r: Any?
         try {
             r = Ops.call(rec.nextMethod, rec.iterator, EMPTY_ARGS)
@@ -88,6 +102,11 @@ object Iteration {
             rec.done = true
             throw e
         }
+        return resultValue(rec, r)
+    }
+
+    /** The value of iterator result [r] of [rec] as for-of reads it, or NotFound (and [rec] done) where it is done. */
+    private fun resultValue(rec: IteratorRecord, r: Any?): Any? {
         if (r !is JSObject) {
             rec.done = true
             throw JSException.typeError("Iterator result ${Ops.toDisplayString(r)} is not an object")

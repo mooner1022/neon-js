@@ -769,7 +769,7 @@ internal object GeneratorBuiltins {
         gp.value(JSSymbol.toStringTag, "Generator", Attr.CONFIGURABLE)
         realm.intrinsics["%GeneratorFunction%"] = gf
         fun gen(t: Any?): JSGenerator = t as? JSGenerator ?: typeErr("next method called on incompatible receiver ${Ops.describe(t)}")
-        gp.method(realm, "next", 1) { f, t, args, _ -> gen(t).resume(f.realm, args.arg(0), Frame.MODE_NEXT) }
+        realm.generatorNext = gp.method(realm, "next", 1) { f, t, args, _ -> gen(t).resume(f.realm, args.arg(0), Frame.MODE_NEXT) }
         gp.method(realm, "return", 1) { f, t, args, _ -> gen(t).resume(f.realm, args.arg(0), Frame.MODE_RETURN) }
         gp.method(realm, "throw", 1) { f, t, args, _ -> gen(t).resume(f.realm, args.arg(0), Frame.MODE_THROW) }
 

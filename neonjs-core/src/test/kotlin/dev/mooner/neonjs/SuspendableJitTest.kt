@@ -45,6 +45,32 @@ class SuspendableJitTest {
     }
 
     @Test
+    fun forOfStepsGeneratorsAsTheirNextWould() {
+        // for-of steps a generator whose next is the intrinsic one without its result objects (Iteration.stepValue):
+        // a result yield* passes through is still read as it is (its getters run), a next of the instance's own is
+        // called, an exception in the body ends the loop, and the return value is not read
+        val src = """
+            const log = [];
+            function* plain() { yield 1; yield 2; return 'dropped'; }
+            function* through() { let k = 0; yield* { [Symbol.iterator]() { return { next() { k++;
+                return k > 2 ? { done: true, value: 'end' } : { get value() { log.push('value'); return k * 10 }, done: false } } } } } }
+            function* throws() { yield 1; throw new Error('inside'); }
+            const own = plain(); own.next = function () { log.push('own next'); return { done: true } };
+            const out = [];
+            for (const v of plain()) out.push(v);
+            for (const v of through()) out.push(v);
+            for (const v of own) out.push('never');
+            try { for (const v of throws()) out.push(v); } catch (e) { out.push(e.message); }
+            out.join(',') + '|' + log.join(',');
+        """.trimIndent()
+        val expected = "1,2,10,20,1,inside|value,value,own next"
+        for (mode in ExecutionMode.values()) {
+            val engine = NeonEngine.builder().executionMode(mode).build()
+            assertEquals(expected, engine.newContext().use { it.eval(src).asString() }, "$mode")
+        }
+    }
+
+    @Test
     fun interpretedAndCompiledAgree() {
         assertEquals(expected, runIn(ExecutionMode.INTERPRETER))
         val before = T2.baselines.get()

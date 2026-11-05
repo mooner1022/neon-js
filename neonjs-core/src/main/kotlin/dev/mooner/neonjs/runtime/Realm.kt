@@ -28,6 +28,8 @@ class Realm(@JvmField val agent: Agent) {
     lateinit var arrayProtoValues: JSObject
     lateinit var generatorFunctionPrototype: JSObject
     lateinit var generatorPrototype: JSObject
+    /** %GeneratorPrototype%.next: for-of steps a generator whose next it is without its result objects (Iteration.stepValue). */
+    lateinit var generatorNext: JSObject
     lateinit var asyncFunctionPrototype: JSObject
     lateinit var asyncGeneratorFunctionPrototype: JSObject
     lateinit var asyncGeneratorPrototype: JSObject
