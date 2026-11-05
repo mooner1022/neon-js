@@ -5,7 +5,7 @@ suite run once before a large pull request. `tools/check.sh` has the three level
 
 | level | command | what | time (8 cores) |
 |---|---|---|---|
-| quick | `tools/check.sh quick` | neon-vm's and neonjs-core's unit tests; a fixed 1 in 20 of Test262 in the interpreter and in the JIT's stress modes | ~2.5–3 min |
+| quick | `tools/check.sh quick` | neon-vm's, neonjs-core's and neonwasm's unit tests (the WebAssembly spec tests among them); a fixed 1 in 20 of Test262 in the interpreter and in the JIT's stress modes | ~2.5–3 min |
 | codegen | `tools/check.sh codegen [REF]` | the classes the JIT generates for that part of Test262, against those of REF (default `main`) | ~1.5 min (~3 the first time for a REF) |
 | full | `tools/check.sh full` | what CI runs, then all of Test262 in the stress modes | long: before a large pull request |
 
@@ -14,7 +14,9 @@ the compilers), *full* before a pull request that touches the interpreter, the c
 its own part of *full* on every pull request.
 
 The script checks Test262 out at CI's revision (`TEST262_COMMIT` in `.github/workflows/ci.yml`) into
-`third_party/test262` when it is missing. `GRADLE_ARGS` passes arguments to every `./gradlew` run (a toolchain's path,
+`third_party/test262` when it is missing, and the WebAssembly spec tests at theirs (`WASM_SPEC_COMMIT`) into
+`third_party/wasm-spec`, which `tools/wasm-spec.sh` converts into `build/wasm-spec` with `wasm-tools` (`cargo install
+wasm-tools --locked`; without it neonwasm's `SpecTest` is skipped, docs/NEONWASM.md). `GRADLE_ARGS` passes arguments to every `./gradlew` run (a toolchain's path,
 say), `SAMPLE` changes the part of Test262 (`SAMPLE=5`: one test in five), `THREADS` the runner's threads.
 
 ## Quick
