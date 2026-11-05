@@ -322,3 +322,32 @@ mode, HotSpot, against `-Dneonjs.jit.suspendable=false`: a Fibonacci generator t
 30–52 ms; a `for (const v of range(n))` over a generator whose body only yields, about the same (176–207 ms both): there
 the generator's protocol (a resumption, an iterator result per value) costs more than its body. Inlining a generator
 into the loop that consumes it would remove that, and is the next step for code built on generators (Python's).
+
+## 10. The core as a module of its own (step 9)
+
+Until now the core lives in `neonjs-core` with JavaScript, and leans on it: a language's frame is JavaScript's `Frame`
+(its realm a JavaScript realm, its registers JavaScript's `Undefined`), its code unit is the JS compiler's
+`CodeBlock` (with `FunctionKind`), its limits are JavaScript's `Agent`. Step 9 makes the core a module, `neon-vm`
+(a working name: the core's own name and packages come later, in a commit of their own), on which JavaScript
+(`neonjs-core`) and other languages (NeonPy) depend, and which compiles and is tested without JavaScript.
+
+The packages stay as they are (`dev.mooner.neonjs.jit`, `.jit.opt`, and the base classes beside their JavaScript
+subclasses): a package's name is in every class the JIT generates.
+
+### 10.1 Steps
+
+The base classes and hooks come first, in `neonjs-core`. JavaScript's generated classes stay the same after each
+step, or differ only by the renames listed for it, and are checked that way. Then the files move.
+
+| | what | JavaScript's generated classes |
+|---|---|---|
+| a | A block's dialect decides how it is compiled: `Dialect.canCompile`, `Dialect.compileBaselines` (JavaScript's: T1, and the tier for what T1 leaves). The JS compiler gives each `CodeBlock` `JsDialect`, so no dialect no longer means JavaScript | the same |
+| b | `CodeUnit`: what the core reads of a code block (code, constants, handlers, registers, stack, line table, flags, parameters, name, compiled code, the tiers' state, dialect). `CodeBlock : CodeUnit` keeps JavaScript's fields | the same (an inherited field keeps the subclass as its owner) |
+| c | `VmConfig` and `VmAgent`: the JIT's settings and the limits (call depth, time, instructions, memory, interrupts), and the exceptions that end an execution. `RuntimeConfig : VmConfig`, `Agent : VmAgent` | the same |
+| d | `VmFrame`: `slots`, `sp`, `pc`, `inlinePc`, `args`, with the frame's code unit and agent as abstract accessors. JavaScript's `Frame : VmFrame` keeps its own typed `code`, `realm` and the rest, and fills its registers with `Undefined`. `CompiledCode.run` takes a `VmFrame`. The core's code generator names the frame, agent and code unit classes and loads the constants and agent through hooks (JavaScript's: its own classes and sequences). The core's helpers move to `VmRt` (`NO_OSR`, `DEOPTED`, `canTierUp`) and `VmDeopt` (`write`, `tierUp`). The kinds check of an on-stack replacement entry goes behind `KindSystem`, and constants' identity behind the dialect | `run`'s parameter type, and one cast of the frame at its start: compared with these normalized (`tools/codegen-equiv.txt`) |
+| e | The module: `neon-vm` gets the neutral files; `neonjs-core` depends on it (`api`); what crosses is public, marked as no stable API. `ToyDialectTest` moves to `neon-vm`, with a frame of its own: the core is tested without JavaScript | as after d |
+| f | NeonPy (its branch) depends on `neon-vm` only: `PyFrame : VmFrame`, its code a `CodeUnit`, its context a `VmAgent`, no realm, its own value for a local without one | — |
+
+Done when: `neon-vm` compiles with no JavaScript on its class path, NeonPy's compile class path holds `neon-vm` and
+not `neonjs-core`, the quick check passes, the normalized codegen check passes, `bench/basic.js` is as fast, and the
+full check passes before the pull request.
