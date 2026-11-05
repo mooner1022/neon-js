@@ -1,6 +1,6 @@
 # A language-neutral optimizing pipeline: what T2 can share (draft)
 
-Status (2026-11-05): the steps of §6 are done on branch `ir-neutral-core`. Steps 1 to 6 leave the classes generated for
+Status (2026-11-05): the steps of §6, and the follow-ups §8 lists (step 8), are done on branch `ir-neutral-core`. Steps 1 to 6 leave the classes generated for
 JavaScript unchanged (`tools/check.sh codegen`, docs/TESTING.md); step 7 adds classes (generators and async functions,
 §9) and changes none. A toy language compiles and runs on the core (`ToyDialectTest`). §8 lists what the steps found and
 what is left. This document answers, for the plan in docs/PYTHON_PLATFORM.md, how much of the optimizing tier
@@ -249,13 +249,27 @@ What the steps left of JavaScript in the core, and what became of it:
 | profiles | the language's: `ValueProfile` is JavaScript's interpreter's, read by its builder only |
 | T1 (`JvmCompiler`) | JavaScript's by design (§5); what it shares with the tier (`Emit`) is neutral |
 
-Left, not tied to JavaScript:
+Left, not tied to JavaScript, and done since (step 8):
 
-- **Compile time of baselines**: building and generating each block costs more than T1's one pass. T1 computes an
-  identity from its input before generating and skips equal blocks; baselines hash the generated class instead, after
-  the work. An identity of the graph's inputs (code, constants, inlining decisions, settings) would skip it.
-- **Tier-up from pipeline baselines**: T1 code looks for the tier's code at loop back edges (`JitInput.tierUp`); a
-  pipeline baseline does not yet, so a long loop moves to speculating code only at the next call or on-stack entry.
+- **Compile time of baselines**: generating a class took most of a baseline's time (1 in 20 of Test262, compiled mode,
+  `irBaseline`, one thread: 17 s of code generation against 9 s of building graphs). A baseline is now looked up by the
+  identity of its graph (`GraphIdentity`: everything the code generator reads, the language's settings through
+  `Dialect.identityExtras`) and generated only for a graph not compiled before: 114K of 119K found so, code generation
+  17.1 → 1.2 s, wall time on 8 threads 21–22 → 12.9–13.8 s (T1: 9.3–10 s). `-Dneonjs.jit.baselineCheck` generates
+  every class anyway and compares; the quick check runs it (no difference found).
+- **Tier-up from pipeline baselines**: a baseline compiled with the tier on (`Graph.tierUp`) checks at a loop back edge
+  whose budget ran out whether the tier's code with an entry at that header is installed, and goes on there
+  (`Deopt.tierUp`), as T1's code does (`BaselineTierUpTest`).
+- **`await using`**: DISPOSE_STEP's two values are two instructions (`JsIr.DISPOSE_MORE`, `DISPOSE_AWAIT_VALUE`).
+- **Generators' protocol**: for-of steps a generator whose next is the intrinsic one without its iterator result
+  objects (`JSGenerator.step`, as for array iterators): a for-of over a generator that only yields 208–242 → 105–114 ms,
+  a Fibonacci generator 31–65 → 17–19 ms (adaptive, HotSpot).
+
+Left:
+
+- **Inlining a generator into the loop consuming it** (its yields becoming jumps into the loop's body): what is left of
+  the protocol's cost, a resumption per value. A larger project, for code built on generators (Python's).
+- `with` and direct-eval scopes stay at their baseline (T1's) or interpreted, as before.
 
 ## 9. Suspensions (step 7)
 
