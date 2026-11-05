@@ -48,7 +48,11 @@ internal abstract class IrCodegen(
 
     /** The exits reached from `run`: the label of each, its state, and whether an assumption failed there. */
     /** An exit, or ([suspend]) a suspension, which writes the state to the frame and returns SUSPENDED instead. */
-    protected class Exit(val label: Label, val state: FrameState, val counted: Boolean, val spec: Int = -1, val suspend: Inst? = null)
+    protected class Exit(
+        val label: Label, val state: FrameState, val counted: Boolean, val spec: Int = -1, val suspend: Inst? = null,
+        /** A move to a later version of the code at a loop header (Graph.tierUp), with the header's registers. */
+        val tierUp: Boolean = false,
+    )
 
     /** The exit of a speculation [i] makes (counted, and noted where it failed: T2Code.exit). */
     protected fun specExit(l: Label, i: Inst): Exit {
@@ -194,6 +198,17 @@ internal abstract class IrCodegen(
             m.visitEnd()
             return
         }
+        if (e.tierUp) {
+            // (at a loop header of the function compiled) the later version goes on, from the header's registers
+            m.visitVarInsn(ALOAD, L_FRAME)
+            em.iconst(s.pc)
+            array(s.values)
+            m.visitMethodInsn(INVOKESTATIC, "dev/mooner/neonjs/jit/Deopt", "tierUp", "(${FRAME_D}I$CONSTS_D)$OBJ", false)
+            m.visitInsn(ARETURN)
+            m.visitMaxs(0, 0)
+            m.visitEnd()
+            return
+        }
         if (e.counted) m.visitVarInsn(ALOAD, 0)
         m.visitVarInsn(ALOAD, L_FRAME)
         em.iconst(s.pc)
@@ -220,6 +235,8 @@ internal abstract class IrCodegen(
             }
             // an inlined body reads its environment from its local
             b.site?.let { used.addAll(siteLocals(it)) }
+            // a move to the tier's code at a loop header passes the header's registers as each back edge gives them
+            if (g.tierUp && b.site == null && b.loopHeader) b.entryRegs?.let { regs -> for (p in b.preds) used.addAll(edgeRegs(p, b, regs)) }
         }
         for (b in g.blocks) {
             for (p in b.phis) local[p] = slotFor(p.kind)
@@ -502,7 +519,10 @@ internal abstract class IrCodegen(
 
     /** The edge from [b] to [s]: the interrupt check of a back edge, the copies into [s]'s phis, the jump. */
     protected fun edge(b: Block, s: Block) {
-        if (index[s]!! <= index[b]!!) interruptCheck()
+        if (index[s]!! <= index[b]!!) {
+            if (g.tierUp && s.site == null && java.util.Arrays.binarySearch(g.osrPcs, s.pc) >= 0) tierUpCheck(b, s)
+            else interruptCheck()
+        }
         if (s.phis.isNotEmpty()) {
             val k = s.preds.indexOf(b)
             for (p in s.phis) load(p.inputs[k], p.kind)
@@ -512,6 +532,37 @@ internal abstract class IrCodegen(
     }
 
     protected fun trivialEdge(b: Block, s: Block) = s.phis.isEmpty() && index[s]!! > index[b]!!
+
+    /** Header [s]'s registers [regs] as the edge from [b] gives them (a phi of the header: its input on that edge). */
+    private fun edgeRegs(b: Block, s: Block, regs: Array<Value>): Array<Value> {
+        val k = s.preds.indexOf(b)
+        return Array(regs.size) { r -> regs[r].let { v -> if (v is Phi && v.block === s && k >= 0) v.inputs[k] else v } }
+    }
+
+    /**
+     * A back edge to loop header [s] of a baseline compiled with the tier on: the interrupt check, and where its budget
+     * ran out, whether the block's code installed now is a later version with an entry at [s] (JitRt.canTierUp); if it
+     * is, the code leaves for it with the header's registers (Deopt.tierUp), as the baseline compiler's code does.
+     */
+    private fun tierUpCheck(b: Block, s: Block) {
+        val ok = Label()
+        mv.visitIincInsn(L_BUDGET, -1)
+        mv.visitVarInsn(ILOAD, L_BUDGET)
+        mv.visitJumpInsn(IFGT, ok)
+        mv.visitVarInsn(ALOAD, L_AGENT)
+        mv.visitMethodInsn(INVOKEVIRTUAL, "dev/mooner/neonjs/runtime/Agent", "checkInterrupt", "()V", false)
+        iconst(4096)
+        mv.visitVarInsn(ISTORE, L_BUDGET)
+        frame()
+        mv.visitVarInsn(ALOAD, 0)
+        iconst(s.pc)
+        rt("canTierUp", "(${FRAME_D}${OBJ}I)Z")
+        mv.visitJumpInsn(IFEQ, ok)
+        val l = Label()
+        exits.add(Exit(l, FrameState(s.pc, edgeRegs(b, s, s.entryRegs!!), null), counted = false, tierUp = true))
+        mv.visitJumpInsn(GOTO, l)
+        mv.visitLabel(ok)
+    }
 
     private fun terminator(b: Block, i: Inst) {
         when (i.op) {

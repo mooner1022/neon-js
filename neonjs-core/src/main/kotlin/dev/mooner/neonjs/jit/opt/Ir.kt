@@ -30,6 +30,12 @@ class Graph internal constructor(
      * the entry dispatch sends pc 0 to the start, never to a loop header there (Ir.SUSPEND).
      */
     @JvmField var startsInterpreted = false
+    /**
+     * For a baseline (T2.compileBaselines) compiled with the tier on: at a loop back edge whose budget ran out, the code
+     * looks for a later version of its block's code (the tier's) with an entry at that header, and goes on there
+     * (Deopt.tierUp), as the baseline compiler's code does (JitInput.tierUp).
+     */
+    @JvmField var tierUp = false
     /** Whether a loop was copied on a closure test (Unswitch): T2 builds the graph again without that where it is too large. */
     @JvmField var unswitched = false
 

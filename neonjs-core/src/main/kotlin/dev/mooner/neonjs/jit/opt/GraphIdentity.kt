@@ -25,6 +25,7 @@ internal object GraphIdentity {
         out.writeInt(FORMAT)
         out.writeInt(classFileVersion)
         out.writeBoolean(g.startsInterpreted)
+        out.writeBoolean(g.tierUp)
         g.dialect.identityExtras(g, out)
         // every value and block numbered first (a value may be used before the block defining it, through a phi)
         val ids = HashMap<Value, Int>()

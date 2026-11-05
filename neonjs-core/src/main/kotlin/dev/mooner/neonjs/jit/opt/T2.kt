@@ -118,7 +118,7 @@ object T2 {
      * deoptimizes. Defined by [definer] in one batch, as the baseline compiler's are. Element i is `blocks[i]`'s code,
      * the baseline installed already, or null (counted, with the reason) where the tier cannot compile it. Never throws.
      */
-    fun compileBaselines(blocks: List<CodeBlock>, definer: CodeDefiner): List<CompiledCode?> {
+    fun compileBaselines(blocks: List<CodeBlock>, definer: CodeDefiner, tierUp: Boolean = false): List<CompiledCode?> {
         val out = arrayOfNulls<CompiledCode>(blocks.size)
         val made = ArrayList<Int>()
         val graphs = ArrayList<Graph>()
@@ -129,6 +129,7 @@ object T2 {
             (cb.baseline as CompiledCode?)?.let { out[i] = it; continue }
             try {
                 val g = timedBuild(cb, unswitch = true, baseline = true)
+                g.tierUp = tierUp
                 // a graph of the same identity as one compiled before: its class (GraphIdentity), not generated again
                 val id = GraphIdentity.of(g, definer.classFileVersion)
                 val known = byGraph[id]

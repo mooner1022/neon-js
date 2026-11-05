@@ -28,12 +28,12 @@ class ClassBackend(val definer: CodeDefiner, val tierUp: Boolean = false) : JitB
             // generators and async functions, which the baseline compiler leaves: the optimizing tier's baselines
             val rest = blocks.indices.filter { out[it] == null && dev.mooner.neonjs.jit.opt.T2.suspendable(blocks[it]) }
             if (rest.isEmpty() || !CodeDefiners.isUsable(definer)) return out
-            val ir = dev.mooner.neonjs.jit.opt.T2.compileBaselines(rest.map { blocks[it] }, definer)
+            val ir = dev.mooner.neonjs.jit.opt.T2.compileBaselines(rest.map { blocks[it] }, definer, tierUp)
             return out.toMutableList().also { for ((j, i) in rest.withIndex()) it[i] = ir[j] }
         }
         // (testing) the optimizing tier's baselines, the baseline compiler's where it has none
         val usable = CodeDefiners.isUsable(definer)
-        val ir = if (usable) dev.mooner.neonjs.jit.opt.T2.compileBaselines(blocks.filter { Jit.canCompile(it) }, definer) else emptyList()
+        val ir = if (usable) dev.mooner.neonjs.jit.opt.T2.compileBaselines(blocks.filter { Jit.canCompile(it) }, definer, tierUp) else emptyList()
         val out = arrayOfNulls<CompiledCode>(blocks.size)
         var k = 0
         for ((i, cb) in blocks.withIndex()) if (usable && Jit.canCompile(cb)) out[i] = ir[k++]
