@@ -112,10 +112,17 @@ object PyInterpreter {
         var pc = f.pc
         var opStart = pc
         var budget = Jit.LOOP_CHECK
+        // the operand types of arithmetic and comparisons, for the speculating tier (when it is on)
+        val prof = if (f.ctx.agent.config.tier2) (cb.dialectData as PyCodeInfo).profile(bc.size) else null
         while (true) {
             try {
                 dispatch@ while (true) {
                     opStart = pc
+                    if (prof != null) {
+                        val op = bc[pc]
+                        if (op in PyOp.ADD..PyOp.BITXOR || op in PyOp.LT..PyOp.NE) PyProfile.record(prof, pc, PyProfile.of(s[sp - 2], s[sp - 1]))
+                        else if (op == PyOp.NEG) PyProfile.record(prof, pc, PyProfile.of(s[sp - 1]))
+                    }
                     when (bc[pc]) {
                         PyOp.NOP -> pc++
                         PyOp.LOAD_CONST -> { s[sp++] = k[bc[pc + 1]]; pc += 2 }

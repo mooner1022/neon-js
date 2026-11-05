@@ -15,19 +15,21 @@ import org.junit.jupiter.params.provider.MethodSource
 
 /**
  * Python programs (src/test/resources/programs/name.py) and what CPython 3.14 printed for each (name.out): the same
- * output interpreted, compiled (every function's code the optimizing tier's baseline before its first call) and
- * adaptive (compiled after a few calls, loops continuing in compiled code).
+ * output interpreted, compiled (every function's code the optimizing tier's baseline before its first call),
+ * adaptive (compiled after a few calls, loops continuing in compiled code) and adaptive with the speculating tier
+ * (ints and floats unboxed where the interpreter saw only those, exits where that fails).
  */
 @Timeout(120)
 class PyProgramsTest {
-    enum class Mode { INTERPRETED, COMPILED, ADAPTIVE }
+    enum class Mode { INTERPRETED, COMPILED, ADAPTIVE, SPECULATING }
 
     private fun config(mode: Mode) = VmConfig().apply {
         executionMode = when (mode) {
             Mode.INTERPRETED -> Jit.MODE_INTERPRETER
             Mode.COMPILED -> Jit.MODE_COMPILED
-            Mode.ADAPTIVE -> Jit.MODE_ADAPTIVE
+            Mode.ADAPTIVE, Mode.SPECULATING -> Jit.MODE_ADAPTIVE
         }
+        tier2 = mode == Mode.SPECULATING
         jitThreshold = 2
         // compiled on the calling thread: each run the same
         backgroundJit = false
@@ -95,6 +97,22 @@ class PyProgramsTest {
     }
 
     @Test
+    fun speculatingCodeExitsWhereAnIntLeaves64Bits() {
+        // grow's product passes 2**63 midway: its code, compiled speculating on ints, exits there, the interpreter
+        // goes on with a BigInteger, and later calls get code without that speculation (or keep exiting) and print the
+        // same
+        val exits = PyDialect.exits.get()
+        val (out, globals) = run(resource("speculation.py"), Mode.SPECULATING)
+        assertEquals(resource("speculation.out"), out)
+        assertTrue(PyDialect.exits.get() > exits, "no exit taken")
+        val grow = globals[PyStr("grow")] as PyFunction
+        val mix = globals[PyStr("mix")] as PyFunction
+        assertTrue(mix.code.compiled is T2Code && mix.code.compiled !== mix.code.baseline,
+            "mix: not the speculating code (${T2.failureReasons.keys})")
+        assertTrue(grow.code.t2Failed != null, "grow: its overflow not noted")
+    }
+
+    @Test
     fun loopsGoOnInCompiledCode() {
         val before = Jit.osrEntered.get()
         val (out, _) = run(resource("loops.py"), Mode.ADAPTIVE)
@@ -150,6 +168,7 @@ class PyProgramsTest {
         @JvmStatic
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
+            "speculation",
         )
 
         /** The code blocks of [cb] and every function it defines. */

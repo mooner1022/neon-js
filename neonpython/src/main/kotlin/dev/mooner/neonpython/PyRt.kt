@@ -561,6 +561,42 @@ object PyRt {
     /** A bool of the optimizing tier's (an int) from the PyBool a frame's register holds (on-stack replacement). */
     @JvmStatic fun slotBool(v: Any?): Boolean = v === PyBool.TRUE
 
+    // ------------------------------------------------------------------ the speculating tier's helpers
+
+    /**
+     * On-stack replacement into speculating code: whether each register whose letter in [kinds] names a kind holds a
+     * value of it ('L' an int that is a Long, 'F' a float).
+     */
+    @JvmStatic fun osrKinds(slots: Array<Any?>, kinds: String): Boolean {
+        for (r in kinds.indices) {
+            val ok = when (kinds[r]) {
+                'L' -> slots[r] is Long
+                'F' -> slots[r] is Double
+                else -> true
+            }
+            if (!ok) return false
+        }
+        return true
+    }
+
+    // a register dead at the header takes any value of the kind: 0 for one of another kind
+    @JvmStatic fun slotLong(slots: Array<Any?>, r: Int): Long = slots[r] as? Long ?: 0L
+    @JvmStatic fun slotDouble(slots: Array<Any?>, r: Int): Double = slots[r] as? Double ?: 0.0
+
+    /** Whether a * b leaves 64 bits (Math.multiplyExact's test; Math.multiplyHigh is not on every Android). */
+    @JvmStatic fun mulOverflows(a: Long, b: Long): Boolean {
+        val r = a * b
+        val ax = Math.abs(a)
+        val ay = Math.abs(b)
+        if ((ax or ay) ushr 31 != 0L) {
+            if ((b != 0L && r / b != a) || (a == Long.MIN_VALUE && b == -1L)) return true
+        }
+        return false
+    }
+
+    /** Whether a // b and a % b are ints of 64 bits (b is not 0, and not MIN // -1). */
+    @JvmStatic fun divisible(a: Long, b: Long): Boolean = b != 0L && !(a == Long.MIN_VALUE && b == -1L)
+
     // ------------------------------------------------------------------ names, functions, calls
 
     /** The global [name] of [f]'s module, else the builtin, else a NameError. */

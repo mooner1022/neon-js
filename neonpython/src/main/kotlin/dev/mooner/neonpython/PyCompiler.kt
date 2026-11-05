@@ -7,6 +7,15 @@ import dev.mooner.neonjs.compiler.CodeUnit
  * locals by register, and the source line of each statement's pc (pairs in [CodeUnit.lineTable]).
  */
 class PyCodeInfo(@JvmField val name: String, @JvmField val localNames: Array<String>, @JvmField val module: Boolean) {
+    /**
+     * The operand types the interpreter saw at each arithmetic and comparison instruction, by pc ([PyProfile]): made
+     * when the optimizing tier is on (VmConfig.tier2), read by its speculating graphs ([PyBuilder]). Written without
+     * synchronization: a hint, the code checks what it speculates on.
+     */
+    @Volatile @JvmField var profile: ByteArray? = null
+
+    fun profile(size: Int): ByteArray = profile ?: ByteArray(size).also { profile = it }
+
     /** The line of the statement at or before [pc] of [cb]. */
     fun lineAt(cb: CodeUnit, pc: Int): Int {
         val lt = cb.lineTable
