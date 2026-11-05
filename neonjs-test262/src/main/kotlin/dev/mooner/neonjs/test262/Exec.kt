@@ -16,7 +16,7 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 
 /** Executes test262 tests on the engine. */
-class Exec(val root: File, val timeoutMillis: Long, val mode: Int = 0) {
+class Exec(val root: File, val timeoutMillis: Long, val mode: Int = 0, val syncJit: Boolean = false) {
     private val harnessDir = File(root, "harness")
     private val harnessSrc = ConcurrentHashMap<String, String>()
     private val clockOrigin = System.nanoTime()
@@ -49,6 +49,7 @@ class Exec(val root: File, val timeoutMillis: Long, val mode: Int = 0) {
         agent.config.defaultLocale = "en-US"
         agent.config.executionMode = mode
         agent.config.jitThreshold = 2
+        if (syncJit) agent.config.backgroundJit = false
         agent.maxDepth = 2500
     }
 

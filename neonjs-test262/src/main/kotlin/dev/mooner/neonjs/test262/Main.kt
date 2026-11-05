@@ -22,6 +22,11 @@ fun main(args: Array<String>) {
     var timeoutMs = 10000L
     var mode = 0
     var known = emptySet<String>()
+    // a fixed part of the tests (development checks, docs/TESTING.md): those whose path's CRC-32 is 0 modulo N
+    var sample = 1
+    var syncJit = false
+    // paths (relative to test/) left out, by prefix
+    val excludes = ArrayList<String>()
     var i = 0
     while (i < args.size) {
         when (val a = args[i]) {
@@ -35,6 +40,12 @@ fun main(args: Array<String>) {
             "--staging" -> includeStaging = true
             "--intl" -> includeIntl = true
             "--known" -> known = File(args[++i]).readLines().map { it.substringBefore('#').trim() }.filter { it.isNotEmpty() }.toSet()
+            "--sample" -> sample = args[++i].toInt()
+            // compile on the calling thread: the code generated depends on nothing but the test (class dumps compared)
+            "--sync-jit" -> syncJit = true
+            "--exclude" -> excludes.add(args[++i].removePrefix("test/"))
+            // test paths (relative to test/), one per line, # comments
+            "--list" -> File(args[++i]).readLines().map { it.substringBefore('#').trim() }.filter { it.isNotEmpty() }.forEach { filters.add(it) }
             else -> filters.add(a)
         }
         i++
@@ -45,9 +56,13 @@ fun main(args: Array<String>) {
     for (r in roots) {
         if (r.isFile) files.add(r) else r.walkTopDown().filter { it.isFile && it.name.endsWith(".js") && !it.name.contains("_FIXTURE") }.forEach { files.add(it) }
     }
+    if (sample > 1 || excludes.isNotEmpty()) files.retainAll { f ->
+        val rel = f.relativeTo(testDir).path.replace('\\', '/')
+        (sample <= 1 || sampled(rel, sample)) && excludes.none { rel.startsWith(it) }
+    }
     files.sortBy { it.path }
     System.err.println("Running ${files.size} tests with $threads threads")
-    val exec = Exec(root, timeoutMs, mode)
+    val exec = Exec(root, timeoutMs, mode, syncJit)
     val results = ConcurrentHashMap<String, Result>()
     val done = AtomicInteger()
     val pool = Executors.newFixedThreadPool(threads) { r -> Thread(null, r, "t262", 512L * 1024 * 1024).also { it.isDaemon = true } }
@@ -90,6 +105,13 @@ fun main(args: Array<String>) {
     for (p in unexpected.take(20)) println("UNEXPECTED $p :: ${results[p]?.message?.replace('\n', ' ')?.take(300)}")
     System.out.flush()
     exitProcess(if (unexpected.isEmpty()) 0 else 1)
+}
+
+/** Whether the test at [rel] (relative to test/) is one of the 1 in [n] that `--sample n` runs: the same ones every run. */
+fun sampled(rel: String, n: Int): Boolean {
+    val crc = java.util.zip.CRC32()
+    crc.update(rel.toByteArray())
+    return crc.value % n == 0L
 }
 
 /** intl402/ (ECMA-402) and staging/ run only on request (--intl, --staging). */

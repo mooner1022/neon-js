@@ -1,0 +1,66 @@
+# Testing during development
+
+All of Test262 in every mode and stress mode takes long; most changes can be checked in a minute or two and the whole
+suite run once before a large pull request. `tools/check.sh` has the three levels:
+
+| level | command | what | time (8 cores) |
+|---|---|---|---|
+| quick | `tools/check.sh quick` | neonjs-core's unit tests; a fixed 1 in 20 of Test262 in the interpreter and in the JIT's stress modes | ~1.5–2 min |
+| codegen | `tools/check.sh codegen [REF]` | the classes the JIT generates for that part of Test262, against those of REF (default `main`) | ~1 min (~2 the first time for a REF) |
+| full | `tools/check.sh full` | what CI runs, then all of Test262 in the stress modes | long: before a large pull request |
+
+Run *quick* after each change, *codegen* after each change that should not change the code generated (a refactoring of
+the compilers), *full* before a pull request that touches the interpreter, the compilers or the runtime broadly. CI runs
+its own part of *full* on every pull request.
+
+The script checks Test262 out at CI's revision (`TEST262_COMMIT` in `.github/workflows/ci.yml`) into
+`third_party/test262` when it is missing. `GRADLE_ARGS` passes arguments to every `./gradlew` run (a toolchain's path,
+say), `SAMPLE` changes the part of Test262 (`SAMPLE=5`: one test in five), `THREADS` the runner's threads.
+
+## Quick
+
+The sample is the tests whose path's CRC-32 is 0 modulo 20 (`--sample 20` of the runner): about 2,700 of 50,000, the
+same ones in every run, spread over every directory. Each runs in
+
+- the interpreter;
+- compiled mode with `t2Stress` (every block compiled by T1, then by T2 at once);
+- the same with `deoptStress` (exits taken one time in three, so every exit's state is used);
+- adaptive mode with `t2Stress` and `osrStress` (every loop entered compiled after its first iteration), with and
+  without `deoptStress`.
+
+The modes are the ones docs/OPTIMIZING_TIER.md requires before a push; the sample keeps them to about 15 seconds each.
+The generated Unicode property tests (`built-ins/RegExp/property-escapes/generated`) are left out: they check RegExp's
+tables and take most of the interpreter's time. The timeout is 60 s rather than 10, so that a loaded machine does not
+fail a test.
+
+## Generated code unchanged
+
+A refactoring of the compilers (docs/IR_NEUTRALITY.md's steps) should not change one instruction of what they generate.
+`codegen` checks that directly: it builds REF in a worktree (`build/check/base`, with this runner), runs the sample in
+compiled mode with `t2Stress` (and again with `deoptStress`) compiling on the calling thread (`--sync-jit`: the code
+then depends on nothing but the test), dumps every class (`-Dneonjs.jit.dump`), does the same with the working tree and
+compares the two with `ClassDiffKt` (neonjs-test262): the same classes, as many of each, with the same code as ASM
+prints it. T2's class names end with a counter, which is removed first; T1's end with a hash of their input.
+
+REF's dumps are kept in `build/check/dumps/<commit>-*`, so comparing against the same REF again only dumps the working
+tree. `ClassDiffKt BEFORE AFTER --show N` can compare any two dump directories.
+
+## Full
+
+CI's runs (the three modes, compiled with every class translated by dx, intl402), then all of Test262 in the four
+stress modes; web-platform-tests and Node.js's tests where `third_party/wpt` and `third_party/node` are checked out (CI
+checks them out; see `.github/workflows/ci.yml`).
+
+## Runner options
+
+`neonjs-test262` takes, besides the paths or directories to run and `--mode`:
+
+- `--sample N`: the 1 in N tests described above;
+- `--exclude PREFIX`: leaves out tests whose path (relative to `test/`) starts with PREFIX; repeatable;
+- `--list FILE`: test paths, one per line (`#` comments);
+- `--sync-jit`: compiles on the calling thread (no background compilation);
+- `--timeout MS`, `--threads N`, `--known FILE`, `--intl`, `--staging`, `--out FILE`, `-v`.
+
+The JIT's own switches are JVM properties, given in `JAVA_OPTS`: `-Dneonjs.jit.t2Stress`, `-Dneonjs.jit.deoptStress[=N]`,
+`-Dneonjs.jit.osrStress`, `-Dneonjs.jit.t2Speculate=false`, `-Dneonjs.jit.dump=DIR`, `-Dneonjs.jit.t2Print=name`,
+`-Dneonjs.jit.t2Verify`, `-Dneonjs.jit.t2Stats` (docs/OPTIMIZING_TIER.md, "Testing").

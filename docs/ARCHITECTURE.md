@@ -506,6 +506,9 @@ took 10-20% less.
 
 ## Testing
 
+During development, `tools/check.sh` runs the quick checks, compares the code the JIT generates with another
+commit's, or runs everything before a large pull request (docs/TESTING.md).
+
 - `neonjs-core` unit tests: public API, interop, sandbox/security, inline-cache invalidation, console, language
   corner cases, proposals (decorators, ShadowRealm, deferred imports), web globals, method sizes; inlined calls
   (`InliningTest`: each case interpreted and in adaptive mode with calls inlined, stack traces and limits included);
