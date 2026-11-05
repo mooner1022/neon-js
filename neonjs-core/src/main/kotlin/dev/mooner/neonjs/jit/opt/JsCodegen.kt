@@ -901,6 +901,81 @@ internal class JsCodegen(
                 done(i, JT.NUM)
                 return
             }
+            JsIr.AWAIT_VALUE -> {
+                storePc(i)
+                load(i.inputs[0], JT.ANY)
+                iconst(i.a)
+                frame()
+                rt("awaitValue", "(${OBJ}I$FRAME_D)$OBJ")
+                done(i, JT.ANY)
+                return
+            }
+            Op.ITER_NEXT_CALL -> {
+                storePc(i)
+                load(i.inputs[0], JT.ANY)
+                rt("iterNextCall", "($OBJ)$OBJ")
+                done(i, JT.ANY)
+                return
+            }
+            Op.ITER_RESULT_STEP -> {
+                storePc(i)
+                load(i.inputs[0], JT.ANY)
+                load(i.inputs[1], JT.ANY)
+                rt("iterResultStep", "($OBJ$OBJ)$OBJ")
+                done(i, JT.ANY)
+                return
+            }
+            Op.ASYNC_ITER_CLOSE -> {
+                storePc(i)
+                load(i.inputs[0], JT.ANY)
+                iconst(i.b)
+                rt("asyncIterClose", "(${OBJ}I)$OBJ")
+                done(i, JT.ANY)
+                return
+            }
+            Op.YSTAR, Op.YSTAR_ASYNC_CALL, Op.YSTAR_ASYNC_RESULT -> {
+                storePc(i)
+                iconst(op)
+                for (v in i.inputs) load(v, JT.ANY)
+                rt("ystar", "(I$OBJ$OBJ$OBJ)$OBJ")
+                done(i, JT.ANY)
+                return
+            }
+            JsIr.YSTAR_DONE -> {
+                load(i.inputs[0], JT.ANY)
+                rt("ystarDone", "($OBJ)Z")
+                done(i, JT.BOOL)
+                return
+            }
+            JsIr.YSTAR_VALUE -> {
+                load(i.inputs[0], JT.ANY)
+                rt("ystarValue", "($OBJ)$OBJ")
+                done(i, JT.ANY)
+                return
+            }
+            JsIr.YSTAR_MODE -> {
+                load(i.inputs[0], JT.ANY)
+                load(i.inputs[1], JT.ANY)
+                iconst(i.a)
+                rt("ystarMode", "($OBJ${OBJ}I)$OBJ")
+                done(i, JT.ANY)
+                return
+            }
+            JsIr.AWAIT_RESUMED -> {
+                storePc(i)
+                frame()
+                load(i.inputs[0], JT.ANY)
+                rt("awaitResumed", "($FRAME_D$OBJ)V")
+                return
+            }
+            Op.RESUME_DISPATCH -> {
+                storePc(i)
+                frame()
+                load(i.inputs[0], JT.ANY)
+                rt("resumeDispatch", "($FRAME_D$OBJ)Z")
+                done(i, JT.BOOL)
+                return
+            }
             JsIr.PART -> {
                 load(i.inputs[0], JT.ANY)
                 mv.visitTypeInsn(CHECKCAST, CONSTS_D)
@@ -1278,6 +1353,14 @@ internal class JsCodegen(
         array(state.values)
         em.mv.visitVarInsn(ALOAD, inner)
         em.rt("inlined", "($OBJ$OBJ$CONSTS_D${OBJ}I$CONSTS_D$OBJ)$OBJ")
+    }
+
+    override fun suspendCall(em: Emit, i: Inst, value: (Value) -> Unit) {
+        // JitRt.suspend(frame, pc, sp, value, kind, its pc)
+        if (i.inputs.isEmpty()) em.mv.visitInsn(ACONST_NULL) else value(i.inputs[0])
+        em.iconst(i.a)
+        em.iconst(i.pc)
+        em.rt("suspend", "(${FRAME_D}II${OBJ}II)$OBJ")
     }
 
     override fun stressExit(em: Emit) = em.rt("deoptChain", "(${FRAME_D}I$CONSTS_D$OBJ)$OBJ")

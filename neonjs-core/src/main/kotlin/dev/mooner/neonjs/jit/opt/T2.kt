@@ -61,6 +61,17 @@ object T2 {
      * the baseline compiler's (T1) only where this tier cannot compile the block: what a language without a compiler of
      * its own runs (docs/IR_NEUTRALITY.md §5).
      */
+    /**
+     * Whether generators' and async functions' code is compiled (`-Dneonjs.jit.suspendable=false`: interpreted, as
+     * before): by this tier only (its baselines, then its speculating code), which suspends where the interpreter would
+     * and resumes where a suspended activation does (docs/IR_NEUTRALITY.md, step 7).
+     */
+    @JvmField val SUSPENDABLE: Boolean = System.getProperty("neonjs.jit.suspendable") != "false"
+
+    /** Whether [cb] is a generator's or an async function's that this tier compiles ([SUSPENDABLE]). */
+    fun suspendable(cb: CodeBlock): Boolean =
+        SUSPENDABLE && cb.flags and (CodeBlock.GENERATOR or CodeBlock.ASYNC) != 0 && cb.flags and CodeBlock.NO_JIT == 0
+
     @JvmField val IR_BASELINE: Boolean = System.getProperty("neonjs.jit.irBaseline").let { it != null && it != "false" }
 
     init {
@@ -248,7 +259,7 @@ object T2 {
      * over its baseline, which runs meanwhile.
      */
     fun submit(cb: CodeBlock, definer: CodeDefiner, background: Boolean = true) {
-        if (cb.t2Off || !JvmCompiler.canCompile(cb)) return
+        if (cb.t2Off || !(JvmCompiler.canCompile(cb) || suspendable(cb))) return
         if (background) queue.execute { compileOver(cb, definer) } else compileOver(cb, definer)
     }
 

@@ -128,6 +128,10 @@ internal object JsOps : OpTable {
         def(JsIr.LOAD_GLOBAL_SLOT, SlotOp(JsIr.LOAD_GLOBAL_SLOT, REMOVABLE, HOIST_SLOT_LOAD))
         def(JsIr.LENGTH, REMOVABLE, HOIST_LOAD)
 
+        // suspensions (generators, async functions): where an activation resumes, a slot of its frame
+        def(Ir.RESUME_SLOT, REMOVABLE)
+        for (op in intArrayOf(JsIr.YSTAR_DONE, JsIr.YSTAR_VALUE, JsIr.YSTAR_MODE)) def(op, REMOVABLE)
+
         // terminators
         for (op in intArrayOf(Ir.GOTO, Ir.BRANCH, Ir.SWITCH)) def(op, 0)
         def(Ir.RETURN, OBJECT_OPERANDS)

@@ -7,7 +7,7 @@ import dev.mooner.neonjs.jit.JitBailout
  * Builds the [Graph] of a code block from its bytecode, whatever its language: registers and operand stack slots
  * become SSA values, with a phi at every merge for every one of them, then the phis that merge one value (or only
  * themselves) are replaced by it and those nothing uses are dropped. The language's subclass decodes its bytecode
- * ([Body.length], [Body.targets], [Body.regUse]), builds each instruction ([Body.buildOp]) and makes the graph's start
+ * ([Body.length], [Body.targets], [Body.regsRead]), builds each instruction ([Body.buildOp]) and makes the graph's start
  * ([entry]); the order of the passes after is the core's ([build]).
  *
  * Exception handlers: each handler's entry is a block of its own that only exceptions reach; the registers a handler
@@ -45,10 +45,13 @@ internal abstract class GraphBuilder(
         val start = newBlock(-1, null)
         val root = root()
         root.build(start, entry(start))
+        // values moved before a loop, or copies of it, would not be there where a suspended activation resumes: a
+        // graph that suspends gets neither (LICM, Unswitch)
+        val suspends = made.any { it.resumeEntry }
         order(start)
         removeTrivialPhis()
         removeDeadPhis()
-        if (Unswitch.run(g, made)) {
+        if (!suspends && Unswitch.run(g, made)) {
             // (blocks no longer reached, a version's other side, go)
             g.blocks.clear()
             order(start)
@@ -61,7 +64,7 @@ internal abstract class GraphBuilder(
         kinds.infer(g)
         refineKinds(kinds)
         removeDeadCode(kinds)
-        if (speculate) Licm.run(g, kinds)
+        if (speculate && !suspends) Licm.run(g, kinds)
         val facts = if (speculate) g.dialect.facts(g, kinds) else null
         if (facts != null && Facts.run(g, facts) { i, v -> replaced[i] = v }) {
             // loads that were the values written or read before: their uses have those values' kinds
@@ -237,9 +240,9 @@ internal abstract class GraphBuilder(
                         val l = liveIn[s]
                         for (r in 0 until nregs) if (l[r]) live[r] = true
                     }
-                    val (use, def) = regUse(pc)
+                    val def = regWritten(pc)
                     if (def >= 0) live[def] = false
-                    if (use >= 0) live[use] = true
+                    for (r in regsRead(pc)) live[r] = true
                     // an exception before the instruction ends goes to the handler with the registers as they are
                     coverOf(pc)?.let { _ -> handlerOf(pc)?.let { hp -> val l = liveIn[hp]; for (r in 0 until nregs) if (l[r]) live[r] = true } }
                     if (!live.contentEquals(liveIn[pc])) {
@@ -281,8 +284,9 @@ internal abstract class GraphBuilder(
         /** Whether the instruction at [pc] is one the IR has ([buildOp] builds it); a body with another is not built. */
         protected abstract fun supported(pc: Int): Boolean
 
-        /** The register the instruction at [pc] reads (or -1), and the one it writes (or -1). */
-        protected abstract fun regUse(pc: Int): Pair<Int, Int>
+        /** The registers the instruction at [pc] reads, and the one it writes (or -1). */
+        protected abstract fun regsRead(pc: Int): IntArray
+        protected abstract fun regWritten(pc: Int): Int
 
         /** The name of the instruction at [pc], for messages. */
         protected abstract fun nameAt(pc: Int): String
@@ -488,6 +492,30 @@ internal abstract class GraphBuilder(
             fun before(i: Inst): Inst {
                 i.state = state(pc)
                 return i
+            }
+
+            /**
+             * The activation suspends here (a generator's yield, an async function's await): SUSPEND of kind [kind] with
+             * [value] (or none), the interpreter's state at the next instruction, where it resumes; then a block of its own
+             * where it does ([Block.resumeEntry]), the registers live there and the operand stack read from the frame, and,
+             * where [received], the value the resumption pushed. The instructions after go on in that block.
+             */
+            fun suspend(kind: Int, value: Value?, received: Boolean) {
+                if (site != null) throw JitBailout("a suspension in an inlined body")
+                val next = pc + len
+                val s = add(cur, Inst(Ir.SUSPEND, if (value == null) NO_VALUES else arrayOf(value), kind, 0, 0, pc, stmt))
+                s.state = state(next)
+                val e = newBlock(next, site)
+                e.resumeEntry = true
+                e.handler = cur.handler
+                s.targets = listOf(e)
+                e.preds.add(cur)
+                cur = e
+                fun slot(k: Int) = add(e, Inst(Ir.RESUME_SLOT, NO_VALUES, k, 0, 0, next, stmt).also { it.hasResult = true })
+                for (r in 0 until nregs) regs[r] = if (!liveIn[next][r]) dead() else slot(r)
+                for (k in stack.indices) stack[k] = slot(nregs + k)
+                if (received) stack.add(slot(nregs + stack.size))
+                if (homed) for (r in homeRegs) home(r)
             }
         }
 

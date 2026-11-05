@@ -47,7 +47,8 @@ internal abstract class IrCodegen(
     protected val constsLocal = HashMap<dev.mooner.neonjs.compiler.CodeBlock, Int>()
 
     /** The exits reached from `run`: the label of each, its state, and whether an assumption failed there. */
-    protected class Exit(val label: Label, val state: FrameState, val counted: Boolean, val spec: Int = -1)
+    /** An exit, or ([suspend]) a suspension, which writes the state to the frame and returns SUSPENDED instead. */
+    protected class Exit(val label: Label, val state: FrameState, val counted: Boolean, val spec: Int = -1, val suspend: Inst? = null)
 
     /** The exit of a speculation [i] makes (counted, and noted where it failed: T2Code.exit). */
     protected fun specExit(l: Label, i: Inst): Exit {
@@ -91,7 +92,7 @@ internal abstract class IrCodegen(
      */
     private fun emitExit(n: Int, e: Exit) {
         mv.visitLabel(e.label)
-        val params = expand(e.state.values.asList() + (e.state.site?.values() ?: emptyList()))
+        val params = expand(e.state.values.asList() + (e.state.site?.values() ?: emptyList()) + (e.suspend?.inputs?.asList() ?: emptyList()))
         mv.visitVarInsn(ALOAD, 0)
         frame()
         for (v in params) load(v, v.kind)
@@ -170,6 +171,28 @@ internal abstract class IrCodegen(
             inlinedRecord(em, site, s, inner, ::value, ::array)
             m.visitVarInsn(ASTORE, inner)
             s = site.callerState
+        }
+        if (e.suspend != null) {
+            // (a suspension: in the function compiled, never in a call inlined) the state straight into the frame's slots
+            // (its frame is an interpreted one: they are there), then the language's suspension
+            val slots = em.temp()
+            m.visitVarInsn(ALOAD, L_FRAME)
+            m.visitFieldInsn(GETFIELD, FRAME, "slots", CONSTS_D)
+            m.visitVarInsn(ASTORE, slots)
+            for ((k, v) in s.values.withIndex()) {
+                m.visitVarInsn(ALOAD, slots)
+                em.iconst(k)
+                value(v)
+                m.visitInsn(AASTORE)
+            }
+            m.visitVarInsn(ALOAD, L_FRAME)
+            em.iconst(s.pc)
+            em.iconst(s.values.size)
+            suspendCall(em, e.suspend, ::value)
+            m.visitInsn(ARETURN)
+            m.visitMaxs(0, 0)
+            m.visitEnd()
+            return
         }
         if (e.counted) m.visitVarInsn(ALOAD, 0)
         m.visitVarInsn(ALOAD, L_FRAME)
@@ -279,7 +302,10 @@ internal abstract class IrCodegen(
      */
     private fun osrEntries() {
         val targets = backEdgeTargets()
-        if (targets.isEmpty()) return
+        // where suspended activations resume (an entry each), and, for code that suspends, its start (pc 0: a generator's
+        // or an async function's frame is an interpreted one from the start)
+        val resumes = g.blocks.filter { it.resumeEntry }.sortedBy { it.pc }
+        if (targets.isEmpty() && resumes.isEmpty()) return
         val live = liveIn()
         // the blocks of each loop LICM made an entry block for: an entry inside it makes that block's code again too (what
         // the loop it enters relies on, guards included, was moved out of the loops around it as well)
@@ -316,6 +342,8 @@ internal abstract class IrCodegen(
             val regs = b.entryRegs
             val tw = b.twin
             if (b.site != null || regs == null || b.entryDepth != 0 || b.twinOf != null || java.util.Arrays.binarySearch(targets, b.pc) < 0) return@filter false
+            // (a pc where an activation resumes is that entry, with the stack it resumes with)
+            if (resumes.any { it.pc == b.pc }) return@filter false
             val out = around(b)
             if (tw == null) return@filter enterable(b, regs, out + listOfNotNull(b.loopEntry))
             val test = b.dispatch!!
@@ -329,11 +357,18 @@ internal abstract class IrCodegen(
         mv.visitFieldInsn(GETFIELD, FRAME, "slots", CONSTS_D)
         getstatic(FRAME, "NO_SLOTS", CONSTS_D)
         mv.visitJumpInsn(IF_ACMPEQ, normal)
-        if (entries.isNotEmpty()) {
+        if (entries.isNotEmpty() || resumes.isNotEmpty()) {
             val starts = Array(entries.size) { Label() }
             frame()
             mv.visitFieldInsn(GETFIELD, FRAME, "pc", "I")
-            mv.visitLookupSwitchInsn(none, IntArray(entries.size) { entries[it].pc }, starts)
+            if (resumes.isEmpty()) mv.visitLookupSwitchInsn(none, IntArray(entries.size) { entries[it].pc }, starts)
+            else {
+                val keys = java.util.TreeMap<Int, Label>()
+                for ((k, b) in entries.withIndex()) keys[b.pc] = starts[k]
+                for (r in resumes) keys[r.pc] = label[r]!!
+                keys.putIfAbsent(0, normal)
+                mv.visitLookupSwitchInsn(none, keys.keys.toIntArray(), keys.values.toTypedArray())
+            }
             val slots = temp()
             /**
              * The interpreter's registers into the locals of header [b]'s values. A kind may rest on a speculation the
@@ -447,9 +482,20 @@ internal abstract class IrCodegen(
         storedPc = -2
         curSite = b.site
         for (i in b.insts) {
-            if (i.isTerminator) terminator(b, i) else inst(i)
+            if (i.isTerminator) terminator(b, i)
+            else if (i.op == Ir.RESUME_SLOT) resumeSlot(i)
+            else inst(i)
         }
         mv.visitLabel(endLabel[b])
+    }
+
+    /** Where a suspended activation resumes: slot [Inst.a] of the frame, as the interpreter holds it. */
+    private fun resumeSlot(i: Inst) {
+        frame()
+        mv.visitFieldInsn(GETFIELD, FRAME, "slots", CONSTS_D)
+        iconst(i.a)
+        mv.visitInsn(AALOAD)
+        done(i, ks.any)
     }
 
     /** The edge from [b] to [s]: the interrupt check of a back edge, the copies into [s]'s phis, the jump. */
@@ -498,6 +544,12 @@ internal abstract class IrCodegen(
                 load(i.inputs[0], ks.any)
                 mv.visitInsn(ARETURN)
             }
+            // (its target, where the activation resumes, is entered by the entry dispatch only)
+            Ir.SUSPEND -> {
+                val l = Label()
+                exits.add(Exit(l, i.state!!, counted = false, suspend = i))
+                mv.visitJumpInsn(GOTO, l)
+            }
             else -> if (!otherTerminator(i)) throw JitBailout("terminator ${g.ops.info(i.op).name}")
         }
     }
@@ -537,6 +589,14 @@ internal abstract class IrCodegen(
 
     /** In an exit method of the deopt stress mode: leaves for the interpreter, given the frame, pc, values and record. */
     protected abstract fun stressExit(em: Emit)
+
+    /**
+     * In a suspension's exit method ([Ir.SUSPEND] [i]), the state written to the frame's slots (registers, then the
+     * operand stack) and the frame, the pc it resumes at and the state's size (its sp) on the JVM stack: the language's
+     * suspension, [value] pushing its input as the interpreter holds it; leaves what the code returns (the interpreter's
+     * SUSPENDED) on the stack.
+     */
+    protected abstract fun suspendCall(em: Emit, i: Inst, value: (Value) -> Unit)
 
     /** The values the code of an inlined call's body reads from locals besides its instructions' (its environment). */
     protected abstract fun siteLocals(site: InlineSite): List<Value>

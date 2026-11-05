@@ -6,7 +6,7 @@ package dev.mooner.neonjs.jit.opt
  * The facts are the language's ([FactRules]): this pass walks the blocks in reverse post order with them.
  *
  * A block with one predecessor starts with its facts, one with several (all built before it) with those all of them
- * hold, and a loop header (its back edges are built after it) or a catch entry with none.
+ * hold, and a loop header (its back edges are built after it), a catch entry or a resumption with none.
  */
 internal object Facts {
     /**
@@ -51,7 +51,8 @@ internal object Facts {
     }
 
     private fun entry(b: Block, out: Map<Block, HashMap<Any, Any>>): HashMap<Any, Any> {
-        if (b.catchEntry || b.preds.isEmpty()) return HashMap()
+        // (what was known before a suspension may have changed while the activation was suspended)
+        if (b.catchEntry || b.resumeEntry || b.preds.isEmpty()) return HashMap()
         val ins = b.preds.map { out[it] ?: return HashMap() }
         val f = HashMap(ins[0])
         for (o in ins.subList(1, ins.size)) f.entries.removeIf { (k, v) -> o[k] != v }

@@ -6,7 +6,9 @@
 #   tools/check.sh full             what CI runs, and all of Test262 in the stress modes: before a large pull request
 #
 # Environment: TEST262 (default third_party/test262, checked out at CI's revision when missing), GRADLE_ARGS (extra
-# arguments for every ./gradlew run), SAMPLE (default 20: one test in SAMPLE), THREADS (default: every processor).
+# arguments for every ./gradlew run), SAMPLE (default 20: one test in SAMPLE), THREADS (default: every processor),
+# CODEGEN_OPTS (JVM properties for both sides' dumps: -Dneonjs.jit.suspendable=false, say), SUBSET (codegen: classes
+# may be added, none changed).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -83,7 +85,7 @@ dumps() {
   esac
   rm -rf "$dir"
   mkdir -p "$dir"
-  JAVA_OPTS="$opts -Dneonjs.jit.dump=$ROOT/$dir" "$runner" --root "$TEST262" --threads "$THREADS" --mode $mode \
+  JAVA_OPTS="$opts ${CODEGEN_OPTS:-} -Dneonjs.jit.dump=$ROOT/$dir" "$runner" --root "$TEST262" --threads "$THREADS" --mode $mode \
     --sync-jit --sample "$SAMPLE" --timeout 60000 --exclude built-ins/RegExp/property-escapes/generated \
     --exclude built-ins/Atomics/wait --exclude built-ins/Atomics/waitAsync --exclude built-ins/Atomics/notify > "$dir.log" 2>&1 || { tail -20 "$dir.log"; fail "dumping classes ($variant) with $runner"; }
 }
@@ -109,7 +111,9 @@ codegen() {
   for v in $variants; do
     dumps build/check/dumps/current-$v "$RUNNER" $v
     printf '%-8s ' "$v:"
-    java -cp "$LIB" dev.mooner.neonjs.test262.ClassDiffKt build/check/dumps/$sha-$v build/check/dumps/current-$v --show 10 || status=1
+    # (SUBSET=1: a change that compiles more, every class of REF's there unchanged, more allowed)
+    java -cp "$LIB" dev.mooner.neonjs.test262.ClassDiffKt build/check/dumps/$sha-$v build/check/dumps/current-$v --show 10 \
+      ${SUBSET:+--subset} || status=1
   done
   [ $status -eq 0 ] || fail "generated code differs from $ref"
 }

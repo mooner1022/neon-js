@@ -87,6 +87,17 @@ class IrTest {
     @Test
     fun unsupportedCodeIsNotBuilt() {
         assertThrows<JitBailout> { build("function f(o) { with (o) { return g() } }") }
-        assertThrows<JitBailout> { build("function* f() { yield 1 }") }
+        // (await using is not built yet: DISPOSE_STEP gives two values; its function stays interpreted)
+        assertThrows<JitBailout> { build("async function f() { await using x = null; }") }
+    }
+
+    @Test
+    fun generatorsSuspendAndResumeInTheirOwnBlocks() {
+        // a yield leaves the code (Suspend, with the state the interpreter resumes with) and the code goes on in a block
+        // of its own, entered where the activation resumes, its registers and the received value read from the frame
+        val ir = IrPrinter.print(build("function* f(a) { const x = yield a; return x + a }"))
+        assertTrue(ir.contains("Suspend"), ir)
+        assertTrue(Regex("Suspend v\\d+ \\[pc \\d+").containsMatchIn(ir), ir)
+        assertTrue(ir.contains("ResumeSlot"), ir)
     }
 }

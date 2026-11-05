@@ -101,8 +101,8 @@ maps to the JVM operand stack and registers map to JVM locals; exception handler
 converting the throwable with the same `catchValue` logic as the interpreter; loop back-edges count down an
 interrupt budget. Operations call static helpers in `JitRt`, which HotSpot inlines; the call each instruction gets
 when nothing about it is specialized is emitted by `JvmEmitter` (`jit/JvmEmitter.kt`), which every code generator
-extends. Generators/async functions
-(and the rare unsupported instruction or oversized function) stay in the interpreter.
+extends. Generators and async functions are not compiled by this generator: the optimizing tier's pipeline makes their
+code (docs/IR_NEUTRALITY.md, §9); the rare unsupported instruction or oversized function stays in the interpreter.
 
 Generated classes (JIT code and `Java.extend` adapters) become classes through a `CodeDefiner`
 (`jit/CodeDefiner.kt`): hidden classes on standard JVMs, dex loaded by `InMemoryDexClassLoader` on Android

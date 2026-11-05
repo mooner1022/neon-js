@@ -154,12 +154,19 @@ object Jit {
     }
 
     private fun compilable(cb: CodeBlock): Boolean =
-        cb.compiled == null && !cb.jitFailed && cb.jitTask == null && cb.strictPcs == null && JvmCompiler.canCompile(cb)
+        cb.compiled == null && !cb.jitFailed && cb.jitTask == null && cb.strictPcs == null && canCompile(cb)
+
+    /**
+     * Whether some tier compiles [cb]: the baseline compiler (T1), or, for generators and async functions, the optimizing
+     * tier's pipeline (dev.mooner.neonjs.jit.opt.T2.suspendable).
+     */
+    @JvmStatic
+    fun canCompile(cb: CodeBlock): Boolean = JvmCompiler.canCompile(cb) || dev.mooner.neonjs.jit.opt.T2.suspendable(cb)
 
     /** Compiled code for [cb] now: compiled on this thread, taken over from the queue, or awaited from a worker. */
     private fun compileNow(cb: CodeBlock, agent: Agent): CompiledCode? {
         // code with strict regions inside sloppy code (CodeBlock.strictPcs) is rare: keep it interpreted
-        if (cb.strictPcs != null || !JvmCompiler.canCompile(cb)) {
+        if (cb.strictPcs != null || !canCompile(cb)) {
             cb.jitFailed = true
             return null
         }

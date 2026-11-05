@@ -1,12 +1,12 @@
 # A language-neutral optimizing pipeline: what T2 can share (draft)
 
-Status (2026-11-05): steps 1 to 6 of §6 are done on branch `ir-neutral-core`, each leaving the classes generated for
-JavaScript unchanged (`tools/check.sh codegen`, docs/TESTING.md); step 7 is not. A toy language compiles and runs on the
-core (`ToyDialectTest`). §8 lists what the steps found and what is left. This document answers, for the plan in
-docs/PYTHON_PLATFORM.md, how much of the optimizing tier (`jit/opt/`, docs/OPTIMIZING_TIER.md) can become a core
-that several languages share, so that a language implementation provides its semantics and gets JVM/ART-shaped
-code (unboxed locals, empty JVM stack at block boundaries, exits outside the main method, size budgets, OSR) without
-writing an optimizer of its own.
+Status (2026-11-05): the steps of §6 are done on branch `ir-neutral-core`. Steps 1 to 6 leave the classes generated for
+JavaScript unchanged (`tools/check.sh codegen`, docs/TESTING.md); step 7 adds classes (generators and async functions,
+§9) and changes none. A toy language compiles and runs on the core (`ToyDialectTest`). §8 lists what the steps found and
+what is left. This document answers, for the plan in docs/PYTHON_PLATFORM.md, how much of the optimizing tier
+(`jit/opt/`, docs/OPTIMIZING_TIER.md) can become a core that several languages share, so that a language
+implementation provides its semantics and gets JVM/ART-shaped code (unboxed locals, empty JVM stack at block
+boundaries, exits outside the main method, size budgets, OSR) without writing an optimizer of its own.
 
 ## 1. Summary
 
@@ -207,7 +207,7 @@ generated code, `codegen` (the classes generated before and after compared). All
 | 4 | `FrameModel`: prologue, parameters, positions, inlined call records, exit payload and resume entry; opaque callee state in `InlineSite` | `IrCodegen`, `Ir.kt`, **`jit/Deopt.kt`, `vm/Frame.kt`** (used by T1 too) | no | `InlineSite.frame`, `JsSites`, exit hooks, `Resumer`; `Frame` itself not (§8) |
 | 5 | `KnownShapes` → generic facts; `ScalarReplacement` on `OpInfo` | passes | no | `Facts`/`FactRules`, `OpInfo.fields`/`readsField` |
 | 6 | baseline mode (§5's conditions): no-exit inlining, identity and `CodeCache`, `JitBackend` batches, compile time measured | `T2`, `Jit`, `JitBackend` | only in the new mode | `T2.compileBaselines`, `-Dneonjs.jit.irBaseline`; identity before generating not (§8) |
-| 7 | generators and async functions in the core (state machine: resume dispatch, locals saved in the frame) | core, JS dialect, `Deopt` | yes (new coverage) | no |
+| 7 | generators and async functions in the core (state machine: resume dispatch, locals saved in the frame) | core, JS dialect, `Deopt` | yes (new coverage) | `Ir.SUSPEND`/`RESUME_SLOT`, §9 |
 
 Only after these does a second dialect start (Python's, docs/PYTHON_PLATFORM.md). A toy dialect (a few arithmetic and
 call ops over its own small bytecode) between steps 4 and 6 would show whether the interfaces are enough, before
@@ -238,26 +238,61 @@ Measured on 1 in 20 of Test262 (docs/TESTING.md), HotSpot 25, 8 cores:
 
 `bench/basic.js` runs as fast on the pipeline's baselines as on T1's (`closures` faster: 49 → 31 ms).
 
-Left, by what it blocks:
+What the steps left of JavaScript in the core, and what became of it:
 
-- **Generators and async functions** (step 7): neither tier compiles them. Python's iteration runs on generators, so this
-  comes before Python's speed matters; it is also coverage for JavaScript.
-- **The frame** (`vm/Frame.kt`): JavaScript's (`fn: JSClosure?`, `thisValue`, `newTarget`, `env`). The core reads only
-  `code`, `realm.agent`, `args`, `slots`, `pc`, `inlinePc`, and the toy language runs with `fn` null. Whether Python's
-  interpreter uses this class (its function in a field of a common supertype) or a frame of its own (and the core reads
-  frames through an interface) is a decision for Python's runtime, made with its interpreter.
-- **The deoptimization runtime**: exits resume through the dialect's `Resumer`; JavaScript's is `Deopt.resume` and its
-  interpreter. A language's interpreter must resume a frame at a pc with registers and stack (and its inlined calls'
-  frames), as docs/OPTIMIZING_TIER.md describes for JavaScript.
+| | now |
+|---|---|
+| generators and async functions | compiled (step 7, §9): by the tier only, T1 leaving them as before; `yield*` and async iteration too. Not yet: `await using` (`DISPOSE_STEP` gives two values) and, as for every function, `with` and direct-eval scopes |
+| the frame (`vm/Frame.kt`) | open: a language keeps its own state in a subclass; the core reads `code`, `realm.agent`, `args`, `slots`, `sp`, `pc`, `inlinePc` and the records of inlined calls (`fn`, `thisValue`, `newTarget`, `env` are JavaScript's, null elsewhere, as in the toy language) |
+| the deoptimization runtime | the language's, by design: exits and suspensions reach its interpreter through its `Resumer` and its suspension helper |
+| JavaScript's own IR operations | `JsIr`, numbered from 2000; `Ir` keeps the core's (1000–1999); a language's bytecode is below 1000 |
+| profiles | the language's: `ValueProfile` is JavaScript's interpreter's, read by its builder only |
+| T1 (`JvmCompiler`) | JavaScript's by design (§5); what it shares with the tier (`Emit`) is neutral |
+
+Left, not tied to JavaScript:
+
 - **Compile time of baselines**: building and generating each block costs more than T1's one pass. T1 computes an
   identity from its input before generating and skips equal blocks; baselines hash the generated class instead, after
   the work. An identity of the graph's inputs (code, constants, inlining decisions, settings) would skip it.
 - **Tier-up from pipeline baselines**: T1 code looks for the tier's code at loop back edges (`JitInput.tierUp`); a
   pipeline baseline does not yet, so a long loop moves to speculating code only at the next call or on-stack entry.
-- **Op numbers**: a dialect's ops are below 1000 and the core's (`Ir.*`: terminators, homes, inline records, guards)
-  above; JavaScript's own speculative ops (`LOAD_SLOT`, `NEW_THIS`, …) are still in `Ir`, numbered with the core's.
-  Moving them to JavaScript's dialect is bookkeeping.
-- **Profiles**: `ValueProfile`'s kinds are JavaScript's; a language records its own feedback, which only its builder
-  reads.
-- T1 (`JvmCompiler`) stays JavaScript's by design (§5); what it shares with the tier (`Emit`) is neutral.
 
+## 9. Suspensions (step 7)
+
+A generator's or an async function's frame is an interpreted one (it keeps its slots between suspensions), and the
+interpreter suspends it at GENERATOR_INIT, YIELD, YIELD_RAW and the AWAITs, writing pc, sp and the value handed over to
+the frame, and returning SUSPENDED. Compiled code does the same, so that either can resume what the other suspended:
+
+- **Suspending.** The builder ends the block with `Ir.SUSPEND` (a terminator; `GraphBuilder.At.suspend`), whose state
+  is the interpreter's at the next instruction. Its code is an exit method, as for a deoptimization: it boxes the state
+  (allocating scalar-replaced objects) and calls the language's suspension (`IrCodegen.suspendCall`; JavaScript's
+  `JitRt.suspend`), which writes the frame as the interpreter does and returns SUSPENDED.
+- **Resuming.** The instructions after go on in a block of their own (`Block.resumeEntry`), which starts by reading the
+  registers live there and the operand stack from the frame (`Ir.RESUME_SLOT`), with the value the resumption pushed.
+  The code's entry dispatch, which on-stack replacement already uses, enters it at that pc, and enters the start at
+  pc 0 (the frame is an interpreted one from its first run).
+- **Running.** `Interpreter.execute` runs such a frame in its block's compiled code where there is some
+  (`executeSuspendable`): where the code has no entry at the frame's pc, or deoptimizes, the interpreter goes on. The
+  calls of generators and async functions go through the JIT's policy (`Generators.start`, `Jit.prepare`), and their
+  baselines are the tier's (`ClassBackend`, `T2.suspendable`); the tier's speculating code compiles over them as over
+  any baseline. `-Dneonjs.jit.suspendable=false` leaves them interpreted.
+- **What a graph that suspends does not get.** LICM and Unswitch would put values before a loop, or copy it, where a
+  resumption does not make them again: such graphs skip both. The facts after guards start empty where an activation
+  resumes (anything may have changed while it was suspended).
+- **JavaScript's.** An await's promise is made in the code before it suspends (`JsIr.AWAIT_VALUE`: its exception is the
+  function's, its handlers'), a rejected one thrown where it resumes (`JsIr.AWAIT_RESUMED`, as the interpreter throws it
+  at the AWAIT); RESUME_DISPATCH and RESUME_MODE read the frame's mode; yield* is a step and its parts (`JsIr.YSTAR_*`);
+  async iteration steps as ITER_STEP does.
+
+Checked: 4,711 Test262 tests of generators, async functions and generators, `for await`, `await`, `yield` and class
+elements, compiled (9.9K baselines of such blocks, 23 not: `await using`, `with`), compiled with `t2Stress` and
+`deoptStress`, adaptive with `t2Stress` and `osrStress` with and without `deoptStress`, and with `irBaseline`: all pass.
+The classes generated for the rest are those of before (`tools/check.sh codegen` with `SUBSET=1`: none changed; a few
+small functions are no longer compiled on their own, their calls inlined into the code of the generators calling them).
+Translated by dx (Android's code generation), the same tests pass.
+
+A suspension writes the state straight into the frame's slots (no array), as the interpreter keeps it. Speed, adaptive
+mode, HotSpot, against `-Dneonjs.jit.suspendable=false`: a Fibonacci generator taken 70 values at a time 57–66 →
+30–52 ms; a `for (const v of range(n))` over a generator whose body only yields, about the same (176–207 ms both): there
+the generator's protocol (a resumption, an iterator result per value) costs more than its body. Inlining a generator
+into the loop that consumes it would remove that, and is the next step for code built on generators (Python's).

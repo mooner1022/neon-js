@@ -77,6 +77,25 @@ object JsIr {
      * (StringBuiltins.charCodeAt: `this` made a string, which may run code).
      */
     const val CHAR_CODE = 2017
+    /**
+     * (value) the promise an AWAIT of kind [Inst.a] (AWAIT, AWAIT_IGNORE, AWAIT_CATCH) waits for (JitRt.awaitValue),
+     * made in the code (its exceptions are the function's, its handlers' to catch) before the suspension.
+     */
+    const val AWAIT_VALUE = 2018
+    /**
+     * (value) where an AWAIT resumed, the value it resumed with: thrown where the promise was rejected
+     * (JitRt.awaitResumed), as the interpreter throws it at the AWAIT, through the same handlers.
+     */
+    const val AWAIT_RESUMED = 2019
+    /**
+     * yield* (the bytecode's YSTAR, YSTAR_ASYNC_CALL, YSTAR_ASYNC_RESULT, kind [Inst.a]) is one step (JitRt.ystar) whose
+     * result says whether the delegation is done: YSTAR_DONE (result), whether it is; YSTAR_VALUE (result), the value
+     * on the stack after it (what to yield, or the delegation's value); YSTAR_MODE (result, mode), the mode register
+     * after it (its new mode where done, else the one it had).
+     */
+    const val YSTAR_DONE = 2020
+    const val YSTAR_VALUE = 2021
+    const val YSTAR_MODE = 2022
 
     /**
      * The arithmetic that gives an int of int inputs where the builder gave it a state (Kinds): an exit to that state,
@@ -104,6 +123,11 @@ object JsIr {
         CONSTRUCT_RESULT -> "ConstructResult"
         PART -> "Part"
         CHAR_CODE -> "CharCode"
+        AWAIT_VALUE -> "AwaitValue"
+        AWAIT_RESUMED -> "AwaitResumed"
+        YSTAR_DONE -> "YStarDone"
+        YSTAR_VALUE -> "YStarValue"
+        YSTAR_MODE -> "YStarMode"
         else -> if (op in 0 until Op.COUNT) Op.names[op] else Ir.name(op)
     }
 }

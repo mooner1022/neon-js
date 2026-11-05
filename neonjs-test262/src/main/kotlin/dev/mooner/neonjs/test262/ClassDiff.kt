@@ -17,8 +17,9 @@ import kotlin.system.exitProcess
  * compiled in: it is removed from file names and from the code (where the class names itself) before comparing. The
  * baseline's names end with a hash of their input and are compared as they are.
  *
- * Usage: `ClassDiffKt BEFORE AFTER [--show N]`; exit status 0 when equal, 1 otherwise, with the first N differences
- * printed (a class only on one side, or the first lines where its code differs).
+ * Usage: `ClassDiffKt BEFORE AFTER [--show N] [--subset]`; exit status 0 when equal, 1 otherwise, with the first N
+ * differences printed (a class only on one side, or the first lines where its code differs). With `--subset`, for a
+ * change that compiles more: every class BEFORE must be in AFTER, unchanged (AFTER may have more).
  */
 fun main(args: Array<String>) {
     if (args.size < 2) {
@@ -28,6 +29,14 @@ fun main(args: Array<String>) {
     val show = args.indexOf("--show").let { if (it >= 0) args[it + 1].toInt() else 5 }
     val before = ClassDiff.load(File(args[0]))
     val after = ClassDiff.load(File(args[1]))
+    if ("--subset" in args) {
+        // a change that compiles more (new coverage): every class before must be there after, unchanged
+        val missing = ClassDiff.missing(before, after)
+        println("classes: ${before.values.sumOf { it.size }} before, ${after.values.sumOf { it.size }} after; " +
+            "${missing.sumOf { it.second }} of those before not there after")
+        for ((name, n) in missing.take(show)) println("missing: $name ($n)")
+        exitProcess(if (missing.isEmpty()) 0 else 1)
+    }
     val diffs = ClassDiff.compare(before, after)
     println("classes: ${before.values.sumOf { it.size }} before, ${after.values.sumOf { it.size }} after; " +
         "${before.size} and ${after.size} distinct names; ${diffs.size} names differ")
@@ -58,6 +67,17 @@ object ClassDiff {
     }
 
     fun normalize(s: String): String = counter.replace(s) { it.groupValues[1] }
+
+    /** Names with classes before that are not after (as many of each), and how many. */
+    fun missing(before: Map<String, List<Entry>>, after: Map<String, List<Entry>>): List<Pair<String, Int>> {
+        val out = ArrayList<Pair<String, Int>>()
+        for ((name, a) in before.toSortedMap()) {
+            val left = after[name].orEmpty().map { it.digest }.toMutableList()
+            val n = a.count { e -> !left.remove(e.digest) }
+            if (n > 0) out.add(name to n)
+        }
+        return out
+    }
 
     /** The differences, one line (or a few) per name. */
     fun compare(before: Map<String, List<Entry>>, after: Map<String, List<Entry>>): List<String> {

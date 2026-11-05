@@ -120,7 +120,8 @@ object Deopt {
     }
 
     /** Gives [f] slots (it keeps them if it has some) holding [values]: its registers, then its operand stack. */
-    private fun write(f: Frame, values: Array<Any?>) {
+    @JvmStatic
+    fun write(f: Frame, values: Array<Any?>) {
         val code = f.code
         if (values.size < code.numRegs || values.size > code.numRegs + code.maxStack) {
             throw IllegalStateException("deoptimization state of ${values.size} values for ${code.numRegs} registers")

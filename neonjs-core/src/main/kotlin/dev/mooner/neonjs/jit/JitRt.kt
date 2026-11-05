@@ -78,6 +78,125 @@ object JitRt {
     @JvmStatic fun inlined(fn: Any?, thisV: Any?, args: Array<Any?>, env: Any?, pc: Int, values: Array<Any?>, inner: Any?): Any =
         Deopt.Inlined(fn.cast<JSClosure>(), thisV, args, env as Env?, pc, values, inner as Deopt.Inlined?)
 
+    // ------------------------------------------------------------ suspensions (generators, async functions)
+
+    /**
+     * Compiled code running [f], a generator's or an async function's frame (always an interpreted one), suspends:
+     * the frame is left as the interpreter leaves it at the same instruction ([kind], the bytecode's GENERATOR_INIT,
+     * YIELD, YIELD_RAW or an AWAIT at [opStart]): its registers then its operand stack in its slots (written by the code,
+     * [sp] of them), [pc] where it resumes, the value handed over ([value]: what it yields, the promise it awaits).
+     * Returns Interpreter.SUSPENDED, which the code returns.
+     */
+    @JvmStatic fun suspend(f: Frame, pc: Int, sp: Int, value: Any?, kind: Int, opStart: Int): Any? {
+        val s = f.slots
+        java.util.Arrays.fill(s, sp, s.size, null)
+        f.sp = sp
+        f.pc = pc
+        when (kind) {
+            Op.GENERATOR_INIT -> f.suspendKind = Frame.SUSPEND_INITIAL
+            Op.YIELD -> {
+                f.suspendValue = value
+                f.suspendKind = Frame.SUSPEND_YIELD
+            }
+            Op.YIELD_RAW -> {
+                f.suspendValue = value
+                f.suspendKind = Frame.SUSPEND_YIELD_RAW
+            }
+            else -> {
+                f.suspendValue = value
+                f.suspendKind = Frame.SUSPEND_AWAIT
+                f.awaitPc = opStart
+            }
+        }
+        return Interpreter.SUSPENDED
+    }
+
+    /** The promise an AWAIT of [kind] (AWAIT, AWAIT_IGNORE, AWAIT_CATCH) of [v] waits for, as the interpreter's. */
+    @JvmStatic fun awaitValue(v: Any?, kind: Int, f: Frame): Any? =
+        if (kind == Op.AWAIT_IGNORE) Rt.promiseResolveOrNull(f.realm, v) else Rt.promiseResolveForAwait(f.realm, v)
+
+    /**
+     * RESUME_DISPATCH of [f], [v] the value it resumed with: throws it where the activation resumed to throw, true where
+     * it resumed to return (to the instruction's target), false to go on (the frame's mode back to `next` either way).
+     */
+    @JvmStatic fun resumeDispatch(f: Frame, v: Any?): Boolean = when (f.resumeMode) {
+        Frame.MODE_THROW -> {
+            f.resumeMode = Frame.MODE_NEXT
+            throw JSException(v)
+        }
+        Frame.MODE_RETURN -> {
+            f.resumeMode = Frame.MODE_NEXT
+            true
+        }
+        else -> false
+    }
+
+    /** Where an AWAIT of [f] resumed with [v]: throws [v] if the promise was rejected (as Interpreter.run at the AWAIT). */
+    @JvmStatic fun awaitResumed(f: Frame, v: Any?) {
+        if (f.resumeMode == Frame.MODE_THROW && f.suspendKind == Frame.SUSPEND_AWAIT) {
+            f.resumeMode = Frame.MODE_NEXT
+            throw JSException(v)
+        }
+    }
+
+    // async iteration and yield*, as the interpreter's GET_ASYNC_ITERATOR, ITER_NEXT_CALL, ITER_RESULT_STEP,
+    // ASYNC_ITER_CLOSE and YSTAR, YSTAR_ASYNC_CALL, YSTAR_ASYNC_RESULT
+
+    @JvmStatic fun getAsyncIterator(v: Any?, f: Frame): Any? = Iteration.getIterator(f.realm, v, true)
+
+    @JvmStatic fun iterNextCall(rec: Any?): Any? = Iteration.callNext(rec as IteratorRecord, Undefined)
+
+    /** The value of iterator result [r] of [rec], or NotFound where the iteration is done. */
+    @JvmStatic fun iterResultStep(rec: Any?, r: Any?): Any? {
+        rec as IteratorRecord
+        if (r !is JSObject) {
+            rec.done = true
+            throw JSException.typeError("Iterator result ${Ops.toDisplayString(r)} is not an object")
+        }
+        if (Iteration.complete(rec, r)) {
+            rec.done = true
+            return NotFound
+        }
+        return Iteration.value(rec, r)
+    }
+
+    /** The result of calling [rec]'s `return` (mode 1: on a throw), or NotFound where it has none. */
+    @JvmStatic fun asyncIterClose(rec: Any?, mode: Int): Any? = Iteration.asyncCloseCall(rec as IteratorRecord, mode == 1)
+
+    /**
+     * A step of yield* ([kind]: YSTAR, YSTAR_ASYNC_CALL or YSTAR_ASYNC_RESULT) of [rec] in [mode] with [received]:
+     * an Iteration.YStarDone where the delegation is done (its value and whether it returns), else the value to go on
+     * with ([ystarDone], [ystarValue], [ystarMode]).
+     */
+    @JvmStatic fun ystar(kind: Int, rec: Any?, mode: Any?, received: Any?): Any? {
+        rec as IteratorRecord
+        val m = (mode as Double).toInt()
+        return when (kind) {
+            Op.YSTAR -> Iteration.yieldStarStep(rec, received, m)
+            Op.YSTAR_ASYNC_CALL -> Iteration.yieldStarAsyncCall(rec, received, m)
+            else -> {
+                if (received !is JSObject) throw JSException.typeError("Iterator result ${Ops.toDisplayString(received)} is not an object")
+                if (Iteration.complete(rec, received)) Iteration.YStarDone(Iteration.value(rec, received), m == 2)
+                else Iteration.value(rec, received)
+            }
+        }
+    }
+
+    @JvmStatic fun ystarDone(r: Any?): Boolean = r is Iteration.YStarDone
+
+    @JvmStatic fun ystarValue(r: Any?): Any? = if (r is Iteration.YStarDone) r.value else r
+
+    /** The mode register after a yield* step of [kind] that gave [r]: where it is done, as the interpreter sets it. */
+    @JvmStatic fun ystarMode(r: Any?, mode: Any?, kind: Int): Any? =
+        if (r !is Iteration.YStarDone) mode else Ops.num(if (r.isReturn) 2 else if (kind == Op.YSTAR_ASYNC_CALL) 3 else 0)
+
+    /** RESUME_MODE of [f]: the mode it resumed in, as a number (the frame's back to `next`). */
+    @JvmStatic fun resumeMode(f: Frame): Any? {
+        val m = f.resumeMode
+        f.resumeMode = Frame.MODE_NEXT
+        return Ops.num(m)
+    }
+
     /** An exit of compiled code running [f] ([Deopt.resume]): [values] are its registers, then its operand stack, at [pc]. */
     @JvmStatic fun deopt(f: Frame, pc: Int, values: Array<Any?>): Any? = Deopt.resume(f, pc, values, null)
 

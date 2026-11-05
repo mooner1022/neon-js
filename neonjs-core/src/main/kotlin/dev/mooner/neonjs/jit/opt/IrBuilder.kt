@@ -48,7 +48,8 @@ internal class IrBuilder(
     /** Bytecode ints of the bodies inlined so far (a budget). */
     private var inlined = 0
 
-    override fun unbuildable(): String? = if (cb.isGenerator || cb.isAsync) "generator or async" else null
+    override fun unbuildable(): String? =
+        if ((cb.isGenerator || cb.isAsync) && !T2.SUSPENDABLE) "generator or async" else null
 
     override fun root(): Body = JsBody(cb, null)
 
@@ -245,6 +246,10 @@ internal class IrBuilder(
                 // tests have no effect)
                 isJumpOp(op) -> if (bc[pc + 1] == next) intArrayOf(next) else intArrayOf(bc[pc + 1], next)
                 op == Op.ITER_STEP || op == Op.FOR_IN_NEXT -> intArrayOf(bc[pc + 2], next)
+                // (to its target where the activation resumed to return)
+                op == Op.RESUME_DISPATCH -> if (bc[pc + 1] == next) intArrayOf(next) else intArrayOf(bc[pc + 1], next)
+                op == Op.ITER_RESULT_STEP -> intArrayOf(bc[pc + 2], next)
+                op == Op.ASYNC_ITER_CLOSE || op == Op.YSTAR || op == Op.YSTAR_ASYNC_CALL || op == Op.YSTAR_ASYNC_RESULT -> intArrayOf(bc[pc + 3], next)
                 op == Op.JUMP_TABLE -> IntArray(bc[pc + 2] + 1) { bc[pc + 3 + it] }
                 op == Op.RETURN || op == Op.THROW || op == Op.THROW_ERROR -> IntArray(0)
                 else -> null
@@ -257,14 +262,21 @@ internal class IrBuilder(
                 op in BUILT_OPS
         }
 
-        override fun regUse(pc: Int): Pair<Int, Int> = when (bc[pc]) {
+        override fun regsRead(pc: Int): IntArray = when (bc[pc]) {
             Op.LOAD_REG, Op.LOAD_REG_TDZ, Op.CHECK_REG_TDZ, Op.ITER_STEP, Op.ITER_STEP_U, Op.ITER_REST, Op.ITER_CLOSE,
-            Op.ITER_CLOSE_THROW, Op.FOR_IN_NEXT, Op.JUMP_TABLE -> bc[pc + 1] to -1
-            Op.MAKE_METHOD -> bc[pc + 2] to -1
-            Op.STORE_REG -> -1 to bc[pc + 1]
+            Op.ITER_CLOSE_THROW, Op.FOR_IN_NEXT, Op.JUMP_TABLE, Op.ITER_NEXT_CALL, Op.ITER_RESULT_STEP, Op.ASYNC_ITER_CLOSE ->
+                intArrayOf(bc[pc + 1])
+            Op.MAKE_METHOD -> intArrayOf(bc[pc + 2])
             // (its old value read: `this` once only)
-            Op.INIT_THIS_REG -> bc[pc + 1] to bc[pc + 1]
-            else -> -1 to -1
+            Op.INIT_THIS_REG -> intArrayOf(bc[pc + 1])
+            // yield*: the iterator and the mode (written where it is done, read before)
+            Op.YSTAR, Op.YSTAR_ASYNC_CALL, Op.YSTAR_ASYNC_RESULT -> intArrayOf(bc[pc + 1], bc[pc + 2])
+            else -> NO_REGS
+        }
+
+        override fun regWritten(pc: Int): Int = when (bc[pc]) {
+            Op.STORE_REG, Op.INIT_THIS_REG -> bc[pc + 1]
+            else -> -1
         }
 
         override fun nameAt(pc: Int): String = Op.names[bc[pc]]
@@ -332,6 +344,51 @@ internal class IrBuilder(
                 Op.ITER_STEP_U, Op.ITER_REST -> inst(op, arrayOf(regs[a]!!), result = true)
                 Op.ITER_CLOSE, Op.ITER_CLOSE_THROW -> inst(op, arrayOf(regs[a]!!), result = false)
                 Op.MAKE_METHOD -> inst(op, arrayOf(regs[bb]!!), result = true)
+                // suspensions: the generator's start, a yield, an await (its promise made first, in the code)
+                Op.GENERATOR_INIT -> suspend(op, null, received = false)
+                Op.YIELD, Op.YIELD_RAW -> suspend(op, pop(), received = true)
+                Op.AWAIT, Op.AWAIT_IGNORE, Op.AWAIT_CATCH -> {
+                    val p = add(cur, Inst(JsIr.AWAIT_VALUE, arrayOf(pop()), op, 0, 0, pc, stmt).also { it.hasResult = true })
+                    suspend(op, p, received = true)
+                    // (AWAIT_IGNORE and AWAIT_CATCH resume with the rejection as a value)
+                    if (op == Op.AWAIT) add(cur, Inst(JsIr.AWAIT_RESUMED, arrayOf(stack.last()), 0, 0, 0, pc, stmt))
+                }
+                Op.ITER_NEXT_CALL -> inst(op, arrayOf(regs[a]!!), result = true)
+                // async iteration: the next value, or NotFound to the target where it is done (and pushed only on the way on)
+                Op.ITER_RESULT_STEP, Op.ASYNC_ITER_CLOSE -> {
+                    val inputs = if (op == Op.ITER_RESULT_STEP) arrayOf(regs[a]!!, pop()) else arrayOf(regs[a]!!)
+                    val v = add(cur, Inst(op, inputs, a, bb, c, pc, stmt).also { it.hasResult = true })
+                    val done = blockAt[if (op == Op.ITER_RESULT_STEP) bb else c]!!
+                    edgeOut[b] = done to Array(nregs + stack.size) { if (it < nregs) regs[it]!! else stack[it - nregs] }
+                    stack.add(v)
+                    end()
+                    add(cur, Inst(Ir.BRANCH, arrayOf(v), Op.ITER_STEP, 0, 0, pc, stmt)).targets = listOf(done, blockAt[pc + len]!!)
+                    return true
+                }
+                // yield*: a step, then its mode register and the value on the stack, to the target where it is done
+                Op.YSTAR, Op.YSTAR_ASYNC_CALL, Op.YSTAR_ASYNC_RESULT -> {
+                    val step = add(cur, Inst(op, arrayOf(regs[a]!!, regs[bb]!!, pop()), a, bb, c, pc, stmt).also { it.hasResult = true })
+                    fun part(p: Int, vararg inputs: Value) = add(cur, Inst(p, arrayOf(*inputs), op, 0, 0, pc, stmt).also { it.hasResult = true })
+                    val done = part(JsIr.YSTAR_DONE, step)
+                    stack.add(part(JsIr.YSTAR_VALUE, step))
+                    regs[bb] = part(JsIr.YSTAR_MODE, step, regs[bb]!!)
+                    home(bb)
+                    end()
+                    add(cur, Inst(Ir.BRANCH, arrayOf(done), Op.JUMP_IF_TRUE, 0, 0, pc, stmt)).targets = listOf(blockAt[c]!!, blockAt[pc + len]!!)
+                    return true
+                }
+                // how the activation resumed, with the value it resumed with on the stack: throw it, return, or go on
+                Op.RESUME_DISPATCH -> {
+                    val test = add(cur, Inst(op, arrayOf(stack.lastOrNull() ?: throw JitBailout("operand stack underflow at $pc")), a, 0, 0, pc, stmt))
+                    test.hasResult = true
+                    end()
+                    if (a == pc + len) {
+                        goto(cur, blockAt[a]!!)
+                        return true
+                    }
+                    add(cur, Inst(Ir.BRANCH, arrayOf(test), Op.JUMP_IF_TRUE, 0, 0, pc, stmt)).targets = listOf(blockAt[a]!!, blockAt[pc + len]!!)
+                    return true
+                }
                 Op.JUMP_IF_TRUE, Op.JUMP_IF_FALSE, Op.JUMP_IF_NULLISH, Op.JUMP_IF_NOT_NULLISH, Op.JUMP_IF_UNDEFINED,
                 Op.JUMP_IF_NOT_UNDEFINED -> {
                     val cond = pop()
@@ -679,9 +736,13 @@ internal class IrBuilder(
         return false
     }
     companion object {
+        private val NO_REGS = IntArray(0)
+
         /** Instructions with no [arity] that the builder builds itself (iteration, the finally dispatch, methods). */
         private val BUILT_OPS = setOf(Op.ITER_STEP, Op.FOR_IN_NEXT, Op.JUMP_TABLE, Op.ITER_STEP_U, Op.ITER_REST,
-            Op.ITER_CLOSE, Op.ITER_CLOSE_THROW, Op.MAKE_METHOD, Op.MAKE_CLASS, Op.INIT_THIS_REG)
+            Op.ITER_CLOSE, Op.ITER_CLOSE_THROW, Op.MAKE_METHOD, Op.MAKE_CLASS, Op.INIT_THIS_REG, Op.GENERATOR_INIT, Op.YIELD,
+            Op.YIELD_RAW, Op.AWAIT, Op.AWAIT_IGNORE, Op.AWAIT_CATCH, Op.RESUME_DISPATCH, Op.ITER_NEXT_CALL, Op.ITER_RESULT_STEP,
+            Op.ASYNC_ITER_CLOSE, Op.YSTAR, Op.YSTAR_ASYNC_CALL, Op.YSTAR_ASYNC_RESULT)
 
         /** Calls compiled inlined into one another at most; bytecode ints of one callee and of all of them, at most. */
         const val MAX_INLINE_DEPTH = 3
@@ -717,12 +778,12 @@ internal class IrBuilder(
                 Op.DELETE_NAME, Op.RESOLVE_NAME, Op.LOAD_GLOBAL, Op.LOAD_GLOBAL_TYPEOF, Op.LOAD_THIS, Op.LOAD_FUNCTION,
                 Op.LOAD_NEW_TARGET, Op.LOAD_HOME, Op.CREATE_ARGUMENTS, Op.CREATE_REST, Op.LOAD_ARG, Op.NEW_OBJECT,
                 Op.NEW_ARRAY, Op.MAKE_CLOSURE, Op.NEW_PRIVATE_NAME, Op.TEMPLATE_OBJECT, Op.NEW_REGEXP, Op.IMPORT_META,
-                Op.DISPOSE_NEW, Op.PUSH_SCOPE, Op.POP_SCOPE, Op.COPY_SCOPE, Op.GET_ENV, Op.DEBUGGER -> 0
+                Op.DISPOSE_NEW, Op.PUSH_SCOPE, Op.POP_SCOPE, Op.COPY_SCOPE, Op.GET_ENV, Op.DEBUGGER, Op.RESUME_MODE -> 0
                 Op.STORE_ENV, Op.STORE_NAME, Op.STORE_NAME_VAR, Op.INIT_NAME, Op.STORE_GLOBAL, Op.INIT_GLOBAL_LEX,
                 Op.INIT_THIS_ENV, Op.INIT_THIS_NAME, Op.SET_ENV, Op.PUSH_WITH, Op.GET_REF, Op.GET_PROP, Op.DELETE_PROP,
                 Op.TO_PROPERTY_KEY, Op.GET_SUPER_BASE, Op.NEG, Op.TO_NUMBER, Op.NOT, Op.BNOT, Op.TYPEOF, Op.TO_NUMERIC,
                 Op.INC, Op.DEC, Op.TO_STRING, Op.TO_OBJECT, Op.REQUIRE_COERCIBLE, Op.CHECK_OBJECT, Op.GET_PROTO_OF,
-                Op.ARRAY_HOLE, Op.GET_ITERATOR, Op.FOR_IN_START, Op.CLASS_FINISH, Op.CLASS_STATIC_INIT -> 1
+                Op.ARRAY_HOLE, Op.GET_ITERATOR, Op.GET_ASYNC_ITERATOR, Op.FOR_IN_START, Op.CLASS_FINISH, Op.CLASS_STATIC_INIT -> 1
                 Op.PUT_REF, Op.PUT_PROP, Op.GET_ELEM, Op.DELETE_ELEM, Op.GET_PRIVATE, Op.HAS_PRIVATE, Op.ADD, Op.SUB, Op.MUL,
                 Op.DIV, Op.MOD, Op.EXP, Op.SHL, Op.SAR, Op.SHR, Op.BAND, Op.BOR, Op.BXOR, Op.EQ, Op.NE, Op.SEQ, Op.SNE,
                 Op.LT, Op.GT, Op.LE, Op.GE, Op.INSTANCEOF, Op.IN, Op.CONCAT, Op.NEW_SPREAD, Op.INIT_INSTANCE, Op.ARRAY_PUSH,

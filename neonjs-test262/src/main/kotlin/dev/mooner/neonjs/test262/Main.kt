@@ -97,9 +97,15 @@ fun main(args: Array<String>) {
             System.err.println("T2 compiled=${t2.compiledCount} not compiled=${t2.failedCount} reverted to the baseline=${t2.reverted} calls inlined=${t2.inlinedCalls}")
             t2.failureReasons.entries.sortedByDescending { it.value.get() }.take(15).forEach { System.err.println("  ${it.value} ${it.key}") }
         }
-        if (t2.baselines.get() + t2.baselinesFailed.get() > 0) {
-            System.err.println("T2 baselines=${t2.baselines} shared=${t2.baselinesShared} not compiled=${t2.baselinesFailed}")
-            t2.baselineReasons.entries.sortedByDescending { it.value.get() }.take(15).forEach { System.err.println("  ${it.value} ${it.key}") }
+        // (read reflectively: tools/check.sh builds older engines with this runner, which have no baselines)
+        fun t2Field(name: String): Any? = runCatching { t2.javaClass.getField(name).get(t2) }.getOrNull()
+        val baselines = t2Field("baselines") as java.util.concurrent.atomic.AtomicLong?
+        val baselinesFailed = t2Field("baselinesFailed") as java.util.concurrent.atomic.AtomicLong?
+        if (baselines != null && baselinesFailed != null && baselines.get() + baselinesFailed.get() > 0) {
+            System.err.println("T2 baselines=$baselines shared=${t2Field("baselinesShared")} not compiled=$baselinesFailed")
+            @Suppress("UNCHECKED_CAST")
+            (t2Field("baselineReasons") as Map<String, java.util.concurrent.atomic.AtomicLong>?)?.entries
+                ?.sortedByDescending { it.value.get() }?.take(15)?.forEach { System.err.println("  ${it.value} ${it.key}") }
         }
         dev.mooner.neonjs.jit.JvmCompiler.notInlinedReasons.entries.sortedByDescending { it.value.get() }.take(15).forEach { System.err.println("  ${it.value} compiled without inlined calls: ${it.key}") }
     }

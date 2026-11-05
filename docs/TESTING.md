@@ -58,8 +58,12 @@ The tests of agents waiting on one another (`built-ins/Atomics/wait`, `waitAsync
 dumps: their loops spin for as long as another thread takes, so how often a function is called there, and whether it
 gets compiled, depends on timing. Two dumps of the same build are equal without them.
 
+A change that compiles more (code not compiled before) adds classes and must change none: `SUBSET=1 tools/check.sh
+codegen` checks that every class of REF's is there, unchanged. `CODEGEN_OPTS` gives both sides' dumps JVM properties
+(`CODEGEN_OPTS=-Dneonjs.jit.suspendable=false`: without generators and async functions compiled).
+
 REF's dumps are kept in `build/check/dumps/<commit>-*`, so comparing against the same REF again only dumps the working
-tree. `ClassDiffKt BEFORE AFTER --show N` can compare any two dump directories.
+tree. `ClassDiffKt BEFORE AFTER [--show N] [--subset]` can compare any two dump directories.
 
 ## Full
 

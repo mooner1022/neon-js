@@ -207,11 +207,8 @@ internal class ToyBuilder(cb: CodeBlock, speculate: Boolean) :
             }
         }
         override fun supported(pc: Int): Boolean = bc[pc] < NAMES.size
-        override fun regUse(pc: Int): Pair<Int, Int> = when (bc[pc]) {
-            T_LOAD -> bc[pc + 1] to -1
-            T_STORE -> -1 to bc[pc + 1]
-            else -> -1 to -1
-        }
+        override fun regsRead(pc: Int): IntArray = if (bc[pc] == T_LOAD) intArrayOf(bc[pc + 1]) else IntArray(0)
+        override fun regWritten(pc: Int): Int = if (bc[pc] == T_STORE) bc[pc + 1] else -1
         override fun nameAt(pc: Int): String = NAMES[bc[pc]]
 
         override fun buildOp(at: At): Boolean = with(at) {
@@ -306,6 +303,7 @@ internal class ToyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWr
     override fun inlinedRecord(em: Emit, site: InlineSite, state: FrameState, inner: Int, value: (Value) -> Unit, array: (Array<Value>) -> Unit) =
         throw JitBailout("toy: no inlining")
     override fun stressExit(em: Emit) = throw JitBailout("toy: no exits")
+    override fun suspendCall(em: Emit, i: Inst, value: (Value) -> Unit) = throw JitBailout("toy: no suspensions")
     override fun siteLocals(site: InlineSite): List<Value> = emptyList()
     override fun newEmitter(m: MethodVisitor, first: Int): Emit = object : JvmEmitter(m) {
         var top = first

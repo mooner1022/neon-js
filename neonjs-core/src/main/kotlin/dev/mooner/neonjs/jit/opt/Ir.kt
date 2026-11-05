@@ -76,6 +76,12 @@ class Block(@JvmField var id: Int, @JvmField val pc: Int, @JvmField val site: In
      */
     @JvmField var handler: Block? = null
     @JvmField var catchEntry = false
+    /**
+     * Where a suspended activation (a generator's, an async function's) resumes, at its [pc]: entered only by the code's
+     * entry dispatch, its registers and operand stack read from the frame (Ir.RESUME_SLOT); its one predecessor ends
+     * with the SUSPEND that leaves the code.
+     */
+    @JvmField var resumeEntry = false
 
     val term: Inst get() = insts.last()
 
@@ -242,6 +248,16 @@ object Ir {
     const val SWITCH = 1105
 
     /** The core's operations are from 1000 to 1999. */
+    /**
+     * (value?) leaves the code, its activation suspended (a generator's yield, an async function's await): the
+     * interpreter's state at the pc it resumes at ([Inst.state]) and the value it hands over are written to the frame
+     * (the language's suspension, [Inst.a] its kind), and the code returns the interpreter's SUSPENDED. Its target is
+     * the block where the activation resumes ([Block.resumeEntry]), which the code's entry dispatch enters.
+     */
+    const val SUSPEND = 1106
+    /** (no inputs) slot [Inst.a] of the frame (a register, or the operand stack past them), where it resumes. */
+    const val RESUME_SLOT = 1026
+
     fun isCore(op: Int) = op in 1000..1999
 
     fun isTerminator(op: Int) = op in GOTO..1999
@@ -262,6 +278,8 @@ object Ir {
         THROW -> "Throw"
         THROW_ERROR -> "ThrowError"
         SWITCH -> "Switch"
+        SUSPEND -> "Suspend"
+        RESUME_SLOT -> "ResumeSlot"
         else -> "op$op"
     }
 }

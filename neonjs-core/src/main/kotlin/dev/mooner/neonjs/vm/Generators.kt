@@ -87,6 +87,9 @@ object Generators {
     fun start(frame: Frame): Any? {
         val code = frame.code
         val realm = frame.realm
+        // the JIT's policy as for any call: its code, compiled when due, is what the frame starts and resumes in
+        // (Interpreter.execute)
+        if (code.compiled == null) dev.mooner.neonjs.jit.Jit.prepare(code, realm.agent)
         if (code.isAsync && !code.isGenerator) return asyncFunctionStart(frame)
         // run parameter initialization up to GENERATOR_INIT
         val r = Interpreter.execute(frame)

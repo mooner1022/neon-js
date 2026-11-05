@@ -464,9 +464,11 @@ internal interface JsEmit : Emit {
             Op.STATIC_PRIVATE_METHOD -> { iconst(a); rt("staticPrivateMethod", "($OBJ$OBJ${OBJ}I)V") }
             Op.RUN_FIELD -> { frame(); iconst(pc); rt("runField", "($OBJ$OBJ$OBJ${FRAME_D}I)V") }
             Op.GET_ITERATOR -> { frame(); rt("getIterator", "($OBJ$FRAME_D)$OBJ") }
+            Op.GET_ASYNC_ITERATOR -> { frame(); rt("getAsyncIterator", "($OBJ$FRAME_D)$OBJ") }
             Op.FOR_IN_START -> { frame(); rt("forInStart", "($OBJ$FRAME_D)$OBJ") }
             Op.DEBUGGER -> { frame(); rt("debugger", "($FRAME_D)V") }
             Op.DISPOSE_NEW -> rt("disposeNew", "()$OBJ")
+            Op.RESUME_MODE -> { frame(); rt("resumeMode", "($FRAME_D)$OBJ") }
             Op.ADD_DISPOSABLE -> { iconst(a); frame(); rt("addDisposable", "($OBJ${OBJ}I$FRAME_D)V") }
             Op.DISPOSE_SYNC -> { frame(); rt("disposeSync", "($OBJ$OBJ$OBJ$FRAME_D)V") }
             Op.TEMPLATE_OBJECT -> { frame(); consts(); iconst(a); rt("templateObject", "($FRAME_D${CONSTS_D}I)$OBJ") }

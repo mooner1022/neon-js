@@ -23,13 +23,20 @@ interface JitBackend {
  */
 class ClassBackend(val definer: CodeDefiner, val tierUp: Boolean = false) : JitBackend {
     override fun compile(blocks: List<CodeBlock>): List<CompiledCode?> {
-        if (!dev.mooner.neonjs.jit.opt.T2.IR_BASELINE) return JvmCompiler.compileAll(blocks, definer, tierUp)
+        if (!dev.mooner.neonjs.jit.opt.T2.IR_BASELINE) {
+            val out = JvmCompiler.compileAll(blocks, definer, tierUp)
+            // generators and async functions, which the baseline compiler leaves: the optimizing tier's baselines
+            val rest = blocks.indices.filter { out[it] == null && dev.mooner.neonjs.jit.opt.T2.suspendable(blocks[it]) }
+            if (rest.isEmpty() || !CodeDefiners.isUsable(definer)) return out
+            val ir = dev.mooner.neonjs.jit.opt.T2.compileBaselines(rest.map { blocks[it] }, definer)
+            return out.toMutableList().also { for ((j, i) in rest.withIndex()) it[i] = ir[j] }
+        }
         // (testing) the optimizing tier's baselines, the baseline compiler's where it has none
         val usable = CodeDefiners.isUsable(definer)
-        val ir = if (usable) dev.mooner.neonjs.jit.opt.T2.compileBaselines(blocks.map { it }.filter { JvmCompiler.canCompile(it) }, definer) else emptyList()
+        val ir = if (usable) dev.mooner.neonjs.jit.opt.T2.compileBaselines(blocks.filter { Jit.canCompile(it) }, definer) else emptyList()
         val out = arrayOfNulls<CompiledCode>(blocks.size)
         var k = 0
-        for ((i, cb) in blocks.withIndex()) if (usable && JvmCompiler.canCompile(cb)) out[i] = ir[k++]
+        for ((i, cb) in blocks.withIndex()) if (usable && Jit.canCompile(cb)) out[i] = ir[k++]
         val rest = blocks.indices.filter { out[it] == null }
         if (rest.isNotEmpty()) {
             val t1 = JvmCompiler.compileAll(rest.map { blocks[it] }, definer, tierUp)
