@@ -16,6 +16,7 @@ import dev.mooner.neonjs.jit.opt.OpInfo.Companion.OBJECT_OPERANDS
 import dev.mooner.neonjs.jit.opt.OpInfo.Companion.REMOVABLE
 import dev.mooner.neonjs.jit.opt.OpInfo.Companion.RUNS_CODE
 import dev.mooner.neonjs.jit.opt.OpInfo.Companion.THROWS
+import dev.mooner.neonjs.jit.opt.OpInfo.Companion.UNBOXES
 import dev.mooner.neonjs.jit.opt.OpInfo.Companion.WRITES_ENV
 import dev.mooner.neonjs.jit.opt.OpInfo.Companion.WRITES_HEAP
 import dev.mooner.neonjs.jit.opt.OpInfo.Companion.WRITES_SLOT
@@ -80,7 +81,8 @@ internal object JsOps : OpTable {
         def(Ir.LOAD_HOME, LICM_BARRIER)
         def(Ir.SET_HOME, 0)
         def(Ir.STRESS_EXIT, 0)
-        for (op in intArrayOf(Ir.CHECK_NUMBER, Ir.CHECK_INT32, Ir.CLOSURE_ENV)) def(op, REMOVABLE, HOIST_ALWAYS)
+        for (op in intArrayOf(Ir.CHECK_NUMBER, Ir.CHECK_INT32)) def(op, REMOVABLE or UNBOXES, HOIST_ALWAYS)
+        def(Ir.CLOSURE_ENV, REMOVABLE, HOIST_ALWAYS)
         for (op in intArrayOf(Ir.CHECK_CLOSURE, Ir.IS_CLOSURE, Ir.CHECK_INTRINSIC)) def(op, 0, HOIST_ALWAYS)
         // (`this` bound without allocating, a == 1, moves with its call's guard)
         def(Ir.INLINE_THIS, object : OpInfo(Ir.name(Ir.INLINE_THIS), 0) {

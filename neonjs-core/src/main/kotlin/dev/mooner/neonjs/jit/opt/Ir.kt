@@ -14,6 +14,8 @@ class Graph internal constructor(
     /** What the passes know of the graph's operations, and the kinds of its values. */
     @JvmField internal val ops: OpTable,
     @JvmField internal val kindSystem: KindSystem,
+    /** What the interpreter holds in a register it writes before reading it (a dead one), as exits pass it. */
+    @JvmField internal val deadValue: Any?,
 ) {
     /** Blocks in reverse post order; the first is the entry. */
     @JvmField val blocks = ArrayList<Block>()

@@ -43,6 +43,11 @@ open class OpInfo(@JvmField val name: String, @JvmField val flags: Int, @JvmFiel
         const val WRITES_SLOT = 64
         /** It writes a variable of an environment. */
         const val WRITES_ENV = 128
+        /**
+         * A check whose result is its input as an unboxed kind (a number check): worth it only where something takes the
+         * value unboxed (GraphBuilder drops it where every use takes Objects).
+         */
+        const val UNBOXES = 1024
         /** It makes an object. */
         const val ALLOCATES = 256
         /**
