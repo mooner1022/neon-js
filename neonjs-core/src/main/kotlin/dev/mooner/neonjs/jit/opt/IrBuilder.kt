@@ -592,7 +592,7 @@ internal class IrBuilder(
                 add(start, Inst(Ir.INLINE_THIS, arrayOf(fn, ops[1]), bound, 0, 0, pc, stmt).also { it.hasResult = true })
             } else dead()
             val args = Array(argc) { ops[n - argc + it] }
-            val calleeSite = InlineSite(site, target, pc, callerState, fn, thisValue, args, env, construct)
+            val calleeSite = InlineSite(site, target, pc, callerState, jsFrame(fn, thisValue, args, env), if (construct) SITE_CONSTRUCT else 0)
             enter.callee = calleeSite
             g.dataIndex(target.constants)
             val body = JsBody(target, calleeSite, cur.handler)

@@ -622,10 +622,7 @@ internal abstract class GraphBuilder(
             var site = s0
             while (site != null && sites.add(site)) {
                 resolveState(site.callerState)
-                for (k in site.args.indices) site.args[k] = resolve(site.args[k])
-                site.fn = resolve(site.fn)
-                site.thisValue = resolve(site.thisValue)
-                site.env = resolve(site.env)
+                site.mapFrame { resolve(it) }
                 site = site.parent
             }
         }

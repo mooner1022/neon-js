@@ -111,8 +111,7 @@ internal object Unswitch {
             if (s == null || s in shared) return s
             smap[s]?.let { return it }
             val cs = s.callerState
-            val n = InlineSite(site(s.parent), s.code, s.callPc, FrameState(cs.pc, cs.values.copyOf(), site(cs.site)), s.fn, s.thisValue,
-                s.args.copyOf(), s.env, s.construct)
+            val n = InlineSite(site(s.parent), s.code, s.callPc, FrameState(cs.pc, cs.values.copyOf(), site(cs.site)), s.frame.copyOf(), s.flags)
             n.quiet = s.quiet
             smap[s] = n
             return n
@@ -167,10 +166,7 @@ internal object Unswitch {
         for ((s, n) in smap) {
             val vs = n.callerState.values
             for (k in vs.indices) vs[k] = v(vs[k])
-            n.fn = v(s.fn)
-            n.thisValue = v(s.thisValue)
-            for (k in n.args.indices) n.args[k] = v(n.args[k])
-            n.env = v(s.env)
+            n.mapFrame { v(it) }
         }
 
         // the test, once, before both: the loop on the inlined side, the copy on the call's
@@ -231,10 +227,7 @@ internal object Unswitch {
         }
         for (s in shared) {
             repair(s.callerState)
-            s.fn = after(s.fn)
-            s.thisValue = after(s.thisValue)
-            for (k in s.args.indices) s.args[k] = after(s.args[k])
-            s.env = after(s.env)
+            s.mapFrame { after(it) }
         }
         return true
     }

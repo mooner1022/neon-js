@@ -57,10 +57,7 @@ internal object ScalarReplacement {
             while (s != null && sites.add(s)) {
                 val st = s.callerState
                 for (k in st.values.indices) st.values[k] = r(st.values[k])
-                for (k in s.args.indices) s.args[k] = r(s.args[k])
-                s.fn = r(s.fn)
-                s.thisValue = r(s.thisValue)
-                s.env = r(s.env)
+                s.mapFrame { r(it) }
                 s = s.parent
             }
         }

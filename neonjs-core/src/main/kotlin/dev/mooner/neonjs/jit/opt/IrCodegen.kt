@@ -160,21 +160,14 @@ internal abstract class IrCodegen(
                 m.visitInsn(AASTORE)
             }
         }
-        // the calls compiled inlined, innermost first (Deopt.Inlined, each inside the next), then the frame's state
+        // the calls compiled inlined, innermost first (the language's records, each inside the next), then the frame's state
         val inner = em.temp()
         m.visitInsn(ACONST_NULL)
         m.visitVarInsn(ASTORE, inner)
         var s = e.state
         while (true) {
             val site = s.site ?: break
-            value(site.fn)
-            value(site.thisValue)
-            array(site.args)
-            value(site.env)
-            em.iconst(s.pc)
-            array(s.values)
-            m.visitVarInsn(ALOAD, inner)
-            em.rt("inlined", "($OBJ$OBJ$CONSTS_D${OBJ}I$CONSTS_D$OBJ)$OBJ")
+            inlinedRecord(em, site, s, inner, ::value, ::array)
             m.visitVarInsn(ASTORE, inner)
             s = site.callerState
         }
@@ -186,7 +179,7 @@ internal abstract class IrCodegen(
         if (e.counted) {
             em.iconst(e.spec)
             m.visitMethodInsn(INVOKESTATIC, SUPER, "exit", "(L$SUPER;${FRAME_D}I$CONSTS_D${OBJ}I)$OBJ", false)
-        } else em.rt("deoptChain", "(${FRAME_D}I$CONSTS_D$OBJ)$OBJ")
+        } else stressExit(em)
         m.visitInsn(ARETURN)
         m.visitMaxs(0, 0)
         m.visitEnd()
@@ -203,7 +196,7 @@ internal abstract class IrCodegen(
                 i.state?.let { s -> used.addAll(s.values); s.site?.let { used.addAll(it.values()) } } // an exit reads them
             }
             // an inlined body reads its environment from its local
-            b.site?.let { used.add(it.env) }
+            b.site?.let { used.addAll(siteLocals(it)) }
         }
         for (b in g.blocks) {
             for (p in b.phis) local[p] = slotFor(p.kind)
@@ -534,6 +527,19 @@ internal abstract class IrCodegen(
 
     /** In an exit method: allocates virtual [v] (ScalarReplacement) from the array of its inputs' values on the stack. */
     protected abstract fun allocateVirtual(em: Emit, v: Inst)
+
+    /**
+     * In an exit method: the record of call [site] compiled inlined, at [state] in its body, the record of the call
+     * inlined in it in local [inner] (or null), left on the JVM stack: what the language's resumer ([T2Code.resumer])
+     * takes. [value] pushes one value as the interpreter holds it, [array] several in an Object[].
+     */
+    protected abstract fun inlinedRecord(em: Emit, site: InlineSite, state: FrameState, inner: Int, value: (Value) -> Unit, array: (Array<Value>) -> Unit)
+
+    /** In an exit method of the deopt stress mode: leaves for the interpreter, given the frame, pc, values and record. */
+    protected abstract fun stressExit(em: Emit)
+
+    /** The values the code of an inlined call's body reads from locals besides its instructions' (its environment). */
+    protected abstract fun siteLocals(site: InlineSite): List<Value>
 
     /** An emitter of the language's code for exit method [m], its locals from [first] on. */
     protected abstract fun newEmitter(m: MethodVisitor, first: Int): Emit

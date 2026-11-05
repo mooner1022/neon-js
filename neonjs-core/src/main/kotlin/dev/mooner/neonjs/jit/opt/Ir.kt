@@ -162,22 +162,19 @@ class Inst(
 class FrameState(@JvmField val pc: Int, @JvmField val values: Array<Value>, @JvmField val site: InlineSite? = null)
 
 /**
- * A call compiled inlined: the callee's [code], the CALL at [callPc] in its caller (the body of [parent], or the
+ * A call compiled inlined: the callee's [code], the call at [callPc] in its caller (the body of [parent], or the
  * function compiled), the caller's state at that call ([callerState]: its registers and the stack below the call's
- * operands), and what a frame of the callee holds: the closure [fn], `this` as the call binds it ([thisValue]; undefined
- * where the callee does not read it), the arguments, the environment.
+ * operands), and what a frame of the callee holds as its language lays it out ([frame]: JavaScript's closure, `this`
+ * as the call binds it, the arguments, the environment), which an exit inside the body passes to the interpreter, in
+ * that order. [flags] are the language's facts about the call (JavaScript's: a construction).
  */
 class InlineSite(
     @JvmField val parent: InlineSite?,
     @JvmField val code: CodeBlock,
     @JvmField val callPc: Int,
     @JvmField val callerState: FrameState,
-    @JvmField var fn: Value,
-    @JvmField var thisValue: Value,
-    @JvmField val args: Array<Value>,
-    @JvmField var env: Value,
-    /** A construction (`new`): [thisValue] is the object made for it (Ir.NEW_THIS), its result that unless the body returns an object. */
-    @JvmField val construct: Boolean = false,
+    @JvmField val frame: Array<Value>,
+    @JvmField val flags: Int = 0,
 ) {
     /** 1 for a call in the function compiled, 2 for a call in that callee's body, and so on. */
     @JvmField val depth: Int = (parent?.depth ?: 0) + 1
@@ -190,13 +187,15 @@ class InlineSite(
         var s: InlineSite? = this
         while (s != null) {
             out.addAll(s.callerState.values)
-            out.add(s.fn)
-            out.add(s.thisValue)
-            out.addAll(s.args)
-            out.add(s.env)
+            out.addAll(s.frame)
             s = s.parent
         }
         return out
+    }
+
+    /** Puts [f]'s value in place of each value of the frame (a pass replacing values). */
+    fun mapFrame(f: (Value) -> Value) {
+        for (k in frame.indices) frame[k] = f(frame[k])
     }
 }
 

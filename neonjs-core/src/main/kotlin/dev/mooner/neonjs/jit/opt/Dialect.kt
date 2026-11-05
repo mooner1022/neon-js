@@ -14,6 +14,9 @@ internal interface Dialect {
     /** The graph of [cb] for the optimizing tier, or a JitBailout where it has none. */
     fun build(cb: CodeBlock, stressExits: Boolean, unswitch: Boolean): Graph
 
+    /** How its code's exits continue in its interpreter. */
+    val resumer: Resumer
+
     /** The generator of the `run` method of [g]'s class [className], written to [mv] (exit methods to [cw]). */
     fun codegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, className: String): IrCodegen
 }
@@ -26,6 +29,8 @@ internal object Dialects {
 
 /** JavaScript, with the baseline's int32 and element settings (JvmCompiler.INT32, JvmCompiler.ELEMS). */
 internal object JsDialect : Dialect {
+    override val resumer: Resumer get() = Resumer.JS
+
     override fun build(cb: CodeBlock, stressExits: Boolean, unswitch: Boolean): Graph =
         IrBuilder(cb, JvmCompiler.INT32, JvmCompiler.ELEMS, stressExits = stressExits, unswitch = unswitch).build()
 

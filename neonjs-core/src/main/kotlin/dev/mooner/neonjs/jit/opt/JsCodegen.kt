@@ -1268,6 +1268,22 @@ internal class JsCodegen(
         em.rt("newObjectLiteral", "([$OBJ$OBJ$FRAME_D)$OBJ")
     }
 
+    override fun inlinedRecord(em: Emit, site: InlineSite, state: FrameState, inner: Int, value: (Value) -> Unit, array: (Array<Value>) -> Unit) {
+        // Deopt.Inlined: the closure, `this`, the arguments, the environment, then where the body is
+        value(site.fn)
+        value(site.thisValue)
+        array(site.args)
+        value(site.env)
+        em.iconst(state.pc)
+        array(state.values)
+        em.mv.visitVarInsn(ALOAD, inner)
+        em.rt("inlined", "($OBJ$OBJ$CONSTS_D${OBJ}I$CONSTS_D$OBJ)$OBJ")
+    }
+
+    override fun stressExit(em: Emit) = em.rt("deoptChain", "(${FRAME_D}I$CONSTS_D$OBJ)$OBJ")
+
+    override fun siteLocals(site: InlineSite): List<Value> = listOf(site.env)
+
     override fun newEmitter(m: MethodVisitor, first: Int): Emit = object : JvmEmitter(m), JsEmit {
         var top = first
         override fun alloc(n: Int): Int = top.also { top += n }
