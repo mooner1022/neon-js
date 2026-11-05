@@ -40,7 +40,7 @@ internal class IrBuilder(
     /** Whether loops with a call of a parameter are copied on the closure it is (Unswitch). */
     private val unswitch: Boolean = true,
 ) {
-    private val g = Graph(cb)
+    private val g = Graph(cb, JsOps, JsKinds.of(ints, elems))
     /** Every block made, in the order made; the graph keeps those reachable, in reverse post order. */
     private val made = ArrayList<Block>()
     /** Bytecode ints of the bodies inlined so far (a budget). */
@@ -80,7 +80,7 @@ internal class IrBuilder(
         }
         if (speculate) ScalarReplacement.run(g)
         dropBoxedChecks()
-        val kinds = Kinds(ints, elems)
+        val kinds = Kinds(g.kindSystem)
         kinds.infer(g)
         if (demandInts()) kinds.infer(g)
         if (preferDoubles()) kinds.infer(g)

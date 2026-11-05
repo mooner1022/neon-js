@@ -46,6 +46,8 @@ internal class IrCodegen(
     private val label = HashMap<Block, Label>()
     private val index = HashMap<Block, Int>()
     private val intKind = if (ints) JT.INT else JT.NUM
+    /** The language's kinds: how each value is held. */
+    private val ks = kinds.system
     /** The statement position stored in Frame.pc since the current block started (-2: none). */
     private var storedPc = -2
     /** The inlined call whose body the block being generated belongs to (null: the function compiled). */
@@ -85,7 +87,7 @@ internal class IrCodegen(
         for (b in g.blocks) b.handler?.let { h -> mv.visitTryCatchBlock(label[b], endLabel[b], label[h], "java/lang/Throwable") }
         for (b in g.blocks) for (i in b.insts) if (i.op == Ir.SET_HOME) {
             val k = kindOf(i.inputs[0])
-            homeKind[i.a] = homeKind[i.a]?.let { JT.join(it, k) } ?: k
+            homeKind[i.a] = homeKind[i.a]?.let { ks.join(it, k) } ?: k
         }
         allocate()
         prologue()
@@ -125,11 +127,7 @@ internal class IrCodegen(
         return out.toList()
     }
 
-    private fun typeOf(kind: Byte) = when (kind) {
-        JT.NUM -> "D"
-        JT.INT, JT.BOOL -> "I"
-        else -> OBJ
-    }
+    private fun typeOf(kind: Byte) = ks.rep(kind).desc
 
     private fun exitMethod(n: Int, e: Exit, params: List<Value>, desc: String) {
         val m = cw.visitMethod(ACC_PRIVATE or ACC_FINAL, "exit$n", desc, null, null)
@@ -138,7 +136,7 @@ internal class IrCodegen(
         var next = 2 // this, the frame
         for (v in params) {
             slot[v] = next
-            next += if (v.kind == JT.NUM) 2 else 1
+            next += ks.rep(v.kind).slots
         }
         val firstFree = next
         val em = object : JvmEmitter(m) {
@@ -169,8 +167,8 @@ internal class IrCodegen(
                 m.visitVarInsn(ASTORE, l)
                 made[v] = l
             } else {
-                m.visitVarInsn(when (v.kind) { JT.NUM -> DLOAD; JT.INT, JT.BOOL -> ILOAD; else -> ALOAD }, slot[v]!!)
-                em.box(v.kind)
+                m.visitVarInsn(ks.rep(v.kind).load, slot[v]!!)
+                ks.convert(em, v.kind, ks.any)
             }
         }
         fun array(values: Array<Value>) {
@@ -270,7 +268,7 @@ internal class IrCodegen(
         }
     }
 
-    private fun slotFor(kind: Byte): Int = if (kind == JT.NUM) tempD() else temp()
+    private fun slotFor(kind: Byte): Int = alloc(ks.rep(kind).slots)
 
     private fun kindOf(v: Value): Byte = kinds.of(v)
 
@@ -279,8 +277,8 @@ internal class IrCodegen(
         if (v is Const) return pushConst(v, want)
         val l = local[v] ?: throw JitBailout("v${v.id} has no local (${v.javaClass.simpleName} ${(v as? Inst)?.let { Ir.name(it.op) + " result " + it.hasResult } ?: ""})")
         val k = v.kind
-        mv.visitVarInsn(when (k) { JT.NUM -> DLOAD; JT.INT, JT.BOOL -> ILOAD; else -> ALOAD }, l)
-        convert(k, want)
+        mv.visitVarInsn(ks.rep(k).load, l)
+        ks.convert(this, k, want)
     }
 
     private fun pushConst(c: Const, want: Byte) {
@@ -325,12 +323,12 @@ internal class IrCodegen(
     private fun done(i: Inst, k: Byte) {
         if (k != i.kind) throw JitBailout("${Ir.name(i.op)} gives kind $k, not ${i.kind}")
         val l = local[i]
-        if (l == null) mv.visitInsn(if (k == JT.NUM) POP2 else POP)
-        else mv.visitVarInsn(when (k) { JT.NUM -> DSTORE; JT.INT, JT.BOOL -> ISTORE; else -> ASTORE }, l)
+        if (l == null) ks.rep(k).pop(mv)
+        else mv.visitVarInsn(ks.rep(k).store, l)
     }
 
     private fun store(v: Value) {
-        mv.visitVarInsn(when (v.kind) { JT.NUM -> DSTORE; JT.INT, JT.BOOL -> ISTORE; else -> ASTORE }, local[v]!!)
+        mv.visitVarInsn(ks.rep(v.kind).store, local[v]!!)
     }
 
     // ------------------------------------------------------------------ entries
@@ -350,11 +348,8 @@ internal class IrCodegen(
         for ((r, k) in homeKind) {
             val l = slotFor(k)
             homeLocal[r] = l
-            when (k) {
-                JT.NUM -> { mv.visitInsn(DCONST_0); mv.visitVarInsn(DSTORE, l) }
-                JT.INT, JT.BOOL -> { mv.visitInsn(ICONST_0); mv.visitVarInsn(ISTORE, l) }
-                else -> { pushUndefined(); mv.visitVarInsn(ASTORE, l) }
-            }
+            ks.initial(this, k)
+            mv.visitVarInsn(ks.rep(k).store, l)
         }
         constsLocal[g.code] = L_CONSTS
         val codes = LinkedHashSet<dev.mooner.neonjs.compiler.CodeBlock>()
@@ -455,8 +450,7 @@ internal class IrCodegen(
                 val regs = b.entryRegs!!
                 val kinds = CharArray(regs.size) { r ->
                     val v = regs[r]
-                    if (v is Const || local[v] == null || v !in live[b]!!) '.'
-                    else when (v.kind) { JT.NUM -> 'N'; JT.INT -> 'I'; JT.BOOL -> 'B'; else -> '.' }
+                    if (v is Const || local[v] == null || v !in live[b]!!) '.' else ks.osrCode(v.kind)
                 }
                 if (kinds.any { it != '.' }) {
                     mv.visitVarInsn(ALOAD, slots)
@@ -468,12 +462,7 @@ internal class IrCodegen(
                     if (v is Const || local[v] == null) continue
                     mv.visitVarInsn(ALOAD, slots)
                     iconst(r)
-                    when (v.kind) {
-                        JT.NUM -> rt("slotNum", "(${CONSTS_D}I)D")
-                        JT.INT -> rt("slotInt", "(${CONSTS_D}I)I")
-                        JT.BOOL -> rt("slotBool", "(${CONSTS_D}I)Z")
-                        else -> mv.visitInsn(AALOAD)
-                    }
+                    ks.osrRead(this, v.kind)
                     store(v)
                 }
             }
@@ -1169,7 +1158,7 @@ internal class IrCodegen(
                 if (i.kind == JT.INT && Ir.intArith(op)) return intUnary(i)
                 val t = kindOf(i.inputs[0])
                 if (JT.isNum(t)) {
-                    val result = kinds.unaryResult(op, t)
+                    val result = (kinds.system as JsKinds).unaryResult(op, t)
                     when (op) {
                         Op.NEG -> { load(i.inputs[0], JT.NUM); mv.visitInsn(DNEG) } // -0 for 0
                         Op.BNOT -> if (result == JT.INT) {
@@ -1780,7 +1769,7 @@ internal class IrCodegen(
             // run is made in a tree first, to number its locals by use (renumber)
             val mv = MethodNode(ASM9, ACC_PUBLIC or ACC_FINAL, "run", "($FRAME_D)$OBJ", null, null)
             mv.visitCode()
-            IrCodegen(g, mv, Kinds(ints, elems), ints, cw, name).emit()
+            IrCodegen(g, mv, Kinds(g.kindSystem), ints, cw, name).emit()
             mv.visitMaxs(0, 0)
             mv.visitEnd()
             renumber(mv, L_REGS)

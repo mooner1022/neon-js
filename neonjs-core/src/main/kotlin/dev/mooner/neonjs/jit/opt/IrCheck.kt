@@ -1,7 +1,6 @@
 package dev.mooner.neonjs.jit.opt
 
 import dev.mooner.neonjs.compiler.Op
-import dev.mooner.neonjs.jit.JT
 
 /** Text form of a graph, for tests and debugging. */
 object IrPrinter {
@@ -12,7 +11,7 @@ object IrPrinter {
             if (b.preds.isNotEmpty()) sb.append(" <- ").append(b.preds.joinToString(", "))
             if (b.loopHeader) sb.append(" loop")
             sb.append('\n')
-            for (p in b.phis) sb.append("  ").append(p).append(" = phi ").append(p.inputs.joinToString(", ")).append(kind(p)).append('\n')
+            for (p in b.phis) sb.append("  ").append(p).append(" = phi ").append(p.inputs.joinToString(", ")).append(g.kindSystem.name(p.kind)).append('\n')
             for (i in b.insts) {
                 sb.append("  ")
                 if (i.hasResult) sb.append(i).append(" = ")
@@ -25,7 +24,7 @@ object IrPrinter {
                 if (i.inputs.isNotEmpty()) sb.append(' ').append(i.inputs.joinToString(", "))
                 i.state?.let { s -> sb.append(" [pc ").append(s.pc).append(": ").append(s.values.joinToString(", ")).append(']') }
                 if (i.targets.isNotEmpty()) sb.append(" -> ").append(i.targets.joinToString(", "))
-                if (i.hasResult) sb.append(kind(i))
+                if (i.hasResult) sb.append(g.kindSystem.name(i.kind))
                 if (i.virtual) sb.append(" virtual")
                 if (i.wraps) sb.append(" wraps")
                 if (i.known != 0) sb.append(" known=").append(i.known)
@@ -34,13 +33,6 @@ object IrPrinter {
             }
         }
         return sb.toString()
-    }
-
-    private fun kind(v: Value): String = when (v.kind) {
-        JT.NUM -> " :num"
-        JT.INT -> " :int"
-        JT.BOOL -> " :bool"
-        else -> ""
     }
 }
 

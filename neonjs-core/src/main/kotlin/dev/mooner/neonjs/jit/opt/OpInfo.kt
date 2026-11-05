@@ -1,7 +1,5 @@
 package dev.mooner.neonjs.jit.opt
 
-import dev.mooner.neonjs.jit.JT
-
 /**
  * What the optimizing tier's passes know of an operation (docs/IR_NEUTRALITY.md, "OpInfo"): its effects as flags, and
  * how loop-invariant code motion may move it. A language's operations come from its [OpTable]; the passes ask these
@@ -78,7 +76,7 @@ internal interface OpTable {
     fun info(op: Int): OpInfo
 
     /** Whether every input of [i] is a number. */
-    fun numeric(i: Inst, kinds: Kinds): Boolean = i.inputs.all { JT.isNum(kinds.of(it)) }
+    fun numeric(i: Inst, kinds: Kinds): Boolean = i.inputs.all { kinds.system.isNumeric(kinds.of(it)) }
 
     private fun flags(i: Inst, kinds: Kinds): Int {
         val info = info(i.op)

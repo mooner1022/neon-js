@@ -72,12 +72,30 @@ object ClassDiff {
                 else -> {
                     val onlyA = a.filter { x -> b.none { it.digest == x.digest } }
                     val onlyB = b.filter { x -> a.none { it.digest == x.digest } }
+                    // the closest pair shows what changed (entries of one name are in no particular order)
+                    val pair = onlyA.take(50).flatMap { x -> onlyB.take(50).map { y -> x to y } }
+                        .maxByOrNull { (x, y) -> sameLines(x.text, y.text) }
                     out.add("differs: $name (${a.size} before, ${b.size} after)" +
-                        (if (onlyA.isNotEmpty() && onlyB.isNotEmpty()) "\n" + firstDifference(onlyA[0].text, onlyB[0].text) else ""))
+                        (if (pair != null) "\n" + firstDifference(pair.first.text, pair.second.text) else ""))
                 }
             }
         }
         return out
+    }
+
+    /** How many lines [a] and [b] have in common, as multisets. */
+    private fun sameLines(a: String, b: String): Int {
+        val counts = HashMap<String, Int>()
+        for (l in a.lines()) counts.merge(l, 1, Int::plus)
+        var n = 0
+        for (l in b.lines()) {
+            val c = counts[l] ?: 0
+            if (c > 0) {
+                counts[l] = c - 1
+                n++
+            }
+        }
+        return n
     }
 
     /** The first lines where [a] and [b] differ, with two lines of context. */

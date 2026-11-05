@@ -48,6 +48,10 @@ counter, which is removed first; T1's end with a hash of their input. The varian
   caches, so that the speculations and the passes using them (LICM, the facts after shape checks) have something to
   do. Turning LICM off changes classes in all three.
 
+The tests of agents waiting on one another (`built-ins/Atomics/wait`, `waitAsync`, `notify`) are left out of the
+dumps: their loops spin for as long as another thread takes, so how often a function is called there, and whether it
+gets compiled, depends on timing. Two dumps of the same build are equal without them.
+
 REF's dumps are kept in `build/check/dumps/<commit>-*`, so comparing against the same REF again only dumps the working
 tree. `ClassDiffKt BEFORE AFTER --show N` can compare any two dump directories.
 

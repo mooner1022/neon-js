@@ -65,7 +65,8 @@ quick() {
   stress_modes --sample "$SAMPLE" --timeout 60000 --exclude built-ins/RegExp/property-escapes/generated
 }
 
-# dumps DIR RUNNER VARIANT: the classes generated for the sample, compiled on the calling thread (deterministic)
+# dumps DIR RUNNER VARIANT: the classes generated for the sample, compiled on the calling thread (deterministic; the
+# tests of agents waiting on one another are left out: how often their loops call functions depends on timing)
 dumps() {
   local dir=$1 runner=$2 variant=$3 opts mode=compiled
   case $variant in
@@ -77,7 +78,8 @@ dumps() {
   rm -rf "$dir"
   mkdir -p "$dir"
   JAVA_OPTS="$opts -Dneonjs.jit.dump=$ROOT/$dir" "$runner" --root "$TEST262" --threads "$THREADS" --mode $mode \
-    --sync-jit --sample "$SAMPLE" --timeout 60000 --exclude built-ins/RegExp/property-escapes/generated > "$dir.log" 2>&1 || { tail -20 "$dir.log"; fail "dumping classes ($variant) with $runner"; }
+    --sync-jit --sample "$SAMPLE" --timeout 60000 --exclude built-ins/RegExp/property-escapes/generated \
+    --exclude built-ins/Atomics/wait --exclude built-ins/Atomics/waitAsync --exclude built-ins/Atomics/notify > "$dir.log" 2>&1 || { tail -20 "$dir.log"; fail "dumping classes ($variant) with $runner"; }
 }
 
 codegen() {

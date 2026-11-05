@@ -9,7 +9,12 @@ import dev.mooner.neonjs.jit.JT
  * whose instructions are in SSA form. A [Value] is defined once: a constant, a parameter, a phi at the start of a
  * block, or an instruction's result.
  */
-class Graph internal constructor(@JvmField val code: CodeBlock, /** What the passes know of the graph's operations. */ @JvmField internal val ops: OpTable = JsOps) {
+class Graph internal constructor(
+    @JvmField val code: CodeBlock,
+    /** What the passes know of the graph's operations, and the kinds of its values. */
+    @JvmField internal val ops: OpTable,
+    @JvmField internal val kindSystem: KindSystem,
+) {
     /** Blocks in reverse post order; the first is the entry. */
     @JvmField val blocks = ArrayList<Block>()
     /** The loop headers the generated code can be entered at (IrCodegen's on-stack replacement entries), sorted. */
@@ -79,7 +84,7 @@ class Block(@JvmField var id: Int, @JvmField val pc: Int, @JvmField val site: In
 /** An SSA value; [kind] (a [JT] kind) is how generated code holds it: a `double`, an `int`, a boolean `int` or an Object. */
 abstract class Value {
     @JvmField var id = -1
-    @JvmField var kind: Byte = JT.ANY
+    @JvmField var kind: Byte = ANY_KIND
 }
 
 /**
