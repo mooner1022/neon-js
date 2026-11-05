@@ -52,8 +52,18 @@ object T2 {
     /** Baselines this tier compiled ([compileBaselines]), and those it could not, by reason. */
     @JvmField val baselines = AtomicLong()
     @JvmField val baselinesFailed = AtomicLong()
-    /** Baselines whose class another block's code had defined already. */
+    /**
+     * Baselines whose class another block's code had defined already, those found by their graph's identity (not
+     * generated again), and those whose class a graph of the same identity did not have (`-Dneonjs.jit.baselineCheck`).
+     */
     @JvmField val baselinesShared = AtomicLong()
+    @JvmField val baselinesByGraph = AtomicLong()
+    @JvmField val baselineMismatches = AtomicLong()
+    /** Time spent building graphs, generating classes (a build included after a retry), naming baselines, defining them. */
+    @JvmField val buildNanos = AtomicLong()
+    @JvmField val codegenNanos = AtomicLong()
+    @JvmField val nameNanos = AtomicLong()
+    @JvmField val defineNanos = AtomicLong()
     @JvmField val baselineReasons = ConcurrentHashMap<String, AtomicLong>()
 
     /**
@@ -80,6 +90,9 @@ object T2 {
             System.err.println("T2 compiled=$compiledCount not compiled=$failedCount reverted=$reverted calls inlined=$inlinedCalls" +
                 " exits=${dev.mooner.neonjs.jit.Deopt.count} inlined exits=${dev.mooner.neonjs.jit.Deopt.inlinedCount}" +
                 " tier-ups=${dev.mooner.neonjs.jit.Deopt.tierUps} reasons=$failureReasons")
+            System.err.println("T2 baselines=$baselines shared=$baselinesShared by graph=$baselinesByGraph mismatches=$baselineMismatches" +
+                " not compiled=$baselinesFailed ms: build=${buildNanos.get() / 1000000}" +
+                " codegen=${codegenNanos.get() / 1000000} name=${nameNanos.get() / 1000000} define=${defineNanos.get() / 1000000}")
         })
     }
 
@@ -109,13 +122,34 @@ object T2 {
         val out = arrayOfNulls<CompiledCode>(blocks.size)
         val made = ArrayList<Int>()
         val graphs = ArrayList<Graph>()
+        val ids = ArrayList<String>()
         val classes = ArrayList<dev.mooner.neonjs.jit.GeneratedClass>()
+        val byGraph = baselineGraphs(definer)
         for ((i, cb) in blocks.withIndex()) {
             (cb.baseline as CompiledCode?)?.let { out[i] = it; continue }
             try {
-                val (g, c) = generate(cb, definer, baseline = true)
+                val g = timedBuild(cb, unswitch = true, baseline = true)
+                // a graph of the same identity as one compiled before: its class (GraphIdentity), not generated again
+                val id = GraphIdentity.of(g, definer.classFileVersion)
+                val known = byGraph[id]
+                val cls = known?.cls?.get()
+                if (cls != null && !BASELINE_CHECK) {
+                    g.osrPcs = known.osrPcs
+                    out[i] = instantiate(cls, g, cb, definer)
+                    baselines.incrementAndGet()
+                    baselinesShared.incrementAndGet()
+                    baselinesByGraph.incrementAndGet()
+                    continue
+                }
+                val c = generateClass(g, cb, definer, BASELINE_NAME, baseline = true) { g }
+                // (a hidden class's name ends with /its address)
+                if (cls != null && cls.name.substringBefore('/') != c.name) {
+                    baselineMismatches.incrementAndGet()
+                    System.err.println("T2 baseline identity $id: ${cls.name} before, ${c.name} now (${cb.name})")
+                }
                 made.add(i)
                 graphs.add(g)
+                ids.add(id)
                 classes.add(c)
             } catch (e: Throwable) {
                 baselineFailed(e)
@@ -130,7 +164,8 @@ object T2 {
         val news = fresh.values.toList()
         // one batch; class by class where the definer rejects it, so that one bad class fails alone
         val defined: List<Class<*>?> = if (news.isEmpty()) emptyList() else try {
-            definer.defineAll(news, loader)
+            val t = System.nanoTime()
+            definer.defineAll(news, loader).also { defineNanos.addAndGet(System.nanoTime() - t) }
         } catch (e: Throwable) {
             news.map { c -> try { definer.define(c.name, c.bytes, loader) } catch (e2: Throwable) { null } }
         }
@@ -145,6 +180,7 @@ object T2 {
                 continue
             }
             if (c.name !in fresh || !first.add(c.name)) baselinesShared.incrementAndGet()
+            byGraph[ids[k]] = BaselineClass(java.lang.ref.WeakReference(cls), graphs[k].osrPcs)
             try {
                 out[i] = instantiate(cls, graphs[k], blocks[i], definer)
                 baselines.incrementAndGet()
@@ -155,6 +191,19 @@ object T2 {
         return out.asList()
     }
 
+    /** A baseline's class and its code's entries at loop headers, by the identity of its graph. */
+    private class BaselineClass(@JvmField val cls: java.lang.ref.WeakReference<Class<*>>, @JvmField val osrPcs: IntArray)
+
+    private val baselineGraphs = java.util.WeakHashMap<CodeDefiner, ConcurrentHashMap<String, BaselineClass>>()
+
+    private fun baselineGraphs(definer: CodeDefiner) = synchronized(baselineGraphs) { baselineGraphs.getOrPut(definer) { ConcurrentHashMap() } }
+
+    /**
+     * Testing: `-Dneonjs.jit.baselineCheck` generates a baseline's class even where a graph of the same identity has one
+     * (GraphIdentity), and reports where the two differ ([baselineMismatches]): an identity that missed something.
+     */
+    private val BASELINE_CHECK = System.getProperty("neonjs.jit.baselineCheck") != null
+
     private fun baselineFailed(e: Throwable) {
         baselinesFailed.incrementAndGet()
         baselineReasons.computeIfAbsent(reason(e)) { AtomicLong() }.incrementAndGet()
@@ -163,7 +212,23 @@ object T2 {
     /** [cb]'s graph and class, within the JVM's size limits; a JitBailout (or another exception) where it has none. */
     private fun generate(cb: CodeBlock, definer: CodeDefiner, baseline: Boolean): Pair<Graph, dev.mooner.neonjs.jit.GeneratedClass> {
         val name = if (baseline) BASELINE_NAME else "dev/mooner/neonjs/jit/T2$" + JvmCompiler.sanitize(cb.name) + "$" + counter.incrementAndGet()
-        var g = build(cb, unswitch = true, baseline = baseline)
+        var g = timedBuild(cb, unswitch = true, baseline = baseline)
+        val c = generateClass(g, cb, definer, name, baseline) { build(cb, unswitch = false, baseline = baseline).also { g = it } }
+        return g to c
+    }
+
+    private fun timedBuild(cb: CodeBlock, unswitch: Boolean, baseline: Boolean): Graph {
+        val t0 = System.nanoTime()
+        return build(cb, unswitch, baseline).also { buildNanos.addAndGet(System.nanoTime() - t0) }
+    }
+
+    /**
+     * The class of graph [g0] (of [cb]), named [name] (a baseline's after a hash of its code), within the JVM's size
+     * limits: where loops copied (Unswitch) made it too large, again from the graph [again] builds without copies.
+     */
+    private fun generateClass(g0: Graph, cb: CodeBlock, definer: CodeDefiner, name: String, baseline: Boolean, again: () -> Graph): dev.mooner.neonjs.jit.GeneratedClass {
+        var g = g0
+        val t1 = System.nanoTime()
         val bytes = try {
             fun generate() = IrCodegen.generate(g, name, definer.classFileVersion)
             var bytes = try {
@@ -174,7 +239,7 @@ object T2 {
             }
             // loops copied made the method too large: again without copies
             if (g.unswitched && (bytes == null || IrCodegen.codeLength(bytes, "run") > MAX_CODE)) {
-                g = build(cb, unswitch = false, baseline = baseline)
+                g = again()
                 bytes = generate()
             }
             val size = IrCodegen.codeLength(bytes!!, "run")
@@ -186,9 +251,12 @@ object T2 {
             }
             throw e
         }
+        val t2 = System.nanoTime()
+        codegenNanos.addAndGet(t2 - t1)
         val (final, out) = if (baseline) named(bytes) else name to bytes
+        nameNanos.addAndGet(System.nanoTime() - t2)
         JvmCompiler.DUMP_DIR?.let { dir -> runCatching { java.io.File(dir, final.substringAfterLast('/') + ".class").writeBytes(out) } }
-        return g to dev.mooner.neonjs.jit.GeneratedClass(final.replace('/', '.'), out)
+        return dev.mooner.neonjs.jit.GeneratedClass(final.replace('/', '.'), out)
     }
 
     /**

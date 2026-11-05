@@ -49,6 +49,9 @@ t262() {
   if [ -n "${NO_EXITS:-}" ] && ! printf '%s\n' "$out" | grep -q '^JIT deoptimizations=0 '; then
     fail "Test262, $name: code without speculations exited ($(printf '%s\n' "$out" | grep '^JIT deoptimizations'))"
   fi
+  if printf '%s\n' "$out" | grep -q 'mismatches=[1-9]'; then
+    fail "Test262, $name: baselines of graphs of one identity differ (GraphIdentity)"
+  fi
 }
 
 # the JIT modes every check runs: the stress modes force each tier's code, exits and on-stack replacement entries
@@ -60,7 +63,8 @@ stress_modes() {
   t262 "adaptive, t2Stress + osrStress" "-Dneonjs.jit.t2Stress -Dneonjs.jit.osrStress" --mode adaptive "${scope[@]}"
   t262 "adaptive, t2Stress + deoptStress + osrStress" "-Dneonjs.jit.t2Stress -Dneonjs.jit.deoptStress -Dneonjs.jit.osrStress" --mode adaptive "${scope[@]}"
   # the optimizing tier's baselines (a language without a baseline compiler of its own): no exit may be taken
-  NO_EXITS=1 t262 "compiled, irBaseline" "-Dneonjs.jit.irBaseline" --mode compiled "${scope[@]}"
+  # (generated even where a graph of the same identity has a class, and compared: GraphIdentity must say all)
+  NO_EXITS=1 t262 "compiled, irBaseline + baselineCheck" "-Dneonjs.jit.irBaseline -Dneonjs.jit.baselineCheck" --mode compiled "${scope[@]}"
   t262 "adaptive, irBaseline + t2/deopt/osrStress" "-Dneonjs.jit.irBaseline -Dneonjs.jit.t2Stress -Dneonjs.jit.deoptStress -Dneonjs.jit.osrStress" --mode adaptive "${scope[@]}"
 }
 

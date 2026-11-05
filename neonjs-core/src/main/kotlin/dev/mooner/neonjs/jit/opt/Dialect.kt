@@ -20,6 +20,12 @@ internal interface Dialect {
     /** How its code's exits continue in its interpreter. */
     val resumer: Resumer
 
+    /**
+     * What a baseline's code depends on besides its graph (GraphIdentity): the language's settings, what its code
+     * generator reads of the block (JavaScript: its loop headers).
+     */
+    fun identityExtras(g: Graph, out: java.io.DataOutputStream) {}
+
     /** Its facts after guards for [g] (null: none), [Facts]. */
     fun facts(g: Graph, kinds: Kinds): FactRules?
 
@@ -38,6 +44,15 @@ internal object JsDialect : Dialect {
     override val resumer: Resumer get() = Resumer.JS
 
     override fun facts(g: Graph, kinds: Kinds): FactRules = KnownShapes.rules(g, kinds)
+
+    override fun identityExtras(g: Graph, out: java.io.DataOutputStream) {
+        out.writeBoolean((g.kindSystem as JsKinds).ints)
+        out.writeBoolean(JvmCompiler.ELEMS)
+        out.writeInt(JvmCompiler.DEOPT_STRESS)
+        val t = JvmCompiler.backEdgeTargets(g.code.code)
+        out.writeInt(t.size)
+        for (pc in t) out.writeInt(pc)
+    }
 
     override fun build(cb: CodeBlock, stressExits: Boolean, unswitch: Boolean, baseline: Boolean): Graph =
         IrBuilder(cb, JvmCompiler.INT32, JvmCompiler.ELEMS, stressExits = stressExits, unswitch = unswitch,

@@ -102,7 +102,8 @@ fun main(args: Array<String>) {
         val baselines = t2Field("baselines") as java.util.concurrent.atomic.AtomicLong?
         val baselinesFailed = t2Field("baselinesFailed") as java.util.concurrent.atomic.AtomicLong?
         if (baselines != null && baselinesFailed != null && baselines.get() + baselinesFailed.get() > 0) {
-            System.err.println("T2 baselines=$baselines shared=${t2Field("baselinesShared")} not compiled=$baselinesFailed")
+            System.err.println("T2 baselines=$baselines shared=${t2Field("baselinesShared")} by graph=${t2Field("baselinesByGraph")}" +
+                " mismatches=${t2Field("baselineMismatches")} not compiled=$baselinesFailed")
             @Suppress("UNCHECKED_CAST")
             (t2Field("baselineReasons") as Map<String, java.util.concurrent.atomic.AtomicLong>?)?.entries
                 ?.sortedByDescending { it.value.get() }?.take(15)?.forEach { System.err.println("  ${it.value} ${it.key}") }
