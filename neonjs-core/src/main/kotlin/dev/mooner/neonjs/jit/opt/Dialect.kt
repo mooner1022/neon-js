@@ -29,8 +29,8 @@ internal interface Dialect {
 
 /** The dialect of each code block. */
 internal object Dialects {
-    /** [cb]'s language (JavaScript's for every block until another language compiles to code blocks). */
-    fun of(cb: CodeBlock): Dialect = JsDialect
+    /** [cb]'s language: the dialect it names, else JavaScript's. */
+    fun of(cb: CodeBlock): Dialect = cb.dialect as Dialect? ?: JsDialect
 }
 
 /** JavaScript, with the baseline's int32 and element settings (JvmCompiler.INT32, JvmCompiler.ELEMS). */

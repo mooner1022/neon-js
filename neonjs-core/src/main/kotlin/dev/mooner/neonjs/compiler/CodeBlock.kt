@@ -243,6 +243,11 @@ class CodeBlock(@JvmField val name: String, @JvmField val kind: FunctionKind) {
     /** Whether the optimizing tier's code for this block deoptimized too often: it is not compiled by that tier again. */
     @JvmField var t2Off = false
     /**
+     * The optimizing tier's dialect of the block's language (a jit.opt.Dialect: its builder, ops, kinds and code
+     * generator, docs/IR_NEUTRALITY.md); null for JavaScript's.
+     */
+    @JvmField var dialect: Any? = null
+    /**
      * The pcs where a speculation of the optimizing tier failed (an exit taken), which its next compilations of this
      * block, or of blocks inlining it, do not make again (bit [code].size: the parameters); and how many times the block
      * was compiled again because of them.

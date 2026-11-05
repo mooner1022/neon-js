@@ -15,8 +15,8 @@ object IrPrinter {
             for (i in b.insts) {
                 sb.append("  ")
                 if (i.hasResult) sb.append(i).append(" = ")
-                sb.append(Ir.name(i.op))
-                if (i.op == Ir.BRANCH) sb.append('(').append(Op.names[i.a]).append(')')
+                sb.append(g.ops.info(i.op).name)
+                if (i.op == Ir.BRANCH) sb.append('(').append(g.ops.info(i.a).name).append(')')
                 else if (i.op < Op.COUNT && Op.operands[i.op] > 0) {
                     sb.append(' ').append(i.a)
                     if (Op.operands[i.op] > 1) sb.append(' ').append(i.b)
