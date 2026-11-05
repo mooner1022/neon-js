@@ -597,6 +597,70 @@ language, layer by layer: default and
 keyword arguments, closures, exceptions (`try`, `raise`), classes and the object model (§3.4), generators (the core's
 suspensions), comprehensions, slices, f-strings, modules.
 
+## 11. The whole language (plan, 2026-11-06)
+
+The goal now is all of Python 3.14's syntax, with its semantics. It must run the same in the interpreter, the tier's
+baselines and its speculating code, and be checked against CPython 3.14: programs' output, and the type, message and
+line of their errors.
+
+The standard library is not the goal (§3.7 and Y2 come after). What the syntax needs is: the builtins, the exception
+classes, the types behind literals, and modules for `import` to import. This is §6's Y1, about 15–20K lines, done as
+milestones. Each milestone is commits gated by the quick check and pushed when it is done.
+
+### 11.1 Order
+
+| | what | needs |
+|---|---|---|
+| M0 | this plan; room for opcodes; runtime calls as table rows in the dialect; a size test of the interpreter's dispatch | — |
+| M1 | functions and scopes: defaults, keyword arguments, `*args`/`**kwargs`, keyword-only and positional-only parameters, `lambda`, closures and `nonlocal`, decorators, starred unpacking (calls, literals, targets), `:=`, `del`, `assert`, `global` done right | — |
+| M2 | the object model: type objects (the builtins' too), `class`, instances, the MRO, `super()`, the special methods (operators, containers, iteration, calls, `str`/`repr`/`hash`/`bool`/`len`), `property`/`staticmethod`/`classmethod`, `isinstance`/`type`/`getattr`…, class decorators, `__init_subclass__`/`__set_name__` | M1 (`super()` needs the `__class__` cell) |
+| M3 | exceptions: the hierarchy as classes, `try`/`except`/`else`/`finally`, `raise … from`, chaining, `with` (several items, parenthesized), `except*` and `ExceptionGroup`, `except A, B:` (PEP 758), `return`/`break` in `finally` (PEP 765's warning) | M2 |
+| M4 | generators: `yield`, `yield from`, `send`/`throw`/`close`, generator expressions, list/set/dict comprehensions | M3 (a generator's `close` is an exception) |
+| M5 | literals and strings: f-strings as PEP 701 tokenizes them, the format-spec mini-language, `%` and `str.format`, t-strings (PEP 750, `string.templatelib`), bytes, complex, sets, slices and `slice`, `...` | M2 |
+| M6 | `match` (every pattern; or-patterns binding the same names, checked when compiling) | M2 |
+| M7 | `import`: module objects, a host-given loader (no file system unless the host gives one), a minimal `sys` | M2 |
+| M8 | `async def`, `await`, `async for`/`async with`, async generators and comprehensions (driven with `send` in tests: no asyncio) | M4 |
+| M9 | deferred annotations (PEP 649/749: `__annotate__`), type parameters and `type` aliases (PEP 695), what is left | M2 |
+
+### 11.2 Decisions (the expensive ones to change later)
+
+- **Exceptions are objects.** A raised exception is an instance of a BaseException class. The JVM carries it in a
+  `PyException`, whose `type`, `message` and `line` stay a view for the host and the tests. A sandbox's termination
+  (the core's `TerminationException`) is never a Python exception, so no `except` catches it, in the interpreter or
+  in the tier's code (its catch entries' `CATCH_VALUE`).
+- **Every value has a type object** (`PyType`), the builtins' values too, and attributes are looked up through the
+  type's MRO with descriptors: functions bind, and `property`, `staticmethod` and `classmethod` work as descriptors.
+  - A user class's instance is an object of the class with a dict.
+  - Builtin values stay what they are (Long, Double, `PyStr`, `PyList`…). An instance of a user subclass of list,
+    dict, set, tuple or str is that value with its class set (and a dict).
+  - Subclasses of int and float come later.
+- **Calls.** `CALL` keeps its fast path for exactly the positional arguments a function takes (§10.2's speed rests
+  on it). Keyword arguments are `CALL_KW` (their names a tuple constant), and `*` and `**` are `CALL_EX`. One routine
+  binds arguments to parameters, with CPython's messages.
+- **Scopes.** A symbol table is built before compiling: local, global, nonlocal, free and cell variables.
+  - Class bodies are dicts, and the functions in them do not see their names; `__class__` serves `super()`.
+  - Comprehensions are nested functions, as before 3.12. PEP 709's inlining shows only in `locals()` inside a
+    comprehension and in tracebacks' frames.
+- **Generators keep their frames' slots,** as JavaScript's do (docs/IR_NEUTRALITY.md §9). The interpreter suspends
+  at a yield, and the tier's code through the core's suspensions; `yield from` and `await` loop over sends.
+- **Exceptions in compiled code** go through the core's handlers (`CodeUnit.handlers`), whose entries have an empty
+  operand stack. So the operand stack stays empty at every statement, and what a `try`, `with` or `for` needs across
+  its body is kept in registers.
+- **New instructions follow a checklist** (on `PyOp`). A plain runtime call is a row of the dialect's table
+  (`PyGeneric`); control flow is written by hand.
+
+### 11.3 How each milestone is checked
+
+- **Programs.** Programs under `src/test/resources/programs/` whose output CPython 3.14 recorded (`python -I x.py >
+  x.out`), each run in the four modes. Errors are checked in `errorsAreCPythons`, and every block must be the tier's
+  code (`noBlockFallsBackToTheInterpreter`).
+- **Grammar and semantics** are read from CPython, not recalled: `ast.dump`, `dis` and `symtable` of the snippet,
+  and its messages as it prints them.
+- **Speed.** §10.2's programs are measured again after M1 (calls) and M2 (attributes and operators), and a change is
+  written down in the milestone's commit.
+- **Size.** The interpreter's dispatch stays under HotSpot's 8,000-byte limit on methods it compiles; a test checks
+  it.
+
 ## References (checked in this review)
 
 - Chicory: [docs](https://docsearch.algolia.com/mcp/docs/repo/dylibso/chicory), [porting the Chicory compiler to Android (2025-07)](https://hn.jakechampion.name/reader/https://blog.evacchi.dev/posts/2025/07/11/wasm-the-hard-way-porting-the-chicory-compiler-to-android), [mcpx4j Android support](https://docs.mcp.run/blog/2025/07/11/android-support-mcpx4j), [Endive](https://bytecodealliance.org/articles/endive-and-the-next-chapter-of-webassembly-on-the-jvm)
