@@ -85,28 +85,28 @@ object PyDialect : Dialect {
     }
 }
 
-/** The graph's operations that are no bytecode's (numbers below the core's 1000, past [PyOp]'s). */
+/** The graph's operations that are no bytecode's (from 500: below the core's 1000, well past [PyOp]'s, which grow). */
 object PyIr {
     /** a: the argument a function's parameter a is (its register at the start). */
-    const val ARG = 100
+    const val ARG = 500
     /** (v) v, or an UnboundLocalError where it is the dead value (register a's: LOAD_FAST_CHECK). */
-    const val CHECK_BOUND = 101
+    const val CHECK_BOUND = 501
     /** (seq) its a items in an Object[] (UNPACK), then ITEM a of them. */
-    const val UNPACK_ARRAY = 102
-    const val ITEM = 103
+    const val UNPACK_ARRAY = 502
+    const val ITEM = 503
 
     // the speculating tier's (each exits where its state, the instruction's operands on the stack, says)
     /** (v) v as an int of 64 bits (a Long), or an exit. */
-    const val CHECK_INT = 104
+    const val CHECK_INT = 504
     /** (v) v as a float (a Double), or an exit. */
-    const val CHECK_FLOAT = 105
+    const val CHECK_FLOAT = 505
     /** (a b) or (a): bytecode operation a (ADD, SUB, MUL, FLOORDIV, MOD, BITAND, BITOR, BITXOR, NEG) of ints; an exit where the result leaves 64 bits or a division by zero would raise. */
-    const val INT_OP = 106
+    const val INT_OP = 506
     /** (a b) or (a): operation a (ADD, SUB, MUL, NEG) of floats. */
-    const val FLOAT_OP = 107
+    const val FLOAT_OP = 507
     /** (a b): comparison a (LT..NE) of ints, of floats. */
-    const val INT_CMP = 108
-    const val FLOAT_CMP = 109
+    const val INT_CMP = 508
+    const val FLOAT_CMP = 509
 }
 
 /**
@@ -186,12 +186,11 @@ object PyKinds : KindSystem {
 /** What the passes know of Python's operations: most may run code and throw; a few only compute or allocate. */
 object PyOps : OpTable {
     private val infos = arrayOfNulls<OpInfo>(PyIr.FLOAT_CMP + 1).also { t ->
-        for (op in 0 until PyOp.COUNT) if (PyOp.names[op] != null) t[op] = OpInfo(PyOp.name(op), OpInfo.ANYTHING)
+        for (op in 0 until PyOp.COUNT) if (PyOp.names[op] != null) t[op] = OpInfo(PyOp.name(op), PyGeneric.of(op)?.flags ?: OpInfo.ANYTHING)
         t[PyOp.IS] = OpInfo("IS", OpInfo.REMOVABLE)
         t[PyOp.IS_NOT] = OpInfo("IS_NOT", OpInfo.REMOVABLE)
         t[PyOp.BUILD_LIST] = OpInfo("BUILD_LIST", OpInfo.REMOVABLE or OpInfo.ALLOCATES)
         t[PyOp.BUILD_TUPLE] = OpInfo("BUILD_TUPLE", OpInfo.REMOVABLE or OpInfo.ALLOCATES)
-        t[PyOp.MAKE_FUNCTION] = OpInfo("MAKE_FUNCTION", OpInfo.REMOVABLE or OpInfo.ALLOCATES)
         t[PyIr.ARG] = OpInfo("Arg", OpInfo.REMOVABLE)
         t[PyIr.CHECK_BOUND] = OpInfo("CheckBound", OpInfo.THROWS)
         t[PyIr.UNPACK_ARRAY] = OpInfo("UnpackArray", OpInfo.ANYTHING)
@@ -332,6 +331,11 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
 
         override fun buildOp(at: At): Boolean = with(at) {
             if (speculated()) return false
+            // (a runtime call: its row in PyGeneric)
+            PyGeneric.of(op)?.let { gen ->
+                inst(op, popN(gen.popped(a)), result = gen.result)
+                return false
+            }
             when (op) {
                 PyOp.NOP -> {}
                 PyOp.LOAD_CONST -> stack.add(constant(a))
@@ -346,8 +350,6 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
                     regs[a] = pop()
                     home(a)
                 }
-                PyOp.LOAD_GLOBAL, PyOp.MAKE_FUNCTION -> inst(op, NO_VALUES, result = true)
-                PyOp.STORE_GLOBAL -> inst(op, arrayOf(pop()), result = false)
                 PyOp.POP -> pop()
                 PyOp.DUP -> {
                     val v = pop()
@@ -360,7 +362,7 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
                     val l = pop()
                     inst(op, arrayOf(l, r), result = true)
                 }
-                PyOp.NEG, PyOp.POS, PyOp.NOT, PyOp.INVERT, PyOp.LOAD_ATTR, PyOp.GET_ITER -> inst(op, arrayOf(pop()), result = true)
+                PyOp.NEG, PyOp.POS, PyOp.NOT, PyOp.INVERT, PyOp.GET_ITER -> inst(op, arrayOf(pop()), result = true)
                 PyOp.CALL -> {
                     val inputs = popN(a + 1)
                     inst(op, inputs, result = true)
@@ -446,8 +448,31 @@ class PyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, clas
         }
     }
 
+    /** A runtime call ([PyGeneric]): its arguments as its row says, its result an Object. */
+    private fun generic(i: Inst, gen: Generic) {
+        if (gen.throws) storePc(i)
+        var next = 0
+        for (c in gen.args) when (c) {
+            'f' -> frame()
+            'k' -> constant(i.a)
+            'a' -> iconst(i.a)
+            'b' -> iconst(i.b)
+            'v' -> load(i.inputs[next++], ANY_KIND)
+            'n' -> {
+                objects(i.inputs, from = next)
+                next = i.inputs.size
+            }
+        }
+        py(gen.method, gen.descriptor)
+        if (gen.result) done(i, ANY_KIND)
+    }
+
     override fun inst(i: Inst) {
         val op = i.op
+        PyGeneric.of(op)?.let {
+            generic(i, it)
+            return
+        }
         when (op) {
             PyIr.ARG -> {
                 frame()
@@ -503,32 +528,6 @@ class PyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, clas
                 storePc(i)
                 load(i.inputs[0], ANY_KIND)
                 py(UNARY[op]!!, "($OBJ)$OBJ")
-                done(i, ANY_KIND)
-            }
-            PyOp.LOAD_ATTR -> {
-                storePc(i)
-                load(i.inputs[0], ANY_KIND)
-                constant(i.a)
-                py("loadAttr", "($OBJ$OBJ)$OBJ")
-                done(i, ANY_KIND)
-            }
-            PyOp.LOAD_GLOBAL -> {
-                storePc(i)
-                frame()
-                constant(i.a)
-                py("loadGlobal", "($FRAME_D$OBJ)$OBJ")
-                done(i, ANY_KIND)
-            }
-            PyOp.STORE_GLOBAL -> {
-                frame()
-                constant(i.a)
-                load(i.inputs[0], ANY_KIND)
-                py("storeGlobal", "($FRAME_D$OBJ$OBJ)V")
-            }
-            PyOp.MAKE_FUNCTION -> {
-                frame()
-                constant(i.a)
-                py("makeFunction", "($FRAME_D$OBJ)$OBJ")
                 done(i, ANY_KIND)
             }
             PyOp.CALL -> {

@@ -2,8 +2,19 @@ package dev.mooner.neonpython
 
 /**
  * Python's bytecode: a stack machine with registers (a function's locals), as JavaScript's is. Each instruction is an
- * opcode and a fixed number of int operands ([operands]). The opcodes are below 1000, the optimizing tier's core's
- * own operations' range (docs/IR_NEUTRALITY.md): a [PyDialect] graph holds them as they are.
+ * opcode and a fixed number of int operands ([operands]). The opcodes are below 500, where the dialect's own graph
+ * operations start ([PyIr]), and so below the optimizing tier's core's (1000, docs/IR_NEUTRALITY.md): a [PyDialect]
+ * graph holds them as they are.
+ *
+ * A new instruction needs, or something breaks without a word:
+ * - its operand count ([operands]) and its stack effect ([stackEffect]);
+ * - where it can go, if it jumps: PyCompiler's successors (maxStack and the unbound locals' dataflow read them), the
+ *   builder's targets ([PyBuilder]'s body), and the loop headers ([PyDialect.backEdgeTargets]: a JUMP backwards);
+ * - the registers it reads and writes, if any (the builder's regsRead and regWritten);
+ * - its case in [PyInterpreter.run] (rare ones in a helper: the dispatch stays under 8,000 bytes, PyMethodSizeTest);
+ * - in the tier: a row of [PyGeneric] where its code is a runtime call, else its cases in the builder and PyCodegen;
+ * - the operand stack empty at every statement (exception handlers start with an empty one), and constants read from
+ *   the block's constants, never baked into code (blocks of one graph share a class).
  */
 object PyOp {
     const val NOP = 0
