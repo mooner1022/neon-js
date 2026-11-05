@@ -202,9 +202,19 @@ object Interpreter {
         val agent = f.realm.agent
         val prevRealm = agent.currentRealm
         val prevTop = agent.topFrame
+        // (as runFrame: the depth limit and the interrupt budget of a call)
         if (++agent.depth > agent.maxDepth) {
             agent.depth--
             throw JSException.rangeError("Maximum call stack size exceeded")
+        }
+        if (--agent.callBudget < 0) {
+            agent.callBudget = 1024
+            try {
+                agent.checkInterrupt()
+            } catch (t: Throwable) {
+                agent.depth--
+                throw t
+            }
         }
         agent.currentRealm = f.realm
         f.parent = prevTop

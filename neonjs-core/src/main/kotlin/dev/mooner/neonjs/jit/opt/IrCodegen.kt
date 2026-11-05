@@ -305,7 +305,8 @@ internal abstract class IrCodegen(
         // where suspended activations resume (an entry each), and, for code that suspends, its start (pc 0: a generator's
         // or an async function's frame is an interpreted one from the start)
         val resumes = g.blocks.filter { it.resumeEntry }.sortedBy { it.pc }
-        if (targets.isEmpty() && resumes.isEmpty()) return
+        val start = g.startsInterpreted
+        if (targets.isEmpty() && resumes.isEmpty() && !start) return
         val live = liveIn()
         // the blocks of each loop LICM made an entry block for: an entry inside it makes that block's code again too (what
         // the loop it enters relies on, guards included, was moved out of the loops around it as well)
@@ -342,8 +343,9 @@ internal abstract class IrCodegen(
             val regs = b.entryRegs
             val tw = b.twin
             if (b.site != null || regs == null || b.entryDepth != 0 || b.twinOf != null || java.util.Arrays.binarySearch(targets, b.pc) < 0) return@filter false
-            // (a pc where an activation resumes is that entry, with the stack it resumes with)
-            if (resumes.any { it.pc == b.pc }) return@filter false
+            // (a pc where an activation resumes is that entry, with the stack it resumes with; pc 0 of code whose frames
+            // start interpreted is the start)
+            if (resumes.any { it.pc == b.pc } || (start && b.pc == 0)) return@filter false
             val out = around(b)
             if (tw == null) return@filter enterable(b, regs, out + listOfNotNull(b.loopEntry))
             val test = b.dispatch!!
@@ -357,16 +359,16 @@ internal abstract class IrCodegen(
         mv.visitFieldInsn(GETFIELD, FRAME, "slots", CONSTS_D)
         getstatic(FRAME, "NO_SLOTS", CONSTS_D)
         mv.visitJumpInsn(IF_ACMPEQ, normal)
-        if (entries.isNotEmpty() || resumes.isNotEmpty()) {
+        if (entries.isNotEmpty() || resumes.isNotEmpty() || start) {
             val starts = Array(entries.size) { Label() }
             frame()
             mv.visitFieldInsn(GETFIELD, FRAME, "pc", "I")
-            if (resumes.isEmpty()) mv.visitLookupSwitchInsn(none, IntArray(entries.size) { entries[it].pc }, starts)
+            if (resumes.isEmpty() && !start) mv.visitLookupSwitchInsn(none, IntArray(entries.size) { entries[it].pc }, starts)
             else {
                 val keys = java.util.TreeMap<Int, Label>()
                 for ((k, b) in entries.withIndex()) keys[b.pc] = starts[k]
                 for (r in resumes) keys[r.pc] = label[r]!!
-                keys.putIfAbsent(0, normal)
+                keys[0] = normal
                 mv.visitLookupSwitchInsn(none, keys.keys.toIntArray(), keys.values.toTypedArray())
             }
             val slots = temp()

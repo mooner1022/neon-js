@@ -18,6 +18,8 @@ class SuspendableJitTest {
         async function add(x) { const y = await x; const z = await Promise.resolve(y + 1); return z; }
         async function rejected() { const k = 5; try { await Promise.reject(new Error("no")); } catch (e) { return k + e.message; } }
         async function* agen() { yield 1; yield* [2, 3]; yield await 4; }
+        // (a loop header at pc 0: a fresh frame starts at the start, not at the loop)
+        async function loopFirst(x) { do { x++ } while (x < 10); return x }
         var log = [];
         function run() {
             const it = counter(4); let r = it.next(); const seen = [];
@@ -29,13 +31,13 @@ class SuspendableJitTest {
             const d = delegate(); const ds = []; let dr = d.next();
             while (!dr.done) { ds.push(dr.value); dr = d.next(7); }
             log.push("delegate " + ds.join(","));
-            return Promise.all([add(1), rejected(), (async () => { const o = []; for await (const v of agen()) o.push(v); return o.join(","); })()])
+            return Promise.all([add(1), rejected(), (async () => { const o = []; for await (const v of agen()) o.push(v); return o.join(","); })(), loopFirst(3)])
                 .then(v => log.join("|") + "|" + v.join("|"));
         }
         run();
     """.trimIndent()
 
-    private val expected = "0,1,2,3=60|v1|finally|finally|caught boom|delegate 0,1,14|2|5no|1,2,3,4"
+    private val expected = "0,1,2,3=60|v1|finally|finally|caught boom|delegate 0,1,14|2|5no|1,2,3,4|10"
 
     private fun runIn(mode: ExecutionMode): String {
         val engine = NeonEngine.builder().executionMode(mode).build()

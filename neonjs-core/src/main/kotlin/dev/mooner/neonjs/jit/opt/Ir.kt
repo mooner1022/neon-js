@@ -25,6 +25,11 @@ class Graph internal constructor(
     @JvmField var osrPcs = IntArray(0)
     /** Objects the code needs at run time (T2Code.data), each once. */
     @JvmField val data = ArrayList<Any?>()
+    /**
+     * Whether the code's frames are interpreted ones from their start (a generator's, an async function's: they suspend):
+     * the entry dispatch sends pc 0 to the start, never to a loop header there (Ir.SUSPEND).
+     */
+    @JvmField var startsInterpreted = false
     /** Whether a loop was copied on a closure test (Unswitch): T2 builds the graph again without that where it is too large. */
     @JvmField var unswitched = false
 

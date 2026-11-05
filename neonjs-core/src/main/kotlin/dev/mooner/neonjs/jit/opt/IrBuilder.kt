@@ -51,7 +51,10 @@ internal class IrBuilder(
     override fun unbuildable(): String? =
         if ((cb.isGenerator || cb.isAsync) && !T2.SUSPENDABLE) "generator or async" else null
 
-    override fun root(): Body = JsBody(cb, null)
+    override fun root(): Body {
+        g.startsInterpreted = cb.isGenerator || cb.isAsync
+        return JsBody(cb, null)
+    }
 
     override fun entry(start: Block): Array<Value> {
         val regs = Array<Value>(cb.numRegs) { dead() }

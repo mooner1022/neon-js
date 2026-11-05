@@ -62,6 +62,10 @@ A change that compiles more (code not compiled before) adds classes and must cha
 codegen` checks that every class of REF's is there, unchanged. `CODEGEN_OPTS` gives both sides' dumps JVM properties
 (`CODEGEN_OPTS=-Dneonjs.jit.suspendable=false`: without generators and async functions compiled).
 
+On branch `ir-neutral-core`, whose step 7 compiles generators and async functions, `codegen main` reports those
+classes as added until the branch is merged: compare with `SUBSET=1`, with a later commit of the branch (`codegen HEAD`,
+the committed tree), or with `CODEGEN_OPTS=-Dneonjs.jit.suspendable=false`.
+
 REF's dumps are kept in `build/check/dumps/<commit>-*`, so comparing against the same REF again only dumps the working
 tree. `ClassDiffKt BEFORE AFTER [--show N] [--subset]` can compare any two dump directories.
 
