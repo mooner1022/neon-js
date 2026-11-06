@@ -280,6 +280,7 @@ object PySys {
                 }
             }
             is PyBytes -> 33L + v.b.size
+            is PyByteArray -> 57L + v.b.size
             is PyTuple -> if (v.items.isEmpty()) 40L else 40L + 8L * v.items.size
             is PyList -> 56L + 8L * v.items.size
             is PyDict -> if (v.size == 0) 64L else 184L + 40L * v.size

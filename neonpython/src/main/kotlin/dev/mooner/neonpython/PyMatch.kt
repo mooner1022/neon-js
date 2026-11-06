@@ -48,7 +48,7 @@ object PyMatch {
     }
 
     /** The builtin types a single positional sub-pattern matches as the subject itself (Py_TPFLAGS_MATCH_SELF). */
-    private val SELF = setOf(PyTypes.BOOL, PyTypes.BYTES, PyTypes.DICT, PyTypes.FLOAT, PyTypes.FROZENSET, PyTypes.INT, PyTypes.LIST,
+    private val SELF = setOf(PyTypes.BOOL, PyTypes.BYTES, PyTypes.BYTEARRAY, PyTypes.DICT, PyTypes.FLOAT, PyTypes.FROZENSET, PyTypes.INT, PyTypes.LIST,
         PyTypes.SET, PyTypes.STR, PyTypes.TUPLE)
 
     /**

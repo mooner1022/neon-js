@@ -95,11 +95,7 @@ object PyBuiltins {
             if (a.size != 2) throw PyRt.typeError("range.count() takes exactly one argument (${a.size - 1} given)")
             PyRanges.count(a[0] as PyRange, a[1])
         })
-        type(PyTypes.STR) { _, args, kw ->
-            noKw("str", kw)
-            argc("str", args, 0, 1)
-            if (args.isEmpty()) PyStr.EMPTY else PyStr(PyRt.str(args[0]))
-        }
+        type(PyTypes.STR) { _, args, kw -> newStr(args, kw, false) }
         def("repr") { _, args ->
             argc("repr", args, 1)
             PyStr(PyRt.repr(args[0]))
@@ -347,6 +343,7 @@ object PyBuiltins {
         // sets and slices; complex numbers, bytes; the everyday builtins (their min, max and sum over these)
         PySets.define(d)
         PyLiterals.define(d)
+        PyByteSeqs.define(d)
         PyLibrary.define(d)
         PyTyping.define()
         PyEval.define(d)
@@ -583,12 +580,7 @@ object PyBuiltins {
             atMostOne("tuple", args)
             PyTuple(if (args.isEmpty()) arrayOfNulls(0) else toList(args[0]).toTypedArray())
         }
-        new(PyTypes.STR) { args, kw ->
-            if (kw != null) throw PyRt.typeError("str() got an unexpected keyword argument '${kw.map.keys.first().v}'")
-            if (args.size > 3) throw PyRt.typeError("str() takes at most 3 arguments (${args.size} given)")
-            if (args.size > 1) throw PyRt.typeError("decoding str is not supported")
-            PyStr(if (args.isEmpty()) "" else PyRt.str(args[0]))
-        }
+        new(PyTypes.STR) { args, kw -> newStr(args, kw, true) }
         fun dunder(t: PyType, name: String, n: Int, impl: (Array<Any?>) -> Any?) {
             t.def(name, PyBuiltin(name) { _, a ->
                 if (a.size != n + 1) throw PyRt.typeError("expected $n argument${if (n == 1) "" else "s"}, got ${a.size - 1}")
@@ -626,6 +618,25 @@ object PyBuiltins {
     }
 
     /** int(s, base): Python's int literal syntax (sign, underscores between digits, a prefix where base is 0 or matches). */
+    /** str(object='', encoding, errors): the object's str, or (an encoding or errors given) a bytes-like object decoded. */
+    private fun newStr(args: Array<Any?>, kw: PyDict?, sub: Boolean): PyStr {
+        // (CPython's words for a subclass's, str.__new__'s, and for str()'s own)
+        if (args.size > 3) throw PyRt.typeError(if (sub) "str() takes at most 3 arguments (${args.size} given)" else "str expected at most 3 arguments, got ${args.size}")
+        val x = arrayOfNulls<Any?>(3)
+        args.copyInto(x)
+        kw?.map?.forEach { (k, v) ->
+            val i = listOf("object", "encoding", "errors").indexOf((k.v as PyStr).s)
+            if (i < 0) throw PyRt.typeError("str() got an unexpected keyword argument '${(k.v as PyStr).s}'")
+            x[i] = v
+        }
+        val o = x[0] ?: return PyStr.EMPTY
+        if (x[1] == null && x[2] == null) return PyStr(PyRt.str(o))
+        if (o is PyStr) throw PyRt.typeError("decoding str is not supported")
+        val b = PyByteSeqs.content(o) ?: throw PyRt.typeError("decoding to str: need a bytes-like object, ${PyTypes.name(o)} found")
+        fun s(v: Any?, n: String) = v?.let { it as? PyStr ?: throw PyRt.typeError("str() argument '$n' must be str, not ${PyTypes.name(it)}") }?.s
+        return PyStr(PyLiterals.decode(b, s(x[1], "encoding") ?: "utf-8", s(x[2], "errors") ?: "strict"))
+    }
+
     @JvmStatic fun parseInt(v: PyStr, base: Int): Any {
         fun bad(): Nothing = throw PyException("ValueError", "invalid literal for int() with base $base: ${PyRt.repr(v)}")
         var s = v.s.trim()

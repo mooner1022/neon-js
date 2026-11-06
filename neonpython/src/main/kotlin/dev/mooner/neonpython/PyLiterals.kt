@@ -143,22 +143,27 @@ object PyLiterals {
 
     private fun u(b: Byte) = b.toInt() and 0xFF
 
-    /** bytes + bytes; null where a is not bytes, CPython's error where b is not. */
+    /**
+     * bytes + a bytes-like object (bytes), a bytearray + one (a bytearray); null where a is neither, CPython's error
+     * where b is not bytes-like.
+     */
     @JvmStatic
     fun bytesAdd(a: Any?, b: Any?): Any? {
-        if (a !is PyBytes) return null
-        if (b !is PyBytes) throw PyRt.typeError("can't concat ${PyTypes.name(b)} to bytes")
-        return PyBytes(a.b + b.b)
+        if (a !is PyBytes && a !is PyByteArray) return null
+        val y = PyByteSeqs.content(b) ?: throw PyRt.typeError("can't concat ${PyTypes.name(b)} to ${if (a is PyBytes) "bytes" else "bytearray"}")
+        val x = PyByteSeqs.content(a)!!
+        return if (a is PyBytes) PyBytes(x + y) else PyByteArray(x + y)
     }
 
     @JvmStatic
     fun bytesMul(a: Any?, b: Any?): Any? {
-        val (bs, n) = if (a is PyBytes) a to b else if (b is PyBytes) b to a else return null
+        val (bs, n) = if (a is PyBytes || a is PyByteArray) a to b else if (b is PyBytes || b is PyByteArray) b to a else return null
         if (!PyRt.isInt(n)) throw PyRt.typeError("can't multiply sequence by non-int of type '${PyTypes.name(n)}'")
         val k = (n as? Long ?: if (n is PyBool) (if (n.value) 1L else 0L) else throw PyException("OverflowError", "cannot fit 'int' into an index-sized integer")).toInt().coerceAtLeast(0)
-        val out = ByteArray(bs.b.size * k)
-        for (i in 0 until k) bs.b.copyInto(out, i * bs.b.size)
-        return PyBytes(out)
+        val one = PyByteSeqs.content(bs)!!
+        val out = ByteArray(one.size * k)
+        for (i in 0 until k) one.copyInto(out, i * one.size)
+        return if (bs is PyBytes) PyBytes(out) else PyByteArray(out)
     }
 
     @JvmStatic
@@ -222,11 +227,16 @@ object PyLiterals {
         return PyBytes(s.toByteArray(cs))
     }
 
-    /** bytes.decode: strictly (CPython's UnicodeDecodeError at the first bad byte). */
+    /** bytes.decode: strictly (CPython's UnicodeDecodeError at the first bad byte), or bad bytes left out ('ignore') or replaced ('replace'). */
     @JvmStatic
-    fun decode(b: ByteArray, enc: String): String {
+    fun decode(b: ByteArray, enc: String, errors: String = "strict"): String {
         val cs = charset(enc)
         val d = cs.newDecoder()
+        if (errors == "ignore" || errors == "replace") {
+            val action = if (errors == "ignore") java.nio.charset.CodingErrorAction.IGNORE else java.nio.charset.CodingErrorAction.REPLACE
+            return d.onMalformedInput(action).onUnmappableCharacter(action).decode(java.nio.ByteBuffer.wrap(b)).toString()
+        }
+        if (errors != "strict") throw PyException("LookupError", "unknown error handler name '$errors'")
         return try {
             d.decode(java.nio.ByteBuffer.wrap(b)).toString()
         } catch (e: java.nio.charset.CharacterCodingException) {
@@ -237,31 +247,22 @@ object PyLiterals {
         }
     }
 
-    /** bytes(...): bytes(), bytes(n), bytes(iterable of ints), bytes(str, encoding), bytes(bytes). */
+    /** bytes(source=b'', encoding, errors), as CPython takes them (PyByteSeqs.bytesOf). */
     @JvmStatic
-    fun newBytes(args: Array<Any?>): PyBytes {
-        if (args.isEmpty()) return PyBytes(ByteArray(0))
-        val v = args[0]
-        if (v is PyStr) {
-            if (args.size < 2) throw PyRt.typeError("string argument without an encoding")
-            return encode(v.s, (args[1] as PyStr).s)
+    fun newBytes(args: Array<Any?>, kw: PyDict? = null): PyBytes {
+        if (args.size > 3) throw PyRt.typeError("bytes() takes at most 3 arguments (${args.size} given)")
+        val x = arrayOfNulls<Any?>(3)
+        args.copyInto(x)
+        kw?.map?.forEach { (k, v) ->
+            val i = listOf("source", "encoding", "errors").indexOf((k.v as PyStr).s)
+            if (i < 0) throw PyRt.typeError("bytes() got an unexpected keyword argument '${(k.v as PyStr).s}'")
+            x[i] = v
         }
-        if (args.size > 1) throw PyRt.typeError("encoding without a string argument")
-        return when (v) {
-            is Long -> {
-                if (v < 0) throw PyException("ValueError", "negative count")
-                PyBytes(ByteArray(v.toInt()))
-            }
-            is PyBytes -> PyBytes(v.b.copyOf())
-            else -> {
-                val items = PyBuiltins.toList(v)
-                PyBytes(ByteArray(items.size) { i ->
-                    val x = items[i] as? Long ?: throw PyRt.typeError("'${PyTypes.name(items[i])}' object cannot be interpreted as an integer")
-                    if (x < 0 || x > 255) throw PyException("ValueError", "bytes must be in range(0, 256)")
-                    x.toByte()
-                })
-            }
+        if (x[0] == null) {
+            if (x[1] != null || x[2] != null) throw PyRt.typeError("encoding or errors without sequence argument")
+            return PyBytes(ByteArray(0))
         }
+        return PyBytes(PyByteSeqs.bytesOf(x[0], x[1], x[2], "bytes must be in range(0, 256)", true))
     }
 
     // ------------------------------------------------------------------ t-strings
@@ -353,96 +354,8 @@ object PyLiterals {
         d[PyStr("complex")] = ct
         // bytes
         val bt = PyTypes.BYTES
-        bt.newImpl = { _, _, a, _ -> newBytes(a) }
+        bt.newImpl = { _, _, a, kw -> newBytes(a, kw?.takeIf { it.size > 0 }) }
         d[PyStr("bytes")] = bt
-        fun bs(a: Array<Any?>, i: Int = 0): ByteArray = (a[i] as? PyBytes ?: throw PyRt.typeError("a bytes-like object is required, not '${PyTypes.name(a[i])}'")).b
-        m(bt, "decode") { a -> PyStr(decode(bs(a), (a.getOrNull(1) as? PyStr)?.s ?: "utf-8")) }
-        m(bt, "hex") { a -> PyStr(bs(a).joinToString("") { "%02x".format(u(it)) }) }
-        bt.def("fromhex", PyClassMethod(PyBuiltin("fromhex") { _, a ->
-            val s = (a[1] as PyStr).s.filter { !it.isWhitespace() }
-            if (s.length % 2 != 0 || s.any { Character.digit(it, 16) < 0 }) throw PyException("ValueError", "non-hexadecimal number found in fromhex() arg at position ${s.indexOfFirst { Character.digit(it, 16) < 0 }.coerceAtLeast(0)}")
-            PyBytes(ByteArray(s.length / 2) { i -> s.substring(2 * i, 2 * i + 2).toInt(16).toByte() })
-        }))
-        m(bt, "upper") { a -> PyBytes(bs(a).map { if (it in 'a'.code.toByte()..'z'.code.toByte()) (it - 32).toByte() else it }.toByteArray()) }
-        m(bt, "lower") { a -> PyBytes(bs(a).map { if (it in 'A'.code.toByte()..'Z'.code.toByte()) (it + 32).toByte() else it }.toByteArray()) }
-        m(bt, "strip") { a ->
-            val b = bs(a)
-            fun ws(x: Byte) = x.toInt() in intArrayOf(32, 9, 10, 11, 12, 13)
-            var i = 0
-            var j = b.size
-            while (i < j && ws(b[i])) i++
-            while (j > i && ws(b[j - 1])) j--
-            PyBytes(b.copyOfRange(i, j))
-        }
-        m(bt, "split") { a ->
-            val b = bs(a)
-            val sep = (a.getOrNull(1) as? PyBytes)?.b
-            val out = ArrayList<Any?>()
-            if (sep == null) {
-                var i = 0
-                while (i < b.size) {
-                    while (i < b.size && b[i].toInt() in intArrayOf(32, 9, 10, 11, 12, 13)) i++
-                    if (i >= b.size) break
-                    val s = i
-                    while (i < b.size && b[i].toInt() !in intArrayOf(32, 9, 10, 11, 12, 13)) i++
-                    out.add(PyBytes(b.copyOfRange(s, i)))
-                }
-            } else {
-                if (sep.isEmpty()) throw PyException("ValueError", "empty separator")
-                var from = 0
-                while (true) {
-                    val k = indexOf(b, sep, from)
-                    if (k < 0) break
-                    out.add(PyBytes(b.copyOfRange(from, k)))
-                    from = k + sep.size
-                }
-                out.add(PyBytes(b.copyOfRange(from, b.size)))
-            }
-            PyList(out)
-        }
-        m(bt, "join") { a ->
-            val sep = bs(a)
-            val parts = PyBuiltins.toList(a[1])
-            val o = java.io.ByteArrayOutputStream()
-            for ((i, p) in parts.withIndex()) {
-                if (i > 0) o.write(sep)
-                o.write((p as? PyBytes ?: throw PyRt.typeError("sequence item $i: expected a bytes-like object, ${PyTypes.name(p)} found")).b)
-            }
-            PyBytes(o.toByteArray())
-        }
-        m(bt, "startswith") { a -> val b = bs(a); val p = bs(a, 1); PyBool.of(b.size >= p.size && indexOf(b.copyOfRange(0, p.size), p, 0) == 0) }
-        m(bt, "endswith") { a -> val b = bs(a); val p = bs(a, 1); PyBool.of(b.size >= p.size && b.copyOfRange(b.size - p.size, b.size).contentEquals(p)) }
-        m(bt, "find") { a -> indexOf(bs(a), bs(a, 1), 0).toLong() }
-        m(bt, "count") { a ->
-            val b = bs(a)
-            val p = bs(a, 1)
-            var n = 0L
-            var from = 0
-            while (true) {
-                val k = indexOf(b, p, from)
-                if (k < 0 || p.isEmpty() && k > b.size) break
-                n++
-                from = k + maxOf(p.size, 1)
-                if (from > b.size) break
-            }
-            n
-        }
-        m(bt, "replace") { a ->
-            val b = bs(a)
-            val old = bs(a, 1)
-            val new = bs(a, 2)
-            val o = java.io.ByteArrayOutputStream()
-            var from = 0
-            while (old.isNotEmpty()) {
-                val k = indexOf(b, old, from)
-                if (k < 0) break
-                o.write(b, from, k - from)
-                o.write(new)
-                from = k + old.size
-            }
-            o.write(b, from, b.size - from)
-            PyBytes(o.toByteArray())
-        }
         PyTypes.STR.def("encode", PyBuiltin("encode") { _, a -> encode((a[0] as PyStr).s, (a.getOrNull(1) as? PyStr)?.s ?: "utf-8") })
     }
 }

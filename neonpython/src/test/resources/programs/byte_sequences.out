@@ -1,0 +1,120 @@
+bytes case -> (b'HELLO, WORLD  HELLO\tX\n', b'hello, world  hello\tx\n', b'hELLO, wORLD  HELLO\tX\n', b'Hello, World  Hello\tX\n', b'Hello, world  hello\tx\n', b'Abc Def')
+bytes pad -> (b'**ab**', b'ab   ', b'---ab', b'-00012', b'a   b')
+bytes strip -> (b'Hello, World  hello\tx', b'llo, World  hello\tx\n', b'Hello, World  hello\tx', b'a', b'a')
+bytes find -> (4, 8, 18, 4, 7, 17, 5, 5, -1)
+bytes index err !! ValueError subsection not found
+bytes split -> ([b'Hello,', b'World', b'hello', b'x'], [b'Hello', b' World  hello\tx\n'], [b'He', b'', b'o, World  hello\tx\n'], [b'Hello, World  he', b'', b'o\tx\n'], [b'a', b'b', b'c'], [b'a\n', b'b\r\n', b'c'], [])
+bytes part -> ((b'Hello', b', ', b'World  hello\tx\n'), (b'Hello, World  hel', b'l', b'o\tx\n'), (b'Hello, World  hello\tx\n', b'', b''), (b'', b'', b'Hello, World  hello\tx\n'))
+bytes join -> (b'a-b-c', b'')
+bytes join err !! TypeError sequence item 1: expected a bytes-like object, str found
+bytes replace -> (b'HeLLo, WorLd  heLLo\tx\n', b'Heo, World  hello\tx\n', b'-a-b-c-', b'lo, World  hello\tx\n', b'Hello, World  hello\t')
+bytes starts -> (True, True, True, True, True)
+bytes is -> [True, False, False, True, True, True, True, True, True, False]
+bytes hex -> ('01ab', '01:ab:cd', '01-abcd', b'\x01\xab', b'')
+bytes fromhex err !! ValueError non-hexadecimal number found in fromhex() arg at position 1
+bytes translate -> (b'xyc', b'ac', 98)
+bytes decode -> ('é', 'é', 'abc')
+bytes decode err !! UnicodeDecodeError 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte
+bytes ops -> (b'abc', b'abab', b'abab', True, True, True, True, 97, 98, b'bc', b'dcba', [97, 98])
+bytes ops err !! TypeError can't concat str to bytes
+bytes contains err !! ValueError byte must be in range(0, 256)
+bytes getitem err !! IndexError index out of range
+bytes repr -> ('b"a\'b"', 'b\'a"b\'', "b'\\x00\\n\\x7f\\x80'", 'b\'\\\'"\'')
+bytes mod -> (b"ab-12-ff-A-'q'-%", b'z', b'  3.1|7   |', b'z')
+bytes mod err !! TypeError %b requires a bytes-like object, or an object that implements __bytes__, not 'str'
+bytes ctor -> (b'\x00\x00\x00', b'\x01\x02', b'x', b'\xc3\xa9', b'\x00\x01\x02', b'mv', b'')
+bytes ctor err !! TypeError string argument without an encoding
+bytes ctor err2 !! ValueError bytes must be in range(0, 256)
+bytes ctor err3 !! ValueError negative count
+bytes misc -> (3, False, 3, 'bytes_iterator', True, True)
+bytearray case -> (bytearray(b'HELLO, WORLD  HELLO\tX\n'), bytearray(b'hello, world  hello\tx\n'), bytearray(b'hELLO, wORLD  HELLO\tX\n'), bytearray(b'Hello, World  Hello\tX\n'), bytearray(b'Hello, world  hello\tx\n'), bytearray(b'Abc Def'))
+bytearray pad -> (bytearray(b'**ab**'), bytearray(b'ab   '), bytearray(b'---ab'), bytearray(b'-00012'), bytearray(b'a   b'))
+bytearray strip -> (bytearray(b'Hello, World  hello\tx'), bytearray(b'llo, World  hello\tx\n'), bytearray(b'Hello, World  hello\tx'), bytearray(b'a'), bytearray(b'a'))
+bytearray find -> (4, 8, 18, 4, 7, 17, 5, 5, -1)
+bytearray index err !! ValueError subsection not found
+bytearray split -> ([bytearray(b'Hello,'), bytearray(b'World'), bytearray(b'hello'), bytearray(b'x')], [bytearray(b'Hello'), bytearray(b' World  hello\tx\n')], [bytearray(b'He'), bytearray(b''), bytearray(b'o, World  hello\tx\n')], [bytearray(b'Hello, World  he'), bytearray(b''), bytearray(b'o\tx\n')], [bytearray(b'a'), bytearray(b'b'), bytearray(b'c')], [bytearray(b'a\n'), bytearray(b'b\r\n'), bytearray(b'c')], [])
+bytearray part -> ((bytearray(b'Hello'), bytearray(b', '), bytearray(b'World  hello\tx\n')), (bytearray(b'Hello, World  hel'), bytearray(b'l'), bytearray(b'o\tx\n')), (bytearray(b'Hello, World  hello\tx\n'), bytearray(b''), bytearray(b'')), (bytearray(b''), bytearray(b''), bytearray(b'Hello, World  hello\tx\n')))
+bytearray join -> (bytearray(b'a-b-c'), bytearray(b''))
+bytearray join err !! TypeError sequence item 1: expected a bytes-like object, str found
+bytearray replace -> (bytearray(b'HeLLo, WorLd  heLLo\tx\n'), bytearray(b'Heo, World  hello\tx\n'), bytearray(b'-a-b-c-'), bytearray(b'lo, World  hello\tx\n'), bytearray(b'Hello, World  hello\t'))
+bytearray starts -> (True, True, True, True, True)
+bytearray is -> [True, False, False, True, True, True, True, True, True, False]
+bytearray hex -> ('01ab', '01:ab:cd', '01-abcd', bytearray(b'\x01\xab'), bytearray(b''))
+bytearray fromhex err !! ValueError non-hexadecimal number found in fromhex() arg at position 1
+bytearray translate -> (bytearray(b'xyc'), bytearray(b'ac'), 98)
+bytearray decode -> ('é', 'é', 'abc')
+bytearray decode err !! UnicodeDecodeError 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte
+bytearray ops -> (bytearray(b'abc'), bytearray(b'abab'), bytearray(b'abab'), True, True, True, True, 97, 98, bytearray(b'bc'), bytearray(b'dcba'), [97, 98])
+bytearray ops err !! TypeError can't concat str to bytearray
+bytearray contains err !! ValueError byte must be in range(0, 256)
+bytearray getitem err !! IndexError bytearray index out of range
+bytearray repr -> ('bytearray(b"a\\\'b")', 'bytearray(b\'a"b\')', "bytearray(b'\\x00\\n\\x7f\\x80')", 'bytearray(b\'\\\'"\')')
+bytearray mod -> (bytearray(b"ab-12-ff-A-\'q\'-%"), bytearray(b'z'), bytearray(b'  3.1|7   |'), bytearray(b'z'))
+bytearray mod err !! TypeError %b requires a bytes-like object, or an object that implements __bytes__, not 'str'
+bytearray ctor -> (bytearray(b'\x00\x00\x00'), bytearray(b'\x01\x02'), bytearray(b'x'), bytearray(b'\xc3\xa9'), bytearray(b'\x00\x01\x02'), bytearray(b'mv'), bytearray(b''))
+bytearray ctor err !! TypeError string argument without an encoding
+bytearray ctor err2 !! ValueError byte must be in range(0, 256)
+bytearray ctor err3 !! ValueError negative count
+bytearray misc -> (3, False, 3, 'bytearray_iterator', True, True)
+bytearray(b'ZAbcdef') 7
+bytearray(b'ZXYZcdef')
+bytearray(b'XYZcdef')
+bytearray(b'Yce')
+101 89 bytearray(b'c')
+bytearray(b'cxz')
+bytearray(b'zxc')
+bytearray(b'zxc!!')
+bytearray(b'zxc!!zxc!!')
+bytearray(b'') bytearray(b'zxc!!zxc!!')
+ba errs !! IndexError pop from empty bytearray
+ba errs2 !! ValueError value not found in bytearray
+ba errs3 !! ValueError byte must be in range(0, 256)
+ba errs4 !! TypeError 'bytes' object cannot be interpreted as an integer
+ba errs5 !! TypeError unhashable type: 'bytearray'
+ba slice ext -> bytearray(b'XbYd')
+ba slice ext err !! ValueError attempt to assign bytes of size 1 to extended slice of size 2
+ba resize -> (bytearray(b'a'), None, bytearray(b'a'))
+ba types -> ('bytearray', 'bytes', 'bytearray', 'bytearray')
+ba repr -> ("bytearray(b'a\\x00')", "bytearray(b'')")
+ba iter -> bytearray_iterator
+ba setitem neg -> bytearray(b'a\x00')
+ba from int list -> bytearray(b'\x01\x02\xff')
+ba eq -> (True, True, True)
+ba fromhex -> (bytearray(b'\xff'), 'bytearray')
+ba sub -> (BA(b'sub'), 'BA', 'bytearray', 'bytearray', True, 3)
+mv attrs -> ('B', 1, 1, (6,), (1,), True, 6, b'abcdef', True, True)
+mv ops -> (97, 102, b'bc', b'ace', [97, 98, 99], '616263646566', 6, True, True, [97, 98])
+mv ro !! TypeError cannot modify read-only memory
+bytearray(b'ABC') False b'ABC' b'ABC'
+bytearray(b'ABC!')
+mv released !! ValueError operation forbidden on released memoryview object
+mv released repr -> True
+mv repr -> True
+b'ctx'
+mv ctx released !! ValueError operation forbidden on released memoryview object
+mv cast -> ('H', 2, 2, [1, 2], 2, 4, [1, 0, 2, 0], [b'a', b'b'])
+mv cast err !! TypeError memoryview: length is not a multiple of itemsize
+mv hash -> True
+mv hash err !! ValueError cannot hash writable memoryview object
+mv set err !! ValueError memoryview: invalid value for format 'B'
+mv set err2 !! ValueError memoryview assignment: lvalue and rvalue have different structures
+mv count -> (2, 1)
+mv of mv -> (b'q', b'xy')
+mv ctor err !! TypeError memoryview: a bytes-like object is required, not 'str'
+mv iter -> ([97, 98], 'memory_iterator')
+str dec -> ('é', 'ab', "b'x'", "bytearray(b'y')")
+from_bytes -> (1, 2, b'\x01\x02')
+set -> (2, 1, [b'a', b'ab', b'b'])
+ba key !! TypeError cannot use 'bytearray' as a dict key (unhashable type: 'bytearray')
+cmp -> (True, True, False, True)
+isinstance -> (False, True, True)
+decode errors -> ('ab', 'a�b', 'abc')
+encode -> (b'\xc3\xa9', b'abc', b'\xc3\xa9')
+bytes kw !! TypeError encoding without a string argument
+bool idx -> (98, 97)
+join gen -> b'1,2'
+unpack -> (120, 121)
+max -> (99, 3, [98, 97], [98, 97])
+match -> [bytearray(b'm')]
+match ba -> (('ba', bytearray(b'q')), ('b', b'r'))
+fmt -> ("b'x'", "bytearray(b'y')", "b'z'", "bytearray(b'w')")

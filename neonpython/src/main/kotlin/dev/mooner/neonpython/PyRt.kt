@@ -80,7 +80,12 @@ object PyRt {
     @JvmStatic fun values(op: Int, a: Any?, b: Any?): Any? = when (op) {
         PyOp.ADD -> addValues(a, b)
         PyOp.MUL -> mulValues(a, b)
-        PyOp.MOD -> if (a is PyStr) PyStr(PyFormat.percent(a.s, b)) else null
+        PyOp.MOD -> when (a) {
+            is PyStr -> PyStr(PyFormat.percent(a.s, b))
+            is PyBytes -> PyBytes(PyByteSeqs.percent(a.b, b))
+            is PyByteArray -> PyByteArray(PyByteSeqs.percent(a.bytes(), b))
+            else -> null
+        }
         // a dict | a dict: a copy, updated
         PyOp.BITOR -> if (a is PyDict && b is PyDict) PyDict().also { d -> d.map.putAll(a.map); d.map.putAll(b.map) }
             else PyContainers.setOp(op, a, b) ?: PySets.binary(op, a, b) ?: PyTyping.or(a, b)
@@ -107,7 +112,7 @@ object PyRt {
 
     /** a + b of a str, list or tuple: null where a is none of them, CPython's TypeError where b is not of a's kind. */
     @JvmStatic fun addValues(a: Any?, b: Any?): Any? {
-        if (a is PyBytes) return PyLiterals.bytesAdd(a, b)
+        if (a is PyBytes || a is PyByteArray) return PyLiterals.bytesAdd(a, b)
         if (a is PyTemplate || b is PyTemplate) return PyLiterals.templateAdd(a, b)
         if (a is PyStr) return if (b is PyStr) PyStr(a.s + b.s) else throw concat("str", b)
         if (a is PyList) {
@@ -196,6 +201,8 @@ object PyRt {
     @JvmStatic fun mod(a: Any?, b: Any?): Any? {
         if (!isNumber(a) || !isNumber(b)) {
             if (a is PyStr && a.sub == null) return PyStr(PyFormat.percent(a.s, b))
+            if (a is PyBytes) return PyBytes(PyByteSeqs.percent(a.b, b))
+            if (a is PyByteArray && a.sub == null) return PyByteArray(PyByteSeqs.percent(a.bytes(), b))
             return other(PyOp.MOD, "%", a, b)
         }
         if (a is Double || b is Double) {
@@ -324,6 +331,7 @@ object PyRt {
         is PyObject -> PyDunder.truthy(v)
         is PyComplex -> v.real != 0.0 || v.imag != 0.0
         is PyBytes -> v.b.isNotEmpty()
+        is PyMemoryView -> { v.check(); v.count > 0 }
         is PyDictView -> v.dict.size > 0
         else -> true
     }
@@ -336,6 +344,7 @@ object PyRt {
         is PyTuple -> v.items.isNotEmpty()
         is PyDict -> v.size > 0
         is PySet -> v.used > 0
+        is PyByteArray -> v.size > 0
         else -> true
     }
 
@@ -349,6 +358,8 @@ object PyRt {
         is PyDict -> v.size.toLong()
         is PySet -> v.used.toLong()
         is PyBytes -> v.b.size.toLong()
+        is PyByteArray -> v.size.toLong()
+        is PyMemoryView -> { v.check(); v.count.toLong() }
         is PyDictView -> v.dict.size.toLong()
         is PyRange -> PyRanges.len(v)
         else -> throw typeError("object of type '${t(v)}' has no len()")
@@ -390,7 +401,9 @@ object PyRt {
             is PyTuple -> b is PyTuple && seqEquals(a.items.asList(), b.items.asList())
             is PyDict -> b is PyDict && a.size == b.size && a.map.all { (k, v) -> b.map.containsKey(k) && eq(v, b.map[k]) }
             is PySet -> b is PySet && PySets.equal(a, b)
-            is PyBytes -> b is PyBytes && a.b.contentEquals(b.b)
+            is PyBytes, is PyByteArray -> (b is PyBytes || b is PyByteArray) && PyByteSeqs.content(a)!!.contentEquals(PyByteSeqs.content(b))
+                || b is PyMemoryView && PyByteSeqs.viewEquals(b, a) === PyBool.TRUE
+            is PyMemoryView -> PyByteSeqs.viewEquals(a, b) === PyBool.TRUE
             is PyRange -> b is PyRange && PyRanges.eq(a, b)
             is PySlice -> b is PySlice && a == b
             is PyGenericAlias, is PyUnion, is PyParamSpecPart, is PyUnpacked -> a == b
@@ -427,6 +440,7 @@ object PyRt {
             isNumber(a) && isNumber(b) -> numCompare(a, b) ?: return false
             a is PyStr && b is PyStr -> a.compareTo(b)
             a is PyBytes && b is PyBytes -> PyLiterals.bytesCompare(a, b)
+            (a is PyBytes || a is PyByteArray) && (b is PyBytes || b is PyByteArray) -> PyLiterals.bytesCompare(PyBytes(PyByteSeqs.content(a)!!), PyBytes(PyByteSeqs.content(b)!!))
             a is PyList && b is PyList -> seqCompare(op, a.items, b.items) ?: return false
             a is PyTuple && b is PyTuple -> seqCompare(op, a.items.asList(), b.items.asList()) ?: return false
             else -> return null
@@ -460,6 +474,8 @@ object PyRt {
         is PySet -> if (v.sub == null) (if (v.frozen) java.lang.Long.hashCode(v.frozenHash()) else throw typeError("unhashable type: '${t(v)}'")) else PyDunder.hash(v)
         is PySlice -> java.lang.Long.hashCode(PyHash.hash(v))
         is PyRange -> java.lang.Long.hashCode(PyRanges.hash(v))
+        is PyByteArray -> if (v.sub != null) PyDunder.hash(v) else throw typeError("unhashable type: 'bytearray'")
+        is PyMemoryView -> java.lang.Long.hashCode(PyByteSeqs.viewHash(v))
         is PyBytes -> v.hashCode()
         // (equal to an int or a float, a complex with no imaginary part hashes as it)
         is PyComplex -> if (v.imag == 0.0) hash(v.real) else java.lang.Long.hashCode(PyHash.hash(v))
@@ -495,6 +511,8 @@ object PyRt {
         is PyDict -> container.containsKey(v)
         is PySet -> container.contains(v)
         is PyBytes -> PyLiterals.bytesContains(container, v)
+        is PyByteArray -> PyLiterals.bytesContains(PyBytes(container.bytes()), v)
+        is PyMemoryView -> PyByteSeqs.tolist(container).items.any { it === v || eq(it, v) }
         is PyDictView -> PyContainers.contains(container, v)
         is PyStr -> if (v is PyStr) container.s.contains(v.s) else throw typeError("'in <string>' requires string as left operand, not ${t(v)}")
         is PyRange -> PyRanges.contains(container, v)
@@ -561,6 +579,8 @@ object PyRt {
         is PyStream -> "<_io.TextIOWrapper name='${v.name}' mode='w' encoding='utf-8'>"
         is PyInterpolation -> PyLiterals.interpolationRepr(v)
         is PyRange -> PyRanges.repr(v)
+        is PyByteArray -> PyByteSeqs.repr(v)
+        is PyMemoryView -> PyByteSeqs.viewRepr(v)
         is PyType -> v.repr()
         is PyObject -> PyDunder.repr(v)
         is PyIterator -> (v as? PyIterTool)?.repr?.invoke() ?: PyDunder.defaultRepr(v)
@@ -673,6 +693,8 @@ object PyRt {
         is PyDict -> if (obj.containsKey(key)) obj[key] else throw PyException.keyError(key)
         is PyBytes -> PyLiterals.bytesItem(obj, key)
         is PyRange -> PyRanges.item(obj, key)
+        is PyByteArray -> PyByteSeqs.item(obj, key)
+        is PyMemoryView -> PyByteSeqs.viewItem(obj, key)
         is PyObject -> PyDunder.getItem(obj, key)
         is PyType -> PyTyping.typeGetItem(obj, key)
         is PyGenericAlias, is PyUnion -> PyTyping.aliasGetItem(obj, key)
@@ -689,6 +711,8 @@ object PyRt {
         when (obj) {
             is PyList -> if (key is PySlice) assignSlice(obj, key, v) else obj.items[index(key, obj.items.size, "list assignment")] = v
             is PyDict -> obj[key] = v
+            is PyByteArray -> PyByteSeqs.setItem(obj, key, v)
+            is PyMemoryView -> PyByteSeqs.viewSetItem(obj, key, v)
             is PyObject -> PyDunder.setItem(obj, key, v)
             else -> throw typeError("'${t(obj)}' object does not support item assignment")
         }
@@ -794,6 +818,8 @@ object PyRt {
             var k = 0
             PyIterator { if (k < v.b.size) (v.b[k++].toInt() and 0xFF).toLong() else PyIterator.STOP }.also { it.type = PyLibrary.BYTES_ITERATOR }
         }
+        is PyByteArray -> PyByteSeqs.iter(v)
+        is PyMemoryView -> PyByteSeqs.viewIter(v)
         is PyTemplate -> PyLiterals.templateIter(v)
         is PyGenericAlias -> PyTyping.iter(v)
         is PyTypeParam -> PyTyping.typeParamIter(v)

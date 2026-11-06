@@ -443,9 +443,13 @@ object PyFormat {
 
     // ------------------------------------------------------------------ %
 
-    /** `fmt % arg`: the arguments a tuple's items, else [arg] alone (or, for %(key)s, a mapping). */
+    /**
+     * `fmt % arg`: the arguments a tuple's items, else [arg] alone (or, for %(key)s, a mapping). With [bytes], bytes'
+     * formatting over their bytes as Latin-1 (PyByteSeqs.percent): %s and %b of bytes-like objects, %a and %r ascii(),
+     * %c an int or one byte, keys bytes.
+     */
     @JvmStatic
-    fun percent(fmt: String, arg: Any?): String {
+    fun percent(fmt: String, arg: Any?, bytes: Boolean = false): String {
         val items: Array<Any?> = if (arg is PyTuple) arg.items else arrayOf(arg)
         // (CPython's PyMapping_Check: whatever takes a subscript, but a tuple or a str)
         val mapping = arg !is PyTuple && arg !is PyStr && (arg is PyDict || arg is PyList || arg is PyRange ||
@@ -478,7 +482,8 @@ object PyFormat {
                     i++
                 }
                 if (level > 0) throw PyException("ValueError", "incomplete format key")
-                value = PyRt.getItem(arg, PyStr(fmt.substring(ks, i - 1)))
+                val key = fmt.substring(ks, i - 1)
+                value = PyRt.getItem(arg, if (bytes) PyBytes(key.toByteArray(Charsets.ISO_8859_1)) else PyStr(key))
                 have = true
                 usedMapping = true
             }
@@ -527,8 +532,10 @@ object PyFormat {
             val sign = if (plus) '+' else if (space) ' ' else 0.toChar()
             fun spec(t: Char, p: Int = precision) = Spec(fill, align, sign, false, alt, width, 0.toChar(), p, t)
             val out = when (type) {
-                's', 'r', 'a' -> {
-                    val s = when (type) { 's' -> PyRt.str(value); 'r' -> PyRt.repr(value); else -> ascii(value) }
+                's', 'r', 'a', 'b' -> {
+                    if (type == 'b' && !bytes) throw PyException("ValueError", "unsupported format character 'b' (0x62) at index ${i - 1}")
+                    val s = if (bytes) (if (type == 's' || type == 'b') PyByteSeqs.percentBytes(PyContext.current(), value, type) else ascii(value))
+                        else when (type) { 's' -> PyRt.str(value); 'r' -> PyRt.repr(value); else -> ascii(value) }
                     formatStr(s, Spec(' '.code, if (left) '<' else '>', 0.toChar(), false, false, width, 0.toChar(), precision, 's'), value)
                 }
                 'd', 'i', 'u' -> {
@@ -552,7 +559,7 @@ object PyFormat {
                 }
                 'e', 'E', 'f', 'F', 'g', 'G' -> formatFloat(PyRt.toDouble(value), spec(type, if (precision < 0) 6 else precision), value)
                 'c' -> {
-                    val ch = when (value) {
+                    val ch = if (bytes) PyByteSeqs.percentChar(value) else when (value) {
                         is Long -> String(Character.toChars(value.toInt()))
                         is PyStr -> if (value.length == 1) value.s else throw PyRt.typeError("%c requires an int or a unicode character, not a string of length ${value.length}")
                         else -> throw PyRt.typeError("%c requires an int or a unicode character, not ${PyTypes.name(value)}")
@@ -565,7 +572,7 @@ object PyFormat {
         }
         // (a tuple's items all used; a single argument used, unless it is a mapping)
         if (!usedMapping && (if (arg is PyTuple) next < items.size else !mapping && next == 0)) {
-            throw PyRt.typeError("not all arguments converted during string formatting")
+            throw PyRt.typeError("not all arguments converted during ${if (bytes) "bytes" else "string"} formatting")
         }
         return sb.toString()
     }

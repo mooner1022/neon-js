@@ -102,6 +102,8 @@ object PyTypes {
     @JvmField val COMPLEX = builtin("complex")
     @JvmField val STR = builtin("str")
     @JvmField val BYTES = builtin("bytes")
+    @JvmField val BYTEARRAY = builtin("bytearray")
+    @JvmField val MEMORYVIEW = builtin("memoryview", subclassable = false)
     @JvmField val LIST = builtin("list")
     @JvmField val TUPLE = builtin("tuple")
     @JvmField val DICT = builtin("dict")
@@ -211,6 +213,8 @@ object PyTypes {
         is PyInterpolation -> INTERPOLATION
         is PyComplex -> COMPLEX
         is PyBytes -> BYTES
+        is PyByteArray -> v.sub?.cls ?: BYTEARRAY
+        is PyMemoryView -> MEMORYVIEW
         is PyCell -> CELL
         PyEllipsis -> ELLIPSIS
         PyNotImplemented -> NOT_IMPLEMENTED

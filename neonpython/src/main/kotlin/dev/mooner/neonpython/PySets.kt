@@ -92,6 +92,8 @@ object PyHash {
         v is PyRange -> PyRanges.hash(v)
         v is PyComplex -> fix(float(v.real, v) + 1000003L * float(v.imag, v))
         v is PyBytes -> fix(v.b.contentHashCode().toLong())
+        v is PyByteArray -> throw PyRt.typeError("unhashable type: 'bytearray'")
+        v is PyMemoryView -> PyByteSeqs.viewHash(v)
         v is PyGenericAlias || v is PyUnion || v is PyParamSpecPart || v is PyUnpacked -> v.hashCode().toLong()
         else -> System.identityHashCode(v).toLong()
     }

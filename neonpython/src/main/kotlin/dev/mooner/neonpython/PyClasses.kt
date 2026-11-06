@@ -158,7 +158,7 @@ object PyClasses {
 
     /** The builtin types whose values a class may derive from: their instances are such values (PyValue.sub). */
     private val VALUE_BASES = setOf(PyTypes.STR, PyTypes.LIST, PyTypes.TUPLE, PyTypes.DICT, PyTypes.SET, PyTypes.FROZENSET, PyTypes.INT, PyTypes.FLOAT, PyTypes.COMPLEX, PyTypes.BYTES,
-        PyTypes.STATICMETHOD, PyTypes.CLASSMETHOD, PyTypes.PROPERTY)
+        PyTypes.STATICMETHOD, PyTypes.CLASSMETHOD, PyTypes.PROPERTY, PyTypes.BYTEARRAY)
 
     /** The class of an instance of one (an object, or a builtin value of a subclass); null for a builtin value. */
     @JvmStatic

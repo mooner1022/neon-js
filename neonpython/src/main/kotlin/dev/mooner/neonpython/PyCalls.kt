@@ -344,6 +344,8 @@ object PyCalls {
                 obj.items.removeAt(k.toInt())
             }
             is PyDict -> if (obj.map.remove(PyDict.Key(key)) == null) throw PyException.keyError(key)
+            is PyByteArray -> PyByteSeqs.delItem(obj, key)
+            is PyMemoryView -> throw PyRt.typeError("cannot delete memory")
             else -> throw PyRt.typeError("'${PyTypes.name(obj)}' object doesn't support item deletion")
         }
     }
