@@ -186,11 +186,21 @@ object PyEval {
         return compile(v[0], filename, mode, flags)
     }
 
+    /** f.__code__: its function's code object (the same each time). */
+    @JvmStatic
+    fun functionCode(f: PyFunction): Any? = f.info.codeObject ?: PyCode(f.code, "function", "<string>").also { f.info.codeObject = it }
+
     @JvmStatic
     fun codeAttr(c: PyCode, name: String): Any? = when (name) {
         "co_name" -> PyStr(c.code.name)
+        "co_qualname" -> PyStr((c.code.dialectData as PyCodeInfo).qualname)
         "co_filename" -> PyStr(c.filename)
-        "co_firstlineno" -> 1L
+        "co_firstlineno" -> (c.code.dialectData as PyCodeInfo).firstLine.toLong().takeIf { it > 0 } ?: 1L
+        "co_varnames" -> PyTuple((c.code.dialectData as PyCodeInfo).varnames.map { PyStr(it) }.toTypedArray())
+        "co_flags" -> (c.code.dialectData as PyCodeInfo).coFlags.toLong()
+        "co_argcount" -> (c.code.dialectData as PyCodeInfo).argcount.toLong()
+        "co_posonlyargcount" -> (c.code.dialectData as PyCodeInfo).posonlyCount.toLong()
+        "co_kwonlyargcount" -> (c.code.dialectData as PyCodeInfo).kwonlyCount.toLong()
         "__class__" -> CODE
         else -> throw PyException("AttributeError", "'code' object has no attribute '$name'")
     }

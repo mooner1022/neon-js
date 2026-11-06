@@ -105,3 +105,30 @@ def dirs():
 
 dirs()
 print([n for n in dir() if not n.startswith('__')][:4])
+
+
+def code_objects():
+    def f(a, b, /, c, *args, d, e=1, **kw):
+        x = a
+        def g():
+            return x
+        return g
+
+    co = f.__code__
+    print(co.co_name, co.co_qualname, co.co_argcount, co.co_posonlyargcount, co.co_kwonlyargcount)
+    print(co.co_varnames, co.co_flags, co.co_firstlineno - code_objects.__code__.co_firstlineno)
+    print(f.__code__ is co, f(1, 2, 3, d=4).__code__.co_qualname, f(1, 2, 3, d=4).__code__.co_flags)
+
+    def gen():
+        yield 1
+
+    async def coro():
+        pass
+
+    async def agen():
+        yield 1
+    print(gen.__code__.co_flags, coro.__code__.co_flags, agen.__code__.co_flags, (lambda: 0).__code__.co_name)
+    print(f.__call__(1, 2, 3, d=4)(), len.__call__([1, 2]), [].append.__call__ is not None, print.__call__('called'))
+
+
+code_objects()

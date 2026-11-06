@@ -328,6 +328,12 @@ object PyClasses {
         // (a function's __annotations__ and __annotate__: the function type's data descriptors; its __type_params__)
         if (obj is PyFunction && PyAnnotations.isName(name)) return PyAnnotations.functionGet(obj, name)
         if (obj is PyFunction && name == "__type_params__") return obj.typeParams
+        if (obj is PyFunction && name == "__code__") return PyEval.functionCode(obj)
+        // (a function's, a builtin's, a method's __call__: what calling it does)
+        if (name == "__call__" && (obj is PyFunction || obj is PyBuiltin || obj is PyBoundMethod || obj is PyMethod)) {
+            return PyBuiltin("__call__", { ctx, a -> PyCalls.callWith(ctx, obj, a, NO_ARGS, NO_ARGS) },
+                { ctx, a, kw -> PyCalls.callWith(ctx, obj, a, kw.map.keys.map { it.v }.toTypedArray(), kw.map.values.toTypedArray()) })
+        }
         val type = PyTypes.typeOf(obj)
         val d = type.lookup(name)
         if (d != null && isDataDescriptor(d)) return descrGet(null, d, obj, type)

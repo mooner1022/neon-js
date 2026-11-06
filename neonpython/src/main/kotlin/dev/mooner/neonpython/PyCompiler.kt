@@ -22,6 +22,11 @@ class PyCodeInfo(@JvmField val name: String, @JvmField val localNames: Array<Str
     /** What calling it makes: its frame run (0), a generator, a coroutine, an async generator; and its def's line. */
     @JvmField var kind = 0
     @JvmField var firstLine = -1
+    /** Its code object's co_varnames (parameters, then locals that are no cells) and co_flags. */
+    @JvmField var varnames: List<String> = emptyList()
+    @JvmField var coFlags = 0
+    /** Its function's `__code__`, made once. */
+    @JvmField var codeObject: Any? = null
 
     /**
      * The operand types the interpreter saw at each arithmetic and comparison instruction, by pc ([PyProfile]): made
@@ -424,6 +429,17 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         }
         if (info.kind != 0) cb.flags = cb.flags or CodeUnit.GENERATOR
         info.firstLine = firstLine
+        if (!namespace) {
+            info.varnames = scope.params + locals.keys.filter { it !in scope.params && scope.kind(it) == Scope.Kind.LOCAL && !it.startsWith(".") }
+            var fl = 3 // CO_OPTIMIZED, CO_NEWLOCALS
+            if (args?.vararg != null) fl = fl or 4
+            if (args?.kwarg != null) fl = fl or 8
+            var p = scope.parent
+            while (p != null && p.type == Scope.Type.TYPE_PARAMS) p = p.parent
+            if (p != null && p.isFunction) fl = fl or 16 // CO_NESTED
+            fl = fl or when (info.kind) { PyCodeInfo.GENERATOR -> 32; PyCodeInfo.COROUTINE -> 128; PyCodeInfo.ASYNC_GENERATOR -> 512; else -> 0 }
+            info.coFlags = fl
+        }
         cb.dialectData = info
         return cb
     }

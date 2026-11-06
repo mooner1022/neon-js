@@ -34,3 +34,9 @@ NameError: name 'undefined_in_eval' is not defined
 TypeError: dir expected at most 1 argument, got 2
 ['D', 'K', 'L', 'f', 'o']
 ['dirs', 'error', 'running', 'syntax_errors']
+f code_objects.<locals>.f 3 2 2
+('a', 'b', 'c', 'd', 'e', 'args', 'kw', 'g') 31 1
+True code_objects.<locals>.f.<locals>.g 19
+51 147 531 <lambda>
+called
+1 2 True None
