@@ -55,14 +55,27 @@ class Scope(@JvmField val type: Type, @JvmField val name: String, @JvmField val 
     @JvmField var scopeInfo: String? = null
     /** A TYPE_PARAMS scope's type parameters. */
     @JvmField val typeParamNames = HashSet<String>()
+    /**
+     * The class whose private names (`__x`) it mangles (`_C__x`): its own, or the one around it; [mangledOnly] a
+     * class's type parameters' scope's: only those names.
+     */
+    @JvmField var private: String? = null
+    @JvmField var mangledOnly: Set<String>? = null
+
+    /** [n] as this scope's code names it (CPython's _Py_MaybeMangle). */
+    fun mangle(n: String): String = if (mangledOnly != null && n !in mangledOnly!!) n else PySymtable.mangle(private, n)
 
     fun kind(n: String): Kind = kinds[n] ?: if (type == Type.MODULE || type == Type.CLASS) Kind.GLOBAL_IMPLICIT else Kind.GLOBAL_IMPLICIT
 
     val isFunction: Boolean get() = type != Type.MODULE && type != Type.CLASS
 
     fun add(n: String, flag: Int) {
-        flags[n] = (flags[n] ?: 0) or flag
+        val m = mangle(n)
+        flags[m] = (flags[m] ?: 0) or flag
     }
+
+    /** [n]'s flags here, [n] mangled. */
+    fun flagsOf(n: String): Int = flags[mangle(n)] ?: 0
 
     companion object {
         const val DEF_LOCAL = 1
@@ -105,12 +118,26 @@ class PySymtable private constructor() {
         }
 
         private fun err(msg: String, n: Node): Nothing = throw PySyntaxError(msg, n.line, n.col)
+
+        /**
+         * A private name in class [private] (_Py_Mangle): `__x` as `_C__x`, the class's leading underscores dropped;
+         * not a dunder, a dotted name, or in a class named only underscores.
+         */
+        @JvmStatic
+        fun mangle(private: String?, n: String): String {
+            if (private == null || !n.startsWith("__") || n.endsWith("__") || '.' in n) return n
+            val p = private.trimStart('_')
+            return if (p.isEmpty()) n else "_$p$n"
+        }
     }
 
     /** A scope named [name] in [cur]: its node's in [scopes] where [register], one of [cur]'s children where [attach]. */
     private fun push(type: Scope.Type, name: String, node: Node, attach: Boolean = true, register: Boolean = true): Scope {
         val s = Scope(type, name, cur, node)
         s.qualname = qualnameOf(name)
+        // (a class's names are private to it, and to what is in it)
+        s.private = if (type == Scope.Type.CLASS) name else cur.private
+        if (type == Scope.Type.TYPE_VARIABLE) s.mangledOnly = cur.mangledOnly
         if (attach) cur.children.add(s)
         if (register) scopes[node] = s
         cur = s
@@ -137,6 +164,11 @@ class PySymtable private constructor() {
         val inClass = cur.type == Scope.Type.CLASS
         val s = push(Scope.Type.TYPE_PARAMS, "<generic parameters of $name>", node, register = false)
         typeParamScopes[node] = s
+        // (a generic class's type parameters are its private names; its bases' names are not)
+        if (node is ClassDef) {
+            s.private = name
+            s.mangledOnly = tps.map { it.name }.toSet()
+        }
         if (inClass) {
             s.canSeeClass = true
             s.add("__classdict__", Scope.USE)
@@ -147,7 +179,7 @@ class PySymtable private constructor() {
         }
         for (tp in tps) {
             if (tp.name == "__classdict__") err("reserved name '__classdict__' cannot be used for type parameter", tp)
-            if (!s.typeParamNames.add(tp.name)) err("duplicate type parameter '${tp.name}'", tp)
+            if (!s.typeParamNames.add(s.mangle(tp.name))) err("duplicate type parameter '${tp.name}'", tp)
             s.add(tp.name, Scope.DEF_LOCAL)
             when (tp) {
                 is TypeVar -> {
@@ -250,7 +282,7 @@ class PySymtable private constructor() {
     }
 
     private fun bind(n: String, node: Node) {
-        val f = cur.flags[n] ?: 0
+        val f = cur.flagsOf(n)
         if (f and Scope.DEF_GLOBAL != 0 || f and Scope.DEF_NONLOCAL != 0) return
         cur.add(n, Scope.DEF_LOCAL)
     }
@@ -336,7 +368,7 @@ class PySymtable private constructor() {
                 cur.annotationsUsed = true
                 val t = s.target
                 if (t is Name) {
-                    val f = cur.flags[t.id] ?: 0
+                    val f = cur.flagsOf(t.id)
                     if (f and (Scope.DEF_GLOBAL or Scope.DEF_NONLOCAL) != 0 && cur.type != Scope.Type.MODULE && s.simple == 1) {
                         err("annotated name '${t.id}' can't be ${if (f and Scope.DEF_GLOBAL != 0) "global" else "nonlocal"}", s)
                     }
@@ -400,7 +432,7 @@ class PySymtable private constructor() {
             is Import -> for (a in s.names) bind(a.asname ?: a.name.substringBefore('.'), a)
             is ImportFrom -> for (a in s.names) if (a.name != "*") bind(a.asname ?: a.name, a)
             is Global -> for (n in s.names) {
-                val f = cur.flags[n] ?: 0
+                val f = cur.flagsOf(n)
                 if (cur.type == Scope.Type.MODULE) { cur.add(n, Scope.DEF_GLOBAL); continue }
                 if (f and Scope.DEF_PARAM != 0) err("name '$n' is parameter and global", s)
                 if (f and Scope.DEF_NONLOCAL != 0) err("name '$n' is nonlocal and global", s)
@@ -409,14 +441,14 @@ class PySymtable private constructor() {
                 cur.add(n, Scope.DEF_GLOBAL)
             }
             is Nonlocal -> for (n in s.names) {
-                val f = cur.flags[n] ?: 0
+                val f = cur.flagsOf(n)
                 if (cur.type == Scope.Type.MODULE) err("nonlocal declaration not allowed at module level", s)
                 if (f and Scope.DEF_PARAM != 0) err("name '$n' is parameter and nonlocal", s)
                 if (f and Scope.DEF_GLOBAL != 0) err("name '$n' is nonlocal and global", s)
                 if (f and Scope.USE != 0) err("name '$n' is used prior to nonlocal declaration", s)
                 if (f and Scope.DEF_LOCAL != 0) err("name '$n' is assigned to before nonlocal declaration", s)
                 cur.add(n, Scope.DEF_NONLOCAL)
-                cur.nonlocalAt[n] = s
+                cur.nonlocalAt[cur.mangle(n)] = s
             }
             is ExprStmt -> expr(s.value)
             is Pass, is Break, is Continue -> {}
@@ -434,7 +466,7 @@ class PySymtable private constructor() {
         for (p in a.posonlyargs + a.args + a.kwonlyargs + listOfNotNull(a.vararg, a.kwarg)) {
             if (!seen.add(p.arg)) err("duplicate argument '${p.arg}' in function definition", p)
             cur.add(p.arg, Scope.DEF_PARAM)
-            cur.params.add(p.arg)
+            cur.params.add(cur.mangle(p.arg))
         }
     }
 
@@ -572,13 +604,13 @@ class PySymtable private constructor() {
         if (cur.type == Scope.Type.COMPREHENSION) {
             var s: Scope = cur
             while (s.type == Scope.Type.COMPREHENSION) {
-                if ((s.flags[n] ?: 0) and Scope.DEF_COMP_ITER != 0) {
+                if (s.flagsOf(n) and Scope.DEF_COMP_ITER != 0) {
                     err("assignment expression cannot rebind comprehension iteration variable '$n'", e)
                 }
                 s = s.parent!!
             }
             if (s.type == Scope.Type.CLASS) err("assignment expression within a comprehension cannot be used in a class body", e)
-            val f = s.flags[n] ?: 0
+            val f = s.flagsOf(n)
             if (f and Scope.DEF_GLOBAL == 0) s.add(n, Scope.DEF_LOCAL)
             // in the comprehension it is free (or global, where its function is the module)
             cur.add(n, if (s.type == Scope.Type.MODULE || f and Scope.DEF_GLOBAL != 0) Scope.DEF_GLOBAL else Scope.DEF_NONLOCAL)

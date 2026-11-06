@@ -620,7 +620,7 @@ milestones. Each milestone is commits gated by the quick check and pushed when i
 | M6 | `match` (every pattern; or-patterns binding the same names, checked when compiling) | M2 |
 | M7 | `import`: module objects, a host-given loader (no file system unless the host gives one), a minimal `sys` | M2 |
 | M8 | `async def`, `await`, `async for`/`async with`, async generators and comprehensions (driven with `send` in tests: no asyncio; done: their frames interpreted as generators' are, M4b after) | M4 |
-| M9 | deferred annotations (PEP 649/749: `__annotate__`; done, M9a), type parameters and `type` aliases (PEP 695) with `list[int]`'s GenericAlias (done, M9b), what is left: private names' mangling, `__static_attributes__` and `__firstlineno__` (M9c) | M2 |
+| M9 | deferred annotations (PEP 649/749: `__annotate__`; done, M9a), type parameters and `type` aliases (PEP 695) with `list[int]`'s GenericAlias (done, M9b), what is left: private names' mangling, `__static_attributes__` and `__firstlineno__` (done, M9c) | M2 |
 
 ### 11.2 Decisions (the expensive ones to change later)
 
@@ -800,6 +800,21 @@ Made with type expressions and type parameters (M9b):
 - **Class statements resolve their bases by `__mro_entries__`** (PEP 560) and keep `__orig_bases__`; substitution of
   type variables in aliases and unions follows `_Py_subs_parameters` (defaults, a TypeVarTuple's arguments),
   Generic's typing's `_generic_class_getitem` (a ParamSpec's list).
+
+Made with what was left (M9c):
+
+- **Private names are mangled** (`__x` in a class as `_C__x`, CPython's _Py_Mangle): each scope knows the class it
+  is in (`Scope.private`; a generic class's type parameters' scope mangles only them), the symbol table records
+  names mangled and the compiler mangles names, attributes and annotation keys as it emits them; keyword arguments
+  of calls and class patterns' keywords are never mangled, nor dunders, dotted names, or in a class named only
+  underscores. A function's `__name__` and qualname keep the name as written.
+- **A class statement stores `__firstlineno__`** (its first decorator's line, else its own) **and
+  `__static_attributes__`**: the names of its and its functions' stores to attributes of a name `self`, sorted,
+  as written (not an augmented assignment's, nor an annotation's without a value). type() makes neither.
+  `__dict__` and `__weakref__` are not in a class's dict, nor `__doc__` where it has none (CPython's type.__new__
+  adds them).
+- **`__debug__` is the constant True**, and binding it anywhere (a name, a parameter, a keyword argument, an
+  attribute, an import, a target) CPython's compile error.
 
 - **A statement gives its temporaries back** when it ends, so that the registers of one try or with serve the next:
   the tier's code keeps every register a handler may read in a home at the start of each block a handler covers

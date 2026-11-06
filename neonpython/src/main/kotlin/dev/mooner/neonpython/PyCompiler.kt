@@ -181,6 +181,21 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     private var generatorExpr = false
     private var firstLine = -1
 
+    /** The class body's compiler this code is in (itself for a class), and a class's `self.x` stores' names. */
+    private var outerClass: PyCompiler? = null
+    private val staticAttributes = sortedSetOf<String>()
+
+    /** A compiler for [s], a scope in this code's. */
+    private fun child(s: Scope, name: String): PyCompiler = PyCompiler(st, s, name).also { it.outerClass = if (isClass) this else outerClass }
+
+    /** [n] as this scope names it (its class's private names mangled). */
+    private fun mangle(n: String): String = scope.mangle(n)
+
+    /** CPython's errors for binding `__debug__`. */
+    private fun forbidden(n: String, del: Boolean = false) {
+        if (n == "__debug__") throw PySyntaxError(if (del) "cannot delete __debug__" else "cannot assign to __debug__", line, 0)
+    }
+
     /** An annotation its `__annotate__` gives: [index] the conditional one's (its statement records it running), else -1. */
     private class Deferred(val name: String, val annotation: Expr, val index: Int, val line: Int)
 
@@ -220,6 +235,8 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             emit(PyOp.STORE_NAME, name("__module__"))
             loadConst(PyStr(scope.qualname))
             emit(PyOp.STORE_NAME, name("__qualname__"))
+            loadConst(firstLine.toLong())
+            emit(PyOp.STORE_NAME, name("__firstlineno__"))
             // (a generic class's type parameters)
             if (".type_params" in scope.frees) {
                 loadName(".type_params")
@@ -245,7 +262,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         for (s in body) stmt(s)
         if (deferred.isNotEmpty()) {
             val ann = scope.annotationScope!!
-            val cb = PyCompiler(st, ann, "__annotate__").compileAnnotate(deferred, firstLineOf(body))
+            val cb = child(ann, "__annotate__").compileAnnotate(deferred, firstLineOf(body))
             if (module) constants[annotateSlot] = cb
             else {
                 // a class's, at the end of its body: __annotate_func__, which C.__annotate__ gives
@@ -255,7 +272,12 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 emit(PyOp.STORE_NAME, name("__annotate_func__"))
             }
         }
-        // a class's __class__ cell, which type.__new__ fills with the class; its __classdict__'s, with its dict
+        // a class's `self.x` stores' names, sorted; its __class__ cell, which type.__new__ fills with the class; its
+        // __classdict__'s, with its dict
+        if (isClass) {
+            loadConst(PyTuple(staticAttributes.map { PyStr(it) }.toTypedArray()))
+            emit(PyOp.STORE_NAME, name("__static_attributes__"))
+        }
         if (isClass && scope.classCell) {
             emit(PyOp.LOAD_FAST, locals["__class__"]!!)
             emit(PyOp.STORE_NAME, name("__classcell__"))
@@ -429,7 +451,12 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
 
     // ------------------------------------------------------------------ names
 
-    private fun loadName(n: String) {
+    private fun loadName(raw: String) {
+        if (raw == "__debug__") {
+            loadConst(PyBool.TRUE)
+            return
+        }
+        val n = mangle(raw)
         if (scope.canSeeClass && n != "__classdict__" && n != "__conditional_annotations__") {
             when (scope.kind(n)) {
                 Scope.Kind.GLOBAL_IMPLICIT -> {
@@ -473,7 +500,9 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         emit(PyOp.CELL_GET, name("__classdict__"), 1)
     }
 
-    private fun storeName(n: String) {
+    private fun storeName(raw: String) {
+        forbidden(raw)
+        val n = mangle(raw)
         if (isClass) {
             when (scope.kind(n)) {
                 Scope.Kind.GLOBAL_EXPLICIT -> emit(PyOp.STORE_GLOBAL, name(n))
@@ -495,7 +524,9 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         }
     }
 
-    private fun deleteName(n: String) {
+    private fun deleteName(raw: String) {
+        forbidden(raw, del = true)
+        val n = mangle(raw)
         if (isClass) {
             when (scope.kind(n)) {
                 Scope.Kind.GLOBAL_EXPLICIT -> emit(PyOp.DELETE_GLOBAL, name(n))
@@ -563,11 +594,11 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                     if (st.futureAnnotations) {
                         loadConst(PyStr(PyUnparse.annotation(s.annotation)))
                         loadName("__annotations__")
-                        loadConst(PyStr(t.id))
+                        loadConst(PyStr(mangle(t.id)))
                         emit(PyOp.STORE_SUBSCR)
                     } else {
                         val index = if (module || conditionalDepth > 0) nextConditional++ else -1
-                        deferred.add(Deferred(t.id, s.annotation, index, s.line))
+                        deferred.add(Deferred(mangle(t.id), s.annotation, index, s.line))
                         if (index >= 0) {
                             // (a module's global; a class's cell, which its annotation scope reads)
                             if (module) emit(PyOp.LOAD_GLOBAL, name("__conditional_annotations__")) else {
@@ -812,7 +843,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             emit(PyOp.BUILD_TUPLE, child.frees.size)
             flags = 8
         }
-        val c = PyCompiler(st, child, child.name)
+        val c = child(child, child.name)
         c.generatorExpr = e is GeneratorExp
         c.firstLine = e.line
         val cb = c.compileBody(emptyList(), null, e)
@@ -1189,6 +1220,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 val attrs = temp()
                 emit(PyOp.LOAD_FAST, v)
                 expr(p.cls)
+                // (its keywords are attribute names as they are: never mangled)
                 loadConst(PyTuple(p.kwdAttrs.map { PyStr(it) }.toTypedArray()))
                 emit(PyOp.MATCH_CLASS, p.patterns.size)
                 emit(PyOp.STORE_FAST, attrs)
@@ -1552,6 +1584,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
      */
     private fun makeFunction(node: Node, fname: String, args: Arguments, body: List<Stmt>, passed: Boolean = false) {
         val child = st.scopes[node]!!
+        for (a in args.all()) forbidden(a.arg)
         var flags = 0
         if (args.defaults.isNotEmpty()) {
             if (passed) emit(PyOp.LOAD_FAST, locals[".defaults"]!!) else defaultsTuple(args)
@@ -1570,15 +1603,15 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         if (ann != null) {
             val f = node as FunctionDef
             val entries = (args.args + args.posonlyargs + listOfNotNull(args.vararg) + args.kwonlyargs + listOfNotNull(args.kwarg))
-                .mapNotNull { p -> p.annotation?.let { Deferred(p.arg, it, -1, it.line) } } +
+                .mapNotNull { p -> p.annotation?.let { Deferred(mangle(p.arg), it, -1, it.line) } } +
                 listOfNotNull(f.returns?.let { Deferred("return", it, -1, it.line) })
-            val acb = PyCompiler(st, ann, "__annotate__").compileAnnotate(entries, node.line)
+            val acb = child(ann, "__annotate__").compileAnnotate(entries, node.line)
             closure(ann)
             emit(PyOp.MAKE_FUNCTION, const(acb))
             if (ann.frees.isNotEmpty()) emit(PyOp.SET_FUNCTION_ATTRIBUTE, 8)
             flags = flags or 16
         }
-        val cb = PyCompiler(st, child, fname).also { it.firstLine = node.line }.compileBody(body, args)
+        val cb = child(child, fname).also { it.firstLine = node.line }.compileBody(body, args)
         emit(PyOp.MAKE_FUNCTION, const(cb))
         for (flag in intArrayOf(16, 8, 2, 1)) if (flags and flag != 0) emit(PyOp.SET_FUNCTION_ATTRIBUTE, flag)
     }
@@ -1603,7 +1636,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
      */
     private fun generic(node: Stmt, name: String) {
         val tps = st.typeParamScopes[node]!!
-        val c = PyCompiler(st, tps, "<generic parameters of $name>")
+        val c = child(tps, "<generic parameters of $name>")
         c.firstLine = node.line
         val cb = c.compileGeneric(node)
         closure(tps)
@@ -1698,7 +1731,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     /** A lazily evaluated expression's function (a bound, a default, an alias's value), its format defaulting to 1. */
     private fun lazyFunction(s: Scope, e: Expr, starred: Boolean) {
         loadConst(PyTuple(arrayOf(1L)))
-        val cb = PyCompiler(st, s, s.name).compileLazy(e, starred)
+        val cb = child(s, s.name).compileLazy(e, starred)
         closure(s)
         emit(PyOp.MAKE_FUNCTION, const(cb))
         if (s.frees.isNotEmpty()) emit(PyOp.SET_FUNCTION_ATTRIBUTE, 8)
@@ -1736,8 +1769,10 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 for (e in elts) store(if (e is Starred) e.value else e)
             }
             is Attribute -> {
+                forbidden(t.attr)
+                if ((t.value as? Name)?.id == "self") (if (isClass) this else outerClass)?.staticAttributes?.add(t.attr)
                 expr(t.value)
-                emit(PyOp.STORE_ATTR, name(t.attr))
+                emit(PyOp.STORE_ATTR, name(mangle(t.attr)))
             }
             else -> unsupported("assignment to this target", t)
         }
@@ -1752,8 +1787,9 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 emit(PyOp.DELETE_SUBSCR)
             }
             is Attribute -> {
+                forbidden(t.attr, del = true)
                 expr(t.value)
-                emit(PyOp.DELETE_ATTR, name(t.attr))
+                emit(PyOp.DELETE_ATTR, name(mangle(t.attr)))
             }
             is TupleExpr -> t.elts.forEach { delete(it) }
             is ListExpr -> t.elts.forEach { delete(it) }
@@ -1792,12 +1828,13 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 val o = temp()
                 expr(t.value)
                 emit(PyOp.STORE_FAST, o)
+                forbidden(t.attr)
                 emit(PyOp.LOAD_FAST, o)
-                emit(PyOp.LOAD_ATTR, name(t.attr))
+                emit(PyOp.LOAD_ATTR, name(mangle(t.attr)))
                 expr(s.value)
                 emit(PyOp.INPLACE, op)
                 emit(PyOp.LOAD_FAST, o)
-                emit(PyOp.STORE_ATTR, name(t.attr))
+                emit(PyOp.STORE_ATTR, name(mangle(t.attr)))
             }
             else -> unsupported("augmented assignment to this target", s)
         }
@@ -1822,7 +1859,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             for (n in child.frees) emit(PyOp.LOAD_FAST, locals[n] ?: throw IllegalStateException("no cell for $n in $name"))
             emit(PyOp.BUILD_TUPLE, child.frees.size)
         }
-        val cb = PyCompiler(st, child, s.name).compileBody(s.body, null)
+        val cb = child(child, s.name).also { it.firstLine = s.decoratorList.firstOrNull()?.line ?: s.line }.compileBody(s.body, null)
         emit(PyOp.MAKE_FUNCTION, const(cb))
         if (child.frees.isNotEmpty()) emit(PyOp.SET_FUNCTION_ATTRIBUTE, 8)
         loadConst(PyStr(s.name))
@@ -1937,7 +1974,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             is Call -> call(e)
             is Attribute -> {
                 expr(e.value)
-                emit(PyOp.LOAD_ATTR, name(e.attr))
+                emit(PyOp.LOAD_ATTR, name(mangle(e.attr)))
             }
             is Subscript -> {
                 expr(e.value)
@@ -2073,6 +2110,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     private fun callArgs(pushed: Int, args: List<Expr>, keywords: List<Keyword>) {
         val seen = HashSet<String>()
         for (k in keywords) if (k.arg != null && !seen.add(k.arg)) throw PySyntaxError("keyword argument repeated: ${k.arg}", k.line, k.col)
+        for (k in keywords) k.arg?.let { forbidden(it) }
         val unpacking = args.any { it is Starred } || keywords.any { it.arg == null }
         if (!unpacking) {
             for (a in args) expr(a)

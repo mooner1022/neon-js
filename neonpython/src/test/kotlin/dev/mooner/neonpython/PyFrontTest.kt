@@ -142,6 +142,21 @@ class PyFrontTest {
             "class C[T]((yield)): pass\n" to ("yield expression cannot be used within the definition of a generic" to 1),
             "class C[T: (yield)]: pass\n" to ("yield expression cannot be used within a TypeVar bound" to 1),
             "class C[T]:\n    nonlocal T\n" to ("nonlocal binding not allowed for type parameter 'T'" to 2),
+            "__debug__ = 1\n" to ("cannot assign to __debug__" to 1),
+            "del __debug__\n" to ("cannot delete __debug__" to 1),
+            "def f(__debug__): pass\n" to ("cannot assign to __debug__" to 1),
+            "f(__debug__=1)\n" to ("cannot assign to __debug__" to 1),
+            "x.__debug__ = 1\n" to ("cannot assign to __debug__" to 1),
+            "import __debug__\n" to ("cannot assign to __debug__" to 1),
+            "for __debug__ in x: pass\n" to ("cannot assign to __debug__" to 1),
+            "class C:\n    def __debug__(self): pass\n" to ("cannot assign to __debug__" to 2),
+            "(__debug__ := 1)\n" to ("cannot assign to __debug__" to 1),
+            "lambda __debug__: 1\n" to ("cannot assign to __debug__" to 1),
+            "with x as __debug__: pass\n" to ("cannot assign to __debug__" to 1),
+            "__debug__ += 1\n" to ("cannot assign to __debug__" to 1),
+            "match x:\n    case __debug__: pass\n" to ("cannot assign to __debug__" to 2),
+            "from m import x as __debug__\n" to ("cannot assign to __debug__" to 1),
+            "del x.__debug__\n" to ("cannot delete __debug__" to 1),
         )
         for ((src, want) in cases) {
             val e = assertThrows<PySyntaxError>(src) { PyCompiler.compileModule(src) }
