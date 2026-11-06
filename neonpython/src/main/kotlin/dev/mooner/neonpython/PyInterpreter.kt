@@ -130,8 +130,10 @@ object PyInterpreter {
     @JvmStatic
     fun callBound(ctx: PyContext, fn: PyFunction, args: Array<Any?>): Any? {
         val code = fn.code
-        // a generator function's generator, an async def's coroutine: its frame (interpreted, M4) not run yet
+        // a generator function's generator, an async def's coroutine: its frame (an interpreted one, which compiled code
+        // runs from where it is) not run yet; its making the JIT's policy's call (Jit.prepare), as a function's
         if (fn.info.kind != 0) {
+            Jit.prepare(code, ctx.agent)
             val f = PyFrame(code, ctx, fn.globals, args, null, fn.closure)
             return when (fn.info.kind) {
                 PyCodeInfo.GENERATOR -> PyGenerator(f, fn)
@@ -148,9 +150,13 @@ object PyInterpreter {
     /** What [run] returns where a generator's frame suspended (its YIELD). */
     @JvmField val SUSPENDED = Any()
 
-    /** Runs a generator's frame on from where it is, as [runFrame] runs a function's: [SUSPENDED] at a yield. */
+    /**
+     * Runs a generator's frame on from where it is, as [runFrame] runs a function's: [SUSPENDED] at a yield. Its code's
+     * compiled code where there is some, entered at the frame's pc (the start, a resumption, a loop header); interpreted
+     * where it has no entry there or leaves for the interpreter.
+     */
     @JvmStatic
-    fun runGenerator(f: PyFrame): Any? = runFrame(f, null)
+    fun runGenerator(f: PyFrame): Any? = runFrame(f, f.code.compiled as CompiledCode?)
 
     /** Runs a class body, function [fn] without arguments, on namespace [ns]. */
     @JvmStatic
@@ -177,7 +183,10 @@ object PyInterpreter {
             }
         }
         try {
-            return if (c == null) run(f) else c.run(f)
+            if (c == null) return run(f)
+            val r = c.run(f)
+            // (an interpreted frame, a generator's, the code has no entry for at its pc, or that left the code: interpreted)
+            return if (r === VmRt.NO_OSR || r === VmRt.DEOPTED) run(f) else r
         } catch (e: PyException) {
             // the line of the innermost frame (compiled code stores its statement's pc where something can throw)
             if (e.line < 0) {
@@ -597,8 +606,8 @@ object PyInterpreter {
         val agent = f.ctx.agent
         agent.checkInterrupt()
         val cb = f.code
-        // (a generator's frame stays interpreted: the tier's suspensions come later, M4)
-        if (cb.flags and dev.mooner.neonjs.compiler.CodeUnit.GENERATOR != 0) return false
+        // (a generator's frame goes on in compiled code too, where the tier suspends: T2.suspendable)
+        if (cb.flags and dev.mooner.neonjs.compiler.CodeUnit.GENERATOR != 0 && !dev.mooner.neonjs.jit.opt.T2.suspendable(cb)) return false
         return Jit.loop(cb, agent) && sp == cb.numRegs
     }
 }

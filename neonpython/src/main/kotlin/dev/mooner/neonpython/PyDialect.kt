@@ -25,6 +25,7 @@ import dev.mooner.neonjs.jit.opt.OpTable
 import dev.mooner.neonjs.jit.opt.Phi
 import dev.mooner.neonjs.jit.opt.Rep
 import dev.mooner.neonjs.jit.opt.Resumer
+import dev.mooner.neonjs.jit.opt.T2
 import dev.mooner.neonjs.jit.opt.Value
 import dev.mooner.neonjs.vm.VmFrame
 import org.objectweb.asm.ClassWriter
@@ -109,6 +110,10 @@ object PyIr {
     const val FLOAT_CMP = 509
     /** (seq) UNPACK_EX's a + 1 + b items in an Object[] (a before the starred target, b after), then ITEM of them. */
     const val UNPACK_EX_ARRAY = 510
+    /** (sub sent) SEND's step of register a's iterator: what it yields, or PyGenerators.Done with its result. */
+    const val SEND_STEP = 511
+    /** (step) the value on the stack after SEND: what the step yields, or its result where it is done. */
+    const val SEND_VALUE = 512
 }
 
 /**
@@ -187,7 +192,7 @@ object PyKinds : KindSystem {
 
 /** What the passes know of Python's operations: most may run code and throw; a few only compute or allocate. */
 object PyOps : OpTable {
-    private val infos = arrayOfNulls<OpInfo>(PyIr.UNPACK_EX_ARRAY + 1).also { t ->
+    private val infos = arrayOfNulls<OpInfo>(PyIr.SEND_VALUE + 1).also { t ->
         for (op in 0 until PyOp.COUNT) if (PyOp.names[op] != null) t[op] = OpInfo(PyOp.name(op), PyGeneric.of(op)?.flags ?: OpInfo.ANYTHING)
         t[PyOp.IS] = OpInfo("IS", OpInfo.REMOVABLE)
         t[PyOp.IS_NOT] = OpInfo("IS_NOT", OpInfo.REMOVABLE)
@@ -198,6 +203,8 @@ object PyOps : OpTable {
         t[PyIr.UNPACK_ARRAY] = OpInfo("UnpackArray", OpInfo.ANYTHING)
         t[PyIr.ITEM] = OpInfo("Item", OpInfo.REMOVABLE)
         t[PyIr.UNPACK_EX_ARRAY] = OpInfo("UnpackExArray", OpInfo.ANYTHING)
+        t[PyIr.SEND_STEP] = OpInfo("SendStep", OpInfo.ANYTHING)
+        t[PyIr.SEND_VALUE] = OpInfo("SendValue", OpInfo.REMOVABLE)
         // a check's result is its input unboxed; arithmetic of numbers only computes (an exit goes with it)
         t[PyIr.CHECK_INT] = OpInfo("CheckInt", OpInfo.REMOVABLE or OpInfo.UNBOXES, OpInfo.HOIST_ALWAYS)
         t[PyIr.CHECK_FLOAT] = OpInfo("CheckFloat", OpInfo.REMOVABLE or OpInfo.UNBOXES, OpInfo.HOIST_ALWAYS)
@@ -234,8 +241,13 @@ object PyOps : OpTable {
  */
 class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
     GraphBuilder(cb, Graph(cb, PyOps, PyKinds, null, PyDialect), stressExits = false, speculate = speculate) {
+    // (a generator's and a coroutine's code suspends at its yields, its frames interpreted ones from their start)
     override fun unbuildable(): String? =
-        if (cb.flags and CodeUnit.GENERATOR != 0) "python: a generator's code (suspensions: M4b)" else null
+        if (cb.flags and CodeUnit.GENERATOR != 0 && !T2.suspendable(cb)) "python: a generator's code (not suspendable)" else null
+
+    init {
+        g.startsInterpreted = cb.flags and CodeUnit.GENERATOR != 0
+    }
     override fun root(): Body = PyBody(cb)
 
     override fun entry(start: Block): Array<Value> = Array(cb.numRegs) { r ->
@@ -261,7 +273,7 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
         override fun supported(pc: Int): Boolean = bc[pc] in 0 until PyOp.COUNT && PyOp.names[bc[pc]] != null
 
         override fun regsRead(pc: Int): IntArray = when (bc[pc]) {
-            PyOp.LOAD_FAST, PyOp.LOAD_FAST_CHECK, PyOp.FOR_ITER, PyOp.LOAD_FAST_RAW -> intArrayOf(bc[pc + 1])
+            PyOp.LOAD_FAST, PyOp.LOAD_FAST_CHECK, PyOp.FOR_ITER, PyOp.LOAD_FAST_RAW, PyOp.SEND -> intArrayOf(bc[pc + 1])
             else -> IntArray(0)
         }
 
@@ -433,6 +445,17 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
                     end()
                     return true
                 }
+                // a generator's yield: it suspends, and resumes in a block of its own with the value it is resumed with
+                PyOp.YIELD -> suspend(PyOp.YIELD, pop(), received = true)
+                // `yield from` and await: a step of register a's iterator, the value on the stack (what it yields, on to
+                // the YIELD; its result, to bb where it is done)
+                PyOp.SEND -> {
+                    val step = add(cur, Inst(PyIr.SEND_STEP, arrayOf(regs[a]!!, pop()), a, bb, 0, pc, stmt)).also { it.hasResult = true }
+                    stack.add(add(cur, Inst(PyIr.SEND_VALUE, arrayOf(step), 0, 0, 0, pc, stmt)).also { it.hasResult = true })
+                    end()
+                    add(cur, Inst(Ir.BRANCH, arrayOf(step), PyOp.SEND, 0, 0, pc, stmt)).targets = listOf(blockAt[bb]!!, blockAt[pc + len]!!)
+                    return true
+                }
                 else -> throw JitBailout("python: no graph for ${PyOp.name(op)}")
             }
             false
@@ -449,6 +472,7 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
 }
 
 private const val PY_RT = "dev/mooner/neonpython/PyRt"
+private const val PY_GEN = "dev/mooner/neonpython/PyGenerators"
 private const val PY_BOOL = "dev/mooner/neonpython/PyBool"
 private const val FRAME = "dev/mooner/neonjs/vm/VmFrame"
 private const val FRAME_D = "Ldev/mooner/neonjs/vm/VmFrame;"
@@ -521,6 +545,19 @@ class PyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, clas
                 // (never set: the register's dead value)
                 if (l == null) mv.visitInsn(ACONST_NULL) else mv.visitVarInsn(ks.rep(k).load, l)
                 done(i, if (l == null) ANY_KIND else k)
+            }
+            PyIr.SEND_STEP -> {
+                storePc(i)
+                frame()
+                load(i.inputs[0], ANY_KIND)
+                load(i.inputs[1], ANY_KIND)
+                mv.visitMethodInsn(INVOKESTATIC, PY_GEN, "send", "($FRAME_D$OBJ$OBJ)$OBJ", false)
+                done(i, ANY_KIND)
+            }
+            PyIr.SEND_VALUE -> {
+                load(i.inputs[0], ANY_KIND)
+                mv.visitMethodInsn(INVOKESTATIC, PY_GEN, "sendValue", "($OBJ)$OBJ", false)
+                done(i, ANY_KIND)
             }
             PyIr.ARG -> {
                 frame()
@@ -758,6 +795,11 @@ class PyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, clas
                 getstatic("dev/mooner/neonpython/PyIterator", "STOP", OBJ)
                 IF_ACMPEQ // done: to the loop's exit
             }
+            PyOp.SEND -> {
+                load(v, ANY_KIND)
+                mv.visitTypeInsn(INSTANCEOF, "$PY_GEN\$Done")
+                IFNE // done: to the target, its result on the stack
+            }
             else -> {
                 if (kindOf(v) == PyKinds.BOOL) load(v, PyKinds.BOOL)
                 else {
@@ -839,7 +881,11 @@ class PyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, clas
     override fun inlinedRecord(em: Emit, site: InlineSite, state: FrameState, inner: Int, value: (Value) -> Unit, array: (Array<Value>) -> Unit) =
         throw JitBailout("python: no inlining")
     override fun stressExit(em: Emit) = throw JitBailout("python: no stress exits")
-    override fun suspendCall(em: Emit, i: Inst, value: (Value) -> Unit) = throw JitBailout("python: no suspensions yet")
+    /** A YIELD's suspension: PyGenerators.suspend(frame, pc, sp, value), as the interpreter's YIELD leaves the frame. */
+    override fun suspendCall(em: Emit, i: Inst, value: (Value) -> Unit) {
+        if (i.inputs.isEmpty()) em.mv.visitInsn(ACONST_NULL) else value(i.inputs[0])
+        em.mv.visitMethodInsn(INVOKESTATIC, PY_GEN, "suspend", "(${FRAME_D}II$OBJ)$OBJ", false)
+    }
     override fun siteLocals(site: InlineSite): List<Value> = emptyList()
     override fun newEmitter(m: MethodVisitor, first: Int): Emit = object : JvmEmitter(m) {
         var top = first

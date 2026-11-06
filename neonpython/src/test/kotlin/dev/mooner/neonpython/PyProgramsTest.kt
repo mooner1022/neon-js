@@ -91,8 +91,7 @@ class PyProgramsTest {
     @Test
     fun noBlockFallsBackToTheInterpreter() {
         // every block a program ran, compiled mode: the tier's code, none failing to compile (which would run it
-        // interpreted, its output the same); a generator's code is interpreted until the tier suspends (M4b), never
-        // handed to the JIT: neither compiled nor failed
+        // interpreted, its output the same); a generator's and a coroutine's too, which suspends at its yields
         val reasonsBefore = T2.baselineReasons.keys.toSet()
         for (name in programs()) {
             val cb = PyCompiler.compileModule(resource("$name.py"))
@@ -122,6 +121,28 @@ class PyProgramsTest {
         assertTrue(mix.code.compiled is T2Code && mix.code.compiled !== mix.code.baseline,
             "mix: not the speculating code (${T2.failureReasons.keys})")
         assertTrue(grow.code.t2Failed != null, "grow: its overflow not noted")
+    }
+
+    @Test
+    fun generatorsSuspendInTheTiersCode() {
+        val src = resource("suspensions.py")
+        val expected = resource("suspensions.out")
+        // compiled: a generator's, a coroutine's and an async generator's code is the tier's, suspending at its yields
+        val (out, globals) = run(src, Mode.COMPILED)
+        assertEquals(expected, out)
+        for (n in listOf("counting", "made_before", "growing", "sub", "coro", "agen")) {
+            val f = globals[PyStr(n)] as PyFunction
+            assertTrue(f.code.compiled is T2Code, "$n: ${f.code.compiled} (${T2.baselineReasons.keys})")
+        }
+        // adaptive: the long loop of a generator made once goes on in compiled code, which then yields; one made before
+        // its code was compiled is resumed by it
+        val before = Jit.osrEntered.get()
+        assertEquals(expected, run(src, Mode.ADAPTIVE).first, "ADAPTIVE")
+        assertTrue(Jit.osrEntered.get() > before, "no generator's loop entered compiled code")
+        // speculating: an int leaving 64 bits exits the generator's code, the interpreter going on to its next yield
+        val exits = PyDialect.exits.get()
+        assertEquals(expected, run(src, Mode.SPECULATING).first, "SPECULATING")
+        assertTrue(PyDialect.exits.get() > exits, "no exit taken")
     }
 
     @Test
@@ -503,7 +524,7 @@ class PyProgramsTest {
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
             "speculation", "functions", "closures", "unpacking", "types", "classes", "descriptors",
-            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods", "containers", "match", "imports", "coroutines", "async_generators", "annotations", "future_annotations", "generic_aliases", "type_params", "generic_classes", "private_names", "eval_exec",
+            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods", "containers", "match", "imports", "coroutines", "async_generators", "annotations", "future_annotations", "generic_aliases", "type_params", "generic_classes", "private_names", "eval_exec", "suspensions",
         )
 
         /** The code blocks of [cb] and every function it defines. */

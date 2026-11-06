@@ -442,6 +442,23 @@ object PyGenerators {
         throw thrown(sent as PyBaseException)
     }
 
+    /**
+     * A YIELD in the tier's code: the frame left as the interpreter's YIELD leaves it (its slots, registers then the
+     * operand stack, written by the code up to [sp]; [pc] the RESUME after it), [value] what it yields.
+     */
+    @JvmStatic
+    fun suspend(f: dev.mooner.neonjs.vm.VmFrame, pc: Int, sp: Int, value: Any?): Any? {
+        val s = f.slots
+        java.util.Arrays.fill(s, sp, s.size, null)
+        f.sp = sp
+        f.pc = pc
+        (f as PyFrame).suspendValue = value
+        return PyInterpreter.SUSPENDED
+    }
+
+    /** After SEND's step [r]: what it yields, or its result where it is done (the value on the stack). */
+    @JvmStatic fun sendValue(r: Any?): Any? = if (r is Done) r.value else r
+
     /** GET_YIELD_FROM_ITER: what `yield from v` steps: a generator itself, else iter(v); never a coroutine. */
     @JvmStatic
     fun yieldFromIter(v: Any?): Any? {
