@@ -131,6 +131,8 @@ string/__init__.py
 string/templatelib.py
 struct.py
 textwrap.py
+token.py
+tokenize.py
 types.py
 typing.py
 warnings.py
