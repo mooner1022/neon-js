@@ -536,7 +536,7 @@ class PyProgramsTest {
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
             "speculation", "functions", "closures", "unpacking", "types", "classes", "descriptors",
-            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods", "containers", "match", "imports", "coroutines", "async_generators", "annotations", "future_annotations", "generic_aliases", "type_params", "generic_classes", "private_names", "eval_exec", "suspensions", "rich_compare", "number_subclasses", "frames", "weakrefs", "stdlib",
+            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods", "containers", "match", "imports", "coroutines", "async_generators", "annotations", "future_annotations", "generic_aliases", "type_params", "generic_classes", "private_names", "eval_exec", "suspensions", "rich_compare", "number_subclasses", "frames", "weakrefs", "stdlib", "descriptor_subclasses",
         )
 
         /** The code blocks of [cb] and every function it defines. */

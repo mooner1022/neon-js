@@ -1,0 +1,17 @@
+C C 8 acm True
+True make plain
+True True False
+staticmethod acm plain
+staticmethod expected 1 argument, got 0
+classmethod expected 1 argument, got 2
+descriptor '__init__' requires a 'classmethod' object but received a 'int'
+get x
+1
+set 5
+get x
+5 logged x
+delete
+False logged
+True None None hi True False
+7 Cached the y Cached 7
+1 {'__doc__': None, 'extra': 1} True

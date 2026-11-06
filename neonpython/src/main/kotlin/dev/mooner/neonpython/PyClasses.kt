@@ -147,7 +147,8 @@ object PyClasses {
     }
 
     /** The builtin types whose values a class may derive from: their instances are such values (PyValue.sub). */
-    private val VALUE_BASES = setOf(PyTypes.STR, PyTypes.LIST, PyTypes.TUPLE, PyTypes.DICT, PyTypes.SET, PyTypes.FROZENSET, PyTypes.INT, PyTypes.FLOAT, PyTypes.COMPLEX, PyTypes.BYTES)
+    private val VALUE_BASES = setOf(PyTypes.STR, PyTypes.LIST, PyTypes.TUPLE, PyTypes.DICT, PyTypes.SET, PyTypes.FROZENSET, PyTypes.INT, PyTypes.FLOAT, PyTypes.COMPLEX, PyTypes.BYTES,
+        PyTypes.STATICMETHOD, PyTypes.CLASSMETHOD, PyTypes.PROPERTY)
 
     /** The class of an instance of one (an object, or a builtin value of a subclass); null for a builtin value. */
     @JvmStatic
@@ -262,16 +263,32 @@ object PyClasses {
     fun isDataDescriptor(d: Any?): Boolean = when (d) {
         is PyProperty -> true
         is PyObject -> d.type.lookup("__set__") != null || d.type.lookup("__delete__") != null
+        is PyValue -> d.sub != null && (ownDescr(d, "__set__") != null || ownDescr(d, "__delete__") != null)
         else -> false
+    }
+
+    /** The __get__ (__set__, __delete__) of [d]'s class where it is a builtin value's subclass that has one of its own. */
+    private fun ownDescr(d: PyValue, name: String): Any? {
+        val cls = d.sub?.cls ?: return null
+        return PyDunder.userMethod(cls, name)
     }
 
     /** What [d], found on [type]'s MRO, gives for [obj] (null: looked up on the type itself). */
     @JvmStatic
-    fun descrGet(ctx: PyContext?, d: Any?, obj: Any?, type: PyType): Any? = when (d) {
+    fun descrGet(ctx: PyContext?, d: Any?, obj: Any?, type: PyType): Any? {
+        if (d is PyValue && d.sub != null) {
+            ownDescr(d, "__get__")?.let { return PyCalls.callWith(ctx ?: PyContext.current(), it, arrayOf(d, obj ?: PyNone, type), NO_ARGS, NO_ARGS) }
+        }
+        return builtinGet(ctx, d, obj, type)
+    }
+
+    /** What a builtin descriptor gives (its __get__). */
+    @JvmStatic
+    fun builtinGet(ctx: PyContext?, d: Any?, obj: Any?, type: PyType): Any? = when (d) {
         is PyFunction -> if (obj == null) d else PyMethod(d, obj)
         is PyBuiltin -> if (obj == null) d else PyBoundMethod(obj, d)
         is PyStaticMethod -> d.fn
-        is PyClassMethod -> if (d.fn is PyBuiltin) PyBoundMethod(type, d.fn) else PyMethod(d.fn, type)
+        is PyClassMethod -> d.fn.let { fn -> if (fn is PyBuiltin) PyBoundMethod(type, fn) else PyMethod(fn, type) }
         is PyProperty -> if (obj == null) d else {
             val g = d.fget ?: throw PyException("AttributeError", "property ${d.nameFor()}of '${type.name}' object has no getter")
             PyCalls.callWith(ctx ?: PyContext.current(), g, arrayOf(if (obj is PyNumSub && g is PyBuiltin && g.numSelf) obj.num else obj), NO_ARGS, NO_ARGS)
@@ -355,17 +372,30 @@ object PyClasses {
     private fun wrapperAttr(fn: Any?, name: String): Any? = when (name) {
         "__func__", "__wrapped__" -> fn
         "__module__", "__qualname__", "__name__", "__doc__", "__annotations__" -> getAttr(fn, name)
+        "__isabstractmethod__" -> PyBool.of(isAbstract(fn))
         else -> null
+    }
+
+    /** getattr(obj, name, None) (null where it has none). */
+    @JvmStatic
+    fun attrOrNull(obj: Any?, name: String): Any? = try {
+        PyRt.getAttr(obj, name)
+    } catch (e: PyException) {
+        if (!e.matches(PyExceptions.type("AttributeError"))) throw e
+        null
+    }
+
+    /** Whether [f]'s __isabstractmethod__ is true (abc's abstractmethod marks it). */
+    private fun isAbstract(f: Any?): Boolean {
+        val v = attrOrNull(f, "__isabstractmethod__") ?: return false
+        return PyRt.truthy(v)
     }
 
     private fun special(obj: Any?, name: String): Any? {
         if (name == "__class__") return PyTypes.typeOf(obj)
+        if (obj is PyValue && name == "__dict__") obj.sub?.let { s -> return s.dict ?: PyDict().also { s.dict = it } }
         return when (obj) {
             is PyObject -> if (name == "__dict__") obj.dict ?: PyDict().also { obj.dict = it } else null
-            is PyValue -> {
-                val s = obj.sub
-                if (name == "__dict__" && s != null) s.dict ?: PyDict().also { s.dict = it } else null
-            }
             is PyFunction -> when (name) {
                 "__name__" -> obj.nameObj ?: PyStr(obj.name).also { obj.nameObj = it }
                 "__qualname__" -> obj.qualnameObj ?: PyStr(obj.qualname).also { obj.qualnameObj = it }
@@ -390,6 +420,16 @@ object PyClasses {
             // (a staticmethod's or classmethod's, the function's: CPython copies its attributes, and __wrapped__)
             is PyStaticMethod -> wrapperAttr(obj.fn, name)
             is PyClassMethod -> wrapperAttr(obj.fn, name)
+            is PyProperty -> when (name) {
+                "fget" -> obj.fget ?: PyNone
+                "fset" -> obj.fset ?: PyNone
+                "fdel" -> obj.fdel ?: PyNone
+                "__doc__" -> obj.doc ?: obj.fget?.let { attrOrNull(it, "__doc__") } ?: PyNone
+                "__name__" -> obj.name?.let { PyStr(it) } ?: obj.fget?.let { PyRt.getAttr(it, "__name__") }
+                    ?: throw PyException("AttributeError", "'property' object has no attribute '__name__'")
+                "__isabstractmethod__" -> PyBool.of(listOf(obj.fget, obj.fset, obj.fdel).any { it != null && isAbstract(it) })
+                else -> null
+            }
             is PyTemplate -> when (name) {
                 "strings" -> PyTuple(obj.strings)
                 "interpolations" -> PyTuple(obj.interpolations)
@@ -523,6 +563,10 @@ object PyClasses {
         }
         val type = PyTypes.typeOf(obj)
         val d = type.lookup(name)
+        if (d is PyValue && d.sub != null) ownDescr(d, "__set__")?.let {
+            PyCalls.callWith(PyContext.current(), it, arrayOf(d, obj, v), NO_ARGS, NO_ARGS)
+            return
+        }
         if (d is PyProperty) {
             val s = d.fset ?: throw PyException("AttributeError", "property ${d.nameFor()}of '${type.name}' object has no setter")
             PyCalls.callWith(PyContext.current(), s, arrayOf(obj, v), NO_ARGS, NO_ARGS)
@@ -599,6 +643,10 @@ object PyClasses {
         }
         val type = PyTypes.typeOf(obj)
         val d = type.lookup(name)
+        if (d is PyValue && d.sub != null) ownDescr(d, "__delete__")?.let {
+            PyCalls.callWith(PyContext.current(), it, arrayOf(d, obj), NO_ARGS, NO_ARGS)
+            return
+        }
         if (d is PyProperty) {
             val del = d.fdel ?: throw PyException("AttributeError", "property ${d.nameFor()}of '${type.name}' object has no deleter")
             PyCalls.callWith(PyContext.current(), del, arrayOf(obj), NO_ARGS, NO_ARGS)
@@ -668,18 +716,18 @@ object PyClasses {
     @JvmStatic fun storeAttr(v: Any?, obj: Any?, name: Any?) = setAttr(obj, (name as PyStr).s, v)
 }
 
-/** staticmethod(f): a function a class gives as it is. */
-class PyStaticMethod(@JvmField val fn: Any?) {
+/** staticmethod(f): a function a class gives as it is (a subclass's instance: one with its class, [sub]). */
+class PyStaticMethod(@JvmField var fn: Any?) : PyValue() {
     override fun toString() = "<staticmethod(${PyRt.repr(fn)})>"
 }
 
 /** classmethod(f): a function a class binds to itself (or to an instance's class). */
-class PyClassMethod(@JvmField val fn: Any?) {
+class PyClassMethod(@JvmField var fn: Any?) : PyValue() {
     override fun toString() = "<classmethod(${PyRt.repr(fn)})>"
 }
 
 /** property(fget, fset, fdel, doc). */
-class PyProperty(@JvmField val fget: Any?, @JvmField val fset: Any?, @JvmField val fdel: Any?, @JvmField val doc: Any?) {
+class PyProperty(@JvmField var fget: Any?, @JvmField var fset: Any?, @JvmField var fdel: Any?, @JvmField var doc: Any?) : PyValue() {
     /** The name its class gave it (__set_name__). */
     @JvmField var name: String? = null
 

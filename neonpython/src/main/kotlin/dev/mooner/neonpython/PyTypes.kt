@@ -165,9 +165,9 @@ object PyTypes {
         is PyMethod -> METHOD
         is PyBuiltin, is PyBoundMethod -> BUILTIN_FUNCTION
         is PySuper -> SUPER
-        is PyProperty -> PROPERTY
-        is PyStaticMethod -> STATICMETHOD
-        is PyClassMethod -> CLASSMETHOD
+        is PyProperty -> v.sub?.cls ?: PROPERTY
+        is PyStaticMethod -> v.sub?.cls ?: STATICMETHOD
+        is PyClassMethod -> v.sub?.cls ?: CLASSMETHOD
         is PyRange -> RANGE
         is PyIterator -> v.type ?: ITERATOR
         is PyGenerator -> GENERATOR

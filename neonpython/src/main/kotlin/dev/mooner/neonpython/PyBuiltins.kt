@@ -11,6 +11,13 @@ object PyBuiltins {
         }
     }
 
+    private val NO_ARGS = arrayOfNulls<Any?>(0)
+
+    /** staticmethod's and classmethod's count: "staticmethod expected 1 argument, got 2". */
+    private fun one(name: String, args: Array<Any?>) {
+        if (args.size != 1) throw PyRt.typeError("$name expected 1 argument, got ${args.size}")
+    }
+
     private fun longOf(v0: Any?, what: String): Long = when (val v = PyRt.indexValue(v0) ?: v0) {
         is Long -> v
         is PyBool -> if (v.value) 1 else 0
@@ -208,22 +215,93 @@ object PyBuiltins {
         }
         type(PyTypes.STATICMETHOD) { _, args, kw ->
             noKw("staticmethod", kw)
-            argc("staticmethod", args, 1)
+            one("staticmethod", args)
             PyStaticMethod(args[0])
         }
         type(PyTypes.CLASSMETHOD) { _, args, kw ->
             noKw("classmethod", kw)
-            argc("classmethod", args, 1)
+            one("classmethod", args)
             PyClassMethod(args[0])
         }
-        type(PyTypes.PROPERTY) { _, args, kw ->
+        fun propertyInit(p: PyProperty, args: Array<Any?>, kw: PyDict?) {
             if (args.size > 4) throw PyRt.typeError("property() takes at most 4 arguments (${args.size} given)")
             fun arg(i: Int, n: String): Any? = (kw?.get(PyStr(n)) ?: args.getOrNull(i)).let { if (it === PyNone) null else it }
-            PyProperty(arg(0, "fget"), arg(1, "fset"), arg(2, "fdel"), arg(3, "doc"))
+            p.fget = arg(0, "fget")
+            p.fset = arg(1, "fset")
+            p.fdel = arg(2, "fdel")
+            p.doc = arg(3, "doc")
+            // (a subclass's instance: its doc, else the getter's, in its dict, which its class's __doc__ would hide otherwise)
+            val s = p.sub
+            if (s != null) {
+                val doc = p.doc ?: p.fget?.let { PyClasses.attrOrNull(it, "__doc__") } ?: PyNone
+                (s.dict ?: PyDict().also { d -> s.dict = d })[PyStr("__doc__")] = doc
+            }
         }
-        PyTypes.PROPERTY.def("getter", PyBuiltin("getter") { _, a -> val p = a[0] as PyProperty; PyProperty(a[1], p.fset, p.fdel, p.doc) })
-        PyTypes.PROPERTY.def("setter", PyBuiltin("setter") { _, a -> val p = a[0] as PyProperty; PyProperty(p.fget, a[1], p.fdel, p.doc) })
-        PyTypes.PROPERTY.def("deleter", PyBuiltin("deleter") { _, a -> val p = a[0] as PyProperty; PyProperty(p.fget, p.fset, a[1], p.doc) })
+        type(PyTypes.PROPERTY) { _, args, kw -> PyProperty(null, null, null, null).also { propertyInit(it, args, kw) } }
+        // (staticmethod, classmethod and property as bases: __new__ makes one of the subclass, __init__ gives it its
+        // functions; abc's abstractclassmethod, a property whose __get__ is its own)
+        for (t in listOf(PyTypes.STATICMETHOD, PyTypes.CLASSMETHOD, PyTypes.PROPERTY)) {
+            fun new(a: Array<Any?>): Any? {
+                val cls = a.getOrNull(0) as? PyType ?: throw PyRt.typeError("${t.name}.__new__(X): X is not a type object (${PyTypes.name(a.getOrNull(0))})")
+                if (!cls.isSubtype(t)) throw PyRt.typeError("${t.name}.__new__(${cls.name}): ${cls.name} is not a subtype of ${t.name}")
+                val v: PyValue = when (t) {
+                    PyTypes.STATICMETHOD -> PyStaticMethod(null)
+                    PyTypes.CLASSMETHOD -> PyClassMethod(null)
+                    else -> PyProperty(null, null, null, null)
+                }
+                if (cls !== t) v.sub = PySub(cls)
+                return v
+            }
+            t.def("__new__", PyBuiltin("__new__", { _, a -> new(a) }, { _, a, _ -> new(a) }))
+            fun init(a: Array<Any?>, kw: PyDict?): Any? {
+                val rest = a.copyOfRange(1, a.size)
+                when (val self = a.getOrNull(0)) {
+                    is PyProperty -> propertyInit(self, rest, kw)
+                    is PyStaticMethod -> {
+                        noKw("staticmethod", kw)
+                        one("staticmethod", rest)
+                        self.fn = rest[0]
+                    }
+                    is PyClassMethod -> {
+                        noKw("classmethod", kw)
+                        one("classmethod", rest)
+                        self.fn = rest[0]
+                    }
+                    else -> throw PyRt.typeError("descriptor '__init__' requires a '${t.name}' object but received a '${PyTypes.name(self)}'")
+                }
+                return PyNone
+            }
+            t.def("__init__", PyBuiltin("__init__", { _, a -> init(a, null) }, { _, a, kw -> init(a, kw) }))
+            t.def("__get__", PyBuiltin("__get__") { ctx, a ->
+                if (a.size < 2 || a.size > 3) throw PyRt.typeError("expected 1 or 2 arguments, got ${a.size - 1}")
+                val obj = a[1].takeIf { it !== PyNone }
+                val type = a.getOrNull(2)?.takeIf { it !== PyNone } as? PyType ?: PyTypes.typeOf(a[1])
+                PyClasses.builtinGet(ctx, a[0], obj, type)
+            })
+        }
+        PyTypes.PROPERTY.def("__set__", PyBuiltin("__set__") { ctx, a ->
+            val p = a[0] as PyProperty
+            val s = p.fset ?: throw PyException("AttributeError", "property ${p.nameFor()}of '${PyTypes.name(a[1])}' object has no setter")
+            PyCalls.callWith(ctx, s, arrayOf(a[1], a[2]), NO_ARGS, NO_ARGS)
+            PyNone
+        })
+        PyTypes.PROPERTY.def("__delete__", PyBuiltin("__delete__") { ctx, a ->
+            val p = a[0] as PyProperty
+            val del = p.fdel ?: throw PyException("AttributeError", "property ${p.nameFor()}of '${PyTypes.name(a[1])}' object has no deleter")
+            PyCalls.callWith(ctx, del, arrayOf(a[1]), NO_ARGS, NO_ARGS)
+            PyNone
+        })
+        // (p.getter(f) and the others: a copy of its kind, type(p)(fget, fset, fdel, doc) for a subclass's)
+        fun copy(ctx: PyContext, p: PyProperty, get: Any?, set: Any?, del: Any?): Any? {
+            val doc = p.doc
+            if (p.sub == null) return PyProperty(get, set, del, doc).also { it.name = p.name }
+            val r = PyCalls.callWith(ctx, PyTypes.typeOf(p), arrayOf(get ?: PyNone, set ?: PyNone, del ?: PyNone, doc ?: PyNone), NO_ARGS, NO_ARGS)
+            if (r is PyProperty) r.name = p.name
+            return r
+        }
+        PyTypes.PROPERTY.def("getter", PyBuiltin("getter") { ctx, a -> val p = a[0] as PyProperty; copy(ctx, p, a[1], p.fset, p.fdel) })
+        PyTypes.PROPERTY.def("setter", PyBuiltin("setter") { ctx, a -> val p = a[0] as PyProperty; copy(ctx, p, p.fget, a[1], p.fdel) })
+        PyTypes.PROPERTY.def("deleter", PyBuiltin("deleter") { ctx, a -> val p = a[0] as PyProperty; copy(ctx, p, p.fget, p.fset, a[1]) })
         PyTypes.PROPERTY.def("__set_name__", PyBuiltin("__set_name__") { _, a -> (a[0] as PyProperty).name = (a[2] as PyStr).s; PyNone })
         def("getattr") { _, args ->
             argc("getattr", args, 2, 3)
