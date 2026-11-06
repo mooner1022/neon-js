@@ -214,6 +214,7 @@ object PyBuiltins {
         PyTypes.PROPERTY.def("getter", PyBuiltin("getter") { _, a -> val p = a[0] as PyProperty; PyProperty(a[1], p.fset, p.fdel, p.doc) })
         PyTypes.PROPERTY.def("setter", PyBuiltin("setter") { _, a -> val p = a[0] as PyProperty; PyProperty(p.fget, a[1], p.fdel, p.doc) })
         PyTypes.PROPERTY.def("deleter", PyBuiltin("deleter") { _, a -> val p = a[0] as PyProperty; PyProperty(p.fget, p.fset, a[1], p.doc) })
+        PyTypes.PROPERTY.def("__set_name__", PyBuiltin("__set_name__") { _, a -> (a[0] as PyProperty).name = (a[2] as PyStr).s; PyNone })
         def("getattr") { _, args ->
             argc("getattr", args, 2, 3)
             val n = args[1] as? PyStr ?: throw PyRt.typeError("attribute name must be string, not '${PyTypes.name(args[1])}'")

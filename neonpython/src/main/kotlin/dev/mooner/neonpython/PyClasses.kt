@@ -432,6 +432,9 @@ class PyClassMethod(@JvmField val fn: Any?)
 
 /** property(fget, fset, fdel, doc). */
 class PyProperty(@JvmField val fget: Any?, @JvmField val fset: Any?, @JvmField val fdel: Any?, @JvmField val doc: Any?) {
-    /** Its name in messages: `'p' ` where its getter has one. */
-    fun nameFor(): String = ((fget as? PyFunction)?.name ?: (fset as? PyFunction)?.name)?.let { "'$it' " } ?: ""
+    /** The name its class gave it (__set_name__). */
+    @JvmField var name: String? = null
+
+    /** Its name in messages: `'p' ` where it has one. */
+    fun nameFor(): String = (name ?: (fget as? PyFunction)?.name ?: (fset as? PyFunction)?.name)?.let { "'$it' " } ?: ""
 }

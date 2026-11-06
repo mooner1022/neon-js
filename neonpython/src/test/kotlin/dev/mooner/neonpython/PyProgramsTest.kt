@@ -179,6 +179,8 @@ class PyProgramsTest {
             "class C:\n    def __init__(self): return 1\nC()\n" to Triple("TypeError", "__init__() should return None, not 'int'", 3),
             "class C: pass\nC()()\n" to Triple("TypeError", "'C' object is not callable", 2),
             "int.x = 1\n" to Triple("TypeError", "cannot set 'x' attribute of immutable type 'int'", 1),
+            "class C:\n    @property\n    def p(self): return 1\nC().p = 2\n" to Triple("AttributeError", "property 'p' of 'C' object has no setter", 4),
+            "class C:\n    p = property()\nC().p\n" to Triple("AttributeError", "property 'p' of 'C' object has no getter", 3),
         )
         for (mode in Mode.entries) for ((src, want) in cases) {
             val e = try {
@@ -212,7 +214,7 @@ class PyProgramsTest {
         @JvmStatic
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
-            "speculation", "functions", "closures", "unpacking", "types", "classes",
+            "speculation", "functions", "closures", "unpacking", "types", "classes", "descriptors",
         )
 
         /** The code blocks of [cb] and every function it defines. */
