@@ -649,6 +649,19 @@ milestones. Each milestone is commits gated by the quick check and pushed when i
 - **New instructions follow a checklist** (on `PyOp`). A plain runtime call is a row of the dialect's table
   (`PyGeneric`); control flow is written by hand.
 
+Made with the object model (M2):
+
+- **Comparisons give bools.** `<`, `==` and the rest are JVM booleans in the tier's code (the BOOL kind), so a user
+  `__eq__` or `__lt__` that returns something else than a bool gives its truth value. CPython would give the object
+  itself; that is seen only where a comparison's result is a value (`print(a == b)`), as with numpy's arrays.
+- **No subclasses of int and float yet.** Their values are Longs and Doubles, which hold no class. A subclass of
+  list, dict, set, tuple or str is that value with its class set.
+- **A class body is a code unit,** run with the class's namespace (a dict) as its locals: LOAD_NAME, STORE_NAME and
+  LOAD_FROM_DICT_OR_DEREF read and write that dict, and its `__class__` cell goes to `type.__new__` as
+  `__classcell__`, as in CPython.
+- **`super()` without arguments** is compiled as `super(__class__, <first parameter>)` where `super` is the
+  builtin's name in that function. A function without parameters, or outside a class, gets CPython's RuntimeError.
+
 ### 11.3 How each milestone is checked
 
 - **Programs.** Programs under `src/test/resources/programs/` whose output CPython 3.14 recorded (`python -I x.py >

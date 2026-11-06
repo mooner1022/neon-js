@@ -1,0 +1,19 @@
+<class 'int'> <class 'float'> <class 'bool'> <class 'str'> <class 'list'> <class 'tuple'> <class 'dict'> <class 'NoneType'>
+<class 'range'> <class 'builtin_function_or_method'> <class 'function'> <class 'type'> <class 'type'>
+<class 'int'> <class 'str'> <class 'object'> <class 'type'>
+True True True
+True True False False
+True True True
+True False True True
+True
+0 42 -31 15 1000 7 3 -2 1
+255 35 5
+0.0 1.5 -inf 2.0
+ 12 [1, 'a'] False False True
+[] ['a', 'b'] [0, 1, 2] (1, 2) ()
+{} {'a': 1, 'b': 2} {1: 'x', 2: 'y'} {'k': 'v', 'z': 0}
+True
+ABC a-b
+[1, 2] 1 dflt
+XYZ
+int (<class 'bool'>, <class 'int'>, <class 'object'>) (<class 'int'>,) () builtins

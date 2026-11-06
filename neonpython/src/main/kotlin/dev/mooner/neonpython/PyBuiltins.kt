@@ -52,8 +52,17 @@ object PyBuiltins {
                 else -> throw PyRt.typeError("object of type '${PyTypes.name(v)}' has no len()")
             }
         }
-        def("range") { _, args ->
-            argc("range", args, 1, 3)
+        fun type(t: PyType, impl: (PyContext, Array<Any?>, PyDict?) -> Any?) {
+            t.newImpl = { ctx, _, args, kw -> impl(ctx, args, kw) }
+            d[PyStr(t.name)] = t
+        }
+        fun noKw(name: String, kw: PyDict?) {
+            if (kw != null && kw.size > 0) throw PyRt.typeError("$name() takes no keyword arguments")
+        }
+        type(PyTypes.RANGE) { _, args, kw ->
+            noKw("range", kw)
+            if (args.isEmpty()) throw PyRt.typeError("range expected at least 1 argument, got 0")
+            if (args.size > 3) throw PyRt.typeError("range expected at most 3 arguments, got ${args.size}")
             val (a, b, s) = when (args.size) {
                 1 -> Triple(0L, longOf(args[0], "range"), 1L)
                 2 -> Triple(longOf(args[0], "range"), longOf(args[1], "range"), 1L)
@@ -62,7 +71,8 @@ object PyBuiltins {
             if (s == 0L) throw PyException("ValueError", "range() arg 3 must not be zero")
             PyRange(a, b, s)
         }
-        def("str") { _, args ->
+        type(PyTypes.STR) { _, args, kw ->
+            noKw("str", kw)
             argc("str", args, 0, 1)
             if (args.isEmpty()) PyStr.EMPTY else PyStr(PyRt.str(args[0]))
         }
@@ -70,8 +80,19 @@ object PyBuiltins {
             argc("repr", args, 1)
             PyStr(PyRt.repr(args[0]))
         }
-        def("int") { _, args ->
-            argc("int", args, 0, 1)
+        type(PyTypes.INT) { _, args, kw ->
+            val base = kw?.get(PyStr("base")) ?: if (args.size > 1) args[1] else null
+            if (kw != null && kw.map.keys.any { (it.v as PyStr).s != "base" }) {
+                throw PyRt.typeError("int() got an unexpected keyword argument '${kw.map.keys.first { (it.v as PyStr).s != "base" }.v}'")
+            }
+            if (args.size > 2) throw PyRt.typeError("int() takes at most 2 arguments (${args.size} given)")
+            if (base != null) {
+                val b = longOf(base, "base")
+                val v = args.getOrNull(0) ?: throw PyRt.typeError("int() missing string argument")
+                if (v !is PyStr) throw PyRt.typeError("int() can't convert non-string with explicit base")
+                if (b != 0L && (b < 2 || b > 36)) throw PyException("ValueError", "int() base must be >= 2 and <= 36, or 0")
+                return@type parseInt(v, b.toInt())
+            }
             if (args.isEmpty()) 0L else when (val v = args[0]) {
                 is Long, is BigInteger -> v
                 is PyBool -> if (v.value) 1L else 0L
@@ -80,15 +101,12 @@ object PyBuiltins {
                     if (v.isInfinite()) throw PyException("OverflowError", "cannot convert float infinity to integer")
                     PyRt.norm(java.math.BigDecimal(v).toBigInteger())
                 }
-                is PyStr -> try {
-                    PyRt.norm(BigInteger(v.s.trim().replace("_", "")))
-                } catch (_: NumberFormatException) {
-                    throw PyException("ValueError", "invalid literal for int() with base 10: ${PyRt.repr(v)}")
-                }
+                is PyStr -> parseInt(v, 10)
                 else -> throw PyRt.typeError("int() argument must be a string or a real number, not '${PyTypes.name(v)}'")
             }
         }
-        def("float") { _, args ->
+        type(PyTypes.FLOAT) { _, args, kw ->
+            noKw("float", kw)
             argc("float", args, 0, 1)
             if (args.isEmpty()) 0.0 else when (val v = args[0]) {
                 is PyStr -> when (val t = v.s.trim().lowercase()) {
@@ -100,7 +118,8 @@ object PyBuiltins {
                 else -> PyRt.toDouble(v)
             }
         }
-        def("bool") { _, args ->
+        type(PyTypes.BOOL) { _, args, kw ->
+            noKw("bool", kw)
             argc("bool", args, 0, 1)
             PyBool.of(args.isNotEmpty() && PyRt.truthy(args[0]))
         }
@@ -124,15 +143,90 @@ object PyBuiltins {
             }
             acc
         }
-        def("list") { _, args ->
+        type(PyTypes.LIST) { _, args, kw ->
+            noKw("list", kw)
             argc("list", args, 0, 1)
             PyList(if (args.isEmpty()) ArrayList() else toList(args[0]))
         }
-        def("tuple") { _, args ->
+        type(PyTypes.TUPLE) { _, args, kw ->
+            noKw("tuple", kw)
             argc("tuple", args, 0, 1)
             if (args.isEmpty()) PyTuple.EMPTY else PyTuple(toList(args[0]).toTypedArray())
         }
+        type(PyTypes.DICT) { _, args, kw ->
+            argc("dict", args, 0, 1)
+            val out = PyDict()
+            if (args.isNotEmpty()) {
+                val src = args[0]
+                if (src is PyDict) for ((k, v) in src.map) out.map[k] = v
+                else for ((i, item) in toList(src).withIndex()) {
+                    val pair = try {
+                        toList(item)
+                    } catch (e: PyException) {
+                        throw PyRt.typeError("cannot convert dictionary update sequence element #$i to a sequence")
+                    }
+                    if (pair.size != 2) throw PyException("ValueError", "dictionary update sequence element #$i has length ${pair.size}; 2 is required")
+                    out[pair[0]] = pair[1]
+                }
+            }
+            if (kw != null) for ((k, v) in kw.map) out.map[k] = v
+            out
+        }
+        type(PyTypes.OBJECT) { _, args, kw ->
+            if (args.isNotEmpty() || kw != null && kw.size > 0) throw PyRt.typeError("object() takes no arguments")
+            PyObject(PyTypes.OBJECT)
+        }
+        type(PyTypes.TYPE) { _, args, kw ->
+            if (args.size == 1 && (kw == null || kw.size == 0)) PyTypes.typeOf(args[0])
+            else throw PyRt.typeError("type() takes 1 or 3 arguments")
+        }
+        def("isinstance") { _, args ->
+            argc("isinstance", args, 2)
+            PyBool.of(PyTypes.isInstance(args[0], args[1]))
+        }
+        def("issubclass") { _, args ->
+            argc("issubclass", args, 2)
+            PyBool.of(PyTypes.isSubclass(args[0], args[1]))
+        }
+        // the builtin types' methods
+        PyTypes.LIST.def("append", LIST_APPEND)
+        PyTypes.LIST.def("pop", LIST_POP)
+        PyTypes.DICT.def("get", DICT_GET)
+        PyTypes.DICT.def("keys", DICT_KEYS)
+        PyTypes.DICT.def("values", DICT_VALUES)
+        PyTypes.DICT.def("items", DICT_ITEMS)
+        PyTypes.STR.def("join", STR_JOIN)
+        PyTypes.STR.def("upper", STR_UPPER)
+        PyTypes.STR.def("lower", STR_LOWER)
         return d
+    }
+
+    /** int(s, base): Python's int literal syntax (sign, underscores between digits, a prefix where base is 0 or matches). */
+    @JvmStatic fun parseInt(v: PyStr, base: Int): Any {
+        fun bad(): Nothing = throw PyException("ValueError", "invalid literal for int() with base $base: ${PyRt.repr(v)}")
+        var s = v.s.trim()
+        var neg = false
+        if (s.startsWith("+") || s.startsWith("-")) { neg = s[0] == '-'; s = s.substring(1) }
+        var b = base
+        val lower = s.lowercase()
+        val prefixed = when {
+            lower.startsWith("0x") -> 16
+            lower.startsWith("0o") -> 8
+            lower.startsWith("0b") -> 2
+            else -> 0
+        }
+        if (prefixed != 0 && (b == 0 || b == prefixed)) {
+            b = prefixed
+            s = s.substring(2).removePrefix("_")
+        } else if (b == 0) {
+            b = 10
+            if (s.length > 1 && s[0] == '0' && s.any { it != '0' && it != '_' }) bad()
+        }
+        if (s.isEmpty() || s.startsWith("_") || s.endsWith("_") || "__" in s) bad()
+        val digits = s.replace("_", "")
+        if (digits.any { Character.digit(it, b) < 0 }) bad()
+        val r = BigInteger(digits, b)
+        return PyRt.norm(if (neg) r.negate() else r)
     }
 
     @JvmStatic fun toList(v: Any?): ArrayList<Any?> {
@@ -153,29 +247,6 @@ object PyBuiltins {
         var best = items[0]
         for (k in 1 until items.size) if (PyRt.order(op, items[k], best)) best = items[k]
         return best
-    }
-
-    /** Method [name] of [obj]'s type, or null. */
-    @JvmStatic fun method(obj: Any?, name: String): PyBuiltin? = when (obj) {
-        is PyList -> when (name) {
-            "append" -> LIST_APPEND
-            "pop" -> LIST_POP
-            else -> null
-        }
-        is PyDict -> when (name) {
-            "get" -> DICT_GET
-            "keys" -> DICT_KEYS
-            "values" -> DICT_VALUES
-            "items" -> DICT_ITEMS
-            else -> null
-        }
-        is PyStr -> when (name) {
-            "join" -> STR_JOIN
-            "upper" -> STR_UPPER
-            "lower" -> STR_LOWER
-            else -> null
-        }
-        else -> null
     }
 
     // (the bound object comes first in args)

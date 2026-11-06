@@ -342,6 +342,7 @@ object PyRt {
         is PyTuple -> if (v.items.size == 1) "(" + repr(v.items[0]) + ",)" else v.items.joinToString(", ", "(", ")") { repr(it) }
         is PyDict -> v.map.entries.joinToString(", ", "{", "}") { repr(it.key.v) + ": " + repr(it.value) }
         is PyRange -> if (v.step == 1L) "range(${v.start}, ${v.stop})" else "range(${v.start}, ${v.stop}, ${v.step})"
+        is PyType -> v.repr()
         else -> v.toString()
     }
 
@@ -457,9 +458,29 @@ object PyRt {
         }
     }
 
+    /** obj.name: a type's attribute, or one of the type of [obj] (a builtin's method bound to it). */
     @JvmStatic fun getAttr(obj: Any?, name: String): Any? {
-        val m = PyBuiltins.method(obj, name) ?: throw PyException("AttributeError", "'${t(obj)}' object has no attribute '$name'")
-        return PyBoundMethod(obj, m)
+        if (obj is PyType) return typeAttr(obj, name)
+        val type = PyTypes.typeOf(obj)
+        when (val d = type.lookup(name)) {
+            null -> {}
+            is PyBuiltin -> return PyBoundMethod(obj, d)
+            else -> return d
+        }
+        throw PyException("AttributeError", "'${type.name}' object has no attribute '$name'")
+    }
+
+    /** C.name: its attribute through its MRO (a method unbound), or what every type has. */
+    @JvmStatic fun typeAttr(t: PyType, name: String): Any? {
+        t.lookup(name)?.let { return it }
+        return when (name) {
+            "__name__" -> PyStr(t.name)
+            "__qualname__" -> PyStr(t.qualname)
+            "__module__" -> PyStr(t.module)
+            "__mro__" -> PyTuple(arrayOf(*t.mro))
+            "__bases__" -> PyTuple(arrayOf(*t.bases))
+            else -> throw PyException("AttributeError", "type object '${t.name}' has no attribute '$name'")
+        }
     }
 
     @JvmStatic fun iter(v: Any?): PyIterator = when (v) {
@@ -651,6 +672,7 @@ object PyRt {
                 args.copyInto(all, 1)
                 fn.fn.impl(ctx, all)
             }
+            is PyType -> PyTypes.call(ctx, fn, args, null)
             else -> throw typeError("'${t(fn)}' object is not callable")
         }
     }

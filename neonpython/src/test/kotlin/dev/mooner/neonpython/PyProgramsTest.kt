@@ -193,7 +193,7 @@ class PyProgramsTest {
         @JvmStatic
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
-            "speculation", "functions", "closures", "unpacking",
+            "speculation", "functions", "closures", "unpacking", "types",
         )
 
         /** The code blocks of [cb] and every function it defines. */

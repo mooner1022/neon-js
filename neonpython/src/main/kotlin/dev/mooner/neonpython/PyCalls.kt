@@ -87,6 +87,10 @@ object PyCalls {
             pos.copyInto(all, 1)
             callWith(ctx, fn.fn, all, kwNames, kwValues)
         }
+        is PyType -> {
+            val kw = if (kwNames.isEmpty()) null else PyDict().also { d -> for (i in kwNames.indices) d[kwNames[i]] = kwValues[i] }
+            PyTypes.call(ctx, fn, pos, kw)
+        }
         else -> throw PyRt.typeError("'${PyTypes.name(fn)}' object is not callable")
     }
 
@@ -94,6 +98,7 @@ object PyCalls {
     private fun qualified(fn: Any?): String = when (fn) {
         is PyFunction -> (fn.globals[PyStr("__name__")]?.let { "$it." } ?: "") + fn.qualname + "()"
         is PyBuiltin -> fn.name + "()"
+        is PyType -> fn.name + "()"
         else -> PyTypes.name(fn) + " object"
     }
 

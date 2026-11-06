@@ -231,21 +231,3 @@ class PyException(@JvmField val type: String, message: String) : RuntimeExceptio
     override fun toString() = "$type: $message"
 }
 
-/** The runtime's view of its values' types. */
-object PyTypes {
-    @JvmStatic fun name(v: Any?): String = when (v) {
-        null, PyNone -> "NoneType"
-        is PyBool -> "bool"
-        is Long, is BigInteger -> "int"
-        is Double -> "float"
-        is PyStr -> "str"
-        is PyList -> "list"
-        is PyTuple -> "tuple"
-        is PyDict -> "dict"
-        is PyFunction -> "function"
-        is PyBuiltin, is PyBoundMethod -> "builtin_function_or_method"
-        is PyRange -> "range"
-        is PyIterator -> "iterator"
-        else -> v.javaClass.simpleName
-    }
-}
