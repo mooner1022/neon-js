@@ -615,11 +615,11 @@ milestones. Each milestone is commits gated by the quick check and pushed when i
 | M1 | functions and scopes: defaults, keyword arguments, `*args`/`**kwargs`, keyword-only and positional-only parameters, `lambda`, closures and `nonlocal`, decorators, starred unpacking (calls, literals, targets), `:=`, `del`, `assert`, `global` done right | — |
 | M2 | the object model: type objects (the builtins' too), `class`, instances, the MRO, `super()`, the special methods (operators, containers, iteration, calls, `str`/`repr`/`hash`/`bool`/`len`), `property`/`staticmethod`/`classmethod`, `isinstance`/`type`/`getattr`…, class decorators, `__init_subclass__`/`__set_name__` | M1 (`super()` needs the `__class__` cell) |
 | M3 | exceptions: the hierarchy as classes, `try`/`except`/`else`/`finally`, `raise … from`, chaining, `with` (several items, parenthesized), `except*` and `ExceptionGroup`, `except A, B:` (PEP 758), `return`/`break` in `finally` (PEP 765's warning) | M2 |
-| M4 | generators: `yield`, `yield from`, `send`/`throw`/`close`, generator expressions, list/set/dict comprehensions (done: a generator's code interpreted; M4b, the tier's suspensions, after the syntax) | M3 (a generator's `close` is an exception) |
+| M4 | generators: `yield`, `yield from`, `send`/`throw`/`close`, generator expressions, list/set/dict comprehensions (done; M4b, the tier's suspensions, done: their code compiled, suspending at YIELD) | M3 (a generator's `close` is an exception) |
 | M5 | literals and strings: f-strings as PEP 701 tokenizes them, the format-spec mini-language, `%` and `str.format`, t-strings (PEP 750, `string.templatelib`), bytes, complex, sets, slices and `slice`, `...` | M2 |
 | M6 | `match` (every pattern; or-patterns binding the same names, checked when compiling) | M2 |
 | M7 | `import`: module objects, a host-given loader (no file system unless the host gives one), a minimal `sys` | M2 |
-| M8 | `async def`, `await`, `async for`/`async with`, async generators and comprehensions (driven with `send` in tests: no asyncio; done: their frames interpreted as generators' are, M4b after) | M4 |
+| M8 | `async def`, `await`, `async for`/`async with`, async generators and comprehensions (driven with `send` in tests: no asyncio; done, their code compiled as generators' is) | M4 |
 | M9 | deferred annotations (PEP 649/749: `__annotate__`; done, M9a), type parameters and `type` aliases (PEP 695) with `list[int]`'s GenericAlias (done, M9b), what is left: private names' mangling, `__static_attributes__` and `__firstlineno__` (done, M9c) | M2 |
 
 ### 11.2 Decisions (the expensive ones to change later)
@@ -739,7 +739,7 @@ Made with import (M7):
 Made with coroutines (M8):
 
 - **Coroutines and async generators are generators' frames** (`PyGenBase`: `PyGenerator`, `PyCoroutine`,
-  `PyAsyncGenerator`, by the code's kind, `PyCodeInfo.kind`), interpreted as generators' are. `await` is `yield
+  `PyAsyncGenerator`, by the code's kind, `PyCodeInfo.kind`), compiled as generators' are (M4b). `await` is `yield
   from`'s SEND loop over GET_AWAITABLE's iterator (a coroutine itself, else what its type's `__await__` gives). What a
   suspended frame awaits (CPython's `_PyGen_yf`: its pc at the jump back to a SEND) is `cr_await`, and a coroutine
   that has one cannot be awaited again.
@@ -830,6 +830,19 @@ Made with what was left (M9c):
 - **Augmented assignment is its own instruction,** `INPLACE op`: `__iadd__` and the rest, lists changed in place,
   CPython's `+=` messages. `PyRt.inplace` keeps numbers and strs as cheap as `a op b`, and the speculating tier
   builds it as the binary operator where the interpreter saw only ints or only floats.
+
+Made with the tier's suspensions (M4b):
+
+- **A generator's code is compiled on the core's suspensions** (docs/IR_NEUTRALITY.md §9), as JavaScript's
+  generators are: the builder ends a block at YIELD with SUSPEND, whose state is the interpreter's at the RESUME
+  after it, and goes on where the generator resumes (RESUME_SLOTs, then the value it was resumed with, which RESUME
+  checks for a throw); `PyGenerators.suspend` leaves the frame as the interpreter's YIELD does. SEND is a step of the
+  iterator in its register and the value on the stack (what it yields, or Done's result), a branch on Done. A
+  generator's frame is an interpreted one (`Graph.startsInterpreted`), so that compiled code and the interpreter each
+  resume what the other suspended: each resumption runs the code's compiled code at the frame's pc where it has an
+  entry there, the interpreter otherwise and after an exit. `-Dneonjs.jit.suspendable=false` leaves them interpreted.
+- **Inlining a generator into the loop consuming it** (no resumption, no iterator protocol per value) is what would
+  make generator-heavy code fast next; until then the protocol costs more than a small body.
 
 ### 11.3 How each milestone is checked
 
