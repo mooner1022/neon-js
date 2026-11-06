@@ -11,8 +11,12 @@ fun interface PyModuleLoader {
     fun find(name: String): PyModuleSource?
 }
 
-/** A module's source: its text, the path its __file__ says, and whether it is a package (its submodules under it). */
-class PyModuleSource(@JvmField val source: String, @JvmField val path: String, @JvmField val isPackage: Boolean)
+/**
+ * A module's source: its text, the path its __file__ says, whether it is a package (its submodules under it), and
+ * whether it is the bundled library's ([PyStdlib]).
+ */
+class PyModuleSource(@JvmField val source: String, @JvmField val path: String, @JvmField val isPackage: Boolean,
+                     @JvmField val library: Boolean = false)
 
 /** A module: its name and its dict (its globals, the same dict). */
 class PyModule(@JvmField val name: String, @JvmField val dict: PyDict) {
@@ -68,7 +72,8 @@ object PyImport {
 
     /** A module of the host's loader: made, put in sys.modules, its body run in its dict. */
     private fun load(ctx: PyContext, name: String, parent: String): PyModule {
-        val src = ctx.loader?.find(name) ?: throw notFound(name)
+        // (the host's modules first, as a script's directory comes first in sys.path; then the bundled library)
+        val src = ctx.loader?.find(name) ?: PyStdlib.find(name) ?: throw notFound(name)
         val d = PyDict()
         d[PyStr("__name__")] = PyStr(name)
         d[PyStr("__doc__")] = PyNone
@@ -83,7 +88,7 @@ object PyImport {
         } catch (e: PySyntaxError) {
             throw PyException("SyntaxError", "${e.msg} (${src.path}, line ${e.line})")
         }
-        ctx.moduleUnits.add(cb)
+        if (src.library) ctx.libraryUnits.add(cb) else ctx.moduleUnits.add(cb)
         ctx.sources[src.path] = src.source
         ctx.modules[PyStr(name)] = m
         m.initializing = true
@@ -225,8 +230,8 @@ object PyImport {
                 d[PyStr("Interpolation")] = PyTypes.INTERPOLATION
                 return mod()
             }
-            "__future__" -> {
-                for (f in FUTURES) d[PyStr(f)] = PyStr(f)
+            "_thread" -> {
+                PyStdlib.fillThread(ctx, d)
                 return mod()
             }
             "_weakref" -> {

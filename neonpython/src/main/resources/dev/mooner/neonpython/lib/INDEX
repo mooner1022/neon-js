@@ -1,0 +1,7 @@
+# CPython v3.14.6 Lib files bundled (neonpython/tools/port_cpython.py); one per line
+__future__.py
+bisect.py
+copyreg.py
+heapq.py
+keyword.py
+operator.py

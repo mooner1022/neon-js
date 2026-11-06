@@ -87,3 +87,11 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.
+
+This product includes software derived from CPython (https://www.python.org), release v3.14.6: the
+Python modules of neonpython's bundled library (dev/mooner/neonpython/lib, listed in its INDEX, which
+notes the changes made to any) are CPython's Lib sources, distributed under the Python Software
+Foundation License Version 2 and the licenses of the software's history, given in full in that
+directory's LICENSE.
+
+Copyright (c) 2001 Python Software Foundation; All Rights Reserved

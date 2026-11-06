@@ -27,6 +27,8 @@ class PyContext(
     @JvmField val modules = PyDict()
     /** The code of each module imported (the tests check them all compiled). */
     @JvmField val moduleUnits = ArrayList<dev.mooner.neonjs.compiler.CodeUnit>()
+    /** The code of each module of the bundled library imported (their module bodies may be past the tier's block limit: interpreted, §12.2). */
+    @JvmField val libraryUnits = ArrayList<dev.mooner.neonjs.compiler.CodeUnit>()
     @JvmField val sysModule: PyModule = PyImport.sys(this)
     /** The exception being handled (PyExceptions: PUSH_EXC_INFO sets it, POP_EXCEPT puts the one before back), or null. */
     @JvmField var handled: PyBaseException? = null
