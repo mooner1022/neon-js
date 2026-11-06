@@ -435,7 +435,8 @@ object PyGenerators {
 
     /** RESUME, after a YIELD: the value sent, or (a throw mode) the exception thrown in, raised here. */
     @JvmStatic
-    fun resumeCheck(f: PyFrame, sent: Any?): Any? {
+    fun resumeCheck(vf: dev.mooner.neonjs.vm.VmFrame, sent: Any?): Any? {
+        val f = vf as PyFrame
         if (f.resumeMode == PyFrame.MODE_NEXT) return sent
         f.resumeMode = PyFrame.MODE_NEXT
         throw thrown(sent as PyBaseException)
@@ -457,7 +458,8 @@ object PyGenerators {
      * yields, or [Done] with its result.
      */
     @JvmStatic
-    fun send(f: PyFrame, sub: Any?, sent: Any?): Any? {
+    fun send(vf: dev.mooner.neonjs.vm.VmFrame, sub: Any?, sent: Any?): Any? {
+        val f = vf as PyFrame
         val mode = f.resumeMode
         f.resumeMode = PyFrame.MODE_NEXT
         return step(f.ctx, sub, sent, mode)
@@ -587,7 +589,8 @@ object PyGenerators {
      * messages say so. A coroutine another await is stepping is the error.
      */
     @JvmStatic
-    fun getAwaitable(f: PyFrame, v: Any?, k: Int): Any? {
+    fun getAwaitable(vf: dev.mooner.neonjs.vm.VmFrame, v: Any?, k: Int): Any? {
+        val f = vf as PyFrame
         val it = try {
             awaitableIter(f.ctx, v)
         } catch (e: PyException) {
@@ -613,9 +616,9 @@ object PyGenerators {
 
     /** GET_ANEXT: the awaitable of [aiter]'s next value (an async generator's asend; else its __anext__'s, awaitable). */
     @JvmStatic
-    fun getANext(f: PyFrame, aiter: Any?): Any? {
+    fun getANext(f: dev.mooner.neonjs.vm.VmFrame, aiter: Any?): Any? {
         if (aiter is PyAsyncGenerator) return PyAsyncGenASend(aiter, PyNone)
-        val ctx = f.ctx
+        val ctx = (f as PyFrame).ctx
         val t = PyTypes.typeOf(aiter)
         val m = t.lookup("__anext__") ?: throw PyRt.typeError("'async for' requires an iterator with __anext__ method, got ${t.name}")
         val next = callSpecial(ctx, m, aiter)

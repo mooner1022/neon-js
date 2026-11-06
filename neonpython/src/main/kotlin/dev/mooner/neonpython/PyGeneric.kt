@@ -138,7 +138,16 @@ internal object PyGeneric {
         t[PyOp.IMPORT_FROM] = Generic("importFrom", "vk", pops = 1, result = true, owner = im)
         t[PyOp.IMPORT_STAR] = Generic("importStar", "fv", pops = 1, result = false, owner = im)
         // (an async generator expression's first iterable, in the function that makes it: the rest is a coroutine's code)
-        t[PyOp.GET_AITER] = Generic("getAIter", "fv", pops = 1, result = true, owner = Generic.GEN)
+        val gn = Generic.GEN
+        t[PyOp.GET_AITER] = Generic("getAIter", "fv", pops = 1, result = true, owner = gn)
+        // a generator's and a coroutine's (the tier compiles their code: it suspends at YIELD, M4b)
+        t[PyOp.RESUME] = Generic("resumeCheck", "fv", pops = 1, result = true, owner = gn)
+        t[PyOp.GET_YIELD_FROM_ITER] = Generic("yieldFromIter", "v", pops = 1, result = true, owner = gn)
+        t[PyOp.GET_AWAITABLE] = Generic("getAwaitable", "fva", pops = 1, result = true, owner = gn)
+        t[PyOp.GET_ANEXT] = Generic("getANext", "fv", pops = 1, result = true, owner = gn)
+        t[PyOp.END_ASYNC_FOR] = Generic("endAsyncFor", "v", pops = 1, result = false, owner = gn)
+        t[PyOp.ASYNC_GEN_WRAP] = Generic("asyncGenWrap", "v", pops = 1, result = true, throws = false, owner = gn,
+            flags = OpInfo.REMOVABLE or OpInfo.ALLOCATES)
         val an = Generic.ANN
         t[PyOp.ANNOTATE_CHECK] = Generic("annotateCheck", "v", pops = 1, result = false, owner = an)
         t[PyOp.SETUP_ANNOTATIONS] = Generic("setupAnnotations", "f", pops = 0, result = false, owner = an)
