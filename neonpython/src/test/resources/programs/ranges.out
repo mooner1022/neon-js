@@ -1,0 +1,30 @@
+attrs -> (1, 20, 3, 7, 7, 19, range(4, 13, 3), range(19, -2, -3), True, False, 2, 1)
+eq -> (True, True, False, True, True)
+repr -> ('range(0, 3)', 'range(1, 3)', 'range(1, 9, 2)', 'range(-2, 0)')
+bool -> (False, True)
+reversed -> [9, 5, 1]
+index err !! ValueError range.index(x): x not in range
+getitem err !! IndexError range object index out of range
+step 0 !! ValueError range() arg 3 must not be zero
+float !! TypeError 'float' object cannot be interpreted as an integer
+contains float -> (True, False, True)
+iter type -> range_iterator
+count obj -> 1
+index !! ValueError range.index(x): x not in range
+cmp !! TypeError '<' not supported between instances of 'range' and 'range'
+big len !! OverflowError Python int too large to convert to C ssize_t
+big attrs -> (0, 1267650600228229401496703205376, 1, 0, 1267650600228229401496703205375, 1267650600228229401496703205375, True, False, 5, 1)
+big repr -> ('range(0, 1267650600228229401496703205376)', 'range(1267650600228229401496703205376, 1267650600228229401496703205379)', 'range(-1267650600228229401496703205376, 1267650600228229401496703205376, 1267650600228229401496703205376)')
+big iter -> ('longrange_iterator', [1267650600228229401496703205376, 1267650600228229401496703205377, 1267650600228229401496703205378], [1267650600228229401496703205378, 1267650600228229401496703205377, 1267650600228229401496703205376], 'longrange_iterator')
+big slice -> (range(1, 3), range(0, 1267650600228229401496703205376, 633825300114114700748351602688), range(1267650600228229401496703205374, 1267650600228229401496703205376), 2)
+big eq -> (True, True, True)
+big rev -> [1267650600228229401496703205378, 1267650600228229401496703205377, 1267650600228229401496703205376]
+big bool -> (False, True)
+big step -> ([0, 1267650600228229401496703205376, 2535301200456458802993406410752], 2535301200456458802993406410752, 3, 2)
+big getitem err !! IndexError range object index out of range
+mixed -> ([-2, 4611686018427387902, 9223372036854775806], 9223372036854775808)
+len max -> 9223372036854775807
+len over !! OverflowError Python int too large to convert to C ssize_t
+in neg -> (False, False, True)
+index big -> 2
+for -> [18446744073709551614, 18446744073709551615, 18446744073709551616, 18446744073709551617]

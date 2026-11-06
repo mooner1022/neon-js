@@ -465,6 +465,12 @@ object PyClasses {
                 "format_spec" -> obj.formatSpec
                 else -> null
             }
+            is PyRange -> when (name) {
+                "start" -> PyRanges.start(obj)
+                "stop" -> PyRanges.stop(obj)
+                "step" -> PyRanges.step(obj)
+                else -> null
+            }
             is PySlice -> when (name) {
                 "start" -> obj.start
                 "stop" -> obj.stop

@@ -320,7 +320,7 @@ object PyRt {
         is Double -> v != 0.0
         is BigInteger -> v.signum() != 0
         is PyValue -> if (v.sub == null) truthValues(v) else PyDunder.truthy(v)
-        is PyRange -> v.length > 0
+        is PyRange -> !PyRanges.isEmpty(v)
         is PyObject -> PyDunder.truthy(v)
         is PyComplex -> v.real != 0.0 || v.imag != 0.0
         is PyBytes -> v.b.isNotEmpty()
@@ -350,7 +350,7 @@ object PyRt {
         is PySet -> v.used.toLong()
         is PyBytes -> v.b.size.toLong()
         is PyDictView -> v.dict.size.toLong()
-        is PyRange -> v.length
+        is PyRange -> PyRanges.len(v)
         else -> throw typeError("object of type '${t(v)}' has no len()")
     }
 
@@ -391,6 +391,7 @@ object PyRt {
             is PyDict -> b is PyDict && a.size == b.size && a.map.all { (k, v) -> b.map.containsKey(k) && eq(v, b.map[k]) }
             is PySet -> b is PySet && PySets.equal(a, b)
             is PyBytes -> b is PyBytes && a.b.contentEquals(b.b)
+            is PyRange -> b is PyRange && PyRanges.eq(a, b)
             is PySlice -> b is PySlice && a == b
             is PyGenericAlias, is PyUnion, is PyParamSpecPart, is PyUnpacked -> a == b
             PyNone, null -> b === PyNone || b == null
@@ -458,6 +459,7 @@ object PyRt {
         is PyList, is PyDict -> if (special(v)) PyDunder.hash(v) else throw typeError("unhashable type: '${t(v)}'")
         is PySet -> if (v.sub == null) (if (v.frozen) java.lang.Long.hashCode(v.frozenHash()) else throw typeError("unhashable type: '${t(v)}'")) else PyDunder.hash(v)
         is PySlice -> java.lang.Long.hashCode(PyHash.hash(v))
+        is PyRange -> java.lang.Long.hashCode(PyRanges.hash(v))
         is PyBytes -> v.hashCode()
         // (equal to an int or a float, a complex with no imaginary part hashes as it)
         is PyComplex -> if (v.imag == 0.0) hash(v.real) else java.lang.Long.hashCode(PyHash.hash(v))
@@ -495,8 +497,7 @@ object PyRt {
         is PyBytes -> PyLiterals.bytesContains(container, v)
         is PyDictView -> PyContainers.contains(container, v)
         is PyStr -> if (v is PyStr) container.s.contains(v.s) else throw typeError("'in <string>' requires string as left operand, not ${t(v)}")
-        is PyRange -> v is Long && (if (container.step > 0) v >= container.start && v < container.stop else v <= container.start && v > container.stop) &&
-            (v - container.start) % container.step == 0L
+        is PyRange -> PyRanges.contains(container, v)
         else -> {
             val it = iter(container)
             var found = false
@@ -559,7 +560,7 @@ object PyRt {
         is PyModule -> v.repr()
         is PyStream -> "<_io.TextIOWrapper name='${v.name}' mode='w' encoding='utf-8'>"
         is PyInterpolation -> PyLiterals.interpolationRepr(v)
-        is PyRange -> if (v.step == 1L) "range(${v.start}, ${v.stop})" else "range(${v.start}, ${v.stop}, ${v.step})"
+        is PyRange -> PyRanges.repr(v)
         is PyType -> v.repr()
         is PyObject -> PyDunder.repr(v)
         is PyIterator -> (v as? PyIterTool)?.repr?.invoke() ?: PyDunder.defaultRepr(v)
@@ -671,11 +672,7 @@ object PyRt {
         is PyStr -> obj.at(index(key, obj.length, "string"))
         is PyDict -> if (obj.containsKey(key)) obj[key] else throw PyException.keyError(key)
         is PyBytes -> PyLiterals.bytesItem(obj, key)
-        is PyRange -> {
-            val n = obj.length
-            if (n > Int.MAX_VALUE) throw PyException("OverflowError", "range too large")
-            obj.start + obj.step * index(key, n.toInt(), "range")
-        }
+        is PyRange -> PyRanges.item(obj, key)
         is PyObject -> PyDunder.getItem(obj, key)
         is PyType -> PyTyping.typeGetItem(obj, key)
         is PyGenericAlias, is PyUnion -> PyTyping.aliasGetItem(obj, key)
@@ -737,10 +734,7 @@ object PyRt {
                 }
                 return PyStr(sb.toString())
             }
-            is PyRange -> {
-                val (a, b, st, _) = s.indices(obj.length)
-                return PyRange(obj.start + a * obj.step, obj.start + b * obj.step, obj.step * st)
-            }
+            is PyRange -> return PyRanges.slice(obj, s)
             else -> return null
         }
     }
@@ -766,7 +760,7 @@ object PyRt {
 
     @JvmStatic fun iterValues(v: Any?): PyIterator = when (v) {
         is PyIterator -> v
-        is PyRange -> {
+        is PyRange -> if (v.big != null) PyRanges.iter(v) else {
             var cur = v.start
             val step = v.step
             val stop = v.stop

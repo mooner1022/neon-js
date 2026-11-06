@@ -85,14 +85,16 @@ object PyBuiltins {
             noKw("range", kw)
             if (args.isEmpty()) throw PyRt.typeError("range expected at least 1 argument, got 0")
             if (args.size > 3) throw PyRt.typeError("range expected at most 3 arguments, got ${args.size}")
-            val (a, b, s) = when (args.size) {
-                1 -> Triple(0L, longOf(args[0], "range"), 1L)
-                2 -> Triple(longOf(args[0], "range"), longOf(args[1], "range"), 1L)
-                else -> Triple(longOf(args[0], "range"), longOf(args[1], "range"), longOf(args[2], "range"))
-            }
-            if (s == 0L) throw PyException("ValueError", "range() arg 3 must not be zero")
-            PyRange(a, b, s)
+            PyRanges.make(args)
         }
+        PyTypes.RANGE.def("index", PyBuiltin("index") { _, a ->
+            if (a.size != 2) throw PyRt.typeError("range.index() takes exactly one argument (${a.size - 1} given)")
+            PyRanges.index(a[0] as PyRange, a[1])
+        })
+        PyTypes.RANGE.def("count", PyBuiltin("count") { _, a ->
+            if (a.size != 2) throw PyRt.typeError("range.count() takes exactly one argument (${a.size - 1} given)")
+            PyRanges.count(a[0] as PyRange, a[1])
+        })
         type(PyTypes.STR) { _, args, kw ->
             noKw("str", kw)
             argc("str", args, 0, 1)

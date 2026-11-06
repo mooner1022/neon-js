@@ -244,7 +244,9 @@ class PyBoundMethod(@JvmField val self: Any?, @JvmField val fn: PyBuiltin) {
 }
 
 /** range(start, stop, step). */
-class PyRange(@JvmField val start: Long, @JvmField val stop: Long, @JvmField val step: Long) {
+class PyRange(@JvmField val start: Long, @JvmField val stop: Long, @JvmField val step: Long,
+              /** Its start, stop and step where they (or its values, or its length) are past a Long (PyRanges): those three unused then. */
+              @JvmField val big: Array<java.math.BigInteger>? = null) {
     val length: Long
         get() = when {
             step > 0 && start < stop -> (stop - start + step - 1) / step

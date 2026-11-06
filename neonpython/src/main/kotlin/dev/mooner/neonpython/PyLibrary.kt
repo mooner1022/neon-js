@@ -298,11 +298,7 @@ object PyLibrary {
                 var k = v.items.size - 1
                 return iterator(type("list_reverseiterator")) { if (k >= 0 && k < v.items.size) v.items[k--] else PyIterator.STOP }
             }
-            is PyRange -> {
-                val n = v.length
-                val r = PyRange(v.start + (n - 1) * v.step, v.start - v.step, -v.step)
-                return PyRt.iterValues(r)
-            }
+            is PyRange -> return PyRanges.reversed(v)
             is PyDictView -> {
                 val items = ArrayList<Any?>()
                 val it = PyContainers.iter(v.dict, v.kind)

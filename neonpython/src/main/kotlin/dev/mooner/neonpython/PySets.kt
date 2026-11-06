@@ -89,6 +89,7 @@ object PyHash {
         v is PySet -> if (v.frozen) v.frozenHash() else throw PyRt.typeError("unhashable type: '${PyTypes.name(v)}'")
         v is PyList || v is PyDict -> throw PyRt.typeError("unhashable type: '${PyTypes.name(v)}'")
         v is PySlice -> tuple(arrayOf(v.start, v.stop, v.step))
+        v is PyRange -> PyRanges.hash(v)
         v is PyComplex -> fix(float(v.real, v) + 1000003L * float(v.imag, v))
         v is PyBytes -> fix(v.b.contentHashCode().toLong())
         v is PyGenericAlias || v is PyUnion || v is PyParamSpecPart || v is PyUnpacked -> v.hashCode().toLong()
