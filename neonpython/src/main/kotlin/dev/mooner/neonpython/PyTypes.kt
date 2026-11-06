@@ -135,6 +135,9 @@ object PyTypes {
         }
     }
 
+    /** A builtin type made later than these (PyLibrary's iterators' types). */
+    @JvmStatic fun newBuiltin(name: String, subclassable: Boolean = true): PyType = builtin(name, subclassable = subclassable)
+
     /** The type of [v]. */
     @JvmStatic fun typeOf(v: Any?): PyType = when (v) {
         null, PyNone -> NONE
@@ -155,7 +158,7 @@ object PyTypes {
         is PyStaticMethod -> STATICMETHOD
         is PyClassMethod -> CLASSMETHOD
         is PyRange -> RANGE
-        is PyIterator -> ITERATOR
+        is PyIterator -> v.type ?: ITERATOR
         is PyGenerator -> GENERATOR
         is PySet -> v.sub?.cls ?: if (v.frozen) FROZENSET else SET
         is PySlice -> SLICE

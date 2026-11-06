@@ -705,15 +705,15 @@ object PyRt {
             var cur = v.start
             val step = v.step
             val stop = v.stop
-            PyIterator { if (if (step > 0) cur < stop else cur > stop) cur.also { cur += step } else PyIterator.STOP }
+            PyIterator { if (if (step > 0) cur < stop else cur > stop) cur.also { cur += step } else PyIterator.STOP }.also { it.type = PyLibrary.RANGE_ITERATOR }
         }
         is PyList -> {
             var k = 0
-            PyIterator { if (k < v.items.size) v.items[k++] else PyIterator.STOP }
+            PyIterator { if (k < v.items.size) v.items[k++] else PyIterator.STOP }.also { it.type = PyLibrary.LIST_ITERATOR }
         }
         is PyTuple -> {
             var k = 0
-            PyIterator { if (k < v.items.size) v.items[k++] else PyIterator.STOP }
+            PyIterator { if (k < v.items.size) v.items[k++] else PyIterator.STOP }.also { it.type = PyLibrary.TUPLE_ITERATOR }
         }
         is PyStr -> {
             var k = 0
@@ -724,17 +724,17 @@ object PyRt {
                     k += Character.charCount(cp)
                     PyStr(String(Character.toChars(cp)))
                 } else PyIterator.STOP
-            }
+            }.also { it.type = if (s.all { c -> c.code < 0x80 }) PyLibrary.STR_ASCII_ITERATOR else PyLibrary.STR_ITERATOR }
         }
         is PyDict -> {
             val it = ArrayList(v.map.keys).iterator()
-            PyIterator { if (it.hasNext()) it.next().v else PyIterator.STOP }
+            PyIterator { if (it.hasNext()) it.next().v else PyIterator.STOP }.also { i -> i.type = PyLibrary.DICT_KEYITERATOR }
         }
         is PyObject -> PyDunder.iter(v)
         is PyGenerator -> PyIterator { v.next() }
         is PyBytes -> {
             var k = 0
-            PyIterator { if (k < v.b.size) (v.b[k++].toInt() and 0xFF).toLong() else PyIterator.STOP }
+            PyIterator { if (k < v.b.size) (v.b[k++].toInt() and 0xFF).toLong() else PyIterator.STOP }.also { it.type = PyLibrary.BYTES_ITERATOR }
         }
         is PyTemplate -> PyLiterals.templateIter(v)
         is PySet -> {
@@ -746,7 +746,7 @@ object PyRt {
                 val ks = v.keys
                 while (j < ks.size && (ks[j] == null || ks[j] === PySet.DUMMY)) j++
                 if (j < ks.size) ks[j++] else PyIterator.STOP
-            }
+            }.also { it.type = PyLibrary.SET_ITERATOR }
         }
         else -> throw typeError("'${t(v)}' object is not iterable")
     }
@@ -901,7 +901,7 @@ object PyRt {
         val ctx = (f as PyFrame).ctx
         return when (fn) {
             is PyFunction -> PyInterpreter.call(ctx, fn, args)
-            is PyBuiltin -> fn.impl(ctx, args)
+            is PyBuiltin -> fn.frameImpl.let { fi -> if (fi != null) fi(f, args) else fn.impl(ctx, args) }
             is PyBoundMethod -> {
                 val all = arrayOfNulls<Any?>(args.size + 1)
                 all[0] = fn.self

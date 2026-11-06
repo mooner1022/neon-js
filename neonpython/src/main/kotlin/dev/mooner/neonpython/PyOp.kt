@@ -208,6 +208,10 @@ object PyOp {
     const val BUILD_INTERPOLATION = 130
     /** (strings interpolations -- template): a t-string */
     const val BUILD_TEMPLATE = 131
+    /** r ( -- local r): its value as it is (none for none: locals() leaves it out), never an UnboundLocalError */
+    const val LOAD_FAST_RAW = 132
+    /** k (values -- dict): locals() in a function, constants[k] its names (and which are cells) */
+    const val LOAD_LOCALS = 133
 
     const val COUNT = 200
 
@@ -215,7 +219,7 @@ object PyOp {
         for (op in intArrayOf(LOAD_CONST, LOAD_FAST, LOAD_FAST_CHECK, STORE_FAST, LOAD_GLOBAL, STORE_GLOBAL, JUMP, POP_JUMP_IF_FALSE,
             POP_JUMP_IF_TRUE, CALL, BUILD_LIST, BUILD_TUPLE, BUILD_MAP, LOAD_ATTR, UNPACK, MAKE_FUNCTION, CALL_KW, CALL_EX, LOAD_FREE,
             SET_FUNCTION_ATTRIBUTE, DELETE_FAST, DELETE_GLOBAL, DELETE_ATTR, ASSERT_FAIL, LOAD_NAME, STORE_NAME, DELETE_NAME,
-            LOAD_FROM_DICT_OR_DEREF, STORE_ATTR, INPLACE, RAISE, LOAD_SPECIAL, FORMAT_VALUE, FORMAT_SPEC, BUILD_STRING, BUILD_SET, BUILD_SLICE)) o[op] = 1
+            LOAD_FROM_DICT_OR_DEREF, STORE_ATTR, INPLACE, RAISE, LOAD_SPECIAL, FORMAT_VALUE, FORMAT_SPEC, BUILD_STRING, BUILD_SET, BUILD_SLICE, LOAD_FAST_RAW, LOAD_LOCALS)) o[op] = 1
         for (op in intArrayOf(CELL_GET, CELL_DELETE, UNPACK_EX, SEND)) o[op] = 2
         o[FOR_ITER] = 3
     }
@@ -241,7 +245,7 @@ object PyOp {
         CELL_DELETE, SET_FUNCTION_ATTRIBUTE, LIST_APPEND, LIST_EXTEND, DICT_UPDATE, DELETE_ATTR -> -1
         UNPACK_EX -> a + b
         ASSERT_FAIL -> -a
-        LOAD_CONST, LOAD_FAST, LOAD_FAST_CHECK, LOAD_GLOBAL, DUP, MAKE_FUNCTION -> 1
+        LOAD_CONST, LOAD_FAST, LOAD_FAST_CHECK, LOAD_GLOBAL, DUP, MAKE_FUNCTION, LOAD_FAST_RAW -> 1
         STORE_FAST, STORE_GLOBAL, POP, POP_JUMP_IF_FALSE, POP_JUMP_IF_TRUE, RETURN -> -1
         in ADD..MATMUL, in LT..NOT_IN, SUBSCR, INPLACE, POP_EXCEPT, CHECK_EXC_MATCH, RERAISE, WITH_EXCEPT, EXC_STAR_MATCH -> -1
         EXC_STAR_RAISED -> -2

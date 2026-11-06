@@ -261,7 +261,7 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
         override fun supported(pc: Int): Boolean = bc[pc] in 0 until PyOp.COUNT && PyOp.names[bc[pc]] != null
 
         override fun regsRead(pc: Int): IntArray = when (bc[pc]) {
-            PyOp.LOAD_FAST, PyOp.LOAD_FAST_CHECK, PyOp.FOR_ITER -> intArrayOf(bc[pc + 1])
+            PyOp.LOAD_FAST, PyOp.LOAD_FAST_CHECK, PyOp.FOR_ITER, PyOp.LOAD_FAST_RAW -> intArrayOf(bc[pc + 1])
             else -> IntArray(0)
         }
 
@@ -354,7 +354,7 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
             when (op) {
                 PyOp.NOP -> {}
                 PyOp.LOAD_CONST -> stack.add(constant(a))
-                PyOp.LOAD_FAST -> stack.add(regs[a]!!)
+                PyOp.LOAD_FAST, PyOp.LOAD_FAST_RAW -> stack.add(regs[a]!!)
                 PyOp.LOAD_FAST_CHECK -> {
                     val v = regs[a]!!
                     // only the dead value is none, and a phi may be it (an instruction's result never is)

@@ -446,6 +446,8 @@ object PyInterpreter {
                 val p = popN(4)
                 s[sp++] = PyLiterals.buildInterpolation(p[0], p[1], p[2], p[3])
             }
+            PyOp.LOAD_FAST_RAW -> s[sp++] = s[a]
+            PyOp.LOAD_LOCALS -> s[sp - 1] = PyLibrary.loadLocals(s[sp - 1], k[a])
             PyOp.BUILD_TEMPLATE -> {
                 val interps = pop()
                 s[sp - 1] = PyLiterals.buildTemplate(s[sp - 1], interps)

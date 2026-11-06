@@ -50,6 +50,7 @@ internal class Generic(
         const val FMT = "dev/mooner/neonpython/PyFormat"
         const val SETS = "dev/mooner/neonpython/PySets"
         const val LIT = "dev/mooner/neonpython/PyLiterals"
+        const val LIB = "dev/mooner/neonpython/PyLibrary"
     }
 }
 
@@ -119,6 +120,7 @@ internal object PyGeneric {
         val lt = Generic.LIT
         t[PyOp.BUILD_INTERPOLATION] = Generic("buildInterpolation", "vvvv", pops = 4, result = true, throws = false, owner = lt)
         t[PyOp.BUILD_TEMPLATE] = Generic("buildTemplate", "vv", pops = 2, result = true, throws = false, owner = lt)
+        t[PyOp.LOAD_LOCALS] = Generic("loadLocals", "vk", pops = 1, result = true, throws = false, owner = Generic.LIB)
         t[PyOp.WRAP_STAR] = Generic("wrapStar", "v", pops = 1, result = true, throws = false, owner = c, flags = OpInfo.REMOVABLE or OpInfo.ALLOCATES)
     }
 

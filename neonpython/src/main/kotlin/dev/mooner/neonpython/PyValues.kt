@@ -205,6 +205,8 @@ class PyFunction(@JvmField val code: CodeUnit, @JvmField val globals: PyDict, @J
  */
 class PyBuiltin(@JvmField val name: String, @JvmField val impl: (PyContext, Array<Any?>) -> Any?) {
     @JvmField var kwImpl: ((PyContext, Array<Any?>, PyDict) -> Any?)? = null
+    /** A builtin of its caller's frame (globals()): what a call from code calls, with the frame. */
+    @JvmField var frameImpl: ((dev.mooner.neonjs.vm.VmFrame, Array<Any?>) -> Any?)? = null
 
     constructor(name: String, impl: (PyContext, Array<Any?>) -> Any?, kwImpl: (PyContext, Array<Any?>, PyDict) -> Any?) : this(name, impl) {
         this.kwImpl = kwImpl
@@ -230,6 +232,9 @@ class PyRange(@JvmField val start: Long, @JvmField val stop: Long, @JvmField val
 
 /** An iterator of the runtime's: over a range, a list, a tuple, a str or a dict's keys. */
 class PyIterator(@JvmField val next: () -> Any?) {
+    /** Its type (list_iterator, map, zip...): `iterator` where none is given. */
+    @JvmField var type: PyType? = null
+
     companion object {
         /** What [next] gives where the iteration is done. */
         @JvmField val STOP = Any()

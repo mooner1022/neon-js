@@ -234,9 +234,10 @@ object PyBuiltins {
             argc("hash", args, 1)
             PyHash.hash(args[0])
         }
-        // sets and slices; complex numbers, bytes
+        // sets and slices; complex numbers, bytes; the everyday builtins (their min, max and sum over these)
         PySets.define(d)
         PyLiterals.define(d)
+        PyLibrary.define(d)
         PyTypes.SLICE.newImpl = { _, _, a, kw ->
             if (kw != null && kw.size > 0) throw PyRt.typeError("slice() takes no keyword arguments")
             when (a.size) {

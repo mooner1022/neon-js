@@ -754,6 +754,21 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         } else emit(PyOp.FORMAT_VALUE, conv)
     }
 
+    /**
+     * locals() (and vars()) in a function, the builtin's: a dict of its locals that have a value, made from its
+     * registers (LOAD_FAST_RAW), a cell's contents for a cell or free variable's (LOAD_LOCALS).
+     */
+    private fun localsDict() {
+        val names = ArrayList<Any?>()
+        for ((n, r) in locals) {
+            emit(PyOp.LOAD_FAST_RAW, r)
+            val k = scope.kind(n)
+            names.add(PyTuple(arrayOf(PyStr(n), PyBool.of(k == Scope.Kind.CELL || k == Scope.Kind.FREE))))
+        }
+        emit(PyOp.BUILD_TUPLE, names.size)
+        emit(PyOp.LOAD_LOCALS, const(PyTuple(names.toTypedArray())))
+    }
+
     /** A with's __exit__ (bound, in register [exit]) called with three Nones, its result dropped. */
     private fun exitWith(exit: Int) {
         emit(PyOp.LOAD_FAST, exit)
@@ -1340,6 +1355,13 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             loadName("__class__")
             loadName(scope.params[0])
             emit(PyOp.CALL, 2)
+            return
+        }
+        // locals() and vars() in a function, the builtins: its registers' values (a frame of compiled code has none to read)
+        val fname = (e.func as? Name)?.id
+        if ((fname == "locals" || fname == "vars") && e.args.isEmpty() && e.keywords.isEmpty() && !namespace &&
+            scope.kind(fname) == Scope.Kind.GLOBAL_IMPLICIT) {
+            localsDict()
             return
         }
         expr(e.func)

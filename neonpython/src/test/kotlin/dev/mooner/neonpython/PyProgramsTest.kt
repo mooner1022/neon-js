@@ -364,6 +364,27 @@ class PyProgramsTest {
             "'a'.encode('nope')\n" to Triple("LookupError", "unknown encoding: nope", 1),
             "'a' in b'a'\n" to Triple("TypeError", "a bytes-like object is required, not 'str'", 1),
             "t'{1}' + 'x'\n" to Triple("TypeError", "can only concatenate string.templatelib.Template (not \"str\") to string.templatelib.Template", 1),
+            "sorted(1)\n" to Triple("TypeError", "'int' object is not iterable", 1),
+            "min()\n" to Triple("TypeError", "min expected at least 1 argument, got 0", 1),
+            "max([])\n" to Triple("ValueError", "max() iterable argument is empty", 1),
+            "min(1, 2, default=0)\n" to Triple("TypeError", "Cannot specify a default for min() with multiple positional arguments", 1),
+            "max([1], foo=1)\n" to Triple("TypeError", "max() got an unexpected keyword argument 'foo'", 1),
+            "chr(-1)\n" to Triple("ValueError", "chr() arg not in range(0x110000)", 1),
+            "ord('ab')\n" to Triple("TypeError", "ord() expected a character, but string of length 2 found", 1),
+            "hex(1.5)\n" to Triple("TypeError", "'float' object cannot be interpreted as an integer", 1),
+            "pow(2, 3, 0)\n" to Triple("ValueError", "pow() 3rd argument cannot be 0", 1),
+            "pow(2.0, 3, 5)\n" to Triple("TypeError", "pow() 3rd argument not allowed unless all arguments are integers", 1),
+            "pow(2, -1, 4)\n" to Triple("ValueError", "base is not invertible for the given modulus", 1),
+            "round(float('inf'))\n" to Triple("OverflowError", "cannot convert float infinity to integer", 1),
+            "round('x')\n" to Triple("TypeError", "type str doesn't define __round__ method", 1),
+            "reversed(1)\n" to Triple("TypeError", "'int' object is not reversible", 1),
+            "list(zip([1], [1, 2], strict=True))\n" to Triple("ValueError", "zip() argument 2 is longer than argument 1", 1),
+            "divmod(1, 0)\n" to Triple("ZeroDivisionError", "division by zero", 1),
+            "vars(1)\n" to Triple("TypeError", "vars() argument must have __dict__ attribute", 1),
+            "sum(['a'], '')\n" to Triple("TypeError", "sum() can't sum strings [use ''.join(seq) instead]", 1),
+            "map(len)\n" to Triple("TypeError", "map() must have at least two arguments.", 1),
+            "next(map(len, [1]))\n" to Triple("TypeError", "object of type 'int' has no len()", 1),
+            "sorted([1, 'a'])\n" to Triple("TypeError", "'<' not supported between instances of 'str' and 'int'", 1),
         )
         for (mode in Mode.entries) for ((src, want) in cases) {
             val e = try {
@@ -398,7 +419,7 @@ class PyProgramsTest {
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
             "speculation", "functions", "closures", "unpacking", "types", "classes", "descriptors",
-            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals",
+            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins",
         )
 
         /** The code blocks of [cb] and every function it defines. */
