@@ -144,6 +144,8 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         if (isClass) {
             for (n in scope.frees) locals[n] = regs++
             if (scope.classCell) locals["__class__"] = regs++
+            if (scope.classDict) locals["__classdict__"] = regs++
+            if (scope.conditionCell) locals["__conditional_annotations__"] = regs++
         } else if (!module) {
             for (p in scope.params) locals[p] = regs++
             for (n in scope.flags.keys) {
@@ -155,6 +157,9 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     }
 
     companion object {
+        /** An `__annotate__`'s parameters: (format, /). */
+        private val ANNOTATE_ARGS = Arguments(listOf(Arg("format", null)), emptyList(), null, emptyList(), emptyList(), null, emptyList())
+
         /** The code block of module [src]. */
         @JvmStatic fun compileModule(src: String, name: String = "<module>"): CodeUnit {
             val m = PyParser(src).parseModule()
@@ -164,7 +169,9 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 if (future && !start) throw PySyntaxError("from __future__ imports must occur at the beginning of the file", st.line, st.col)
                 if (!future && !(i == 0 && st is ExprStmt && st.value is Constant && (st.value as Constant).value is PyStr)) start = false
             }
-            val st = PySymtable.build(m)
+            // (from __future__ import annotations: annotations are their source, PEP 563)
+            val future = m.body.any { it is ImportFrom && it.module == "__future__" && it.level == 0 && it.names.any { a -> a.name == "annotations" } }
+            val st = PySymtable.build(m, future)
             return PyCompiler(st, st.scopes[m]!!, name).compileBody(m.body, null)
         }
     }
@@ -172,6 +179,14 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     /** Whether this is a generator expression's code, and the line of its def (or lambda, or comprehension). */
     private var generatorExpr = false
     private var firstLine = -1
+
+    /** An annotation its `__annotate__` gives: [index] the conditional one's (its statement records it running), else -1. */
+    private class Deferred(val name: String, val annotation: Expr, val index: Int, val line: Int)
+
+    /** A module's or class body's annotated names, as compiled; the compound statements around (a class's are conditional). */
+    private val deferred = ArrayList<Deferred>()
+    private var conditionalDepth = 0
+    private var nextConditional = 0
 
     /** The code of [body] ([comprehension]'s instead, for one); [args], a function's parameters. */
     private fun compileBody(body: List<Stmt>, args: Arguments?, comprehension: Expr? = null): CodeUnit {
@@ -181,24 +196,119 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             return unit(null, null)
         }
         val doc = docstring(body)
+        val future = st.futureAnnotations
+        // a module's __annotate__ (made first, its code after the body's: a constant filled then) and its record of
+        // the annotations that ran
+        var annotateSlot = -1
+        if (module) {
+            if (!future && scope.deferredAnnotations) {
+                annotateSlot = constants.size
+                constants.add(null)
+                emit(PyOp.MAKE_FUNCTION, annotateSlot)
+                emit(PyOp.STORE_GLOBAL, name("__annotate__"))
+            }
+            if (scope.conditionalAnnotations) {
+                emit(PyOp.BUILD_SET, 0)
+                emit(PyOp.STORE_GLOBAL, name("__conditional_annotations__"))
+            }
+            if (future && scope.annotationsUsed) emit(PyOp.SETUP_ANNOTATIONS)
+        }
         if (isClass) {
             // a class's __module__, __qualname__ and __doc__, first in its namespace
             emit(PyOp.LOAD_GLOBAL, name("__name__"))
             emit(PyOp.STORE_NAME, name("__module__"))
             loadConst(PyStr(scope.qualname))
             emit(PyOp.STORE_NAME, name("__qualname__"))
+            // (the namespace its annotation scopes read, a cell; the record of its conditional annotations)
+            if (scope.classDict) {
+                emit(PyOp.LOAD_NAMESPACE)
+                emit(PyOp.MAKE_CELL)
+                emit(PyOp.STORE_FAST, locals["__classdict__"]!!)
+            }
+            if (scope.conditionCell) {
+                emit(PyOp.BUILD_SET, 0)
+                emit(PyOp.MAKE_CELL)
+                emit(PyOp.STORE_FAST, locals["__conditional_annotations__"]!!)
+            }
             if (doc != null) {
                 loadConst(PyStr(doc))
                 emit(PyOp.STORE_NAME, name("__doc__"))
             }
+            if (future && scope.annotationsUsed) emit(PyOp.SETUP_ANNOTATIONS)
         }
         for (s in body) stmt(s)
-        // a class's __class__ cell, which type.__new__ fills with the class
+        if (deferred.isNotEmpty()) {
+            val ann = scope.annotationScope!!
+            val cb = PyCompiler(st, ann, "__annotate__").compileAnnotate(deferred, firstLineOf(body))
+            if (module) constants[annotateSlot] = cb
+            else {
+                // a class's, at the end of its body: __annotate_func__, which C.__annotate__ gives
+                closure(ann)
+                emit(PyOp.MAKE_FUNCTION, const(cb))
+                if (ann.frees.isNotEmpty()) emit(PyOp.SET_FUNCTION_ATTRIBUTE, 8)
+                emit(PyOp.STORE_NAME, name("__annotate_func__"))
+            }
+        }
+        // a class's __class__ cell, which type.__new__ fills with the class; its __classdict__'s, with its dict
         if (isClass && scope.classCell) {
             emit(PyOp.LOAD_FAST, locals["__class__"]!!)
             emit(PyOp.STORE_NAME, name("__classcell__"))
         }
+        if (isClass && scope.classDict) {
+            emit(PyOp.LOAD_FAST, locals["__classdict__"]!!)
+            emit(PyOp.STORE_NAME, name("__classdictcell__"))
+        }
         return unit(doc, args)
+    }
+
+    private fun firstLineOf(body: List<Stmt>): Int = if (firstLine > 0) firstLine else body.firstOrNull()?.line ?: 1
+
+    /** The cells of [child]'s free variables, a tuple (MAKE_FUNCTION's closure), where it has any. */
+    private fun closure(child: Scope) {
+        if (child.frees.isEmpty()) return
+        for (n in child.frees) emit(PyOp.LOAD_FAST, locals[n] ?: throw IllegalStateException("no cell for $n in $name"))
+        emit(PyOp.BUILD_TUPLE, child.frees.size)
+    }
+
+    /**
+     * An `__annotate__`'s code (this compiler's scope an annotation scope): NotImplementedError for a format above 2,
+     * then the dict of [entries], each evaluated at its line (a conditional one where its statement ran).
+     */
+    private fun compileAnnotate(entries: List<Deferred>, line: Int): CodeUnit {
+        firstLine = line
+        prologue()
+        lineHere(line)
+        emit(PyOp.LOAD_FAST, locals[".format"]!!)
+        emit(PyOp.ANNOTATE_CHECK)
+        emit(PyOp.BUILD_MAP, 0)
+        for (d in entries) {
+            lineHere(d.line)
+            var skip = -1
+            if (d.index >= 0) {
+                loadConst(d.index.toLong())
+                loadName("__conditional_annotations__")
+                emit(PyOp.IN)
+                skip = emit(PyOp.POP_JUMP_IF_FALSE, 0)
+            }
+            loadConst(PyStr(d.name))
+            annotationValue(d.annotation)
+            emit(PyOp.MAP_ADD)
+            if (skip >= 0) patch(skip, code.size)
+        }
+        emit(PyOp.RETURN)
+        val cb = unit(null, ANNOTATE_ARGS)
+        // (its parameter is `.format` to its scope, `format` to its callers)
+        (cb.dialectData as PyCodeInfo).paramNames = listOf("format")
+        return cb
+    }
+
+    /** An annotation's value: evaluated (`*X` the one value X unpacks to, PEP 646), or its source (PEP 563). */
+    private fun annotationValue(e: Expr) {
+        if (st.futureAnnotations) loadConst(PyStr(PyUnparse.annotation(e)))
+        else if (e is Starred) {
+            expr(e.value)
+            emit(PyOp.UNPACK, 1)
+        } else expr(e)
     }
 
     /** The code unit of what was emitted: return None at its end, its registers, constants, handlers, lines. */
@@ -314,6 +424,22 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     // ------------------------------------------------------------------ names
 
     private fun loadName(n: String) {
+        if (scope.canSeeClass && n != "__classdict__" && n != "__conditional_annotations__") {
+            when (scope.kind(n)) {
+                Scope.Kind.GLOBAL_IMPLICIT -> {
+                    loadClassDict()
+                    emit(PyOp.LOAD_FROM_DICT_OR_GLOBALS, name(n))
+                    return
+                }
+                Scope.Kind.FREE -> {
+                    loadClassDict()
+                    emit(PyOp.LOAD_FAST, locals[n]!!)
+                    emit(PyOp.LOAD_FROM_DICT_OR_CELL, name(n))
+                    return
+                }
+                else -> {}
+            }
+        }
         if (isClass) {
             when (scope.kind(n)) {
                 Scope.Kind.GLOBAL_EXPLICIT -> emit(PyOp.LOAD_GLOBAL, name(n))
@@ -333,6 +459,12 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             }
             else -> emit(PyOp.LOAD_GLOBAL, name(n))
         }
+    }
+
+    /** The namespace of the class an annotation scope is in (its `__classdict__` cell's). */
+    private fun loadClassDict() {
+        emit(PyOp.LOAD_FAST, locals["__classdict__"]!!)
+        emit(PyOp.CELL_GET, name("__classdict__"), 1)
     }
 
     private fun storeName(n: String) {
@@ -384,7 +516,10 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
 
     private fun stmt(s: Stmt) {
         val temps = regs
+        val compound = s is For || s is While || s is If || s is With || s is Try || s is Match
+        if (compound) conditionalDepth++
         stmtBody(s)
+        if (compound) conditionalDepth--
         regs = temps
     }
 
@@ -415,6 +550,29 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                     is Attribute -> { expr(t.value); emit(PyOp.POP) }
                     is Subscript -> { expr(t.value); emit(PyOp.POP); expr(t.slice); emit(PyOp.POP) }
                     else -> {}
+                }
+                val t = s.target
+                // a module's or class's simple name: its annotation its __annotate__'s (a function's is never evaluated)
+                if (namespace && t is Name && s.simple == 1) {
+                    if (st.futureAnnotations) {
+                        loadConst(PyStr(PyUnparse.annotation(s.annotation)))
+                        loadName("__annotations__")
+                        loadConst(PyStr(t.id))
+                        emit(PyOp.STORE_SUBSCR)
+                    } else {
+                        val index = if (module || conditionalDepth > 0) nextConditional++ else -1
+                        deferred.add(Deferred(t.id, s.annotation, index, s.line))
+                        if (index >= 0) {
+                            // (a module's global; a class's cell, which its annotation scope reads)
+                            if (module) emit(PyOp.LOAD_GLOBAL, name("__conditional_annotations__")) else {
+                                emit(PyOp.LOAD_FAST, locals["__conditional_annotations__"]!!)
+                                emit(PyOp.CELL_GET, name("__conditional_annotations__"), 0)
+                            }
+                            loadConst(index.toLong())
+                            emit(PyOp.SET_ADD)
+                            emit(PyOp.POP)
+                        }
+                    }
                 }
             }
             is If -> {
@@ -1397,13 +1555,25 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             flags = flags or 2
         }
         if (child.frees.isNotEmpty()) {
-            for (n in child.frees) emit(PyOp.LOAD_FAST, locals[n] ?: throw IllegalStateException("no cell for $n in $name"))
-            emit(PyOp.BUILD_TUPLE, child.frees.size)
+            closure(child)
             flags = flags or 8
+        }
+        // its annotations' __annotate__ (CPython's order: positional, positional-only, *args, keyword-only, **kwargs, the return)
+        val ann = st.functionAnnotations[node]
+        if (ann != null) {
+            val f = node as FunctionDef
+            val entries = (args.args + args.posonlyargs + listOfNotNull(args.vararg) + args.kwonlyargs + listOfNotNull(args.kwarg))
+                .mapNotNull { p -> p.annotation?.let { Deferred(p.arg, it, -1, it.line) } } +
+                listOfNotNull(f.returns?.let { Deferred("return", it, -1, it.line) })
+            val acb = PyCompiler(st, ann, "__annotate__").compileAnnotate(entries, node.line)
+            closure(ann)
+            emit(PyOp.MAKE_FUNCTION, const(acb))
+            if (ann.frees.isNotEmpty()) emit(PyOp.SET_FUNCTION_ATTRIBUTE, 8)
+            flags = flags or 16
         }
         val cb = PyCompiler(st, child, fname).also { it.firstLine = node.line }.compileBody(body, args)
         emit(PyOp.MAKE_FUNCTION, const(cb))
-        for (flag in intArrayOf(8, 2, 1)) if (flags and flag != 0) emit(PyOp.SET_FUNCTION_ATTRIBUTE, flag)
+        for (flag in intArrayOf(16, 8, 2, 1)) if (flags and flag != 0) emit(PyOp.SET_FUNCTION_ATTRIBUTE, flag)
     }
 
     /** Stores the value on top of the stack to [t]. */

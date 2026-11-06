@@ -14,6 +14,8 @@ class PyType(@JvmField var name: String, bases: Array<PyType>, @JvmField val dic
     @JvmField var mro: Array<PyType> = arrayOf(this)
     @JvmField var meta: PyType? = null
     @JvmField var subclassable = true
+    /** A class (made by a class statement or type()), not a builtin type: what `__annotations__` is given for. */
+    @JvmField var heap = false
     /** The attribute hooks its instances go through (PyClasses.hooksOf): __getattribute__ 1, __setattr__ 2, __delattr__ 4. */
     @JvmField var hooks = 0
     /** Makes a value of this builtin type (or of a class deriving from it): (context, type, arguments, keywords). */

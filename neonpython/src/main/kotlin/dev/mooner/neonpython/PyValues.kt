@@ -192,6 +192,9 @@ class PyFunction(@JvmField val code: CodeUnit, @JvmField val globals: PyDict, @J
     @JvmField var closure: Array<Any?>? = null
     /** Its attributes (`f.attr = v`). */
     @JvmField var dict: PyDict? = null
+    /** Its `__annotate__` (PEP 649: made with it where it has annotations; null, None, or a callable), and the dict it gave. */
+    @JvmField var annotate: Any? = null
+    @JvmField var annotations: PyDict? = null
 
     /** Whether a call of exactly [params] positional arguments needs no binding (no keyword-only, *args, **kwargs). */
     @JvmField val simple: Boolean = info.kwonlyCount == 0 && !info.varargs && !info.varkw

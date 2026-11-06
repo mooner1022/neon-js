@@ -233,9 +233,7 @@ object PyBuiltins {
         }
         def("callable") { _, args ->
             argc("callable", args, 1)
-            val v = args[0]
-            PyBool.of(v is PyFunction || v is PyBuiltin || v is PyBoundMethod || v is PyMethod || v is PyType || v is PyStaticMethod ||
-                PyClasses.classOf(v)?.lookup("__call__") != null)
+            PyBool.of(PyCalls.isCallable(args[0]))
         }
         def("hash") { _, args ->
             argc("hash", args, 1)

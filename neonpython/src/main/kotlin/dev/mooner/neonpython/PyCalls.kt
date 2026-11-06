@@ -210,12 +210,17 @@ object PyCalls {
         else PyException("UnboundLocalError", "cannot access local variable '$name' where it is not associated with a value")
 
     /** SET_FUNCTION_ATTRIBUTE: [attr] as [fn]'s defaults (1), keyword-only defaults (2) or closure (8). */
+    /** callable(v). */
+    @JvmStatic fun isCallable(v: Any?): Boolean = v is PyFunction || v is PyBuiltin || v is PyBoundMethod || v is PyMethod ||
+        v is PyType || v is PyStaticMethod || PyClasses.classOf(v)?.lookup("__call__") != null
+
     @JvmStatic fun setFunctionAttribute(attr: Any?, fn: Any?, flag: Int): Any? {
         val f = fn as PyFunction
         when (flag) {
             1 -> f.defaults = attr as PyTuple
             2 -> f.kwdefaults = attr as PyDict
             8 -> f.closure = (attr as PyTuple).items
+            16 -> f.annotate = attr
         }
         return f
     }

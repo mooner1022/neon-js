@@ -114,6 +114,16 @@ class PyFrontTest {
             "async def f():\n    return [(yield) for x in y]\n" to ("'yield' inside list comprehension" to 2),
             "g = ((yield) for x in [])\n" to ("'yield' inside generator expression" to 1),
             "def f():\n    return ((yield x) for x in [])\n" to ("'yield' inside generator expression" to 2),
+            "def f(x: (yield)): pass\n" to ("yield expression cannot be used within an annotation" to 1),
+            "async def f(x: await y): pass\n" to ("await expression cannot be used within an annotation" to 1),
+            "def f(x: (y := 1)): pass\n" to ("named expression cannot be used within an annotation" to 1),
+            "class C:\n    x: (y := 1)\n" to ("named expression cannot be used within an annotation" to 2),
+            "def f():\n    x: (yield) = 1\n" to ("yield expression cannot be used within an annotation" to 2),
+            "x: (yield)\n" to ("yield expression cannot be used within an annotation" to 1),
+            "x: (yield from y)\n" to ("yield expression cannot be used within an annotation" to 1),
+            "def f() -> (yield): pass\n" to ("yield expression cannot be used within an annotation" to 1),
+            "def f():\n    global g\n    g: int\n" to ("annotated name 'g' can't be global" to 3),
+            "def f():\n    x = 1\n    def g():\n        nonlocal x\n        x: int\n" to ("annotated name 'x' can't be nonlocal" to 5),
         )
         for ((src, want) in cases) {
             val e = assertThrows<PySyntaxError>(src) { PyCompiler.compileModule(src) }

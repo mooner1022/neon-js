@@ -1,13 +1,14 @@
 package dev.mooner.neonpython
 
 /**
- * A scope: a module, a function (a lambda), a class body, or a comprehension. What each name is there ([kind]):
+ * A scope: a module, a function (a lambda), a class body, a comprehension, or an annotation scope (the code of an
+ * `__annotate__`: PEP 649, function-like). What each name is there ([kind]):
  * local (a register, or the namespace's dict in a module or class), a cell (local, and read by a nested function),
  * free (a nested function's view of an enclosing function's cell), global (declared, or not bound in any enclosing
  * function). As CPython's symtable.c decides it.
  */
 class Scope(@JvmField val type: Type, @JvmField val name: String, @JvmField val parent: Scope?, @JvmField val node: Node?) {
-    enum class Type { MODULE, FUNCTION, CLASS, COMPREHENSION }
+    enum class Type { MODULE, FUNCTION, CLASS, COMPREHENSION, ANNOTATION }
     enum class Kind { LOCAL, CELL, FREE, GLOBAL_EXPLICIT, GLOBAL_IMPLICIT }
 
     /** Names in the order the scope first saw them, with how it uses them ([DEF_LOCAL]...). */
@@ -27,10 +28,28 @@ class Scope(@JvmField val type: Type, @JvmField val name: String, @JvmField val 
     @JvmField var qualname = name
     @JvmField var isGenerator = false
     @JvmField var isCoroutine = false
+    /** An annotation scope directly in a class: it reads the class's names through the `__classdict__` cell first. */
+    @JvmField var canSeeClass = false
+    /** A class whose annotation scopes read its namespace: it makes the `__classdict__` cell. */
+    @JvmField var classDict = false
+    /**
+     * A module's or class's annotations recorded as they run (`__conditional_annotations__`): a module's all, a
+     * class's those in a compound statement; [conditionCell] a class's set is a cell its annotation scope reads.
+     */
+    @JvmField var conditionalAnnotations = false
+    @JvmField var conditionCell = false
+    /** A module's or class's annotation scope, shared by its annotated assignments. */
+    @JvmField var annotationScope: Scope? = null
+    /** Whether an annotated assignment is in it (any target), or (an annotation scope's) any annotation. */
+    @JvmField var annotationsUsed = false
+    /** A module's or class's annotated simple names: what its `__annotate__` gives. */
+    @JvmField var deferredAnnotations = false
+    /** The compound statements the walk is in, here (a class's annotations there are conditional). */
+    @JvmField var conditionalDepth = 0
 
     fun kind(n: String): Kind = kinds[n] ?: if (type == Type.MODULE || type == Type.CLASS) Kind.GLOBAL_IMPLICIT else Kind.GLOBAL_IMPLICIT
 
-    val isFunction: Boolean get() = type == Type.FUNCTION || type == Type.COMPREHENSION
+    val isFunction: Boolean get() = type == Type.FUNCTION || type == Type.COMPREHENSION || type == Type.ANNOTATION
 
     fun add(n: String, flag: Int) {
         flags[n] = (flags[n] ?: 0) or flag
@@ -51,12 +70,18 @@ class Scope(@JvmField val type: Type, @JvmField val name: String, @JvmField val 
 class PySymtable private constructor() {
     /** The scope of each function, lambda, class and comprehension node. */
     val scopes = HashMap<Node, Scope>()
+    /** The annotation scope of each function with annotations. */
+    val functionAnnotations = HashMap<Node, Scope>()
+    /** `from __future__ import annotations`: annotations are strings (PEP 563), evaluated nowhere. */
+    var futureAnnotations = false
+        private set
     private lateinit var cur: Scope
 
     companion object {
         @JvmStatic
-        fun build(m: Module): PySymtable {
+        fun build(m: Module, futureAnnotations: Boolean = false): PySymtable {
             val t = PySymtable()
+            t.futureAnnotations = futureAnnotations
             val top = Scope(Scope.Type.MODULE, "<module>", null, m)
             t.scopes[m] = top
             t.cur = top
@@ -68,17 +93,82 @@ class PySymtable private constructor() {
         private fun err(msg: String, n: Node): Nothing = throw PySyntaxError(msg, n.line, n.col)
     }
 
-    private fun push(type: Scope.Type, name: String, node: Node): Scope {
+    /** A scope named [name] in [cur]: its node's in [scopes] where [register], one of [cur]'s children where [attach]. */
+    private fun push(type: Scope.Type, name: String, node: Node, attach: Boolean = true, register: Boolean = true): Scope {
         val s = Scope(type, name, cur, node)
-        s.qualname = when (cur.type) {
-            Scope.Type.MODULE -> name
-            Scope.Type.CLASS -> cur.qualname + "." + name
-            else -> cur.qualname + ".<locals>." + name
-        }
-        cur.children.add(s)
-        scopes[node] = s
+        s.qualname = qualnameOf(name)
+        if (attach) cur.children.add(s)
+        if (register) scopes[node] = s
         cur = s
         return s
+    }
+
+    private fun qualnameOf(name: String): String = when (cur.type) {
+        Scope.Type.MODULE -> name
+        Scope.Type.CLASS -> cur.qualname + "." + name
+        else -> cur.qualname + ".<locals>." + name
+    }
+
+    /** An annotation scope in [cur]: its parameter (`.format`, CPython's, so that a name `format` stays the builtin's). */
+    private fun pushAnnotations(node: Node, qualname: String, attach: Boolean = true): Scope {
+        val inClass = cur.type == Scope.Type.CLASS || cur.canSeeClass
+        val a = push(Scope.Type.ANNOTATION, "__annotate__", node, attach, register = false)
+        a.qualname = qualname
+        a.params.add(".format")
+        a.add(".format", Scope.DEF_PARAM)
+        if (inClass && !futureAnnotations) {
+            a.canSeeClass = true
+            a.add("__classdict__", Scope.USE)
+        }
+        return a
+    }
+
+    /**
+     * A function's annotations, in a scope of their own around which the function is made ([functionAnnotations]):
+     * its parameters are not visible there; directly in a class, the class's names are.
+     */
+    private fun functionAnnotations(s: FunctionDef) {
+        val a = s.args
+        if (a.all().none { it.annotation != null } && s.returns == null) return
+        val ann = pushAnnotations(s, qualnameOf(s.name) + ".__annotate__")
+        ann.annotationsUsed = true
+        // (CPython's order: positional-only, positional, *args, **kwargs, keyword-only, the return)
+        for (p in a.posonlyargs + a.args + listOfNotNull(a.vararg, a.kwarg) + a.kwonlyargs) p.annotation?.let { expr(it) }
+        s.returns?.let { expr(it) }
+        pop()
+        functionAnnotations[s] = ann
+    }
+
+    /**
+     * An annotated assignment's annotation: a module's or class's in their shared annotation scope (made at the
+     * first); a function's local one is never evaluated, walked for its errors only, in a scope nothing sees.
+     */
+    private fun annotation(a: Expr, s: AnnAssign) {
+        val holder = cur
+        if (holder.isFunction) {
+            push(Scope.Type.ANNOTATION, "__annotate__", s, attach = false, register = false)
+            expr(a)
+            pop()
+            return
+        }
+        val conditional = holder.type == Scope.Type.MODULE || holder.conditionalDepth > 0
+        var ann = holder.annotationScope
+        if (ann == null) {
+            ann = pushAnnotations(s, if (holder.type == Scope.Type.MODULE) "__annotate__" else holder.qualname + ".__annotate__")
+            holder.annotationScope = ann
+        } else cur = ann
+        if (s.simple == 1 && s.target is Name) holder.deferredAnnotations = true
+        if (conditional && !futureAnnotations) {
+            holder.conditionalAnnotations = true
+            ann.add("__conditional_annotations__", Scope.USE)
+        } else if (conditional && holder.type == Scope.Type.MODULE) holder.conditionalAnnotations = true
+        expr(a)
+        pop()
+    }
+
+    /** The error of [what] (a yield, an await, a walrus) in an annotation scope. */
+    private fun notInAnnotation(what: String, e: Expr) {
+        if (cur.type == Scope.Type.ANNOTATION) err("$what cannot be used within an annotation", e)
     }
 
     private fun pop() {
@@ -104,11 +194,23 @@ class PySymtable private constructor() {
     }
 
     private fun stmt(s: Stmt) {
+        // (a compound statement's body may not run: a class's annotations there are recorded as they run)
+        val compound = s is For || s is While || s is If || s is With || s is Try || s is Match
+        if (compound) cur.conditionalDepth++
+        try {
+            stmtBody(s)
+        } finally {
+            if (compound) cur.conditionalDepth--
+        }
+    }
+
+    private fun stmtBody(s: Stmt) {
         when (s) {
             is FunctionDef -> {
                 s.decoratorList.forEach { expr(it) }
                 defaults(s.args)
                 bind(s.name, s)
+                functionAnnotations(s)
                 val f = push(Scope.Type.FUNCTION, s.name, s)
                 f.isCoroutine = s.isAsync
                 params(s.args, s)
@@ -140,8 +242,18 @@ class PySymtable private constructor() {
                 target(s.target)
             }
             is AnnAssign -> {
+                cur.annotationsUsed = true
+                val t = s.target
+                if (t is Name) {
+                    val f = cur.flags[t.id] ?: 0
+                    if (f and (Scope.DEF_GLOBAL or Scope.DEF_NONLOCAL) != 0 && cur.type != Scope.Type.MODULE && s.simple == 1) {
+                        err("annotated name '${t.id}' can't be ${if (f and Scope.DEF_GLOBAL != 0) "global" else "nonlocal"}", s)
+                    }
+                    // ((x): int alone binds nothing)
+                    if (s.simple == 1 || s.value != null) bind(t.id, t)
+                } else target(t)
+                annotation(s.annotation, s)
                 s.value?.let { expr(it) }
-                target(s.target)
             }
             is For -> {
                 if (s.isAsync && !cur.isCoroutine) err("'async for' outside async function", s)
@@ -279,6 +391,7 @@ class PySymtable private constructor() {
             is Name -> if (e.ctx == Ctx.Load) use(e.id) else bind(e.id, e)
             is BoolOp -> e.values.forEach { expr(it) }
             is NamedExpr -> {
+                notInAnnotation("named expression", e)
                 expr(e.value)
                 namedTarget(e)
             }
@@ -302,6 +415,7 @@ class PySymtable private constructor() {
             is DictComp -> comprehension(e, "<dictcomp>", e.generators) { expr(e.key); expr(e.value) }
             is GeneratorExp -> comprehension(e, "<genexpr>", e.generators) { expr(e.elt) }
             is Await -> {
+                notInAnnotation("await expression", e)
                 // (in a comprehension, it makes the comprehension's code a coroutine: an async def's it awaits)
                 if (cur.type != Scope.Type.FUNCTION && cur.type != Scope.Type.COMPREHENSION) err("'await' outside function", e)
                 if (cur.type == Scope.Type.FUNCTION && !cur.isCoroutine) err("'await' outside async function", e)
@@ -309,10 +423,12 @@ class PySymtable private constructor() {
                 cur.isCoroutine = true
             }
             is Yield -> {
+                notInAnnotation("yield expression", e)
                 e.value?.let { expr(it) }
                 markGenerator(e)
             }
             is YieldFrom -> {
+                notInAnnotation("yield expression", e)
                 expr(e.value)
                 markGenerator(e)
             }
@@ -445,7 +561,7 @@ class PySymtable private constructor() {
         // a class binds __class__ for its methods (super()); its own names it does not give them
         val inner = when (s.type) {
             Scope.Type.MODULE -> emptySet()
-            Scope.Type.CLASS -> bound + "__class__"
+            Scope.Type.CLASS -> bound + "__class__" + "__classdict__" + "__conditional_annotations__"
             else -> bound + s.kinds.filter { it.value == Scope.Kind.LOCAL || it.value == Scope.Kind.FREE || it.value == Scope.Kind.CELL }.keys
         }
         for (c in s.children) analyze(c, inner)
@@ -453,6 +569,8 @@ class PySymtable private constructor() {
             val k = s.kinds[n]
             when {
                 s.type == Scope.Type.CLASS && n == "__class__" -> s.classCell = true
+                s.type == Scope.Type.CLASS && n == "__classdict__" -> s.classDict = true
+                s.type == Scope.Type.CLASS && n == "__conditional_annotations__" -> s.conditionCell = true
                 k == Scope.Kind.LOCAL && s.isFunction -> s.kinds[n] = Scope.Kind.CELL
                 // (a class's own name stays its own, in its dict: the method's comes from further out)
                 s.type == Scope.Type.CLASS -> s.frees.add(n)

@@ -247,13 +247,25 @@ object PyOp {
     /** (v -- wrapped): an async generator's yielded value, told from an await's */
     const val ASYNC_GEN_WRAP = 147
 
+    // annotations (M9, PEP 649): `__annotate__` functions, a class's names read through its `__classdict__`
+    /** (format -- ): NotImplementedError for a format an `__annotate__` does not give (above 2) */
+    const val ANNOTATE_CHECK = 148
+    /** ( -- ): the namespace's `__annotations__` dict made where it has none (`from __future__ import annotations`) */
+    const val SETUP_ANNOTATIONS = 149
+    /** k (dict -- v): name constants[k] in a class's namespace, else a global or a builtin */
+    const val LOAD_FROM_DICT_OR_GLOBALS = 150
+    /** k (dict cell -- v): name constants[k] in a class's namespace, else the cell's value */
+    const val LOAD_FROM_DICT_OR_CELL = 151
+    /** ( -- dict): a class body's namespace (its `__classdict__`) */
+    const val LOAD_NAMESPACE = 152
+
     const val COUNT = 200
 
     @JvmField val operands = IntArray(COUNT).also { o ->
         for (op in intArrayOf(LOAD_CONST, LOAD_FAST, LOAD_FAST_CHECK, STORE_FAST, LOAD_GLOBAL, STORE_GLOBAL, JUMP, POP_JUMP_IF_FALSE,
             POP_JUMP_IF_TRUE, CALL, BUILD_LIST, BUILD_TUPLE, BUILD_MAP, LOAD_ATTR, UNPACK, MAKE_FUNCTION, CALL_KW, CALL_EX, LOAD_FREE,
             SET_FUNCTION_ATTRIBUTE, DELETE_FAST, DELETE_GLOBAL, DELETE_ATTR, ASSERT_FAIL, LOAD_NAME, STORE_NAME, DELETE_NAME,
-            LOAD_FROM_DICT_OR_DEREF, STORE_ATTR, INPLACE, RAISE, LOAD_SPECIAL, FORMAT_VALUE, FORMAT_SPEC, BUILD_STRING, BUILD_SET, BUILD_SLICE, LOAD_FAST_RAW, LOAD_LOCALS, MATCH_CLASS, IMPORT_NAME, IMPORT_FROM, GET_AWAITABLE)) o[op] = 1
+            LOAD_FROM_DICT_OR_DEREF, STORE_ATTR, INPLACE, RAISE, LOAD_SPECIAL, FORMAT_VALUE, FORMAT_SPEC, BUILD_STRING, BUILD_SET, BUILD_SLICE, LOAD_FAST_RAW, LOAD_LOCALS, MATCH_CLASS, IMPORT_NAME, IMPORT_FROM, GET_AWAITABLE, LOAD_FROM_DICT_OR_GLOBALS, LOAD_FROM_DICT_OR_CELL)) o[op] = 1
         for (op in intArrayOf(CELL_GET, CELL_DELETE, UNPACK_EX, SEND)) o[op] = 2
         o[FOR_ITER] = 3
     }
@@ -287,7 +299,8 @@ object PyOp {
         BUILD_STRING, BUILD_SET, BUILD_SLICE -> 1 - a
         SET_ADD, SET_UPDATE, BUILD_TEMPLATE, MATCH_KEYS, COPY_DICT_WITHOUT_KEYS -> -1
         MATCH_CLASS -> -2
-        IMPORT_NAME, IMPORT_STAR, END_ASYNC_FOR -> -1
+        IMPORT_NAME, IMPORT_STAR, END_ASYNC_FOR, ANNOTATE_CHECK, LOAD_FROM_DICT_OR_CELL -> -1
+        LOAD_NAMESPACE -> 1
         BUILD_INTERPOLATION -> -3
         RAISE -> -a
         CALL -> -a

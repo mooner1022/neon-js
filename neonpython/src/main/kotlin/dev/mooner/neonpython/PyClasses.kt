@@ -111,7 +111,9 @@ object PyClasses {
         // (a class made by type() without __module__: its caller's, the main module's until import comes, M7)
         t.module = "__main__"
         if (meta !== PyTypes.TYPE) t.meta = meta
+        t.heap = true
         var cell: PyCell? = null
+        var dictCell: PyCell? = null
         for ((k, v0) in ns.map) {
             // (__new__ is a staticmethod, __init_subclass__ and __class_getitem__ classmethods, without decorators)
             val v = when ((k.v as? PyStr)?.s) {
@@ -122,6 +124,7 @@ object PyClasses {
             when ((k.v as? PyStr)?.s) {
                 "__qualname__" -> t.qualname = (v as? PyStr ?: throw PyRt.typeError("type __qualname__ must be a str, not ${PyTypes.name(v)}")).s
                 "__classcell__" -> cell = v as? PyCell
+                "__classdictcell__" -> dictCell = v as? PyCell
                 else -> {
                     if ((k.v as? PyStr)?.s == "__module__") t.module = (v as? PyStr)?.s ?: t.module
                     t.dict.map[k] = v
@@ -132,6 +135,8 @@ object PyClasses {
         if (t.dict.containsKey(PyStr("__eq__")) && !t.dict.containsKey(PyStr("__hash__"))) t.dict[PyStr("__hash__")] = PyNone
         t.hooks = hooksOf(t)
         cell?.value = t
+        // (its annotation scopes read its dict from now on, not the namespace its body ran in)
+        dictCell?.value = t.dict
         return t
     }
 
@@ -293,6 +298,7 @@ object PyClasses {
 
     /** A module's attribute: its dict's, then its module-level __getattr__ (PEP 562). */
     private fun moduleAttr(m: PyModule, name: String): Any? {
+        if (PyAnnotations.isName(name)) return PyAnnotations.moduleGet(m, name)
         m.dict[PyStr(name)]?.let { return it }
         when (name) {
             "__dict__" -> return m.dict
@@ -308,6 +314,8 @@ object PyClasses {
     fun genericGetAttr(obj: Any?, name: String): Any? = attr(obj, name, false)
 
     private fun attr(obj: Any?, name: String, hook: Boolean): Any? {
+        // (a function's __annotations__ and __annotate__: the function type's data descriptors)
+        if (obj is PyFunction && PyAnnotations.isName(name)) return PyAnnotations.functionGet(obj, name)
         val type = PyTypes.typeOf(obj)
         val d = type.lookup(name)
         if (d != null && isDataDescriptor(d)) return descrGet(null, d, obj, type)
@@ -407,6 +415,7 @@ object PyClasses {
         val meta = PyTypes.typeOf(t)
         val md = if (meta !== PyTypes.TYPE) meta.lookup(name) else null
         if (md != null && isDataDescriptor(md)) return descrGet(null, md, t, meta)
+        if (PyAnnotations.isName(name)) return PyAnnotations.typeGet(t, name)
         t.lookup(name)?.let { return descrGet(null, it, null, t) }
         if (md != null) return descrGet(null, md, t, meta)
         return when (name) {
@@ -437,12 +446,20 @@ object PyClasses {
     @JvmStatic
     fun genericSetAttr(obj: Any?, name: String, v: Any?) {
         if (obj is PyModule) {
-            obj.dict[PyStr(name)] = v
+            if (PyAnnotations.isName(name)) PyAnnotations.moduleSet(obj, name, v) else obj.dict[PyStr(name)] = v
+            return
+        }
+        if (obj is PyFunction && PyAnnotations.isName(name)) {
+            PyAnnotations.functionSet(obj, name, v)
             return
         }
         if (obj is PyType) {
             if (obj.module == "builtins") {
                 throw PyRt.typeError("cannot set '$name' attribute of immutable type '${obj.name}'")
+            }
+            if (PyAnnotations.isName(name)) {
+                PyAnnotations.typeSet(obj, name, v)
+                return
             }
             obj.dict[PyStr(name)] = v
             if (name == "__getattribute__" || name == "__setattr__" || name == "__delattr__") obj.hooks = hooksOf(obj)
@@ -488,10 +505,19 @@ object PyClasses {
     @JvmStatic
     fun genericDelAttr(obj: Any?, name: String) {
         if (obj is PyModule) {
-            if (obj.dict.map.remove(PyDict.Key(PyStr(name))) == null) throw PyException.attributeError(obj, name, "module '${obj.name}' has no attribute '$name'")
+            if (PyAnnotations.isName(name)) PyAnnotations.moduleSet(obj, name, null)
+            else if (obj.dict.map.remove(PyDict.Key(PyStr(name))) == null) throw PyException.attributeError(obj, name, "module '${obj.name}' has no attribute '$name'")
+            return
+        }
+        if (obj is PyFunction && PyAnnotations.isName(name)) {
+            PyAnnotations.functionSet(obj, name, null)
             return
         }
         if (obj is PyType) {
+            if (obj.heap && PyAnnotations.isName(name)) {
+                PyAnnotations.typeSet(obj, name, null)
+                return
+            }
             if (obj.dict.map.remove(PyDict.Key(PyStr(name))) == null) throw PyException("AttributeError", "type object '${obj.name}' has no attribute '$name'")
             if (name == "__getattribute__" || name == "__setattr__" || name == "__delattr__") obj.hooks = hooksOf(obj)
             return

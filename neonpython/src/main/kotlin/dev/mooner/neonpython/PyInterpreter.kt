@@ -517,6 +517,14 @@ object PyInterpreter {
             PyOp.GET_ANEXT -> s[sp - 1] = PyGenerators.getANext(f, s[sp - 1])
             PyOp.END_ASYNC_FOR -> PyGenerators.endAsyncFor(pop())
             PyOp.ASYNC_GEN_WRAP -> s[sp - 1] = PyGenerators.asyncGenWrap(s[sp - 1])
+            PyOp.ANNOTATE_CHECK -> PyAnnotations.annotateCheck(pop())
+            PyOp.SETUP_ANNOTATIONS -> PyAnnotations.setupAnnotations(f)
+            PyOp.LOAD_FROM_DICT_OR_GLOBALS -> s[sp - 1] = PyAnnotations.loadFromDictOrGlobals(f, s[sp - 1], k[a])
+            PyOp.LOAD_FROM_DICT_OR_CELL -> {
+                val cell = pop()
+                s[sp - 1] = PyAnnotations.loadFromDictOrCell(s[sp - 1], cell, k[a])
+            }
+            PyOp.LOAD_NAMESPACE -> s[sp++] = PyAnnotations.loadNamespace(f)
             PyOp.EXC_STAR_BEGIN -> s[sp - 1] = PyExceptions.excStarBegin(s[sp - 1])
             PyOp.EXC_STAR_MATCH -> {
                 val t = pop()

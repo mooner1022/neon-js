@@ -620,7 +620,7 @@ milestones. Each milestone is commits gated by the quick check and pushed when i
 | M6 | `match` (every pattern; or-patterns binding the same names, checked when compiling) | M2 |
 | M7 | `import`: module objects, a host-given loader (no file system unless the host gives one), a minimal `sys` | M2 |
 | M8 | `async def`, `await`, `async for`/`async with`, async generators and comprehensions (driven with `send` in tests: no asyncio; done: their frames interpreted as generators' are, M4b after) | M4 |
-| M9 | deferred annotations (PEP 649/749: `__annotate__`), type parameters and `type` aliases (PEP 695), what is left | M2 |
+| M9 | deferred annotations (PEP 649/749: `__annotate__`; done, M9a), type parameters and `type` aliases (PEP 695) with `list[int]`'s GenericAlias (M9b), what is left: private names' mangling, `__static_attributes__` and `__firstlineno__` (M9c) | M2 |
 
 ### 11.2 Decisions (the expensive ones to change later)
 
@@ -761,6 +761,27 @@ Made with coroutines (M8):
   with a value in an async generator are the compiler's errors, as in CPython.
 - **No event loop**: the tests drive coroutines with send() and throw(). There are no finalizers, so no "never
   awaited" warning, and an async generator dropped while suspended is not closed (CPython's would aclose it).
+
+Made with annotations (M9a):
+
+- **Annotations are evaluated when asked for** (PEP 649, 749): a function's, a class's and a module's annotations
+  are the code of an `__annotate__(format, /)` (an annotation scope: function-like, its parameter `.format` to its
+  own names), which gives their dict for formats 1 and 2 and raises NotImplementedError above (ANNOTATE_CHECK).
+  `__annotations__` calls it once and keeps the dict, with CPython's getters and setters of functions, types (the
+  class's `__annotate_func__` and `__annotations_cache__` in its dict; none for builtin types) and modules (kept in
+  the module's dict once its body has run). A function's is made before it, around its def (its parameters are
+  not visible there); a class's at the end of its body; a module's first (its code compiled after the body's, a
+  constant filled then). A function's local annotations are never evaluated, only checked for their errors.
+- **An annotation scope in a class reads the class's names first**, through the class's `__classdict__` cell
+  (LOAD_FROM_DICT_OR_GLOBALS, LOAD_FROM_DICT_OR_CELL), which type.__new__ points at the class's dict
+  (`__classdictcell__`), so a lazily evaluated annotation sees the class as it is then.
+- **A module's annotations, and a class's in a compound statement, are conditional**: each records that its
+  statement ran (`__conditional_annotations__`, a global or the class's cell) and the `__annotate__` gives only
+  those.
+- **`from __future__ import annotations`** (PEP 563): annotations are strings, the expression as CPython's
+  compiler writes it back (`PyUnparse`, Python/ast_unparse.c's precedences, constants and f-string rebuilding); a
+  module's and a class's go into their `__annotations__` dict as they run (SETUP_ANNOTATIONS), a function's
+  `__annotate__` gives them.
 
 - **A statement gives its temporaries back** when it ends, so that the registers of one try or with serve the next:
   the tier's code keeps every register a handler may read in a home at the start of each block a handler covers

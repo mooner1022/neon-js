@@ -54,6 +54,7 @@ internal class Generic(
         const val MATCH = "dev/mooner/neonpython/PyMatch"
         const val IMP = "dev/mooner/neonpython/PyImport"
         const val GEN = "dev/mooner/neonpython/PyGenerators"
+        const val ANN = "dev/mooner/neonpython/PyAnnotations"
     }
 }
 
@@ -137,6 +138,12 @@ internal object PyGeneric {
         t[PyOp.IMPORT_STAR] = Generic("importStar", "fv", pops = 1, result = false, owner = im)
         // (an async generator expression's first iterable, in the function that makes it: the rest is a coroutine's code)
         t[PyOp.GET_AITER] = Generic("getAIter", "fv", pops = 1, result = true, owner = Generic.GEN)
+        val an = Generic.ANN
+        t[PyOp.ANNOTATE_CHECK] = Generic("annotateCheck", "v", pops = 1, result = false, owner = an)
+        t[PyOp.SETUP_ANNOTATIONS] = Generic("setupAnnotations", "f", pops = 0, result = false, owner = an)
+        t[PyOp.LOAD_FROM_DICT_OR_GLOBALS] = Generic("loadFromDictOrGlobals", "fvk", pops = 1, result = true, owner = an)
+        t[PyOp.LOAD_FROM_DICT_OR_CELL] = Generic("loadFromDictOrCell", "vvk", pops = 2, result = true, owner = an)
+        t[PyOp.LOAD_NAMESPACE] = Generic("loadNamespace", "f", pops = 0, result = true, throws = false, owner = an)
         t[PyOp.WRAP_STAR] = Generic("wrapStar", "v", pops = 1, result = true, throws = false, owner = c, flags = OpInfo.REMOVABLE or OpInfo.ALLOCATES)
     }
 

@@ -442,6 +442,14 @@ class PyProgramsTest {
             "a, b = 1\n" to Triple("TypeError", "cannot unpack non-iterable int object", 1),
             "for a, b in [1]:\n    pass\n" to Triple("TypeError", "cannot unpack non-iterable int object", 1),
             "class C:\n    def __getitem__(self, i):\n        raise TypeError(\"gi\")\na, b = C()\n" to Triple("TypeError", "gi", 3),
+            "def g(x: undefined_name):\n    pass\ng.__annotations__\n" to Triple("NameError", "name 'undefined_name' is not defined", 1),
+            "class C:\n    x: undefined_name\nC.__annotations__\n" to Triple("NameError", "name 'undefined_name' is not defined", 2),
+            "x: undefined_name\n__annotate__(1)\n" to Triple("NameError", "name 'undefined_name' is not defined", 1),
+            "def f(x: int): pass\nf.__annotate__(3)\n" to Triple("NotImplementedError", "", 1),
+            "def f(): pass\nf.__annotations__ = 1\n" to Triple("TypeError", "__annotations__ must be set to a dict object", 2),
+            "class C:\n    x: int\ndel C.__annotations__\n" to Triple("AttributeError", "__annotations__", 3),
+            "int.__annotations__\n" to Triple("AttributeError", "type object 'int' has no attribute '__annotations__'", 1),
+            "def f(x: int): pass\nf.__annotate__ = 5\n" to Triple("TypeError", "__annotate__ must be callable or None", 2),
         )
         for (mode in Mode.entries) for ((src, want) in cases) {
             val e = try {
@@ -476,7 +484,7 @@ class PyProgramsTest {
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
             "speculation", "functions", "closures", "unpacking", "types", "classes", "descriptors",
-            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods", "containers", "match", "imports", "coroutines", "async_generators",
+            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods", "containers", "match", "imports", "coroutines", "async_generators", "annotations", "future_annotations",
         )
 
         /** The code blocks of [cb] and every function it defines. */
