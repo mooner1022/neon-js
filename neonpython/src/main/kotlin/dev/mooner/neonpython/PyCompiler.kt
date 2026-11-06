@@ -61,6 +61,8 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     /** The register of each local, cell and free variable. */
     private val locals = LinkedHashMap<String, Int>()
     private var regs = 0
+    /** The registers the code needs: the names', and the most temporaries alive at once ([temp]). */
+    private var maxRegs = 0
     private val lines = IntArrayList()
     private var line = 0
 
@@ -120,6 +122,8 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     private class Handler(range: Range, val prev: Int) : FBlock(range)
     /** An `except ... as name:` clause's body: leaving it, the name deleted. */
     private class HandlerName(range: Range, val name: String) : FBlock(range)
+    /** A with's body: leaving it, its __exit__ (bound, in register [exit]) called with three Nones. */
+    private class WithBody(range: Range, val exit: Int) : FBlock(range)
 
     private val fblocks = ArrayList<FBlock>()
 
@@ -175,13 +179,13 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         cb.handlers = handlerTable.toArray()
         markUnbound(cb.code)
         cb.constants = constants.toTypedArray()
-        cb.numRegs = regs
+        cb.numRegs = maxOf(regs, maxRegs)
         cb.maxStack = maxStack(cb.code)
         cb.formalCount = scope.params.size
         cb.paramRegs = IntArray(scope.params.size) { it }
         cb.lineTable = lines.toArray()
         cb.dialect = PyDialect
-        val names = Array(regs) { "" }
+        val names = Array(cb.numRegs) { "" }
         for ((n, r) in locals) names[r] = n
         val info = PyCodeInfo(name, names, module)
         info.qualname = scope.qualname
@@ -254,7 +258,15 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
 
     private fun name(n: String): Int = const(PyStr(n))
 
-    private fun temp(): Int = regs++
+    /**
+     * A temporary register, until the statement that took it ends ([stmt] gives its temporaries back): a try's or a
+     * with's, another's after (fewer registers kept for handlers, CodeUnit.handlers).
+     */
+    private fun temp(): Int {
+        val r = regs++
+        if (regs > maxRegs) maxRegs = regs
+        return r
+    }
 
     private fun unsupported(what: String, n: Node): Nothing = throw PySyntaxError("$what is not supported yet", n.line, n.col)
 
@@ -330,6 +342,12 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     // ------------------------------------------------------------------ statements
 
     private fun stmt(s: Stmt) {
+        val temps = regs
+        stmtBody(s)
+        regs = temps
+    }
+
+    private fun stmtBody(s: Stmt) {
         // each statement's first pc and its line (the optimizing tier stores the pc where something can throw)
         line = s.line
         lines.add(code.size)
@@ -462,7 +480,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 }
                 emit(PyOp.RAISE, n)
             }
-            is With -> unsupported(if (s.isAsync) "async with" else "with", s)
+            is With -> if (s.isAsync) unsupported("async with", s) else withItems(s, 0)
             is Match -> unsupported("match", s)
             is Import, is ImportFrom -> unsupported("import", s)
             is TypeAlias -> unsupported("type", s)
@@ -495,12 +513,72 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                     emit(PyOp.POP_EXCEPT)
                 }
                 is HandlerName -> clearName(fb.name)
+                is WithBody -> exitWith(fb.exit)
             }
         }
         jump()
         fblocks.clear()
         fblocks.addAll(saved)
         for (fb in exited) fb.range?.begin()
+    }
+
+    /**
+     * `with` (its items, from [k] on, each inside the one before): the manager's __exit__ looked up and kept, then its
+     * __enter__ called; the target stored and the body in a range whose handler calls __exit__ with the exception and
+     * raises it again unless that says to suppress it; __exit__ with three Nones on the way out.
+     */
+    private fun withItems(s: With, k: Int) {
+        if (k == s.items.size) {
+            block(s.body)
+            return
+        }
+        val item = s.items[k]
+        expr(item.contextExpr)
+        val mgr = temp()
+        val exit = temp()
+        emit(PyOp.STORE_FAST, mgr)
+        emit(PyOp.LOAD_FAST, mgr)
+        emit(PyOp.LOAD_SPECIAL, 1)
+        emit(PyOp.STORE_FAST, exit)
+        emit(PyOp.LOAD_FAST, mgr)
+        emit(PyOp.LOAD_SPECIAL, 0)
+        emit(PyOp.CALL, 0)
+        val range = Range()
+        fblocks.add(WithBody(range, exit))
+        // (storing the target is the body's: an exception there calls __exit__ too)
+        range.begin()
+        if (item.optionalVars != null) store(item.optionalVars) else emit(PyOp.POP)
+        withItems(s, k + 1)
+        range.end()
+        fblocks.removeAt(fblocks.size - 1)
+        exitWith(exit)
+        val toEnd = emit(PyOp.JUMP, 0)
+        range.handle(code.size)
+        var suppressed = -1
+        handler(s.line) { exc, prev, _ ->
+            emit(PyOp.LOAD_FAST, exit)
+            emit(PyOp.LOAD_FAST, exc)
+            emit(PyOp.WITH_EXCEPT)
+            val sup = emit(PyOp.POP_JUMP_IF_TRUE, 0)
+            emit(PyOp.LOAD_FAST, exc)
+            emit(PyOp.RERAISE)
+            patch(sup, code.size)
+            emit(PyOp.LOAD_FAST, prev)
+            emit(PyOp.POP_EXCEPT)
+            suppressed = emit(PyOp.JUMP, 0)
+        }
+        patch(suppressed, code.size)
+        patch(toEnd, code.size)
+    }
+
+    /** A with's __exit__ (bound, in register [exit]) called with three Nones, its result dropped. */
+    private fun exitWith(exit: Int) {
+        emit(PyOp.LOAD_FAST, exit)
+        loadConst(PyNone)
+        loadConst(PyNone)
+        loadConst(PyNone)
+        emit(PyOp.CALL, 3)
+        emit(PyOp.POP)
     }
 
     /** `name = None; del name`: an except clause's name, after its body (the exception's traceback not kept alive). */
@@ -1085,7 +1163,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
      */
     private fun markUnbound(bc: IntArray) {
         if (namespace) return
-        val n = regs
+        val n = maxOf(regs, maxRegs)
         val maybe = arrayOfNulls<java.util.BitSet>(bc.size)
         val start = java.util.BitSet(n)
         start.set(scope.params.size, n)

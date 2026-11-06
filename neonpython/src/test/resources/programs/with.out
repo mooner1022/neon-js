@@ -1,0 +1,50 @@
+enter a
+body A
+exit a None None True
+enter b
+no target
+exit b None None True
+enter c
+exit c ValueError ValueError('inside') tb
+propagated inside
+enter d
+exit d KeyError KeyError('swallowed') tb
+after the suppressed one
+enter x
+enter y
+both X Y
+exit y None None True
+exit x None None True
+enter p
+enter q
+parenthesized P
+exit q None None True
+exit p None None True
+enter outer
+enter inner
+exit inner TypeError TypeError('t') tb
+exit outer TypeError TypeError('t') tb
+caught after both exits
+enter ret
+exit ret None None True
+returned
+enter loop0
+exit loop0 None None True
+enter loop1
+loop body 1
+exit loop1 None None True
+enter loop2
+exit loop2 None None True
+enter raised enter failed
+unpacked 1 2
+pair exit None
+pair exit ValueError
+unpacking error suppressed
+ValueError('from exit') KeyError('from body')
+base enter
+enter n0
+exit n0 None None True
+enter n1
+exit n1 IndexError IndexError('i') tb
+['N0', 'finally', 'N1', 'caught', 'finally']
+KeyError('k') KeyError

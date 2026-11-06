@@ -210,6 +210,22 @@ object PyExceptions {
         return PyBool.of(PyTypes.isInstance(exc, type))
     }
 
+    /** LOAD_SPECIAL: [mgr]'s __enter__ (k 0) or __exit__ (k 1), from its type (not its own attributes), bound to it. */
+    @JvmStatic
+    fun loadSpecial(mgr: Any?, k: Int): Any? {
+        val n = if (k == 0) "__enter__" else "__exit__"
+        val t = PyTypes.typeOf(mgr)
+        val m = t.lookup(n) ?: throw PyRt.typeError("'${t.name}' object does not support the context manager protocol (missed $n method)")
+        return PyClasses.descrGet(null, m, mgr, t)
+    }
+
+    /** WITH_EXCEPT: [exit] (a with's bound __exit__) called for [exc]: its type, it, its traceback; whether to suppress it. */
+    @JvmStatic
+    fun withExcept(f: VmFrame, exit: Any?, exc: Any?): Any? {
+        val e = exc as PyBaseException
+        return PyCalls.callWith((f as PyFrame).ctx, exit, arrayOf(e.type, e, e.traceback), NO_ARGS, NO_ARGS)
+    }
+
     // ------------------------------------------------------------------ the classes' behaviour
 
     /** BaseException's methods and attributes and its builtin subclasses' (once: the types are the runtime's). */

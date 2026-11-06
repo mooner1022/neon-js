@@ -163,6 +163,10 @@ object PyOp {
     const val RAISE = 111
     /** (exc -- ): the exception object raised again, as it was */
     const val RERAISE = 112
+    /** k (mgr -- method): a context manager's __enter__ (k 0) or __exit__ (k 1), looked up on its type, bound */
+    const val LOAD_SPECIAL = 113
+    /** (exit exc -- result): a with's __exit__ called for exception exc (its type, it, its traceback) */
+    const val WITH_EXCEPT = 114
 
     const val COUNT = 200
 
@@ -170,7 +174,7 @@ object PyOp {
         for (op in intArrayOf(LOAD_CONST, LOAD_FAST, LOAD_FAST_CHECK, STORE_FAST, LOAD_GLOBAL, STORE_GLOBAL, JUMP, POP_JUMP_IF_FALSE,
             POP_JUMP_IF_TRUE, CALL, BUILD_LIST, BUILD_TUPLE, BUILD_MAP, LOAD_ATTR, UNPACK, MAKE_FUNCTION, CALL_KW, CALL_EX, LOAD_FREE,
             SET_FUNCTION_ATTRIBUTE, DELETE_FAST, DELETE_GLOBAL, DELETE_ATTR, ASSERT_FAIL, LOAD_NAME, STORE_NAME, DELETE_NAME,
-            LOAD_FROM_DICT_OR_DEREF, STORE_ATTR, INPLACE, RAISE)) o[op] = 1
+            LOAD_FROM_DICT_OR_DEREF, STORE_ATTR, INPLACE, RAISE, LOAD_SPECIAL)) o[op] = 1
         for (op in intArrayOf(CELL_GET, CELL_DELETE, UNPACK_EX)) o[op] = 2
         o[FOR_ITER] = 3
     }
@@ -198,7 +202,7 @@ object PyOp {
         ASSERT_FAIL -> -a
         LOAD_CONST, LOAD_FAST, LOAD_FAST_CHECK, LOAD_GLOBAL, DUP, MAKE_FUNCTION -> 1
         STORE_FAST, STORE_GLOBAL, POP, POP_JUMP_IF_FALSE, POP_JUMP_IF_TRUE, RETURN -> -1
-        in ADD..MATMUL, in LT..NOT_IN, SUBSCR, INPLACE, POP_EXCEPT, CHECK_EXC_MATCH, RERAISE -> -1
+        in ADD..MATMUL, in LT..NOT_IN, SUBSCR, INPLACE, POP_EXCEPT, CHECK_EXC_MATCH, RERAISE, WITH_EXCEPT -> -1
         RAISE -> -a
         CALL -> -a
         BUILD_LIST, BUILD_TUPLE -> 1 - a

@@ -690,6 +690,13 @@ Made with exceptions (M3):
   `Ir.CATCH_VALUE` is `PyExceptions.catchValue`, which lets a sandbox's termination and the JVM's errors through.
 - **OSError's errno subclasses** use Linux's numbers for the network errors (Android's), where they differ by platform.
 - No warnings yet: PEP 765's SyntaxWarning for a `return`, `break` or `continue` in a finally is not printed.
+- **`with`** looks __exit__ up first, then __enter__, on the manager's type (LOAD_SPECIAL), and keeps the bound
+  __exit__ in a register; storing the target is inside the range __exit__ handles, as in CPython. Leaving the body by
+  `return`, `break` or `continue` calls __exit__ with three Nones (a with is an fblock).
+- **A statement gives its temporaries back** when it ends, so that the registers of one try or with serve the next:
+  the tier's code keeps every register a handler may read in a home at the start of each block a handler covers
+  (GraphBuilder), so a function's size grows with its handlers times those registers. (The core could keep only the
+  registers the block's own handler reads: a change for the core's branch.)
 
 - **Augmented assignment is its own instruction,** `INPLACE op`: `__iadd__` and the rest, lists changed in place,
   CPython's `+=` messages. `PyRt.inplace` keeps numbers and strs as cheap as `a op b`, and the speculating tier

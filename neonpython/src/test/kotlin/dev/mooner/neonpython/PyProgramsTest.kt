@@ -270,6 +270,13 @@ class PyProgramsTest {
             "e = ValueError()\ne.__cause__ = 1\n" to Triple("TypeError", "exception cause must be None or derive from BaseException", 2),
             "def f():\n    try:\n        return 1\n    finally:\n        {}['k']\nf()\n" to Triple("KeyError", "'k'", 5),
             "for i in range(3):\n    try:\n        break\n    finally:\n        1/0\n" to Triple("ZeroDivisionError", "division by zero", 5),
+            "with 1:\n    pass\n" to Triple("TypeError", "'int' object does not support the context manager protocol (missed __exit__ method)", 1),
+            "class C:\n    def __enter__(self): return 1\nwith C():\n    pass\n" to Triple("TypeError", "'C' object does not support the context manager protocol (missed __exit__ method)", 3),
+            "class C:\n    def __exit__(self, *a): pass\nwith C():\n    pass\n" to Triple("TypeError", "'C' object does not support the context manager protocol (missed __enter__ method)", 3),
+            "class C:\n    def __enter__(self): return self\n    def __exit__(self, *a): return False\nwith C():\n    1/0\n" to Triple("ZeroDivisionError", "division by zero", 5),
+            "class C:\n    def __enter__(self): return self\n    def __exit__(self, *a): raise ValueError('x')\nwith C():\n    pass\n" to Triple("ValueError", "x", 3),
+            "class C:\n    def __enter__(self): return self\n    def __exit__(self, *a): return False\ndef f():\n    with C():\n        return {}[1]\nf()\n" to Triple("KeyError", "1", 6),
+            "class C:\n    pass\nC(x=1)\n" to Triple("TypeError", "C() takes no arguments", 3),
         )
         for (mode in Mode.entries) for ((src, want) in cases) {
             val e = try {
@@ -304,7 +311,7 @@ class PyProgramsTest {
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
             "speculation", "functions", "closures", "unpacking", "types", "classes", "descriptors",
-            "dunders", "protocols", "subclasses", "exceptions", "exception_objects",
+            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with",
         )
 
         /** The code blocks of [cb] and every function it defines. */

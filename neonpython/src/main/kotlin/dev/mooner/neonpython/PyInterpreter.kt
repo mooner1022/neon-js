@@ -386,6 +386,11 @@ object PyInterpreter {
                 val t = pop()
                 s[sp - 1] = PyExceptions.checkExcMatch(s[sp - 1], t)
             }
+            PyOp.LOAD_SPECIAL -> s[sp - 1] = PyExceptions.loadSpecial(s[sp - 1], a)
+            PyOp.WITH_EXCEPT -> {
+                val exc = pop()
+                s[sp - 1] = PyExceptions.withExcept(f, s[sp - 1], exc)
+            }
             PyOp.WRAP_STAR -> s[sp - 1] = PyCalls.wrapStar(s[sp - 1])
             PyOp.MAP_ADD -> {
                 val v = pop()

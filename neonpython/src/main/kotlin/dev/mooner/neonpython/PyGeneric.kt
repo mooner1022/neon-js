@@ -98,6 +98,8 @@ internal object PyGeneric {
         // (what to throw: the builder ends the block with Ir.THROW of it)
         t[PyOp.RAISE] = Generic("raise", "fn", pops = 0, popsPerA = 1, result = true, owner = x)
         t[PyOp.RERAISE] = Generic("reraise", "v", pops = 1, result = true, throws = false, owner = x)
+        t[PyOp.LOAD_SPECIAL] = Generic("loadSpecial", "va", pops = 1, result = true, owner = x)
+        t[PyOp.WITH_EXCEPT] = Generic("withExcept", "fvv", pops = 2, result = true, owner = x)
         t[PyOp.WRAP_STAR] = Generic("wrapStar", "v", pops = 1, result = true, throws = false, owner = c, flags = OpInfo.REMOVABLE or OpInfo.ALLOCATES)
     }
 
