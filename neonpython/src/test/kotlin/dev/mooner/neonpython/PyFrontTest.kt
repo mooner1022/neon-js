@@ -56,7 +56,7 @@ class PyFrontTest {
         assertThrows<PySyntaxError> { PyParser("if x:\npass\n").parseModule() }
         assertThrows<PySyntaxError> { PyCompiler.compileModule("break\n") }
         assertThrows<PySyntaxError> { PyCompiler.compileModule("return 1\n") }
-        val e = assertThrows<PySyntaxError> { PyCompiler.compileModule("type X = int\n") }
+        val e = assertThrows<PySyntaxError> { PyCompiler.compileModule("class C[T]: pass\n") }
         assertTrue(e.message!!.contains("not supported"), e.message)
     }
 
@@ -124,6 +124,22 @@ class PyFrontTest {
             "def f() -> (yield): pass\n" to ("yield expression cannot be used within an annotation" to 1),
             "def f():\n    global g\n    g: int\n" to ("annotated name 'g' can't be global" to 3),
             "def f():\n    x = 1\n    def g():\n        nonlocal x\n        x: int\n" to ("annotated name 'x' can't be nonlocal" to 5),
+            "def f[T, T](): pass\n" to ("duplicate type parameter 'T'" to 1),
+            "def f[T, *T](): pass\n" to ("duplicate type parameter 'T'" to 1),
+            "def f[T]():\n    nonlocal T\n" to ("nonlocal binding not allowed for type parameter 'T'" to 2),
+            "def f[T: (yield)](): pass\n" to ("yield expression cannot be used within a TypeVar bound" to 1),
+            "async def f[T: await x](): pass\n" to ("await expression cannot be used within a TypeVar bound" to 1),
+            "def f[T: (y := 1)](): pass\n" to ("named expression cannot be used within a TypeVar bound" to 1),
+            "def f[T: ((yield), int)](): pass\n" to ("yield expression cannot be used within a TypeVar constraint" to 1),
+            "def f[T = (yield)](): pass\n" to ("yield expression cannot be used within a TypeVar default" to 1),
+            "def f[*Ts = (yield)](): pass\n" to ("yield expression cannot be used within a TypeVarTuple default" to 1),
+            "def f[**P = (yield)](): pass\n" to ("yield expression cannot be used within a ParamSpec default" to 1),
+            "type A = (yield)\n" to ("yield expression cannot be used within a type alias" to 1),
+            "type A = (x := 1)\n" to ("named expression cannot be used within a type alias" to 1),
+            "async def f():\n    type A = await x\n" to ("await expression cannot be used within a type alias" to 2),
+            "def f[T = int, U](): pass\n" to ("non-default type parameter 'U' follows default type parameter" to 1),
+            "def f[__classdict__](): pass\n" to ("reserved name '__classdict__' cannot be used for type parameter" to 1),
+            "type A[T, T] = int\n" to ("duplicate type parameter 'T'" to 1),
         )
         for ((src, want) in cases) {
             val e = assertThrows<PySyntaxError>(src) { PyCompiler.compileModule(src) }

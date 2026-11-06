@@ -55,6 +55,7 @@ internal class Generic(
         const val IMP = "dev/mooner/neonpython/PyImport"
         const val GEN = "dev/mooner/neonpython/PyGenerators"
         const val ANN = "dev/mooner/neonpython/PyAnnotations"
+        const val TYP = "dev/mooner/neonpython/PyTyping"
     }
 }
 
@@ -144,6 +145,11 @@ internal object PyGeneric {
         t[PyOp.LOAD_FROM_DICT_OR_GLOBALS] = Generic("loadFromDictOrGlobals", "fvk", pops = 1, result = true, owner = an)
         t[PyOp.LOAD_FROM_DICT_OR_CELL] = Generic("loadFromDictOrCell", "vvk", pops = 2, result = true, owner = an)
         t[PyOp.LOAD_NAMESPACE] = Generic("loadNamespace", "f", pops = 0, result = true, throws = false, owner = an)
+        val ty = Generic.TYP
+        t[PyOp.MAKE_TYPEVAR] = Generic("makeTypeVar", "va", pops = 1, result = true, throws = false, owner = ty)
+        t[PyOp.MAKE_TYPEVAR_BOUND] = Generic("makeTypeVarBound", "vva", pops = 2, result = true, throws = false, owner = ty)
+        t[PyOp.SET_TYPEPARAM_DEFAULT] = Generic("setTypeParamDefault", "vv", pops = 2, result = true, throws = false, owner = ty)
+        t[PyOp.MAKE_TYPEALIAS] = Generic("makeTypeAlias", "fvvv", pops = 3, result = true, throws = false, owner = ty)
         t[PyOp.WRAP_STAR] = Generic("wrapStar", "v", pops = 1, result = true, throws = false, owner = c, flags = OpInfo.REMOVABLE or OpInfo.ALLOCATES)
     }
 

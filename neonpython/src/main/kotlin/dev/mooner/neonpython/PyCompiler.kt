@@ -157,8 +157,9 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     }
 
     companion object {
-        /** An `__annotate__`'s parameters: (format, /). */
+        /** An `__annotate__`'s parameters: (format, /); a lazily evaluated bound's, default's, alias value's: (.format=1, /). */
         private val ANNOTATE_ARGS = Arguments(listOf(Arg("format", null)), emptyList(), null, emptyList(), emptyList(), null, emptyList())
+        private val LAZY_ARGS = Arguments(listOf(Arg(".format", null)), emptyList(), null, emptyList(), emptyList(), null, emptyList())
 
         /** The code block of module [src]. */
         @JvmStatic fun compileModule(src: String, name: String = "<module>"): CodeUnit {
@@ -620,9 +621,8 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 for (b in loop.breaks) patch(b, code.size)
             }
             is FunctionDef -> {
-                if (s.typeParams.isNotEmpty()) unsupported("type parameters", s)
                 for (d in s.decoratorList) expr(d)
-                makeFunction(s, s.name, s.args, s.body)
+                if (s.typeParams.isNotEmpty()) generic(s, s.name) else makeFunction(s, s.name, s.args, s.body)
                 repeat(s.decoratorList.size) { emit(PyOp.CALL, 1) }
                 storeName(s.name)
             }
@@ -692,7 +692,15 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 } else storeName(a.name.substringBefore('.'))
             }
             is ImportFrom -> importFrom(s)
-            is TypeAlias -> unsupported("type", s)
+            is TypeAlias -> {
+                if (s.typeParams.isNotEmpty()) generic(s, s.name.id) else {
+                    loadConst(PyStr(s.name.id))
+                    loadConst(PyNone)
+                    lazyFunction(st.aliasScopes[s]!!, s.value, false)
+                    emit(PyOp.MAKE_TYPEALIAS)
+                }
+                storeName(s.name.id)
+            }
         }
     }
 
@@ -1537,21 +1545,15 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
      * A function (or a lambda, [body] a return of its expression): its defaults, keyword-only defaults and the cells
      * of its free variables evaluated here, then the function made of its code.
      */
-    private fun makeFunction(node: Node, fname: String, args: Arguments, body: List<Stmt>) {
+    private fun makeFunction(node: Node, fname: String, args: Arguments, body: List<Stmt>, passed: Boolean = false) {
         val child = st.scopes[node]!!
         var flags = 0
         if (args.defaults.isNotEmpty()) {
-            for (d in args.defaults) expr(d)
-            emit(PyOp.BUILD_TUPLE, args.defaults.size)
+            if (passed) emit(PyOp.LOAD_FAST, locals[".defaults"]!!) else defaultsTuple(args)
             flags = flags or 1
         }
-        val kwd = args.kwonlyargs.indices.filter { args.kwDefaults[it] != null }
-        if (kwd.isNotEmpty()) {
-            for (i in kwd) {
-                loadConst(PyStr(args.kwonlyargs[i].arg))
-                expr(args.kwDefaults[i]!!)
-            }
-            emit(PyOp.BUILD_MAP, kwd.size)
+        if (args.kwDefaults.any { it != null }) {
+            if (passed) emit(PyOp.LOAD_FAST, locals[".kwdefaults"]!!) else kwDefaultsDict(args)
             flags = flags or 2
         }
         if (child.frees.isNotEmpty()) {
@@ -1574,6 +1576,133 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         val cb = PyCompiler(st, child, fname).also { it.firstLine = node.line }.compileBody(body, args)
         emit(PyOp.MAKE_FUNCTION, const(cb))
         for (flag in intArrayOf(16, 8, 2, 1)) if (flags and flag != 0) emit(PyOp.SET_FUNCTION_ATTRIBUTE, flag)
+    }
+
+    private fun defaultsTuple(args: Arguments) {
+        for (d in args.defaults) expr(d)
+        emit(PyOp.BUILD_TUPLE, args.defaults.size)
+    }
+
+    private fun kwDefaultsDict(args: Arguments) {
+        val kwd = args.kwonlyargs.indices.filter { args.kwDefaults[it] != null }
+        for (i in kwd) {
+            loadConst(PyStr(args.kwonlyargs[i].arg))
+            expr(args.kwDefaults[i]!!)
+        }
+        emit(PyOp.BUILD_MAP, kwd.size)
+    }
+
+    /**
+     * A generic def or `type` alias (PEP 695): its `<generic parameters of [name]>` function made and called (a def's
+     * defaults evaluated here, its arguments), which makes the type parameters and then the function or alias.
+     */
+    private fun generic(node: Stmt, name: String) {
+        val tps = st.typeParamScopes[node]!!
+        val c = PyCompiler(st, tps, "<generic parameters of $name>")
+        c.firstLine = node.line
+        val cb = c.compileGeneric(node)
+        closure(tps)
+        emit(PyOp.MAKE_FUNCTION, const(cb))
+        if (tps.frees.isNotEmpty()) emit(PyOp.SET_FUNCTION_ATTRIBUTE, 8)
+        var n = 0
+        if (node is FunctionDef) {
+            if (node.args.defaults.isNotEmpty()) {
+                defaultsTuple(node.args)
+                n++
+            }
+            if (node.args.kwDefaults.any { it != null }) {
+                kwDefaultsDict(node.args)
+                n++
+            }
+        }
+        emit(PyOp.CALL, n)
+    }
+
+    /** A `<generic parameters of X>`'s code (this compiler's scope its TYPE_PARAMS scope). */
+    private fun compileGeneric(node: Stmt): CodeUnit {
+        prologue()
+        lineHere(node.line)
+        when (node) {
+            is FunctionDef -> {
+                val params = typeParams(node.typeParams)
+                makeFunction(node, node.name, node.args, node.body, passed = true)
+                emit(PyOp.LOAD_FAST, params)
+                emit(PyOp.SWAP)
+                emit(PyOp.SET_FUNCTION_ATTRIBUTE, 32)
+            }
+            is TypeAlias -> {
+                loadConst(PyStr(node.name.id))
+                emit(PyOp.LOAD_FAST, typeParams(node.typeParams))
+                lazyFunction(st.aliasScopes[node]!!, node.value, false)
+                emit(PyOp.MAKE_TYPEALIAS)
+            }
+            else -> throw IllegalStateException("not a generic: $node")
+        }
+        emit(PyOp.RETURN)
+        val a = scope.params.map { Arg(it, null) }
+        return unit(null, Arguments(a, emptyList(), null, emptyList(), emptyList(), null, emptyList()))
+    }
+
+    /**
+     * The type parameters made, each stored in its name, their tuple in a register (returned): a bound,
+     * constraints or default each a lazily evaluated function; CPython's error for a default missing after one.
+     */
+    private fun typeParams(tps: List<TypeParam>): Int {
+        var seenDefault = false
+        for (tp in tps) {
+            lineHere(tp.line)
+            loadConst(PyStr(tp.name))
+            when (tp) {
+                is TypeVar -> if (tp.bound != null) {
+                    lazyFunction(st.boundScopes[tp]!!, tp.bound, false)
+                    emit(PyOp.MAKE_TYPEVAR_BOUND, if (tp.bound is TupleExpr) 2 else 1)
+                } else emit(PyOp.MAKE_TYPEVAR, 0)
+                is TypeVarTuple -> emit(PyOp.MAKE_TYPEVAR, 1)
+                is ParamSpec -> emit(PyOp.MAKE_TYPEVAR, 2)
+            }
+            val dflt = when (tp) {
+                is TypeVar -> tp.defaultValue
+                is TypeVarTuple -> tp.defaultValue
+                is ParamSpec -> tp.defaultValue
+            }
+            if (dflt != null) {
+                seenDefault = true
+                lazyFunction(st.defaultScopes[tp]!!, dflt, tp is TypeVarTuple)
+                emit(PyOp.SET_TYPEPARAM_DEFAULT)
+            } else if (seenDefault) {
+                throw PySyntaxError("non-default type parameter '${tp.name}' follows default type parameter", tp.line, tp.col)
+            }
+            emit(PyOp.DUP)
+            storeName(tp.name)
+        }
+        emit(PyOp.BUILD_TUPLE, tps.size)
+        val r = temp()
+        emit(PyOp.STORE_FAST, r)
+        return r
+    }
+
+    /** A lazily evaluated expression's function (a bound, a default, an alias's value), its format defaulting to 1. */
+    private fun lazyFunction(s: Scope, e: Expr, starred: Boolean) {
+        loadConst(PyTuple(arrayOf(1L)))
+        val cb = PyCompiler(st, s, s.name).compileLazy(e, starred)
+        closure(s)
+        emit(PyOp.MAKE_FUNCTION, const(cb))
+        if (s.frees.isNotEmpty()) emit(PyOp.SET_FUNCTION_ATTRIBUTE, 8)
+        emit(PyOp.SET_FUNCTION_ATTRIBUTE, 1)
+    }
+
+    private fun compileLazy(e: Expr, starred: Boolean): CodeUnit {
+        firstLine = e.line
+        prologue()
+        lineHere(e.line)
+        emit(PyOp.LOAD_FAST, locals[".format"]!!)
+        emit(PyOp.ANNOTATE_CHECK)
+        if (starred && e is Starred) {
+            expr(e.value)
+            emit(PyOp.UNPACK, 1)
+        } else expr(e)
+        emit(PyOp.RETURN)
+        return unit(null, LAZY_ARGS)
     }
 
     /** Stores the value on top of the stack to [t]. */

@@ -287,6 +287,9 @@ object PyClasses {
         if (obj is PyModule) return moduleAttr(obj, name)
         if (obj is PyGenericAlias) return PyTyping.aliasAttr(obj, name)
         if (obj is PyUnion) return PyTyping.unionAttr(obj, name)
+        if (obj is PyTypeParam) return PyTyping.typeParamAttr(obj, name)
+        if (obj is PyParamSpecPart || obj is PyUnpacked) return PyTyping.partAttr(obj, name)
+        if (obj is PyTypeAlias) return PyTyping.aliasTypeAttr(obj, name)
         val cls = classOf(obj)
         if (cls != null && cls.hooks and 1 != 0) {
             val type = cls
@@ -320,8 +323,9 @@ object PyClasses {
     fun genericGetAttr(obj: Any?, name: String): Any? = attr(obj, name, false)
 
     private fun attr(obj: Any?, name: String, hook: Boolean): Any? {
-        // (a function's __annotations__ and __annotate__: the function type's data descriptors)
+        // (a function's __annotations__ and __annotate__: the function type's data descriptors; its __type_params__)
         if (obj is PyFunction && PyAnnotations.isName(name)) return PyAnnotations.functionGet(obj, name)
+        if (obj is PyFunction && name == "__type_params__") return obj.typeParams
         val type = PyTypes.typeOf(obj)
         val d = type.lookup(name)
         if (d != null && isDataDescriptor(d)) return descrGet(null, d, obj, type)
@@ -459,6 +463,15 @@ object PyClasses {
             PyAnnotations.functionSet(obj, name, v)
             return
         }
+        if (obj is PyFunction && name == "__type_params__") {
+            PyTyping.setFunctionTypeParams(obj, v)
+            return
+        }
+        if (obj is PyTypeParam) {
+            PyTyping.typeParamSet(obj, name, v)
+            return
+        }
+        if (obj is PyTypeAlias) PyTyping.aliasTypeSet(name)
         if (obj is PyType) {
             if (obj.module == "builtins") {
                 throw PyRt.typeError("cannot set '$name' attribute of immutable type '${obj.name}'")
@@ -517,6 +530,10 @@ object PyClasses {
         }
         if (obj is PyFunction && PyAnnotations.isName(name)) {
             PyAnnotations.functionSet(obj, name, null)
+            return
+        }
+        if (obj is PyFunction && name == "__type_params__") {
+            PyTyping.setFunctionTypeParams(obj, null)
             return
         }
         if (obj is PyType) {

@@ -525,6 +525,20 @@ object PyInterpreter {
                 s[sp - 1] = PyAnnotations.loadFromDictOrCell(s[sp - 1], cell, k[a])
             }
             PyOp.LOAD_NAMESPACE -> s[sp++] = PyAnnotations.loadNamespace(f)
+            PyOp.MAKE_TYPEVAR -> s[sp - 1] = PyTyping.makeTypeVar(s[sp - 1], a)
+            PyOp.MAKE_TYPEVAR_BOUND -> {
+                val fn = pop()
+                s[sp - 1] = PyTyping.makeTypeVarBound(s[sp - 1], fn, a)
+            }
+            PyOp.SET_TYPEPARAM_DEFAULT -> {
+                val fn = pop()
+                s[sp - 1] = PyTyping.setTypeParamDefault(s[sp - 1], fn)
+            }
+            PyOp.MAKE_TYPEALIAS -> {
+                val fn = pop()
+                val params = pop()
+                s[sp - 1] = PyTyping.makeTypeAlias(f, s[sp - 1], params, fn)
+            }
             PyOp.EXC_STAR_BEGIN -> s[sp - 1] = PyExceptions.excStarBegin(s[sp - 1])
             PyOp.EXC_STAR_MATCH -> {
                 val t = pop()

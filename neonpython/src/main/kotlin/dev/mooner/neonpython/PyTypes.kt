@@ -171,6 +171,7 @@ object PyTypes {
         is PyAwaitIter -> v.type
         is PyGenericAlias -> PyTyping.GENERIC_ALIAS
         is PyUnion -> PyTyping.UNION
+        is PyTypeParam, is PyParamSpecPart, is PyUnpacked, is PyTypeAlias, PyNoDefault, PyUnpackForm -> PyTyping.typeOf(v)!!
         is PySet -> v.sub?.cls ?: if (v.frozen) FROZENSET else SET
         is PySlice -> SLICE
         is PyTemplate -> TEMPLATE

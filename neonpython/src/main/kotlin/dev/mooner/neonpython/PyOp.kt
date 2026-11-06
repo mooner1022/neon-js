@@ -259,13 +259,23 @@ object PyOp {
     /** ( -- dict): a class body's namespace (its `__classdict__`) */
     const val LOAD_NAMESPACE = 152
 
+    // type parameters (M9, PEP 695): a generic's <generic parameters of X> function makes them
+    /** kind (name -- tv): a TypeVar (0), a TypeVarTuple (1), a ParamSpec (2) */
+    const val MAKE_TYPEVAR = 153
+    /** kind (name fn -- tv): a TypeVar with a bound (1) or constraints (2) [fn] evaluates */
+    const val MAKE_TYPEVAR_BOUND = 154
+    /** (tv fn -- tv): its default, [fn] evaluates */
+    const val SET_TYPEPARAM_DEFAULT = 155
+    /** (name params fn -- alias): a `type` statement's alias (params None where not generic) */
+    const val MAKE_TYPEALIAS = 156
+
     const val COUNT = 200
 
     @JvmField val operands = IntArray(COUNT).also { o ->
         for (op in intArrayOf(LOAD_CONST, LOAD_FAST, LOAD_FAST_CHECK, STORE_FAST, LOAD_GLOBAL, STORE_GLOBAL, JUMP, POP_JUMP_IF_FALSE,
             POP_JUMP_IF_TRUE, CALL, BUILD_LIST, BUILD_TUPLE, BUILD_MAP, LOAD_ATTR, UNPACK, MAKE_FUNCTION, CALL_KW, CALL_EX, LOAD_FREE,
             SET_FUNCTION_ATTRIBUTE, DELETE_FAST, DELETE_GLOBAL, DELETE_ATTR, ASSERT_FAIL, LOAD_NAME, STORE_NAME, DELETE_NAME,
-            LOAD_FROM_DICT_OR_DEREF, STORE_ATTR, INPLACE, RAISE, LOAD_SPECIAL, FORMAT_VALUE, FORMAT_SPEC, BUILD_STRING, BUILD_SET, BUILD_SLICE, LOAD_FAST_RAW, LOAD_LOCALS, MATCH_CLASS, IMPORT_NAME, IMPORT_FROM, GET_AWAITABLE, LOAD_FROM_DICT_OR_GLOBALS, LOAD_FROM_DICT_OR_CELL)) o[op] = 1
+            LOAD_FROM_DICT_OR_DEREF, STORE_ATTR, INPLACE, RAISE, LOAD_SPECIAL, FORMAT_VALUE, FORMAT_SPEC, BUILD_STRING, BUILD_SET, BUILD_SLICE, LOAD_FAST_RAW, LOAD_LOCALS, MATCH_CLASS, IMPORT_NAME, IMPORT_FROM, GET_AWAITABLE, LOAD_FROM_DICT_OR_GLOBALS, LOAD_FROM_DICT_OR_CELL, MAKE_TYPEVAR, MAKE_TYPEVAR_BOUND)) o[op] = 1
         for (op in intArrayOf(CELL_GET, CELL_DELETE, UNPACK_EX, SEND)) o[op] = 2
         o[FOR_ITER] = 3
     }
@@ -299,7 +309,8 @@ object PyOp {
         BUILD_STRING, BUILD_SET, BUILD_SLICE -> 1 - a
         SET_ADD, SET_UPDATE, BUILD_TEMPLATE, MATCH_KEYS, COPY_DICT_WITHOUT_KEYS -> -1
         MATCH_CLASS -> -2
-        IMPORT_NAME, IMPORT_STAR, END_ASYNC_FOR, ANNOTATE_CHECK, LOAD_FROM_DICT_OR_CELL -> -1
+        IMPORT_NAME, IMPORT_STAR, END_ASYNC_FOR, ANNOTATE_CHECK, LOAD_FROM_DICT_OR_CELL, MAKE_TYPEVAR_BOUND, SET_TYPEPARAM_DEFAULT -> -1
+        MAKE_TYPEALIAS -> -2
         LOAD_NAMESPACE -> 1
         BUILD_INTERPOLATION -> -3
         RAISE -> -a

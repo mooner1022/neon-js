@@ -373,7 +373,7 @@ object PyRt {
             is PySet -> b is PySet && PySets.equal(a, b)
             is PyBytes -> b is PyBytes && a.b.contentEquals(b.b)
             is PySlice -> b is PySlice && a == b
-            is PyGenericAlias, is PyUnion -> a == b
+            is PyGenericAlias, is PyUnion, is PyParamSpecPart, is PyUnpacked -> a == b
             PyNone, null -> b === PyNone || b == null
             else -> false
         }
@@ -441,7 +441,7 @@ object PyRt {
         // (equal to an int or a float, a complex with no imaginary part hashes as it)
         is PyComplex -> if (v.imag == 0.0) hash(v.real) else java.lang.Long.hashCode(PyHash.hash(v))
         is PyObject -> PyDunder.hash(v)
-        is PyGenericAlias, is PyUnion -> v.hashCode()
+        is PyGenericAlias, is PyUnion, is PyParamSpecPart, is PyUnpacked -> v.hashCode()
         else -> System.identityHashCode(v)
     }
 
@@ -513,7 +513,7 @@ object PyRt {
         is PyRange -> if (v.step == 1L) "range(${v.start}, ${v.stop})" else "range(${v.start}, ${v.stop}, ${v.step})"
         is PyType -> v.repr()
         is PyObject -> PyDunder.repr(v)
-        is PyGenericAlias, is PyUnion -> PyTyping.repr(v)
+        is PyGenericAlias, is PyUnion, is PyTypeParam, is PyParamSpecPart, is PyUnpacked, is PyTypeAlias, PyNoDefault, PyUnpackForm -> PyTyping.repr(v)
         else -> v.toString()
     }
 
@@ -627,6 +627,7 @@ object PyRt {
         is PyObject -> PyDunder.getItem(obj, key)
         is PyType -> PyTyping.typeGetItem(obj, key)
         is PyGenericAlias, is PyUnion -> PyTyping.aliasGetItem(obj, key)
+        is PyTypeAlias -> PyTyping.aliasTypeGetItem(obj, key)
         else -> throw typeError("'${t(obj)}' object is not subscriptable")
     }
 
@@ -749,6 +750,7 @@ object PyRt {
         }
         is PyTemplate -> PyLiterals.templateIter(v)
         is PyGenericAlias -> PyTyping.iter(v)
+        is PyTypeParam -> PyTyping.typeParamIter(v)
         is PySet -> {
             // (in slot order; CPython's error where its size changes meanwhile)
             var j = 0

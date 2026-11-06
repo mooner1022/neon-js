@@ -457,6 +457,12 @@ class PyProgramsTest {
             "(int | str)()\n" to Triple("TypeError", "'typing.Union' object is not callable", 1),
             "class B:\n    def __mro_entries__(self, b):\n        return 1\nclass X(B()):\n    pass\n" to Triple("TypeError", "__mro_entries__ must return a tuple", 4),
             "issubclass(list, dict[str, int])\n" to Triple("TypeError", "issubclass() argument 2 cannot be a parameterized generic", 1),
+            "def f[T](x=T): pass\n" to Triple("NameError", "name 'T' is not defined", 1),
+            "type A = int\nA[int]\n" to Triple("TypeError", "Only generic type aliases are subscriptable", 2),
+            "def f[T](): pass\nf.__type_params__[0]()\n" to Triple("TypeError", "'typing.TypeVar' object is not callable", 2),
+            "def f[T: undefined](): pass\nf.__type_params__[0].__bound__\n" to Triple("NameError", "name 'undefined' is not defined", 1),
+            "type A = undefined\nA.__value__\n" to Triple("NameError", "name 'undefined' is not defined", 1),
+            "def f(): pass\nf.__type_params__ = 1\n" to Triple("TypeError", "__type_params__ must be set to a tuple", 2),
         )
         for (mode in Mode.entries) for ((src, want) in cases) {
             val e = try {
@@ -491,7 +497,7 @@ class PyProgramsTest {
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
             "speculation", "functions", "closures", "unpacking", "types", "classes", "descriptors",
-            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods", "containers", "match", "imports", "coroutines", "async_generators", "annotations", "future_annotations", "generic_aliases",
+            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods", "containers", "match", "imports", "coroutines", "async_generators", "annotations", "future_annotations", "generic_aliases", "type_params",
         )
 
         /** The code blocks of [cb] and every function it defines. */

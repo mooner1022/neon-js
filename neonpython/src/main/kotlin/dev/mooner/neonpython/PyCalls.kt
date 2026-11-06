@@ -222,6 +222,7 @@ object PyCalls {
             2 -> f.kwdefaults = attr as PyDict
             8 -> f.closure = (attr as PyTuple).items
             16 -> f.annotate = attr
+            32 -> f.typeParams = attr as PyTuple
         }
         return f
     }

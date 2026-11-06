@@ -8,7 +8,12 @@ package dev.mooner.neonpython
  * function). As CPython's symtable.c decides it.
  */
 class Scope(@JvmField val type: Type, @JvmField val name: String, @JvmField val parent: Scope?, @JvmField val node: Node?) {
-    enum class Type { MODULE, FUNCTION, CLASS, COMPREHENSION, ANNOTATION }
+    /**
+     * TYPE_PARAMS a generic's `<generic parameters of X>` (its type parameters its locals), TYPE_VARIABLE a type
+     * parameter's bound, constraints or default, TYPE_ALIAS a `type` alias's value: function-like, as annotation
+     * scopes.
+     */
+    enum class Type { MODULE, FUNCTION, CLASS, COMPREHENSION, ANNOTATION, TYPE_PARAMS, TYPE_VARIABLE, TYPE_ALIAS }
     enum class Kind { LOCAL, CELL, FREE, GLOBAL_EXPLICIT, GLOBAL_IMPLICIT }
 
     /** Names in the order the scope first saw them, with how it uses them ([DEF_LOCAL]...). */
@@ -46,10 +51,14 @@ class Scope(@JvmField val type: Type, @JvmField val name: String, @JvmField val 
     @JvmField var deferredAnnotations = false
     /** The compound statements the walk is in, here (a class's annotations there are conditional). */
     @JvmField var conditionalDepth = 0
+    /** A TYPE_VARIABLE scope's errors' words: "a TypeVar bound"... */
+    @JvmField var scopeInfo: String? = null
+    /** A TYPE_PARAMS scope's type parameters. */
+    @JvmField val typeParamNames = HashSet<String>()
 
     fun kind(n: String): Kind = kinds[n] ?: if (type == Type.MODULE || type == Type.CLASS) Kind.GLOBAL_IMPLICIT else Kind.GLOBAL_IMPLICIT
 
-    val isFunction: Boolean get() = type == Type.FUNCTION || type == Type.COMPREHENSION || type == Type.ANNOTATION
+    val isFunction: Boolean get() = type != Type.MODULE && type != Type.CLASS
 
     fun add(n: String, flag: Int) {
         flags[n] = (flags[n] ?: 0) or flag
@@ -72,6 +81,11 @@ class PySymtable private constructor() {
     val scopes = HashMap<Node, Scope>()
     /** The annotation scope of each function with annotations. */
     val functionAnnotations = HashMap<Node, Scope>()
+    /** A generic def's or alias's `<generic parameters of X>`; its type parameters' bound (or constraints) and default scopes; an alias's value's. */
+    val typeParamScopes = HashMap<Node, Scope>()
+    val boundScopes = HashMap<Node, Scope>()
+    val defaultScopes = HashMap<Node, Scope>()
+    val aliasScopes = HashMap<Node, Scope>()
     /** `from __future__ import annotations`: annotations are strings (PEP 563), evaluated nowhere. */
     var futureAnnotations = false
         private set
@@ -103,10 +117,64 @@ class PySymtable private constructor() {
         return s
     }
 
-    private fun qualnameOf(name: String): String = when (cur.type) {
-        Scope.Type.MODULE -> name
-        Scope.Type.CLASS -> cur.qualname + "." + name
-        else -> cur.qualname + ".<locals>." + name
+    /** [name]'s qualified name in [cur] (a generic's type parameters' scope no part of it: `f`, `C.m`). */
+    private fun qualnameOf(name: String): String {
+        var c = cur
+        while (c.type == Scope.Type.TYPE_PARAMS) c = c.parent!!
+        return when (c.type) {
+            Scope.Type.MODULE -> name
+            Scope.Type.CLASS -> c.qualname + "." + name
+            else -> c.qualname + ".<locals>." + name
+        }
+    }
+
+    /**
+     * A generic's `<generic parameters of [name]>` scope, entered: its type parameters its locals (a duplicate
+     * CPython's error), each bound, constraints and default a lazily evaluated scope of its own; a def's defaults
+     * passed to it (`.defaults`, `.kwdefaults`).
+     */
+    private fun pushTypeParams(node: Node, name: String, tps: List<TypeParam>, defaults: Boolean, kwDefaults: Boolean) {
+        val inClass = cur.type == Scope.Type.CLASS
+        val s = push(Scope.Type.TYPE_PARAMS, "<generic parameters of $name>", node, register = false)
+        typeParamScopes[node] = s
+        if (inClass) {
+            s.canSeeClass = true
+            s.add("__classdict__", Scope.USE)
+        }
+        for (p in listOfNotNull(".defaults".takeIf { defaults }, ".kwdefaults".takeIf { kwDefaults })) {
+            s.params.add(p)
+            s.add(p, Scope.DEF_PARAM)
+        }
+        for (tp in tps) {
+            if (tp.name == "__classdict__") err("reserved name '__classdict__' cannot be used for type parameter", tp)
+            if (!s.typeParamNames.add(tp.name)) err("duplicate type parameter '${tp.name}'", tp)
+            s.add(tp.name, Scope.DEF_LOCAL)
+            when (tp) {
+                is TypeVar -> {
+                    tp.bound?.let { lazyScope(tp, it, if (it is TupleExpr) "a TypeVar constraint" else "a TypeVar bound", boundScopes) }
+                    tp.defaultValue?.let { lazyScope(tp, it, "a TypeVar default", defaultScopes) }
+                }
+                is TypeVarTuple -> tp.defaultValue?.let { lazyScope(tp, it, "a TypeVarTuple default", defaultScopes) }
+                is ParamSpec -> tp.defaultValue?.let { lazyScope(tp, it, "a ParamSpec default", defaultScopes) }
+            }
+        }
+    }
+
+    /** A lazily evaluated expression's scope (a bound, a default, an alias's value): `(format=1, /)`, as an annotation's. */
+    private fun lazyScope(node: Node, e: Expr, info: String?, into: HashMap<Node, Scope>, type: Scope.Type = Scope.Type.TYPE_VARIABLE,
+                          inClass: Boolean = cur.canSeeClass) {
+        val name = (node as? TypeParam)?.name ?: (node as TypeAlias).name.id
+        val s = push(type, name, node, register = false)
+        s.scopeInfo = info
+        s.params.add(".format")
+        s.add(".format", Scope.DEF_PARAM)
+        if (inClass) {
+            s.canSeeClass = true
+            s.add("__classdict__", Scope.USE)
+        }
+        expr(e)
+        pop()
+        into[node] = s
     }
 
     /** An annotation scope in [cur]: its parameter (`.format`, CPython's, so that a name `format` stays the builtin's). */
@@ -166,9 +234,15 @@ class PySymtable private constructor() {
         pop()
     }
 
-    /** The error of [what] (a yield, an await, a walrus) in an annotation scope. */
+    /** The error of [what] (a yield, an await, a walrus) in an annotation scope, a type parameter's or an alias's. */
     private fun notInAnnotation(what: String, e: Expr) {
-        if (cur.type == Scope.Type.ANNOTATION) err("$what cannot be used within an annotation", e)
+        when (cur.type) {
+            Scope.Type.ANNOTATION -> err("$what cannot be used within an annotation", e)
+            Scope.Type.TYPE_VARIABLE -> err("$what cannot be used within ${cur.scopeInfo}", e)
+            Scope.Type.TYPE_ALIAS -> err("$what cannot be used within a type alias", e)
+            Scope.Type.TYPE_PARAMS -> err("$what cannot be used within the definition of a generic", e)
+            else -> {}
+        }
     }
 
     private fun pop() {
@@ -210,12 +284,16 @@ class PySymtable private constructor() {
                 s.decoratorList.forEach { expr(it) }
                 defaults(s.args)
                 bind(s.name, s)
+                // (a generic def: its function made in its type parameters' scope)
+                val generic = s.typeParams.isNotEmpty()
+                if (generic) pushTypeParams(s, s.name, s.typeParams, s.args.defaults.isNotEmpty(), s.args.kwDefaults.any { it != null })
                 functionAnnotations(s)
                 val f = push(Scope.Type.FUNCTION, s.name, s)
                 f.isCoroutine = s.isAsync
                 params(s.args, s)
                 stmts(s.body)
                 pop()
+                if (generic) pop()
             }
             is ClassDef -> {
                 s.decoratorList.forEach { expr(it) }
@@ -234,7 +312,11 @@ class PySymtable private constructor() {
             }
             is TypeAlias -> {
                 bind(s.name.id, s)
-                expr(s.value)
+                val inClass = cur.type == Scope.Type.CLASS
+                val generic = s.typeParams.isNotEmpty()
+                if (generic) pushTypeParams(s, s.name.id, s.typeParams, false, false)
+                lazyScope(s, s.value, null, aliasScopes, Scope.Type.TYPE_ALIAS, inClass)
+                if (generic) pop()
             }
             is AugAssign -> {
                 if (s.target is Name) use((s.target as Name).id)
@@ -545,12 +627,26 @@ class PySymtable private constructor() {
      * What each name of [s] is, given the names [bound] in the functions around it (a class's names are not seen
      * by its methods); a function's free names become cells where they are bound, and free in the scopes between.
      */
+    /** Whether the binding of [n] a nonlocal in [s] reaches is a generic's type parameter. */
+    private fun bindsTypeParam(s: Scope, n: String): Boolean {
+        var p = s.parent
+        while (p != null) {
+            if (p.type != Scope.Type.CLASS) {
+                val k = p.kinds[n]
+                if (k == Scope.Kind.LOCAL || k == Scope.Kind.CELL) return p.type == Scope.Type.TYPE_PARAMS && n in p.typeParamNames
+            }
+            p = p.parent
+        }
+        return false
+    }
+
     private fun analyze(s: Scope, bound: Set<String>) {
         for ((n, f) in s.flags) {
             s.kinds[n] = when {
                 f and Scope.DEF_GLOBAL != 0 -> Scope.Kind.GLOBAL_EXPLICIT
                 f and Scope.DEF_NONLOCAL != 0 -> {
                     if (n !in bound) err("no binding for nonlocal '$n' found", s.nonlocalAt[n] ?: s.node!!)
+                    if (bindsTypeParam(s, n)) err("nonlocal binding not allowed for type parameter '$n'", s.nonlocalAt[n] ?: s.node!!)
                     Scope.Kind.FREE
                 }
                 f and (Scope.DEF_LOCAL or Scope.DEF_PARAM) != 0 -> if (s.type == Scope.Type.MODULE) Scope.Kind.GLOBAL_IMPLICIT else Scope.Kind.LOCAL
