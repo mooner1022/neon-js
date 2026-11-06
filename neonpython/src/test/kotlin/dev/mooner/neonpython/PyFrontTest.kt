@@ -84,6 +84,13 @@ class PyFrontTest {
             "{(yield): 1 for x in []}\n" to ("'yield' inside dict comprehension" to 1),
             "class C:\n    [z := 1 for x in range(1)]\n" to ("assignment expression within a comprehension cannot be used in a class body" to 2),
             "[x := 1 for x in range(1)]\n" to ("assignment expression cannot rebind comprehension iteration variable 'x'" to 1),
+            "match 1:\n    case x:\n        pass\n    case 2:\n        pass\n" to ("name capture 'x' makes remaining patterns unreachable" to 2),
+            "match 1:\n    case _:\n        pass\n    case 2:\n        pass\n" to ("wildcard makes remaining patterns unreachable" to 2),
+            "match 1:\n    case [x] | [y]:\n        pass\n" to ("alternative patterns bind different names" to 2),
+            "match 1:\n    case x | 2:\n        pass\n" to ("name capture 'x' makes remaining patterns unreachable" to 2),
+            "match 1:\n    case [*a, *b]:\n        pass\n" to ("multiple starred names in sequence pattern" to 2),
+            "match {}:\n    case {'a': 1, 'a': 2}:\n        pass\n" to ("mapping pattern checks duplicate key ('a')" to 2),
+            "match 1:\n    case [x, x]:\n        pass\n" to ("multiple assignments to name 'x' in pattern" to 2),
         )
         for ((src, want) in cases) {
             val e = assertThrows<PySyntaxError>(src) { PyCompiler.compileModule(src) }

@@ -506,7 +506,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 emit(PyOp.RAISE, n)
             }
             is With -> if (s.isAsync) unsupported("async with", s) else withItems(s, 0)
-            is Match -> unsupported("match", s)
+            is Match -> matchStmt(s)
             is Import, is ImportFrom -> unsupported("import", s)
             is TypeAlias -> unsupported("type", s)
         }
@@ -767,6 +767,256 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         }
         emit(PyOp.BUILD_TUPLE, names.size)
         emit(PyOp.LOAD_LOCALS, const(PyTuple(names.toTypedArray())))
+    }
+
+    // ------------------------------------------------------------------ match
+
+    /**
+     * `match` (PEP 634): the subject in a register, each case's pattern tested against it (a failing test to the next
+     * case), its captures stored once the whole pattern matched, then its guard (the captures kept where it fails),
+     * then its body. CPython's errors where the patterns cannot be compiled.
+     */
+    private fun matchStmt(s: Match) {
+        for ((i, c) in s.cases.withIndex()) {
+            checkPattern(c.pattern, HashSet())
+            if (i < s.cases.size - 1 && c.guard == null) unreachable(c.pattern)?.let { throw PySyntaxError(it, c.pattern.line, c.pattern.col) }
+        }
+        expr(s.subject)
+        val subject = temp()
+        emit(PyOp.STORE_FAST, subject)
+        val ends = ArrayList<Int>()
+        for (c in s.cases) {
+            lineHere(c.pattern.line)
+            val fails = ArrayList<Int>()
+            val caps = LinkedHashMap<String, Int>()
+            pattern(c.pattern, subject, fails, caps)
+            for ((n, r) in caps) {
+                emit(PyOp.LOAD_FAST, r)
+                storeName(n)
+            }
+            if (c.guard != null) {
+                expr(c.guard)
+                fails.add(emit(PyOp.POP_JUMP_IF_FALSE, 0))
+            }
+            block(c.body)
+            ends.add(emit(PyOp.JUMP, 0))
+            for (f in fails) patch(f, code.size)
+        }
+        for (e in ends) patch(e, code.size)
+    }
+
+    private fun irrefutable(p: Pattern): Boolean = when (p) {
+        is MatchAs -> p.pattern == null || irrefutable(p.pattern)
+        is MatchOr -> p.patterns.any { irrefutable(it) }
+        else -> false
+    }
+
+    /** Why a pattern that always matches makes the cases after it unreachable (CPython's message), or null. */
+    private fun unreachable(p: Pattern): String? = when {
+        p is MatchAs && p.pattern == null ->
+            if (p.name == null) "wildcard makes remaining patterns unreachable" else "name capture '${p.name}' makes remaining patterns unreachable"
+        p is MatchAs -> unreachable(p.pattern!!)
+        p is MatchOr -> p.patterns.firstOrNull { irrefutable(it) }?.let { unreachable(it) }
+        else -> null
+    }
+
+    /** A pattern's names, in order. */
+    private fun boundNames(p: Pattern, out: MutableList<String> = ArrayList()): MutableList<String> {
+        when (p) {
+            is MatchAs -> {
+                p.pattern?.let { boundNames(it, out) }
+                p.name?.let { out.add(it) }
+            }
+            is MatchStar -> p.name?.let { out.add(it) }
+            is MatchSequence -> p.patterns.forEach { boundNames(it, out) }
+            is MatchMapping -> {
+                p.patterns.forEach { boundNames(it, out) }
+                p.rest?.let { out.add(it) }
+            }
+            is MatchClass -> {
+                p.patterns.forEach { boundNames(it, out) }
+                p.kwdPatterns.forEach { boundNames(it, out) }
+            }
+            is MatchOr -> boundNames(p.patterns[0], out)
+            else -> {}
+        }
+        return out
+    }
+
+    /** CPython's compile-time checks of a pattern: names bound once, one star, or-patterns' names, mappings' keys. */
+    private fun checkPattern(p: Pattern, names: MutableSet<String>) {
+        fun bind(n: String?, at: Node) {
+            if (n == null) return
+            if (!names.add(n)) throw PySyntaxError("multiple assignments to name '$n' in pattern", at.line, at.col)
+        }
+        when (p) {
+            is MatchAs -> {
+                p.pattern?.let { checkPattern(it, names) }
+                bind(p.name, p)
+            }
+            is MatchStar -> bind(p.name, p)
+            is MatchSequence -> {
+                if (p.patterns.count { it is MatchStar } > 1) throw PySyntaxError("multiple starred names in sequence pattern", p.line, p.col)
+                p.patterns.forEach { checkPattern(it, names) }
+            }
+            is MatchMapping -> {
+                val seen = HashSet<String>()
+                for (k in p.keys) {
+                    val r = constantKey(k) ?: continue
+                    if (!seen.add(r)) throw PySyntaxError("mapping pattern checks duplicate key ($r)", p.line, p.col)
+                }
+                p.patterns.forEach { checkPattern(it, names) }
+                bind(p.rest, p)
+            }
+            is MatchClass -> {
+                p.patterns.forEach { checkPattern(it, names) }
+                p.kwdPatterns.forEach { checkPattern(it, names) }
+            }
+            is MatchOr -> {
+                var first: Set<String>? = null
+                for ((i, alt) in p.patterns.withIndex()) {
+                    if (i < p.patterns.size - 1 && irrefutable(alt)) throw PySyntaxError(unreachable(alt)!!, alt.line, alt.col)
+                    val mine = HashSet(names)
+                    checkPattern(alt, mine)
+                    val bound = mine - names
+                    if (first == null) first = bound else if (first != bound) throw PySyntaxError("alternative patterns bind different names", p.line, p.col)
+                }
+                names.addAll(first ?: emptySet())
+            }
+            else -> {}
+        }
+    }
+
+    /** A mapping pattern's key as CPython's duplicate check writes it, where it is a literal. */
+    private fun constantKey(k: Expr): String? = when {
+        k is Constant -> PyRt.repr(k.value)
+        k is UnaryOp && k.op == UnaryOpKind.USub && k.operand is Constant -> PyRt.repr(PyRt.neg((k.operand as Constant).value))
+        else -> null
+    }
+
+    /** Tests [p] against the value in register [v]: a failing test's jump in [fails], the captures' registers in [caps]. */
+    private fun pattern(p: Pattern, v: Int, fails: MutableList<Int>, caps: MutableMap<String, Int>) {
+        fun unpack(n: Int, star: Int = -1): IntArray {
+            if (star < 0) emit(PyOp.UNPACK, n) else emit(PyOp.UNPACK_EX, star, n - star - 1)
+            return IntArray(n) { temp().also { r -> emit(PyOp.STORE_FAST, r) } }
+        }
+        when (p) {
+            is MatchAs -> {
+                if (p.pattern != null) pattern(p.pattern, v, fails, caps)
+                if (p.name != null) caps[p.name] = v
+            }
+            is MatchValue -> {
+                emit(PyOp.LOAD_FAST, v)
+                expr(p.value)
+                emit(PyOp.EQ)
+                fails.add(emit(PyOp.POP_JUMP_IF_FALSE, 0))
+            }
+            is MatchSingleton -> {
+                emit(PyOp.LOAD_FAST, v)
+                loadConst(p.value)
+                emit(PyOp.IS)
+                fails.add(emit(PyOp.POP_JUMP_IF_FALSE, 0))
+            }
+            is MatchSequence -> {
+                emit(PyOp.LOAD_FAST, v)
+                emit(PyOp.MATCH_SEQUENCE)
+                fails.add(emit(PyOp.POP_JUMP_IF_FALSE, 0))
+                val star = p.patterns.indexOfFirst { it is MatchStar }
+                val n = p.patterns.size
+                emit(PyOp.LOAD_FAST, v)
+                emit(PyOp.GET_LEN)
+                loadConst((if (star < 0) n else n - 1).toLong())
+                emit(if (star < 0) PyOp.EQ else PyOp.GE)
+                fails.add(emit(PyOp.POP_JUMP_IF_FALSE, 0))
+                fun wildcard(x: Pattern) = x is MatchAs && x.pattern == null && x.name == null || x is MatchStar && x.name == null
+                if (p.patterns.all { wildcard(it) }) return
+                emit(PyOp.LOAD_FAST, v)
+                val regs = unpack(n, star)
+                for (i in 0 until n) {
+                    val sp = p.patterns[i]
+                    if (sp is MatchStar) sp.name?.let { caps[it] = regs[i] } else pattern(sp, regs[i], fails, caps)
+                }
+            }
+            is MatchMapping -> {
+                emit(PyOp.LOAD_FAST, v)
+                emit(PyOp.MATCH_MAPPING)
+                fails.add(emit(PyOp.POP_JUMP_IF_FALSE, 0))
+                val n = p.keys.size
+                if (n > 0) {
+                    emit(PyOp.LOAD_FAST, v)
+                    emit(PyOp.GET_LEN)
+                    loadConst(n.toLong())
+                    emit(PyOp.GE)
+                    fails.add(emit(PyOp.POP_JUMP_IF_FALSE, 0))
+                }
+                val keys = temp()
+                for (k in p.keys) expr(k)
+                emit(PyOp.BUILD_TUPLE, n)
+                emit(PyOp.STORE_FAST, keys)
+                if (n > 0) {
+                    val vals = temp()
+                    emit(PyOp.LOAD_FAST, v)
+                    emit(PyOp.LOAD_FAST, keys)
+                    emit(PyOp.MATCH_KEYS)
+                    emit(PyOp.STORE_FAST, vals)
+                    emit(PyOp.LOAD_FAST, vals)
+                    loadConst(PyNone)
+                    emit(PyOp.IS)
+                    fails.add(emit(PyOp.POP_JUMP_IF_TRUE, 0))
+                    emit(PyOp.LOAD_FAST, vals)
+                    val regs = unpack(n)
+                    for (i in 0 until n) pattern(p.patterns[i], regs[i], fails, caps)
+                }
+                if (p.rest != null) {
+                    val r = temp()
+                    emit(PyOp.LOAD_FAST, v)
+                    emit(PyOp.LOAD_FAST, keys)
+                    emit(PyOp.COPY_DICT_WITHOUT_KEYS)
+                    emit(PyOp.STORE_FAST, r)
+                    caps[p.rest] = r
+                }
+            }
+            is MatchClass -> {
+                val attrs = temp()
+                emit(PyOp.LOAD_FAST, v)
+                expr(p.cls)
+                loadConst(PyTuple(p.kwdAttrs.map { PyStr(it) }.toTypedArray()))
+                emit(PyOp.MATCH_CLASS, p.patterns.size)
+                emit(PyOp.STORE_FAST, attrs)
+                emit(PyOp.LOAD_FAST, attrs)
+                loadConst(PyNone)
+                emit(PyOp.IS)
+                fails.add(emit(PyOp.POP_JUMP_IF_TRUE, 0))
+                val subs = p.patterns + p.kwdPatterns
+                if (subs.isNotEmpty()) {
+                    emit(PyOp.LOAD_FAST, attrs)
+                    val regs = unpack(subs.size)
+                    for (i in subs.indices) pattern(subs[i], regs[i], fails, caps)
+                }
+            }
+            is MatchOr -> {
+                val names = boundNames(p.patterns[0])
+                val shared = names.associateWith { temp() }
+                val succ = ArrayList<Int>()
+                for ((i, alt) in p.patterns.withIndex()) {
+                    val last = i == p.patterns.size - 1
+                    val altFails = if (last) fails else ArrayList()
+                    val altCaps = LinkedHashMap<String, Int>()
+                    pattern(alt, v, altFails, altCaps)
+                    for (n in names) {
+                        emit(PyOp.LOAD_FAST, altCaps[n]!!)
+                        emit(PyOp.STORE_FAST, shared[n]!!)
+                    }
+                    if (!last) {
+                        succ.add(emit(PyOp.JUMP, 0))
+                        for (f in altFails) patch(f, code.size)
+                    }
+                }
+                for (s in succ) patch(s, code.size)
+                caps.putAll(shared)
+            }
+            is MatchStar -> throw PySyntaxError("can't use starred expression here", p.line, p.col)
+        }
     }
 
     /** A with's __exit__ (bound, in register [exit]) called with three Nones, its result dropped. */

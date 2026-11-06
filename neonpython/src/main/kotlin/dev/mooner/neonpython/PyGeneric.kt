@@ -51,6 +51,7 @@ internal class Generic(
         const val SETS = "dev/mooner/neonpython/PySets"
         const val LIT = "dev/mooner/neonpython/PyLiterals"
         const val LIB = "dev/mooner/neonpython/PyLibrary"
+        const val MATCH = "dev/mooner/neonpython/PyMatch"
     }
 }
 
@@ -121,6 +122,13 @@ internal object PyGeneric {
         t[PyOp.BUILD_INTERPOLATION] = Generic("buildInterpolation", "vvvv", pops = 4, result = true, throws = false, owner = lt)
         t[PyOp.BUILD_TEMPLATE] = Generic("buildTemplate", "vv", pops = 2, result = true, throws = false, owner = lt)
         t[PyOp.LOAD_LOCALS] = Generic("loadLocals", "vk", pops = 1, result = true, throws = false, owner = Generic.LIB)
+        val mt = Generic.MATCH
+        t[PyOp.MATCH_SEQUENCE] = Generic("matchSequence", "v", pops = 1, result = true, throws = false, owner = mt)
+        t[PyOp.MATCH_MAPPING] = Generic("matchMapping", "v", pops = 1, result = true, throws = false, owner = mt)
+        t[PyOp.GET_LEN] = Generic("getLen", "v", pops = 1, result = true, owner = mt)
+        t[PyOp.MATCH_KEYS] = Generic("matchKeys", "vv", pops = 2, result = true, owner = mt)
+        t[PyOp.COPY_DICT_WITHOUT_KEYS] = Generic("copyWithoutKeys", "vv", pops = 2, result = true, owner = mt)
+        t[PyOp.MATCH_CLASS] = Generic("matchClass", "vvva", pops = 3, result = true, owner = mt)
         t[PyOp.WRAP_STAR] = Generic("wrapStar", "v", pops = 1, result = true, throws = false, owner = c, flags = OpInfo.REMOVABLE or OpInfo.ALLOCATES)
     }
 

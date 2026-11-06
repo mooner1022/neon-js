@@ -213,13 +213,27 @@ object PyOp {
     /** k (values -- dict): locals() in a function, constants[k] its names (and which are cells) */
     const val LOAD_LOCALS = 133
 
+    // match (M6): a pattern's tests (PyMatch)
+    /** (v -- bool) */
+    const val MATCH_SEQUENCE = 134
+    /** (v -- bool) */
+    const val MATCH_MAPPING = 135
+    /** (v -- len) */
+    const val GET_LEN = 136
+    /** (mapping keys -- values or None) */
+    const val MATCH_KEYS = 137
+    /** (mapping keys -- dict): a mapping pattern's **rest */
+    const val COPY_DICT_WITHOUT_KEYS = 138
+    /** npos (v cls names -- attributes or None) */
+    const val MATCH_CLASS = 139
+
     const val COUNT = 200
 
     @JvmField val operands = IntArray(COUNT).also { o ->
         for (op in intArrayOf(LOAD_CONST, LOAD_FAST, LOAD_FAST_CHECK, STORE_FAST, LOAD_GLOBAL, STORE_GLOBAL, JUMP, POP_JUMP_IF_FALSE,
             POP_JUMP_IF_TRUE, CALL, BUILD_LIST, BUILD_TUPLE, BUILD_MAP, LOAD_ATTR, UNPACK, MAKE_FUNCTION, CALL_KW, CALL_EX, LOAD_FREE,
             SET_FUNCTION_ATTRIBUTE, DELETE_FAST, DELETE_GLOBAL, DELETE_ATTR, ASSERT_FAIL, LOAD_NAME, STORE_NAME, DELETE_NAME,
-            LOAD_FROM_DICT_OR_DEREF, STORE_ATTR, INPLACE, RAISE, LOAD_SPECIAL, FORMAT_VALUE, FORMAT_SPEC, BUILD_STRING, BUILD_SET, BUILD_SLICE, LOAD_FAST_RAW, LOAD_LOCALS)) o[op] = 1
+            LOAD_FROM_DICT_OR_DEREF, STORE_ATTR, INPLACE, RAISE, LOAD_SPECIAL, FORMAT_VALUE, FORMAT_SPEC, BUILD_STRING, BUILD_SET, BUILD_SLICE, LOAD_FAST_RAW, LOAD_LOCALS, MATCH_CLASS)) o[op] = 1
         for (op in intArrayOf(CELL_GET, CELL_DELETE, UNPACK_EX, SEND)) o[op] = 2
         o[FOR_ITER] = 3
     }
@@ -251,7 +265,8 @@ object PyOp {
         EXC_STAR_RAISED -> -2
         FORMAT_SPEC -> -1
         BUILD_STRING, BUILD_SET, BUILD_SLICE -> 1 - a
-        SET_ADD, SET_UPDATE, BUILD_TEMPLATE -> -1
+        SET_ADD, SET_UPDATE, BUILD_TEMPLATE, MATCH_KEYS, COPY_DICT_WITHOUT_KEYS -> -1
+        MATCH_CLASS -> -2
         BUILD_INTERPOLATION -> -3
         RAISE -> -a
         CALL -> -a

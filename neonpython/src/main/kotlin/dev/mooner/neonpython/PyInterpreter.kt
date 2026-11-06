@@ -447,6 +447,18 @@ object PyInterpreter {
                 s[sp++] = PyLiterals.buildInterpolation(p[0], p[1], p[2], p[3])
             }
             PyOp.LOAD_FAST_RAW -> s[sp++] = s[a]
+            PyOp.MATCH_SEQUENCE -> s[sp - 1] = PyMatch.matchSequence(s[sp - 1])
+            PyOp.MATCH_MAPPING -> s[sp - 1] = PyMatch.matchMapping(s[sp - 1])
+            PyOp.GET_LEN -> s[sp - 1] = PyMatch.getLen(s[sp - 1])
+            PyOp.MATCH_KEYS, PyOp.COPY_DICT_WITHOUT_KEYS -> {
+                val keys = pop()
+                s[sp - 1] = if (op == PyOp.MATCH_KEYS) PyMatch.matchKeys(s[sp - 1], keys) else PyMatch.copyWithoutKeys(s[sp - 1], keys)
+            }
+            PyOp.MATCH_CLASS -> {
+                val names = pop()
+                val cls = pop()
+                s[sp - 1] = PyMatch.matchClass(s[sp - 1], cls, names, a)
+            }
             PyOp.LOAD_LOCALS -> s[sp - 1] = PyLibrary.loadLocals(s[sp - 1], k[a])
             PyOp.BUILD_TEMPLATE -> {
                 val interps = pop()

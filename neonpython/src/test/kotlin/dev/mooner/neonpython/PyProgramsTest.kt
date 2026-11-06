@@ -405,6 +405,13 @@ class PyProgramsTest {
             "{}.update(1)\n" to Triple("TypeError", "'int' object is not iterable", 1),
             "{}.update([1])\n" to Triple("TypeError", "object is not iterable", 1),
             "[].insert(1)\n" to Triple("TypeError", "insert expected 2 arguments, got 1", 1),
+            "match 1:\n    case len():\n        pass\n" to Triple("TypeError", "called match pattern must be a class", 2),
+            "class C: pass\nmatch C():\n    case C(1):\n        pass\n" to Triple("TypeError", "C() accepts 0 positional sub-patterns (1 given)", 3),
+            "class C:\n    __match_args__ = (1,)\nmatch C():\n    case C(x):\n        pass\n" to Triple("TypeError", "__match_args__ elements must be strings (got int)", 4),
+            "class C:\n    __match_args__ = ('a',)\n    a = 1\nmatch C():\n    case C(x, a=y):\n        pass\n" to Triple("TypeError", "C() got multiple sub-patterns for attribute 'a'", 5),
+            "class C:\n    __match_args__ = ['a']\n    a = 1\nmatch C():\n    case C(x):\n        pass\n" to Triple("TypeError", "C.__match_args__ must be a tuple (got list)", 5),
+            "match 1:\n    case x if 1 / 0:\n        pass\n" to Triple("ZeroDivisionError", "division by zero", 2),
+            "match {'a': 1}:\n    case {'a': 1, **r} if r['x']:\n        pass\n" to Triple("KeyError", "'x'", 2),
         )
         for (mode in Mode.entries) for ((src, want) in cases) {
             val e = try {
@@ -439,7 +446,7 @@ class PyProgramsTest {
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
             "speculation", "functions", "closures", "unpacking", "types", "classes", "descriptors",
-            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods", "containers",
+            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods", "containers", "match",
         )
 
         /** The code blocks of [cb] and every function it defines. */
