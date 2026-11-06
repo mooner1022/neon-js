@@ -87,11 +87,23 @@ object PyCalls {
             pos.copyInto(all, 1)
             callWith(ctx, fn.fn, all, kwNames, kwValues)
         }
-        is PyType -> {
-            val kw = if (kwNames.isEmpty()) null else PyDict().also { d -> for (i in kwNames.indices) d[kwNames[i]] = kwValues[i] }
-            PyTypes.call(ctx, fn, pos, kw)
+        is PyType -> PyClasses.instantiate(ctx, fn, pos, kwNames, kwValues)
+        is PyMethod -> {
+            val all = arrayOfNulls<Any?>(pos.size + 1)
+            all[0] = fn.self
+            pos.copyInto(all, 1)
+            callWith(ctx, fn.fn, all, kwNames, kwValues)
         }
-        else -> throw PyRt.typeError("'${PyTypes.name(fn)}' object is not callable")
+        is PyStaticMethod -> callWith(ctx, fn.fn, pos, kwNames, kwValues)
+        else -> {
+            // an instance whose class has __call__
+            val call = (if (fn is PyObject) fn.type.lookup("__call__") else null)
+                ?: throw PyRt.typeError("'${PyTypes.name(fn)}' object is not callable")
+            val all = arrayOfNulls<Any?>(pos.size + 1)
+            all[0] = fn
+            pos.copyInto(all, 1)
+            callWith(ctx, call, all, kwNames, kwValues)
+        }
     }
 
     /** A function's name as the messages about its unpacked arguments give it: `__main__.f()`. */
@@ -301,9 +313,7 @@ object PyCalls {
         }
     }
 
-    @JvmStatic fun deleteAttr(obj: Any?, name: Any?) {
-        throw PyException("AttributeError", "'${PyTypes.name(obj)}' object has no attribute '$name'")
-    }
+    @JvmStatic fun deleteAttr(obj: Any?, name: Any?) = PyClasses.delAttr(obj, (name as PyStr).s)
 
     /** `assert` failing: an AssertionError, with the message where there is one. */
     @JvmStatic fun assertFail(msg: Array<Any?>) {

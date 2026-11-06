@@ -81,6 +81,10 @@ object PyTypes {
     @JvmField val CELL = builtin("cell", subclassable = false)
     @JvmField val ELLIPSIS = builtin("ellipsis", subclassable = false)
     @JvmField val NOT_IMPLEMENTED = builtin("NotImplementedType", subclassable = false)
+    @JvmField val SUPER = builtin("super")
+    @JvmField val PROPERTY = builtin("property")
+    @JvmField val STATICMETHOD = builtin("staticmethod")
+    @JvmField val CLASSMETHOD = builtin("classmethod")
 
     /**
      * The exception classes (docs/PYTHON_PLATFORM.md §11, M3 gives them their behaviour): by name, the hierarchy of
@@ -125,7 +129,12 @@ object PyTypes {
         is PyObject -> v.type
         is PyType -> v.meta ?: TYPE
         is PyFunction -> FUNCTION
+        is PyMethod -> METHOD
         is PyBuiltin, is PyBoundMethod -> BUILTIN_FUNCTION
+        is PySuper -> SUPER
+        is PyProperty -> PROPERTY
+        is PyStaticMethod -> STATICMETHOD
+        is PyClassMethod -> CLASSMETHOD
         is PyRange -> RANGE
         is PyIterator -> ITERATOR
         is PyComplex -> COMPLEX
@@ -179,10 +188,11 @@ object PyTypes {
         }
     }
 
-    /** A builtin type called: its value made by its [PyType.newImpl]. */
+    /** A type called (a builtin one or a class): the instance it makes. */
     @JvmStatic
-    fun call(ctx: PyContext, t: PyType, args: Array<Any?>, kw: PyDict?): Any? {
-        val impl = t.newImpl ?: throw PyRt.typeError("cannot create '${t.name}' instances")
-        return impl(ctx, t, args, kw)
-    }
+    fun call(ctx: PyContext, t: PyType, args: Array<Any?>, kw: PyDict?): Any? =
+        if (kw == null || kw.size == 0) PyClasses.instantiate(ctx, t, args, NO_ARGS, NO_ARGS)
+        else PyClasses.instantiate(ctx, t, args, kw.map.keys.map { it.v }.toTypedArray(), kw.map.values.toTypedArray())
+
+    private val NO_ARGS = arrayOfNulls<Any?>(0)
 }

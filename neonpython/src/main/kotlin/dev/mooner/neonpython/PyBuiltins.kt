@@ -188,6 +188,71 @@ object PyBuiltins {
             argc("issubclass", args, 2)
             PyBool.of(PyTypes.isSubclass(args[0], args[1]))
         }
+        // classes (M2)
+        PyClasses.ensure()
+        d[PyStr("__build_class__")] = PyBuiltin("__build_class__", { ctx, args -> PyClasses.buildClass(ctx, args, null) },
+            { ctx, args, kw -> PyClasses.buildClass(ctx, args, kw) })
+        type(PyTypes.SUPER) { _, args, kw ->
+            noKw("super", kw)
+            PyClasses.newSuper(args)
+        }
+        type(PyTypes.STATICMETHOD) { _, args, kw ->
+            noKw("staticmethod", kw)
+            argc("staticmethod", args, 1)
+            PyStaticMethod(args[0])
+        }
+        type(PyTypes.CLASSMETHOD) { _, args, kw ->
+            noKw("classmethod", kw)
+            argc("classmethod", args, 1)
+            PyClassMethod(args[0])
+        }
+        type(PyTypes.PROPERTY) { _, args, kw ->
+            if (args.size > 4) throw PyRt.typeError("property() takes at most 4 arguments (${args.size} given)")
+            fun arg(i: Int, n: String): Any? = (kw?.get(PyStr(n)) ?: args.getOrNull(i)).let { if (it === PyNone) null else it }
+            PyProperty(arg(0, "fget"), arg(1, "fset"), arg(2, "fdel"), arg(3, "doc"))
+        }
+        PyTypes.PROPERTY.def("getter", PyBuiltin("getter") { _, a -> val p = a[0] as PyProperty; PyProperty(a[1], p.fset, p.fdel, p.doc) })
+        PyTypes.PROPERTY.def("setter", PyBuiltin("setter") { _, a -> val p = a[0] as PyProperty; PyProperty(p.fget, a[1], p.fdel, p.doc) })
+        PyTypes.PROPERTY.def("deleter", PyBuiltin("deleter") { _, a -> val p = a[0] as PyProperty; PyProperty(p.fget, p.fset, a[1], p.doc) })
+        def("getattr") { _, args ->
+            argc("getattr", args, 2, 3)
+            val n = args[1] as? PyStr ?: throw PyRt.typeError("attribute name must be string, not '${PyTypes.name(args[1])}'")
+            if (args.size == 2) PyRt.getAttr(args[0], n.s) else try {
+                PyRt.getAttr(args[0], n.s)
+            } catch (e: PyException) {
+                if (e.type == "AttributeError") args[2] else throw e
+            }
+        }
+        def("setattr") { _, args ->
+            argc("setattr", args, 3)
+            val n = args[1] as? PyStr ?: throw PyRt.typeError("attribute name must be string, not '${PyTypes.name(args[1])}'")
+            PyClasses.setAttr(args[0], n.s, args[2])
+            PyNone
+        }
+        def("delattr") { _, args ->
+            argc("delattr", args, 2)
+            val n = args[1] as? PyStr ?: throw PyRt.typeError("attribute name must be string, not '${PyTypes.name(args[1])}'")
+            PyClasses.delAttr(args[0], n.s)
+            PyNone
+        }
+        def("hasattr") { _, args ->
+            argc("hasattr", args, 2)
+            val n = args[1] as? PyStr ?: throw PyRt.typeError("attribute name must be string, not '${PyTypes.name(args[1])}'")
+            try {
+                PyRt.getAttr(args[0], n.s)
+                PyBool.TRUE
+            } catch (e: PyException) {
+                if (e.type == "AttributeError") PyBool.FALSE else throw e
+            }
+        }
+        def("callable") { _, args ->
+            argc("callable", args, 1)
+            val v = args[0]
+            PyBool.of(v is PyFunction || v is PyBuiltin || v is PyBoundMethod || v is PyMethod || v is PyType || v is PyStaticMethod ||
+                v is PyObject && v.type.lookup("__call__") != null)
+        }
+        d[PyStr("NotImplemented")] = PyNotImplemented
+        d[PyStr("Ellipsis")] = PyEllipsis
         // the builtin types' methods
         PyTypes.LIST.def("append", LIST_APPEND)
         PyTypes.LIST.def("pop", LIST_POP)

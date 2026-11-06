@@ -18,16 +18,28 @@ class PyContext(@JvmField val out: Appendable = StringBuilder(), config: VmConfi
     @JvmField val builtins: PyDict = PyBuiltins.module()
 
     /** Runs the module [src]; returns its globals. */
-    fun exec(src: String, name: String = "<module>"): PyDict {
-        val cb = PyCompiler.compileModule(src, name)
+    fun exec(src: String, name: String = "<module>"): PyDict = exec(PyCompiler.compileModule(src, name), name)
+
+    /** Runs a module's code [cb] (PyCompiler.compileModule's); returns its globals. */
+    fun exec(cb: dev.mooner.neonjs.compiler.CodeUnit, name: String = "<module>"): PyDict {
         val globals = PyDict()
         globals[PyStr("__name__")] = PyStr("__main__")
-        PyInterpreter.call(this, PyFunction(cb, globals, name), NO_ARGS)
+        val outer = CURRENT.get()
+        CURRENT.set(this)
+        try {
+            PyInterpreter.call(this, PyFunction(cb, globals, name), NO_ARGS)
+        } finally {
+            CURRENT.set(outer)
+        }
         return globals
     }
 
-    private companion object {
-        val NO_ARGS = arrayOfNulls<Any?>(0)
+    companion object {
+        private val NO_ARGS = arrayOfNulls<Any?>(0)
+        private val CURRENT = ThreadLocal<PyContext?>()
+
+        /** The context running Python code on this thread (descriptors and __getattr__ call back into it). */
+        @JvmStatic fun current(): PyContext = CURRENT.get() ?: throw IllegalStateException("no Python code running")
     }
 }
 
@@ -39,7 +51,9 @@ class PyContext(@JvmField val out: Appendable = StringBuilder(), config: VmConfi
  */
 class PyFrame(@JvmField val code: CodeUnit, @JvmField val ctx: PyContext, @JvmField val globals: PyDict, args: Array<Any?>, compiled: CompiledCode?,
               /** the cells of its function's free variables (LOAD_FREE) */
-              @JvmField val closure: Array<Any?>? = null) :
+              @JvmField val closure: Array<Any?>? = null,
+              /** a class body's namespace (LOAD_NAME, STORE_NAME) */
+              @JvmField val locals: PyDict? = null) :
     VmFrame(args, if (compiled != null) NO_SLOTS else slotsFor(code), code.numRegs) {
     override val unit: CodeUnit get() = code
     override val agent: VmAgent get() = ctx.agent
@@ -71,6 +85,14 @@ object PyInterpreter {
     }
 
     private val NO_ARGS = arrayOfNulls<Any?>(0)
+
+    /** Runs a class body, function [fn] without arguments, on namespace [ns]. */
+    @JvmStatic
+    fun callWithLocals(ctx: PyContext, fn: PyFunction, ns: PyDict): Any? {
+        val code = fn.code
+        val c = Jit.prepare(code, ctx.agent)
+        return runFrame(PyFrame(code, ctx, fn.globals, NO_ARGS, c, fn.closure, ns), c)
+    }
 
     /** Runs [f] (with [c], or interpreted), with the agent's call depth and interrupts kept. */
     private fun runFrame(f: PyFrame, c: CompiledCode?): Any? {
@@ -337,6 +359,15 @@ object PyInterpreter {
             }
             PyOp.DELETE_ATTR -> PyCalls.deleteAttr(pop(), k[a])
             PyOp.ASSERT_FAIL -> PyCalls.assertFail(popN(a))
+            PyOp.LOAD_BUILD_CLASS -> s[sp++] = PyClasses.loadBuildClass(f)
+            PyOp.LOAD_NAME -> s[sp++] = PyClasses.loadName(f, k[a])
+            PyOp.STORE_NAME -> PyClasses.storeName(f, k[a], pop())
+            PyOp.DELETE_NAME -> PyClasses.deleteName(f, k[a])
+            PyOp.LOAD_FROM_DICT_OR_DEREF -> s[sp - 1] = PyClasses.loadFromDictOrDeref(f, s[sp - 1], k[a])
+            PyOp.STORE_ATTR -> {
+                val obj = pop()
+                PyClasses.storeAttr(pop(), obj, k[a])
+            }
             else -> throw IllegalStateException("bad opcode $op at $pc in ${f.code.name}")
         }
         return sp

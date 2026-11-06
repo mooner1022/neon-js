@@ -17,6 +17,8 @@ class PyCodeInfo(@JvmField val name: String, @JvmField val localNames: Array<Str
     @JvmField var varkw = false
     /** The parameters' names, in their registers' order. */
     @JvmField var paramNames: List<String> = emptyList()
+    /** Its docstring. */
+    @JvmField var doc: String? = null
 
     /**
      * The operand types the interpreter saw at each arithmetic and comparison instruction, by pc ([PyProfile]): made
@@ -50,6 +52,9 @@ class PyCodeInfo(@JvmField val name: String, @JvmField val localNames: Array<Str
  */
 class PyCompiler private constructor(private val st: PySymtable, private val scope: Scope, private val name: String) {
     private val module = scope.type == Scope.Type.MODULE
+    private val isClass = scope.type == Scope.Type.CLASS
+    /** A module's or a class body's: names in a dict (the globals, the class's namespace), not registers. */
+    private val namespace = module || isClass
     private val code = IntArrayList()
     private val constants = ArrayList<Any?>()
     private val constIndex = HashMap<Any, Int>()
@@ -66,7 +71,10 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     private val loops = ArrayList<Loop>()
 
     init {
-        if (!module) {
+        if (isClass) {
+            for (n in scope.frees) locals[n] = regs++
+            if (scope.classCell) locals["__class__"] = regs++
+        } else if (!module) {
             for (p in scope.params) locals[p] = regs++
             for (n in scope.flags.keys) {
                 val k = scope.kind(n)
@@ -88,7 +96,24 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     /** The code of [body]; [args], a function's parameters. */
     private fun compileBody(body: List<Stmt>, args: Arguments?): CodeUnit {
         prologue()
+        val doc = docstring(body)
+        if (isClass) {
+            // a class's __module__, __qualname__ and __doc__, first in its namespace
+            emit(PyOp.LOAD_GLOBAL, name("__name__"))
+            emit(PyOp.STORE_NAME, name("__module__"))
+            loadConst(PyStr(scope.qualname))
+            emit(PyOp.STORE_NAME, name("__qualname__"))
+            if (doc != null) {
+                loadConst(PyStr(doc))
+                emit(PyOp.STORE_NAME, name("__doc__"))
+            }
+        }
         for (s in body) stmt(s)
+        // a class's __class__ cell, which type.__new__ fills with the class
+        if (isClass && scope.classCell) {
+            emit(PyOp.LOAD_FAST, locals["__class__"]!!)
+            emit(PyOp.STORE_NAME, name("__classcell__"))
+        }
         // the end of the code: return None
         loadConst(PyNone)
         emit(PyOp.RETURN)
@@ -106,6 +131,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         for ((n, r) in locals) names[r] = n
         val info = PyCodeInfo(name, names, module)
         info.qualname = scope.qualname
+        if (!namespace) info.doc = doc
         if (args != null) {
             info.posonlyCount = args.posonlyargs.size
             info.argcount = args.posonlyargs.size + args.args.size
@@ -118,9 +144,23 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         return cb
     }
 
+    /** A body's docstring: its first statement, where that is a string. */
+    private fun docstring(body: List<Stmt>): String? = ((body.firstOrNull() as? ExprStmt)?.value as? Constant)?.value.let { (it as? PyStr)?.s }
+
     /** A function's start: its cells made (a parameter's holding its argument), its free variables' cells taken. */
     private fun prologue() {
         if (module) return
+        if (isClass) {
+            for ((k, n) in scope.frees.withIndex()) {
+                emit(PyOp.LOAD_FREE, k)
+                emit(PyOp.STORE_FAST, locals[n]!!)
+            }
+            if (scope.classCell) {
+                emit(PyOp.NEW_CELL)
+                emit(PyOp.STORE_FAST, locals["__class__"]!!)
+            }
+            return
+        }
         for (n in scope.cells) {
             val r = locals[n]!!
             if (n in scope.params) {
@@ -167,6 +207,17 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     // ------------------------------------------------------------------ names
 
     private fun loadName(n: String) {
+        if (isClass) {
+            when (scope.kind(n)) {
+                Scope.Kind.GLOBAL_EXPLICIT -> emit(PyOp.LOAD_GLOBAL, name(n))
+                Scope.Kind.FREE, Scope.Kind.CELL -> {
+                    emit(PyOp.LOAD_FAST, locals[n]!!)
+                    emit(PyOp.LOAD_FROM_DICT_OR_DEREF, name(n))
+                }
+                else -> emit(PyOp.LOAD_NAME, name(n))
+            }
+            return
+        }
         when (scope.kind(n)) {
             Scope.Kind.LOCAL -> if (module) emit(PyOp.LOAD_GLOBAL, name(n)) else emit(PyOp.LOAD_FAST, locals[n]!!)
             Scope.Kind.CELL, Scope.Kind.FREE -> {
@@ -178,6 +229,17 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     }
 
     private fun storeName(n: String) {
+        if (isClass) {
+            when (scope.kind(n)) {
+                Scope.Kind.GLOBAL_EXPLICIT -> emit(PyOp.STORE_GLOBAL, name(n))
+                Scope.Kind.FREE -> if ((scope.flags[n] ?: 0) and Scope.DEF_NONLOCAL != 0) {
+                    emit(PyOp.LOAD_FAST, locals[n]!!)
+                    emit(PyOp.CELL_SET)
+                } else emit(PyOp.STORE_NAME, name(n))
+                else -> emit(PyOp.STORE_NAME, name(n))
+            }
+            return
+        }
         when (scope.kind(n)) {
             Scope.Kind.LOCAL -> if (module) emit(PyOp.STORE_GLOBAL, name(n)) else emit(PyOp.STORE_FAST, locals[n]!!)
             Scope.Kind.CELL, Scope.Kind.FREE -> {
@@ -189,6 +251,13 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     }
 
     private fun deleteName(n: String) {
+        if (isClass) {
+            when (scope.kind(n)) {
+                Scope.Kind.GLOBAL_EXPLICIT -> emit(PyOp.DELETE_GLOBAL, name(n))
+                else -> emit(PyOp.DELETE_NAME, name(n))
+            }
+            return
+        }
         when (scope.kind(n)) {
             Scope.Kind.LOCAL -> if (module) emit(PyOp.DELETE_GLOBAL, name(n)) else {
                 // (a local without a value is an UnboundLocalError: loading it, as the check after this does)
@@ -289,7 +358,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 storeName(s.name)
             }
             is Return -> {
-                if (module) throw PySyntaxError("'return' outside function", s.line, s.col)
+                if (namespace) throw PySyntaxError("'return' outside function", s.line, s.col)
                 if (s.value == null) loadConst(PyNone) else expr(s.value)
                 emit(PyOp.RETURN)
             }
@@ -312,7 +381,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 val loop = loops.lastOrNull() ?: throw PySyntaxError("'continue' not properly in loop", s.line, s.col)
                 emit(PyOp.JUMP, loop.top)
             }
-            is ClassDef -> unsupported("class", s)
+            is ClassDef -> classDef(s)
             is Try -> unsupported(if (s.star) "try with except*" else "try", s)
             is Raise -> unsupported("raise", s)
             is With -> unsupported(if (s.isAsync) "async with" else "with", s)
@@ -374,7 +443,10 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 else emit(PyOp.UNPACK_EX, star, elts.size - star - 1)
                 for (e in elts) store(if (e is Starred) e.value else e)
             }
-            is Attribute -> unsupported("assignment to an attribute", t)
+            is Attribute -> {
+                expr(t.value)
+                emit(PyOp.STORE_ATTR, name(t.attr))
+            }
             else -> unsupported("assignment to this target", t)
         }
     }
@@ -425,8 +497,42 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 emit(PyOp.LOAD_FAST, k)
                 emit(PyOp.STORE_SUBSCR)
             }
+            is Attribute -> {
+                // obj once: in a temporary
+                val o = temp()
+                expr(t.value)
+                emit(PyOp.STORE_FAST, o)
+                emit(PyOp.LOAD_FAST, o)
+                emit(PyOp.LOAD_ATTR, name(t.attr))
+                expr(s.value)
+                emit(op)
+                emit(PyOp.LOAD_FAST, o)
+                emit(PyOp.STORE_ATTR, name(t.attr))
+            }
             else -> unsupported("augmented assignment to this target", s)
         }
+    }
+
+    /**
+     * `class`: __build_class__(the body as a function, its name, *bases, **keywords), the decorators applied, the
+     * class stored under its name.
+     */
+    private fun classDef(s: ClassDef) {
+        if (s.typeParams.isNotEmpty()) unsupported("type parameters", s)
+        for (d in s.decoratorList) expr(d)
+        emit(PyOp.LOAD_BUILD_CLASS)
+        val child = st.scopes[s]!!
+        if (child.frees.isNotEmpty()) {
+            for (n in child.frees) emit(PyOp.LOAD_FAST, locals[n] ?: throw IllegalStateException("no cell for $n in $name"))
+            emit(PyOp.BUILD_TUPLE, child.frees.size)
+        }
+        val cb = PyCompiler(st, child, s.name).compileBody(s.body, null)
+        emit(PyOp.MAKE_FUNCTION, const(cb))
+        if (child.frees.isNotEmpty()) emit(PyOp.SET_FUNCTION_ATTRIBUTE, 8)
+        loadConst(PyStr(s.name))
+        callArgs(2, s.bases, s.keywords)
+        repeat(s.decoratorList.size) { emit(PyOp.CALL, 1) }
+        storeName(s.name)
     }
 
     // ------------------------------------------------------------------ expressions
@@ -611,48 +717,63 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
      * CALL_EX with `*` or `**` (the positional arguments a list, the keyword arguments a list of dicts).
      */
     private fun call(e: Call) {
-        val seen = HashSet<String>()
-        for (k in e.keywords) if (k.arg != null && !seen.add(k.arg)) throw PySyntaxError("keyword argument repeated: ${k.arg}", k.line, k.col)
-        expr(e.func)
-        val unpacking = e.args.any { it is Starred } || e.keywords.any { it.arg == null }
-        if (!unpacking) {
-            for (a in e.args) expr(a)
-            if (e.keywords.isEmpty()) {
-                emit(PyOp.CALL, e.args.size)
-                return
-            }
-            for (k in e.keywords) expr(k.value)
-            loadConst(PyTuple(Array(e.keywords.size) { PyStr(e.keywords[it].arg!!) }))
-            emit(PyOp.CALL_KW, e.args.size + e.keywords.size)
+        // super() in a method: super(__class__, its first parameter)
+        if (e.func is Name && (e.func as Name).id == "super" && e.args.isEmpty() && e.keywords.isEmpty() &&
+            scope.kind("super") == Scope.Kind.GLOBAL_IMPLICIT && scope.type == Scope.Type.FUNCTION &&
+            scope.params.isNotEmpty() && scope.kind("__class__") == Scope.Kind.FREE) {
+            emit(PyOp.LOAD_GLOBAL, name("super"))
+            loadName("__class__")
+            loadName(scope.params[0])
+            emit(PyOp.CALL, 2)
             return
         }
-        val first = e.args.indexOfFirst { it is Starred }.let { if (it < 0) e.args.size else it }
-        for (k in 0 until first) expr(e.args[k])
-        emit(PyOp.BUILD_LIST, first)
-        for (k in first until e.args.size) {
-            val x = e.args[k]
+        expr(e.func)
+        callArgs(0, e.args, e.keywords)
+    }
+
+    /** A call's arguments, after the callable and [pushed] arguments already on the stack, and the call. */
+    private fun callArgs(pushed: Int, args: List<Expr>, keywords: List<Keyword>) {
+        val seen = HashSet<String>()
+        for (k in keywords) if (k.arg != null && !seen.add(k.arg)) throw PySyntaxError("keyword argument repeated: ${k.arg}", k.line, k.col)
+        val unpacking = args.any { it is Starred } || keywords.any { it.arg == null }
+        if (!unpacking) {
+            for (a in args) expr(a)
+            if (keywords.isEmpty()) {
+                emit(PyOp.CALL, pushed + args.size)
+                return
+            }
+            for (k in keywords) expr(k.value)
+            loadConst(PyTuple(Array(keywords.size) { PyStr(keywords[it].arg!!) }))
+            emit(PyOp.CALL_KW, pushed + args.size + keywords.size)
+            return
+        }
+        val first = args.indexOfFirst { it is Starred }.let { if (it < 0) args.size else it }
+        for (k in 0 until first) expr(args[k])
+        emit(PyOp.BUILD_LIST, pushed + first)
+        for (k in first until args.size) {
+            val x = args[k]
             if (x is Starred) {
                 expr(x.value)
                 emit(PyOp.WRAP_STAR)
             } else expr(x)
             emit(PyOp.LIST_APPEND)
         }
-        if (e.keywords.isEmpty()) {
+        if (keywords.isEmpty()) {
             emit(PyOp.CALL_EX, 0)
             return
         }
         emit(PyOp.BUILD_LIST, 0)
         var k = 0
-        while (k < e.keywords.size) {
-            val kw = e.keywords[k]
+        while (k < keywords.size) {
+            val kw = keywords[k]
             if (kw.arg == null) {
                 expr(kw.value)
                 k++
             } else {
                 var n = 0
-                while (k < e.keywords.size && e.keywords[k].arg != null) {
-                    loadConst(PyStr(e.keywords[k].arg!!))
-                    expr(e.keywords[k].value)
+                while (k < keywords.size && keywords[k].arg != null) {
+                    loadConst(PyStr(keywords[k].arg!!))
+                    expr(keywords[k].value)
                     k++
                     n++
                 }
@@ -708,7 +829,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
      * forward dataflow of the registers that may be unbound, parameters bound at the start.
      */
     private fun markUnbound(bc: IntArray) {
-        if (module) return
+        if (namespace) return
         val n = regs
         val maybe = arrayOfNulls<java.util.BitSet>(bc.size)
         val start = java.util.BitSet(n)

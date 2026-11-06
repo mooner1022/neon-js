@@ -175,6 +175,8 @@ class PyFunction(@JvmField val code: CodeUnit, @JvmField val globals: PyDict, @J
     @JvmField var defaults: PyTuple? = null
     @JvmField var kwdefaults: PyDict? = null
     @JvmField var closure: Array<Any?>? = null
+    /** Its attributes (`f.attr = v`). */
+    @JvmField var dict: PyDict? = null
 
     /** Whether a call of exactly [params] positional arguments needs no binding (no keyword-only, *args, **kwargs). */
     @JvmField val simple: Boolean = info.kwonlyCount == 0 && !info.varargs && !info.varkw

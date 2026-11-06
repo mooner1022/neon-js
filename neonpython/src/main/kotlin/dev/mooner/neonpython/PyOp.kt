@@ -135,12 +135,27 @@ object PyOp {
     /** (v -- starred) a call's `*v`, which CALL_EX unpacks (its errors name the function) */
     const val WRAP_STAR = 100
 
+    // classes (M2)
+    /** ( -- __build_class__) */
+    const val LOAD_BUILD_CLASS = 101
+    /** k ( -- v): a class body's name: its namespace, the globals, the builtins */
+    const val LOAD_NAME = 102
+    /** k (v -- ) into a class body's namespace */
+    const val STORE_NAME = 103
+    /** k ( -- ) */
+    const val DELETE_NAME = 104
+    /** k (cell -- v): a class body's free variable, its namespace's value where it has one */
+    const val LOAD_FROM_DICT_OR_DEREF = 105
+    /** k (v obj -- ) obj.name = v */
+    const val STORE_ATTR = 106
+
     const val COUNT = 200
 
     @JvmField val operands = IntArray(COUNT).also { o ->
         for (op in intArrayOf(LOAD_CONST, LOAD_FAST, LOAD_FAST_CHECK, STORE_FAST, LOAD_GLOBAL, STORE_GLOBAL, JUMP, POP_JUMP_IF_FALSE,
             POP_JUMP_IF_TRUE, CALL, BUILD_LIST, BUILD_TUPLE, BUILD_MAP, LOAD_ATTR, UNPACK, MAKE_FUNCTION, CALL_KW, CALL_EX, LOAD_FREE,
-            SET_FUNCTION_ATTRIBUTE, DELETE_FAST, DELETE_GLOBAL, DELETE_ATTR, ASSERT_FAIL)) o[op] = 1
+            SET_FUNCTION_ATTRIBUTE, DELETE_FAST, DELETE_GLOBAL, DELETE_ATTR, ASSERT_FAIL, LOAD_NAME, STORE_NAME, DELETE_NAME,
+            LOAD_FROM_DICT_OR_DEREF, STORE_ATTR)) o[op] = 1
         for (op in intArrayOf(CELL_GET, CELL_DELETE, UNPACK_EX)) o[op] = 2
         o[FOR_ITER] = 3
     }
@@ -159,7 +174,9 @@ object PyOp {
     /** The change of the operand stack's depth the instruction [op] with operand [a] makes. */
     fun stackEffect(op: Int, a: Int, b: Int = 0): Int = when (op) {
         CALL_KW, CALL_EX -> -1 - a
-        NEW_CELL, LOAD_FREE -> 1
+        NEW_CELL, LOAD_FREE, LOAD_BUILD_CLASS, LOAD_NAME -> 1
+        STORE_NAME -> -1
+        STORE_ATTR -> -2
         CELL_SET, DELETE_SUBSCR, MAP_ADD -> -2
         CELL_DELETE, SET_FUNCTION_ATTRIBUTE, LIST_APPEND, LIST_EXTEND, DICT_UPDATE, DELETE_ATTR -> -1
         UNPACK_EX -> a + b

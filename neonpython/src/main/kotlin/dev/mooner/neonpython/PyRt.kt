@@ -14,6 +14,8 @@ object PyRt {
 
     @JvmStatic fun typeError(msg: String) = PyException("TypeError", msg)
 
+    private val NO_KW = arrayOfNulls<Any?>(0)
+
     private fun t(v: Any?) = PyTypes.name(v)
 
     // ------------------------------------------------------------------ numbers
@@ -343,6 +345,7 @@ object PyRt {
         is PyDict -> v.map.entries.joinToString(", ", "{", "}") { repr(it.key.v) + ": " + repr(it.value) }
         is PyRange -> if (v.step == 1L) "range(${v.start}, ${v.stop})" else "range(${v.start}, ${v.stop}, ${v.step})"
         is PyType -> v.repr()
+        is PyObject -> "<${v.type.module}.${v.type.qualname} object at 0x${Integer.toHexString(System.identityHashCode(v)).padStart(16, '0').uppercase()}>"
         else -> v.toString()
     }
 
@@ -458,29 +461,11 @@ object PyRt {
         }
     }
 
-    /** obj.name: a type's attribute, or one of the type of [obj] (a builtin's method bound to it). */
-    @JvmStatic fun getAttr(obj: Any?, name: String): Any? {
-        if (obj is PyType) return typeAttr(obj, name)
-        val type = PyTypes.typeOf(obj)
-        when (val d = type.lookup(name)) {
-            null -> {}
-            is PyBuiltin -> return PyBoundMethod(obj, d)
-            else -> return d
-        }
-        throw PyException("AttributeError", "'${type.name}' object has no attribute '$name'")
-    }
-
-    /** C.name: its attribute through its MRO (a method unbound), or what every type has. */
-    @JvmStatic fun typeAttr(t: PyType, name: String): Any? {
-        t.lookup(name)?.let { return it }
-        return when (name) {
-            "__name__" -> PyStr(t.name)
-            "__qualname__" -> PyStr(t.qualname)
-            "__module__" -> PyStr(t.module)
-            "__mro__" -> PyTuple(arrayOf(*t.mro))
-            "__bases__" -> PyTuple(arrayOf(*t.bases))
-            else -> throw PyException("AttributeError", "type object '${t.name}' has no attribute '$name'")
-        }
+    /** obj.name (PyClasses: types, super, instances, the attributes of every object). */
+    @JvmStatic fun getAttr(obj: Any?, name: String): Any? = when (obj) {
+        is PyType -> PyClasses.typeAttr(obj, name)
+        is PySuper -> PyClasses.superAttr(obj, name)
+        else -> PyClasses.getAttr(obj, name)
     }
 
     @JvmStatic fun iter(v: Any?): PyIterator = when (v) {
@@ -673,7 +658,7 @@ object PyRt {
                 fn.fn.impl(ctx, all)
             }
             is PyType -> PyTypes.call(ctx, fn, args, null)
-            else -> throw typeError("'${t(fn)}' object is not callable")
+            else -> PyCalls.callWith(ctx, fn, args, NO_KW, NO_KW)
         }
     }
 }

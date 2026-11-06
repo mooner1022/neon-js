@@ -87,8 +87,7 @@ class PyProgramsTest {
         val reasonsBefore = T2.baselineReasons.keys.toSet()
         for (name in programs()) {
             val cb = PyCompiler.compileModule(resource("$name.py"))
-            val ctx = PyContext(StringBuilder(), config(Mode.COMPILED))
-            PyInterpreter.call(ctx, PyFunction(cb, PyDict(), "<module>"), arrayOfNulls(0))
+            PyContext(StringBuilder(), config(Mode.COMPILED)).exec(cb)
             for (b in blocks(cb)) {
                 assertTrue(!b.jitFailed, "$name: ${b.name} not compiled (${T2.baselineReasons.keys})")
                 if (b.compiled != null) assertTrue(b.compiled is T2Code, "$name: ${b.name}: ${b.compiled}")
@@ -160,6 +159,26 @@ class PyProgramsTest {
             "a, *b, c = [1]\n" to Triple("ValueError", "not enough values to unpack (expected at least 2, got 1)", 1),
             "[*1]\n" to Triple("TypeError", "Value after * must be an iterable, not int", 1),
             "{**1}\n" to Triple("TypeError", "'int' object is not a mapping", 1),
+            // classes and their instances (M2)
+            "class C: pass\nC(1)\n" to Triple("TypeError", "C() takes no arguments", 2),
+            "class C:\n    def __init__(self): pass\nC(1)\n" to Triple("TypeError", "C.__init__() takes 1 positional argument but 2 were given", 3),
+            "class C:\n    def __init__(self, x):\n        super().__init__(x)\nC(1)\n" to
+                Triple("TypeError", "object.__init__() takes exactly one argument (the instance to initialize)", 3),
+            "class C:\n    def __new__(cls, x):\n        return object.__new__(cls, x)\nC(1)\n" to
+                Triple("TypeError", "object.__new__() takes exactly one argument (the type to instantiate)", 3),
+            "class A: pass\nclass B(A): pass\nclass C(A, B): pass\n" to
+                Triple("TypeError", "Cannot create a consistent method resolution order (MRO) for bases A, B", 3),
+            "class M1(type): pass\nclass M2(type): pass\nclass A(metaclass=M1): pass\nclass B(metaclass=M2): pass\nclass C(A, B): pass\n" to
+                Triple("TypeError", "metaclass conflict: the metaclass of a derived class must be a (non-strict) subclass of the metaclasses of all its bases", 5),
+            "class A: pass\nclass B(A, x=1): pass\n" to Triple("TypeError", "B.__init_subclass__() takes no keyword arguments", 2),
+            "class C:\n    def m():\n        return super()\nC.m()\n" to Triple("RuntimeError", "super(): no arguments", 3),
+            "class C: pass\nC().x\n" to Triple("AttributeError", "'C' object has no attribute 'x'", 2),
+            "class C: pass\nC.x\n" to Triple("AttributeError", "type object 'C' has no attribute 'x'", 2),
+            "x = 1\nx.y = 2\n" to Triple("AttributeError", "'int' object has no attribute 'y' and no __dict__ for setting new attributes", 2),
+            "class B(bool): pass\n" to Triple("TypeError", "type 'bool' is not an acceptable base type", 1),
+            "class C:\n    def __init__(self): return 1\nC()\n" to Triple("TypeError", "__init__() should return None, not 'int'", 3),
+            "class C: pass\nC()()\n" to Triple("TypeError", "'C' object is not callable", 2),
+            "int.x = 1\n" to Triple("TypeError", "cannot set 'x' attribute of immutable type 'int'", 1),
         )
         for (mode in Mode.entries) for ((src, want) in cases) {
             val e = try {
@@ -193,7 +212,7 @@ class PyProgramsTest {
         @JvmStatic
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
-            "speculation", "functions", "closures", "unpacking", "types",
+            "speculation", "functions", "closures", "unpacking", "types", "classes",
         )
 
         /** The code blocks of [cb] and every function it defines. */

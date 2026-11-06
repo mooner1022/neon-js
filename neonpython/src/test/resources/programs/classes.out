@@ -1,0 +1,17 @@
+3 -4 7 2 2 A point.
+4 -3 True True True
+7 Point Point __main__
+3 2
+7 True True norm1
+6 3 True True (<class '__main__.Point'>,) (<class '__main__.Point3'>, <class '__main__.Point'>, <class 'object'>)
+['D', 'B', 'C', 'A'] (<class '__main__.D'>, <class '__main__.B'>, <class '__main__.C'>, <class '__main__.A'>, <class 'object'>)
+2 a b
+3 [0, 1, 4] 3
+1 none True False
+False False {}
+f f doc of f (2,) {'c': 3} tagged __main__
+T 1 10 (<class '__main__.T'>, <class 'object'>)
+withmeta True True
+['R1:one', 'R2:?']
+hello from Greeter
+Outer.Inner Outer.Inner

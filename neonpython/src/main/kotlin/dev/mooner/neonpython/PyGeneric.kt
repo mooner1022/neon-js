@@ -44,6 +44,7 @@ internal class Generic(
     companion object {
         const val RT = "dev/mooner/neonpython/PyRt"
         const val CALLS = "dev/mooner/neonpython/PyCalls"
+        const val CLASSES = "dev/mooner/neonpython/PyClasses"
     }
 }
 
@@ -78,6 +79,13 @@ internal object PyGeneric {
         t[PyOp.DELETE_SUBSCR] = Generic("deleteSubscr", "vv", pops = 2, result = false, owner = c)
         t[PyOp.DELETE_ATTR] = Generic("deleteAttr", "vk", pops = 1, result = false, owner = c)
         t[PyOp.ASSERT_FAIL] = Generic("assertFail", "n", pops = 0, popsPerA = 1, result = false, owner = c)
+        val k = Generic.CLASSES
+        t[PyOp.LOAD_BUILD_CLASS] = Generic("loadBuildClass", "f", pops = 0, result = true, owner = k)
+        t[PyOp.LOAD_NAME] = Generic("loadName", "fk", pops = 0, result = true, owner = k)
+        t[PyOp.STORE_NAME] = Generic("storeName", "fkv", pops = 1, result = false, throws = false, owner = k)
+        t[PyOp.DELETE_NAME] = Generic("deleteName", "fk", pops = 0, result = false, owner = k)
+        t[PyOp.LOAD_FROM_DICT_OR_DEREF] = Generic("loadFromDictOrDeref", "fvk", pops = 1, result = true, owner = k)
+        t[PyOp.STORE_ATTR] = Generic("storeAttr", "vvk", pops = 2, result = false, owner = k)
         t[PyOp.WRAP_STAR] = Generic("wrapStar", "v", pops = 1, result = true, throws = false, owner = c, flags = OpInfo.REMOVABLE or OpInfo.ALLOCATES)
     }
 
