@@ -20,6 +20,14 @@ object PyEval {
 
     init {
         PyTypes.FUNCTION.newImpl = { _, _, a, kw -> newFunction(a, kw?.takeIf { it.size > 0 }) }
+        // (types.MethodType(function, instance): the function bound to it, as method_new makes one)
+        PyTypes.METHOD.newImpl = { _, _, a, kw ->
+            if (kw != null && kw.size > 0) throw PyRt.typeError("method() takes no keyword arguments")
+            if (a.size != 2) throw PyRt.typeError("method expected 2 arguments, got ${a.size}")
+            if (!PyCalls.isCallable(a[0])) throw PyRt.typeError("first argument must be callable")
+            if (a[1] === PyNone) throw PyRt.typeError("instance must not be None")
+            PyMethod(a[0], a[1])
+        }
         // (types.CellType(contents): a cell, empty without them)
         PyTypes.CELL.newImpl = { _, _, a, kw ->
             if (kw != null && kw.size > 0) throw PyRt.typeError("cell() takes no keyword arguments")

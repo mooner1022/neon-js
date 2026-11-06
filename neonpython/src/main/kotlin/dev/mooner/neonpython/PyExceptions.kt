@@ -91,6 +91,7 @@ object PyExceptions {
                 o.setField("errno", a[0])
                 o.setField("strerror", a[1])
                 if (a.size > 2) o.setField("filename", a[2])
+                if (a.size > 4) o.setField("filename2", a[4])
             }
         }
     }
@@ -500,7 +501,7 @@ object PyExceptions {
         // the builtin subclasses' fields and messages
         for ((t, names) in listOf(
             type("StopIteration") to listOf("value"), type("StopAsyncIteration") to listOf("value"), type("SystemExit") to listOf("code"),
-            type("OSError") to listOf("errno", "strerror", "filename"), type("NameError") to listOf("name"),
+            type("OSError") to listOf("errno", "strerror", "filename", "filename2"), type("NameError") to listOf("name"),
             type("AttributeError") to listOf("name", "obj"), type("ImportError") to listOf("name", "path"),
             type("SyntaxError") to listOf("msg", "filename", "lineno", "offset", "text", "end_lineno", "end_offset", "print_file_and_line"),
         )) for (n in names) prop(t, n, { it.field(n) }) { o, v -> o.setField(n, v) }
@@ -549,7 +550,9 @@ object PyExceptions {
             val errno = o.field("errno")
             PyStr(if (errno !== PyNone) {
                 val fn = o.field("filename")
-                "[Errno ${PyRt.str(errno)}] ${PyRt.str(o.field("strerror"))}" + if (fn !== PyNone) ": ${PyRt.repr(fn)}" else ""
+                val fn2 = o.field("filename2")
+                "[Errno ${PyRt.str(errno)}] ${PyRt.str(o.field("strerror"))}" +
+                    if (fn !== PyNone && fn2 !== PyNone) ": ${PyRt.repr(fn)} -> ${PyRt.repr(fn2)}" else if (fn !== PyNone) ": ${PyRt.repr(fn)}" else ""
             } else baseStr(o))
         }
     }

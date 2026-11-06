@@ -46,29 +46,43 @@ object PyBuiltins {
         fun def(name: String, impl: (PyContext, Array<Any?>) -> Any?) {
             d[PyStr(name)] = PyBuiltin(name, impl)
         }
-        // print(*objects, sep=' ', end='\n', file=None, flush=False)
+        // print(*objects, sep=' ', end='\n', file=None, flush=False): to sys.stdout as it is now where file is None
         fun print(ctx: PyContext, args: Array<Any?>, kw: PyDict?): Any? {
             var sep = " "
             var end = "\n"
-            var file: Any? = null
+            var file: Any? = PyNone
+            var flush = false
             if (kw != null) for ((k, v) in kw.map) {
                 when ((k.v as PyStr).s) {
                     "sep" -> sep = if (v === PyNone) " " else (v as? PyStr)?.s ?: throw PyRt.typeError("sep must be None or a string, not ${PyTypes.name(v)}")
                     "end" -> end = if (v === PyNone) "\n" else (v as? PyStr)?.s ?: throw PyRt.typeError("end must be None or a string, not ${PyTypes.name(v)}")
-                    "flush" -> {}
-                    "file" -> if (v !== PyNone) file = v
+                    "flush" -> flush = PyRt.truthy(v)
+                    "file" -> file = v
                     else -> throw PyRt.typeError("print() got an unexpected keyword argument '${k.v}'")
                 }
             }
-            val text = args.joinToString(sep) { PyRt.str(it) } + end
-            when (file) {
-                null -> ctx.out.append(text)
-                is PyStream -> file.out.append(text)
-                // (a file of one's own: its write)
-                else -> PyCalls.callWith(ctx, PyRt.getAttr(file, "write"), arrayOf(PyStr(text)), arrayOfNulls(0), arrayOfNulls(0))
+            if (file === PyNone) {
+                file = ctx.sysModule.dict[PyStr("stdout")] ?: throw PyException("RuntimeError", "lost sys.stdout")
+                // (sys.stdout None: nothing printed, as CPython does)
+                if (file === PyNone) return PyNone
             }
+            // (a standard stream: its text at once; else the file's write, each piece apart, as CPython calls it)
+            if (file is PyStream) {
+                if (file.closed) throw PyException("ValueError", "I/O operation on closed file.")
+                file.out.append(args.joinToString(sep) { PyRt.str(it) } + end)
+                return PyNone
+            }
+            val write = PyRt.getAttr(file, "write")
+            val none = arrayOfNulls<Any?>(0)
+            for ((i, x) in args.withIndex()) {
+                if (i > 0) PyCalls.callWith(ctx, write, arrayOf(PyStr(sep)), none, none)
+                PyCalls.callWith(ctx, write, arrayOf(PyStr(PyRt.str(x))), none, none)
+            }
+            PyCalls.callWith(ctx, write, arrayOf(PyStr(end)), none, none)
+            if (flush) PyCalls.callWith(ctx, PyRt.getAttr(file, "flush"), none, none, none)
             return PyNone
         }
+        d[PyStr("input")] = PyBuiltin("input") { ctx, args -> input(ctx, args) }
         d[PyStr("print")] = PyBuiltin("print", { ctx, args -> print(ctx, args, null) }, { ctx, args, kw -> print(ctx, args, kw) })
         def("len") { _, args ->
             argc("len", args, 1)
@@ -457,6 +471,27 @@ object PyBuiltins {
             is PyProperty -> (v.fget as? PyBuiltin)?.numSelf = true
         }
         return d
+    }
+
+    /**
+     * input(prompt=''): the prompt written to sys.stdout, a line read from sys.stdin without its newline; its end an
+     * EOFError (the context's stdin has nothing to read).
+     */
+    private fun input(ctx: PyContext, args: Array<Any?>): Any? {
+        if (args.size > 1) throw PyRt.typeError("input expected at most 1 argument, got ${args.size}")
+        val sys = ctx.sysModule.dict
+        val stdin = sys[PyStr("stdin")] ?: throw PyException("RuntimeError", "input(): lost sys.stdin")
+        val stdout = sys[PyStr("stdout")] ?: throw PyException("RuntimeError", "input(): lost sys.stdout")
+        if (stdin === PyNone) throw PyException("RuntimeError", "input(): lost sys.stdin")
+        if (stdout === PyNone) throw PyException("RuntimeError", "input(): lost sys.stdout")
+        val none = arrayOfNulls<Any?>(0)
+        sys[PyStr("stderr")]?.takeIf { it !== PyNone }?.let { e -> runCatching { PyCalls.callWith(ctx, PyRt.getAttr(e, "flush"), none, none, none) } }
+        if (args.isNotEmpty()) PyCalls.callWith(ctx, PyRt.getAttr(stdout, "write"), arrayOf(PyStr(PyRt.str(args[0]))), none, none)
+        PyCalls.callWith(ctx, PyRt.getAttr(stdout, "flush"), none, none, none)
+        val line = PyCalls.callWith(ctx, PyRt.getAttr(stdin, "readline"), none, none, none)
+        val s = line as? PyStr ?: throw PyRt.typeError("object.readline() returned non-string")
+        if (s.s.isEmpty()) throw PyException("EOFError", "EOF when reading a line")
+        return if (s.s.endsWith("\n")) PyStr(s.s.dropLast(1)) else s
     }
 
     /** dict(src, **kw) and dict.__init__: the pairs of a mapping or an iterable of pairs, then the keywords. */

@@ -32,6 +32,30 @@ object PyStdlib {
     private fun read(rel: String): String =
         PyStdlib::class.java.getResourceAsStream(RES + rel)!!.readBytes().toString(Charsets.UTF_8).replace("\r\n", "\n")
 
+    /** The directories of the library (each file's parents), under it. */
+    private val dirs: Set<String> by lazy {
+        val out = HashSet<String>()
+        for (f in files) {
+            var d = f.substringBeforeLast('/', "")
+            while (d.isNotEmpty() && out.add(d)) d = d.substringBeforeLast('/', "")
+        }
+        out
+    }
+
+    /** Whether [rel] (a path under the library) is one of its directories. */
+    @JvmStatic fun isDirectory(rel: String): Boolean = rel in dirs
+
+    /** The bytes of the library's file [rel] (as [find] reads it), or null where it has none. */
+    @JvmStatic fun bytes(rel: String): ByteArray? = if (rel in files) read(rel).toByteArray(Charsets.UTF_8) else null
+
+    /** The names in the library's directory [rel] ("" its root). */
+    @JvmStatic
+    fun listing(rel: String): List<String> {
+        val prefix = if (rel.isEmpty()) "" else "$rel/"
+        return (files.asSequence() + dirs.asSequence()).filter { it.startsWith(prefix) && it.length > prefix.length }
+            .map { it.substring(prefix.length).substringBefore('/') }.distinct().sorted().toList()
+    }
+
     /**
      * `_thread`, for one thread (§9's decision 5: designed for a GIL later): a lock never blocks the thread holding
      * the interpreter, so acquiring one held (a deadlock in CPython) fails at once where it may not wait, and raises

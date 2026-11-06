@@ -33,8 +33,18 @@ class PyModule(@JvmField val name: String, @JvmField val dict: PyDict) {
     }
 }
 
-/** sys.stdout and sys.stderr: what they write goes to the context's out and err. */
-class PyStream(@JvmField val out: Appendable, @JvmField val name: String)
+/**
+ * sys.stdin, sys.stdout and sys.stderr: text streams over descriptors 0, 1 and 2, what they write going to the
+ * context's out and err (stdin: nothing to read). As CPython's TextIOWrapper with write_through: nothing is kept back,
+ * so print, sys.stdout.write and os.write(1, ...) keep their order.
+ */
+class PyStream(@JvmField val out: Appendable, @JvmField val name: String, @JvmField val fd: Int) {
+    @JvmField var closed = false
+    /** Its `buffer`: the bytes level under it, made when first asked for. */
+    @JvmField var buffer: PyObject? = null
+    @JvmField val errors = if (fd == 2) "backslashreplace" else "surrogateescape"
+    @JvmField val mode = if (fd == 0) "r" else "w"
+}
 
 /**
  * import (M7): IMPORT_NAME, IMPORT_FROM, IMPORT_STAR as CPython's importlib does them: sys.modules first, a module put
@@ -254,12 +264,20 @@ object PyImport {
                 PyMath.fill(ctx, d)
                 return mod().also { d[PyStr("__doc__")] = PyStr(PyMath.DOC) }
             }
+            "errno" -> {
+                PyPosix.fillErrno(d)
+                return mod().also { d[PyStr("__doc__")] = PyStr(PyErrno.ERRNO_DOC) }
+            }
+            "posix" -> {
+                PyPosix.fill(ctx, d)
+                return mod().also { d[PyStr("__doc__")] = PyStr(PyErrno.POSIX_DOC) }
+            }
             else -> return null
         }
     }
 
     /** The modules NeonPy makes itself (sys.builtin_module_names). */
-    @JvmField val BUILTIN_NAMES = listOf("sys", "builtins", "_thread", "_weakref", "gc", "_collections", "itertools", "_contextvars", "_sre", "_string", "_typing", "math")
+    @JvmField val BUILTIN_NAMES = listOf("sys", "builtins", "_thread", "_weakref", "gc", "_collections", "itertools", "_contextvars", "_sre", "_string", "_typing", "math", "errno", "posix")
 
     /** The features `from __future__ import` knows (CPython 3.14's). */
     @JvmField val FUTURES = listOf("nested_scopes", "generators", "division", "absolute_import", "with_statement", "print_function",
@@ -277,8 +295,9 @@ object PyImport {
         d[PyStr("modules")] = ctx.modules
         d[PyStr("path")] = PyList()
         d[PyStr("argv")] = PyList(arrayListOf(PyStr("")))
-        d[PyStr("stdout")] = PyStream(ctx.out, "<stdout>")
-        d[PyStr("stderr")] = PyStream(ctx.err, "<stderr>")
+        d[PyStr("stdin")] = PyStream(ctx.out, "<stdin>", 0)
+        d[PyStr("stdout")] = PyStream(ctx.out, "<stdout>", 1)
+        d[PyStr("stderr")] = PyStream(ctx.err, "<stderr>", 2)
         d[PyStr("maxsize")] = Long.MAX_VALUE
         d[PyStr("byteorder")] = PyStr("little")
         d[PyStr("version")] = PyStr("3.14.6 (NeonPy)")
@@ -335,28 +354,111 @@ object PyImport {
     }
 
     private fun platform(): String {
-        val os = System.getProperty("os.name")?.lowercase() ?: ""
         val vm = System.getProperty("java.vm.name")?.lowercase() ?: ""
-        return when {
-            "dalvik" in vm || "art" == vm -> "android"
-            os.startsWith("windows") -> "win32"
-            os.startsWith("mac") -> "darwin"
-            else -> "linux"
-        }
+        // (the sandbox's: POSIX-shaped whatever the host is, posix its os (§12.2); CPython's 'android' on Android)
+        return if ("dalvik" in vm || "art" == vm) "android" else "linux"
     }
 
     /** The module and stream types' methods. */
     @JvmStatic
     fun define(d: PyDict) {
-        STREAM_TYPE.def("write", PyBuiltin("write") { _, a ->
-            val st = a[0] as PyStream
-            val s = a.getOrNull(1) as? PyStr ?: throw PyRt.typeError("write() argument must be str, not ${PyTypes.name(a.getOrNull(1))}")
-            st.out.append(s.s)
-            s.length.toLong()
-        })
-        STREAM_TYPE.def("flush", PyBuiltin("flush") { _, _ -> PyNone })
+        defineStreams()
         d[PyStr("__import__")] = PyBuiltin("__import__", { _, a -> builtinImport(a, null) }, { _, a, kw -> builtinImport(a, kw) })
     }
+
+    /** The standard streams' methods and attributes (TextIOWrapper's, as far as a stream of the context's has them). */
+    private fun defineStreams() {
+        val t = STREAM_TYPE
+        t.dispatchBuiltins = true
+        fun st(a: Array<Any?>, fn: String): PyStream {
+            val s = a.getOrNull(0) as? PyStream ?: throw PyRt.typeError("descriptor '$fn' requires a '_io.TextIOWrapper' object")
+            return s
+        }
+        fun open(s: PyStream) {
+            if (s.closed) throw PyException("ValueError", "I/O operation on closed file.")
+        }
+        fun unsupported(what: String): Nothing =
+            throw PyException(PyCalls.callWith(ctx(), PyRt.getAttr(importModule(ctx(), "io"), "UnsupportedOperation"), arrayOf(PyStr(what)), NO_ARGS, NO_ARGS) as PyBaseException)
+        fun method(name: String, impl: (PyStream, Array<Any?>) -> Any?) {
+            t.def(name, PyBuiltin(name) { _, a -> impl(st(a, name), a) })
+        }
+        fun prop(name: String, get: (PyStream) -> Any?) {
+            t.def(name, PyProperty(PyBuiltin(name) { _, a -> get(st(a, name)) }, null, null, null).also { it.name = name })
+        }
+        method("write") { s, a ->
+            open(s)
+            if (a.size != 2) throw PyRt.typeError("write() takes exactly one argument (${a.size - 1} given)")
+            val x = a[1] as? PyStr ?: throw PyRt.typeError("write() argument must be str, not ${PyTypes.name(a[1])}")
+            if (s.fd == 0) unsupported("not writable")
+            s.out.append(x.s)
+            x.length.toLong()
+        }
+        method("writelines") { s, a ->
+            open(s)
+            val it = PyRt.iter(a.getOrNull(1))
+            while (true) {
+                val x = it.next()
+                if (x === PyIterator.STOP) break
+                s.out.append((x as? PyStr ?: throw PyRt.typeError("write() argument must be str, not ${PyTypes.name(x)}")).s)
+            }
+            PyNone
+        }
+        method("flush") { s, _ -> open(s); PyNone }
+        method("close") { s, _ -> s.closed = true; PyNone }
+        method("fileno") { s, _ -> s.fd.toLong() }
+        method("isatty") { s, _ -> open(s); PyBool.FALSE }
+        method("readable") { s, _ -> open(s); PyBool.of(s.fd == 0) }
+        method("writable") { s, _ -> open(s); PyBool.of(s.fd != 0) }
+        method("seekable") { s, _ -> open(s); PyBool.FALSE }
+        // (stdin: nothing to read, the end at once)
+        method("read") { s, _ -> open(s); if (s.fd != 0) unsupported("not readable"); PyStr("") }
+        method("readline") { s, _ -> open(s); if (s.fd != 0) unsupported("not readable"); PyStr("") }
+        method("readlines") { s, _ -> open(s); if (s.fd != 0) unsupported("not readable"); PyList() }
+        method("__iter__") { s, _ -> open(s); s }
+        method("__next__") { s, _ -> open(s); throw PyException("StopIteration", "") }
+        method("__enter__") { s, _ -> open(s); s }
+        method("__exit__") { s, _ -> s.closed = true; PyNone }
+        t.def("reconfigure", PyBuiltin("reconfigure", { _, a -> st(a, "reconfigure"); PyNone }, { _, a, _ -> st(a, "reconfigure"); PyNone }))
+        for (name in listOf("seek", "tell", "truncate")) method(name) { s, _ -> open(s); unsupported("underlying stream is not seekable") }
+        prop("buffer") { s -> s.buffer ?: streamBuffer(s).also { s.buffer = it } }
+        prop("name") { PyStr(it.name) }
+        prop("mode") { PyStr(it.mode) }
+        prop("encoding") { PyStr("utf-8") }
+        prop("errors") { PyStr(it.errors) }
+        prop("closed") { PyBool.of(it.closed) }
+        prop("line_buffering") { PyBool.FALSE }
+        prop("write_through") { PyBool.TRUE }
+        prop("newlines") { PyNone }
+    }
+
+    /** A standard stream's `buffer` (a BufferedWriter's surface, a BufferedReader's for stdin): bytes to its descriptor. */
+    private val BUFFER_TYPE = PyTypes.newBuiltin("BufferedWriter", subclassable = false).also { t ->
+        t.module = "_io"
+        t.tpName = "_io.BufferedWriter"
+        t.dispatchBuiltins = true
+        fun s(a: Array<Any?>) = (a[0] as PyObject).dict!![PyStr("_stream")] as PyStream
+        t.def("write", PyBuiltin("write") { _, a ->
+            val st = s(a)
+            if (st.closed) throw PyException("ValueError", "write to closed file")
+            val b = PyByteSeqs.content(a.getOrNull(1)) ?: throw PyRt.typeError("a bytes-like object is required, not '${PyTypes.name(a.getOrNull(1))}'")
+            if (st.fd == 0) throw PyException(PyCalls.callWith(ctx(), PyRt.getAttr(importModule(ctx(), "io"), "UnsupportedOperation"), arrayOf(PyStr("write")), NO_ARGS, NO_ARGS) as PyBaseException)
+            PyPosix.writeStd(ctx(), st.fd, b).toLong()
+        })
+        t.def("read", PyBuiltin("read") { _, _ -> PyBytes(ByteArray(0)) })
+        t.def("readline", PyBuiltin("readline") { _, _ -> PyBytes(ByteArray(0)) })
+        t.def("flush", PyBuiltin("flush") { _, _ -> PyNone })
+        t.def("fileno", PyBuiltin("fileno") { _, a -> s(a).fd.toLong() })
+        t.def("isatty", PyBuiltin("isatty") { _, _ -> PyBool.FALSE })
+        t.def("writable", PyBuiltin("writable") { _, a -> PyBool.of(s(a).fd != 0) })
+        t.def("readable", PyBuiltin("readable") { _, a -> PyBool.of(s(a).fd == 0) })
+        t.def("seekable", PyBuiltin("seekable") { _, _ -> PyBool.FALSE })
+        t.def("closed", PyProperty(PyBuiltin("closed") { _, a -> PyBool.of(s(a).closed) }, null, null, null).also { it.name = "closed" })
+        t.def("name", PyProperty(PyBuiltin("name") { _, a -> PyStr(s(a).name) }, null, null, null).also { it.name = "name" })
+        t.def("mode", PyProperty(PyBuiltin("mode") { _, a -> PyStr(if (s(a).fd == 0) "rb" else "wb") }, null, null, null).also { it.name = "mode" })
+        t.def("__repr__", PyBuiltin("__repr__") { _, a -> PyStr("<_io.${if (s(a).fd == 0) "BufferedReader" else "BufferedWriter"} name='${s(a).name}'>") })
+    }
+
+    private fun streamBuffer(s: PyStream): PyObject = PyObject(BUFFER_TYPE).also { o -> o.dict = PyDict().also { it[PyStr("_stream")] = s } }
 
     /** __import__(name, globals=None, locals=None, fromlist=(), level=0) */
     private fun builtinImport(a: Array<Any?>, kw: PyDict?): Any? {

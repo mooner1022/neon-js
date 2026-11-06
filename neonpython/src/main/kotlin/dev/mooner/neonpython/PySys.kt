@@ -25,18 +25,62 @@ object PySys {
      * (kept with the tuple's class, [PySub.state]); made by NeonPy alone.
      */
     @JvmStatic
-    fun structType(name: String, fields: List<String>, hidden: List<String> = emptyList()): PyType {
+    @JvmOverloads
+    fun structType(name: String, fields: List<String?>, hidden: List<String> = emptyList(), module: String = "sys",
+                   constructable: Boolean = false): PyType {
         val t = PyType(name, arrayOf(PyTypes.TUPLE))
         t.mro = PyTypes.c3(t, t.bases)
-        t.module = "sys"
-        t.tpName = "sys.$name"
+        t.module = module
+        t.tpName = "$module.$name"
         t.subclassable = false
         // (its repr and fields are builtins dispatch takes: a tuple's own methods are what the runtime's paths do)
         t.dispatchBuiltins = true
-        t.newImpl = { _, _, _, _ -> throw PyRt.typeError("cannot create 'sys.$name' instances") }
+        // (a field without a name (os.stat_result's integer times): in the tuple only; the members' names are the
+        // named ones, visible then hidden, and the repr names the visible fields by them, as structseq.c does)
+        val members = fields.filterNotNull() + hidden
+        val unnamed = fields.count { it == null }
+        val visible = fields.size
+        val real = visible + hidden.size
+        t.newImpl = if (!constructable) { _, _, _, _ -> throw PyRt.typeError("cannot create '$module.$name' instances") } else { _, cls, a, kw ->
+            // structseq_new(sequence, dict=None): the visible fields from the sequence, the hidden ones from the rest
+            // of it, else from dict by name, else None
+            val names = listOf("sequence", "dict")
+            val v = arrayOfNulls<Any?>(2)
+            if (a.size > 2) throw PyRt.typeError("$name() takes at most 2 arguments (${a.size} given)")
+            a.copyInto(v)
+            kw?.map?.forEach { (k, x) ->
+                val n = (k.v as PyStr).s
+                val i = names.indexOf(n)
+                if (i < 0) throw PyRt.typeError("$name() got an unexpected keyword argument '$n'")
+                if (i < a.size) throw PyRt.typeError("argument for $name() given by name ('$n') and position (${i + 1})")
+                v[i] = x
+            }
+            if (v[0] == null) throw PyRt.typeError("$name() missing required argument 'sequence' (pos 1)")
+            val items = if (v[0] is PyTuple || v[0] is PyList) PyBuiltins.toList(v[0]) else try {
+                PyBuiltins.toList(v[0])
+            } catch (e: PyException) {
+                throw PyRt.typeError("constructor requires a sequence")
+            }
+            val dict = v[1]?.takeIf { it !== PyNone }?.let { it as? PyDict ?: throw PyRt.typeError("$module.$name() takes a dict as second arg, if any") }
+            val len = items.size
+            if (len < visible) {
+                throw PyRt.typeError(if (visible == real) "$module.$name() takes a $visible-sequence ($len-sequence given)"
+                    else "$module.$name() takes an at least $visible-sequence ($len-sequence given)")
+            }
+            if (len > real) {
+                throw PyRt.typeError(if (visible == real) "$module.$name() takes a $visible-sequence ($len-sequence given)"
+                    else "$module.$name() takes an at most $real-sequence ($len-sequence given)")
+            }
+            val extra = Array<Any?>(hidden.size) { j ->
+                val i = visible + j
+                if (i < len) items[i] else dict?.get(PyStr(members[i - unnamed])) ?: PyNone
+            }
+            PyTuple(items.subList(0, visible).toTypedArray()).also { it.sub = PySub(cls as PyType); it.sub!!.state = extra }
+        }
         // (its fields read-only, as members of CPython's are)
         val readonly = PyBuiltin("__set__") { _, _ -> throw PyException("AttributeError", "readonly attribute") }
         for ((i, f) in fields.withIndex()) {
+            if (f == null) continue
             t.def(f, PyProperty(PyBuiltin(f) { _, a -> (a[0] as PyTuple).items[i] }, readonly, readonly, null).also { it.name = f })
         }
         for ((i, f) in hidden.withIndex()) {
@@ -44,24 +88,25 @@ object PySys {
         }
         t.def("__repr__", PyBuiltin("__repr__") { _, a ->
             val items = (a[0] as PyTuple).items
-            PyStr(fields.indices.joinToString(", ", "sys.$name(", ")") { "${fields[it]}=${PyRt.repr(items[it])}" })
+            PyStr((0 until visible).joinToString(", ", "$module.$name(", ")") { "${members[it]}=${PyRt.repr(items[it])}" })
         })
         t.def("__reduce__", PyBuiltin("__reduce__") { _, a ->
             val v = a[0] as PyTuple
             val extra = PyDict().also { d -> for ((i, f) in hidden.withIndex()) d[PyStr(f)] = (v.sub!!.state as Array<*>)[i] }
             PyTuple(arrayOf(t, PyTuple(arrayOf(PyTuple(v.items), extra))))
         })
-        t.def("n_fields", (fields.size + hidden.size).toLong())
-        t.def("n_sequence_fields", fields.size.toLong())
-        t.def("n_unnamed_fields", 0L)
-        t.def("__match_args__", PyTuple(Array(fields.size) { PyStr(fields[it]) }))
+        t.def("n_fields", real.toLong())
+        t.def("n_sequence_fields", visible.toLong())
+        t.def("n_unnamed_fields", unnamed.toLong())
+        t.def("__match_args__", PyTuple(fields.filterNotNull().map { PyStr(it) }.toTypedArray<Any?>()))
         return t
     }
 
     @JvmStatic
     fun struct(t: PyType, vararg values: Any?): PyTuple = PyTuple(arrayOf(*values)).also { it.sub = PySub(t) }
 
-    private fun struct(t: PyType, values: Array<Any?>, hidden: Array<Any?>): PyTuple = struct(t, *values).also { it.sub!!.state = hidden }
+    @JvmStatic
+    fun struct(t: PyType, values: Array<Any?>, hidden: Array<Any?>): PyTuple = struct(t, *values).also { it.sub!!.state = hidden }
 
     @JvmField val VERSION_INFO = structType("version_info", listOf("major", "minor", "micro", "releaselevel", "serial"))
     private val FLAGS = structType("flags", listOf("debug", "inspect", "interactive", "optimize", "dont_write_bytecode",
@@ -193,13 +238,13 @@ object PySys {
         d[PyStr("path_importer_cache")] = PyDict()
         d[PyStr("builtin_module_names")] = PyTuple(PyImport.BUILTIN_NAMES.sorted().map { PyStr(it) }.toTypedArray())
         d[PyStr("stdlib_module_names")] = PySet(true).also { s -> for (n in STDLIB_NAMES.split(' ')) s.addKey(PyStr(n)) }
-        // (no console to read from: None, as CPython's is without one)
-        d[PyStr("stdin")] = PyNone
-        d[PyStr("__stdin__")] = PyNone
+        // (stdin: descriptor 0's, nothing to read from it but the end)
+        d[PyStr("__stdin__")] = d[PyStr("stdin")]
         d[PyStr("__stdout__")] = d[PyStr("stdout")]
         d[PyStr("__stderr__")] = d[PyStr("stderr")]
         def("getdefaultencoding") { _ -> PyStr("utf-8") }
         def("getfilesystemencoding") { _ -> PyStr("utf-8") }
+        def("getfilesystemencodeerrors") { _ -> PyStr("surrogateescape") }
         def("getfilesystemencodeerrors") { _ -> PyStr("surrogateescape") }
         def("is_finalizing") { _ -> PyBool.FALSE }
         def("_is_gil_enabled") { _ -> PyBool.TRUE }

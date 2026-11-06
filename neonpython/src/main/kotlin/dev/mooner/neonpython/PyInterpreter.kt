@@ -20,7 +20,16 @@ class PyContext(
     @JvmField val loader: PyModuleLoader? = null,
     /** What sys.stderr writes to. */
     @JvmField val err: Appendable = out,
+    /**
+     * The file system os, open() and io see: none by default (every access a PermissionError, docs/PYTHON_PLATFORM.md
+     * §12.2), the bundled library read-only at /usr/lib/python3.14 whatever it is.
+     */
+    @JvmField val fileSystem: PyFileSystem = PyFileSystem.NONE,
+    /** os.environ: empty by default (the host's own environment is never seen). */
+    @JvmField val environ: Map<String, String> = emptyMap(),
 ) {
+    /** posix's state: the working directory, the open files, the environment (made when posix is first imported). */
+    @JvmField var posix: PyPosix.State? = null
     @JvmField val agent = VmAgent(config)
     // (the builtins are functions, not methods: a class holding one gives it as it is)
     @JvmField val builtins: PyDict = PyBuiltins.module().also { d -> for (v in d.map.values) if (v is PyBuiltin) v.method = false }

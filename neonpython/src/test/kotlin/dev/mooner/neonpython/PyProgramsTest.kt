@@ -47,12 +47,22 @@ class PyProgramsTest {
         read("$base/__init__.py")?.let { PyModuleSource(it, "$base/__init__.py", true) } ?: read("$base.py")?.let { PyModuleSource(it, "$base.py", false) }
     }
 
-    private fun run(src: String, mode: Mode): Pair<String, PyDict> {
+    private fun run(src: String, mode: Mode, fs: Boolean = false): Pair<String, PyDict> {
         val out = StringBuilder()
         // (what sys.stderr writes is not CPython's output recorded: apart)
-        val globals = PyContext(out, config(mode), loader, StringBuilder()).exec(src)
+        val ctx = PyContext(out, config(mode), loader, StringBuilder(), memoryFs(fs))
+        if (fs) ctx.exec("import os\nos.chdir('/tmp')\ndel os\n")
+        val globals = ctx.exec(src)
         return out.toString() to globals
     }
+
+    /**
+     * The programs that use a file system: run with one in memory, in its empty /tmp; their outputs are Linux
+     * CPython's (POSIX-shaped, as NeonPy's posix is), run in an empty directory.
+     */
+    private val fsPrograms = setOf("os_module")
+
+    private fun memoryFs(fs: Boolean): PyFileSystem = if (fs) PyFileSystem.memory(mapOf("/tmp/" to ByteArray(0))) else PyFileSystem.NONE
 
     @ParameterizedTest
     @MethodSource("programs")
@@ -61,7 +71,7 @@ class PyProgramsTest {
         val expected = resource("$name.out")
         for (mode in Mode.entries) {
             val (out, _) = try {
-                run(src, mode)
+                run(src, mode, name in fsPrograms)
             } catch (e: PyException) {
                 fail("$name ($mode): ${e.type}: ${e.message} at line ${e.line} of ${e.function}", e)
             }
@@ -95,7 +105,8 @@ class PyProgramsTest {
         val reasonsBefore = T2.baselineReasons.keys.toSet()
         for (name in programs()) {
             val cb = PyCompiler.compileModule(resource("$name.py"))
-            val ctx = PyContext(StringBuilder(), config(Mode.COMPILED), loader, StringBuilder())
+            val ctx = PyContext(StringBuilder(), config(Mode.COMPILED), loader, StringBuilder(), memoryFs(name in fsPrograms))
+            if (name in fsPrograms) ctx.exec("import os\nos.chdir('/tmp')\ndel os\n")
             ctx.exec(cb)
             // (the modules it imported too)
             for (b in blocks(cb) + ctx.moduleUnits.flatMap { blocks(it) }) {
@@ -537,7 +548,7 @@ class PyProgramsTest {
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
             "speculation", "functions", "closures", "unpacking", "types", "classes", "descriptors",
-            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods", "containers", "match", "imports", "coroutines", "async_generators", "annotations", "future_annotations", "generic_aliases", "type_params", "generic_classes", "private_names", "eval_exec", "suspensions", "rich_compare", "number_subclasses", "frames", "weakrefs", "stdlib", "descriptor_subclasses", "sys_module", "itertools_module", "collections_module", "type_checks", "ranges", "byte_sequences", "stdlib_core", "class_protocols", "enums", "class_namespaces", "mapping_proxies", "context_vars", "regexes", "warnings_module", "string_module", "ast_module", "typing_module", "math_module", "typing_generics",
+            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods", "containers", "match", "imports", "coroutines", "async_generators", "annotations", "future_annotations", "generic_aliases", "type_params", "generic_classes", "private_names", "eval_exec", "suspensions", "rich_compare", "number_subclasses", "frames", "weakrefs", "stdlib", "descriptor_subclasses", "sys_module", "itertools_module", "collections_module", "type_checks", "ranges", "byte_sequences", "stdlib_core", "class_protocols", "enums", "class_namespaces", "mapping_proxies", "context_vars", "regexes", "warnings_module", "string_module", "ast_module", "typing_module", "math_module", "typing_generics", "os_module",
         )
 
         /** The code blocks of [cb] and every function it defines. */

@@ -1,0 +1,98 @@
+posix / : True . .. /dev/null . None
+True _Environ True utf-8 surrogateescape
+2 ENOENT True No such file or directory Permission denied Unknown error 9999
+0 1 64 128 512 1024 2 0 4
+19 10 3 ('st_mode', 'st_ino', 'st_dev', 'st_nlink', 'st_uid', 'st_gid', 'st_size')
+True True
+cwd -> (True, True)
+listdir empty -> ([], [], [])
+fd -> True
+write -> (6, 6, 2)
+read wronly !! OSError [Errno 9] Bad file descriptor
+close twice !! OSError [Errno 9] Bad file descriptor
+stat -> (14, True, False, '0o644', 14, 10, 'float', 'int')
+stat ns -> (True, True, True)
+read -> (b'hel', b'lo\nworld\n!!', b'')
+lseek -> (0, b'hello', 12, b'!!', 14)
+lseek bad !! OSError [Errno 22] Invalid argument
+fstat -> (14, True)
+write rdonly !! OSError [Errno 9] Bad file descriptor
+readinto -> (0, 4, bytearray(b'hell'))
+append -> 19
+excl !! FileExistsError [Errno 17] File exists: 'a.txt'
+open missing !! FileNotFoundError [Errno 2] No such file or directory: 'missing.txt'
+makedirs exist !! FileExistsError [Errno 17] File exists: 'deep/er'
+makedirs exist_ok -> None
+listdir -> ['a.txt', 'deep', 'sub']
+listdir bytes -> [b'a.txt', b'deep', b'sub']
+listdir file !! NotADirectoryError [Errno 20] Not a directory: 'a.txt'
+listdir missing !! FileNotFoundError [Errno 2] No such file or directory: 'nope'
+scandir -> [('a.txt', False, True, False, './a.txt'), ('deep', True, False, False, './deep'), ('sub', True, False, False, './sub')]
+scandir sub -> [('x', 'sub/x', 'sub/x')]
+scandir bytes -> [(b'x', b'sub/x')]
+scandir closed -> ('DirEntry', True, [])
+walk -> [('.', ['deep', 'sub'], ['a.txt']), ('./deep', ['er'], []), ('./deep/er', ['est'], []), ('./deep/er/est', [], []), ('./sub', ['x'], []), ('./sub/x', [], [])]
+walk bottom -> ['deep/er/est', 'deep/er', 'deep']
+exists -> (True, True, False, False, 19, True)
+mkdir exists !! FileExistsError [Errno 17] File exists: 'sub'
+rmdir nonempty !! OSError [Errno 39] Directory not empty: 'sub'
+rmdir file !! NotADirectoryError [Errno 20] Not a directory: 'a.txt'
+unlink dir !! IsADirectoryError [Errno 21] Is a directory: 'sub'
+unlink missing !! FileNotFoundError [Errno 2] No such file or directory: 'nope'
+chdir file !! NotADirectoryError [Errno 20] Not a directory: 'a.txt'
+chdir missing !! FileNotFoundError [Errno 2] No such file or directory: 'nope'
+stat missing !! FileNotFoundError [Errno 2] No such file or directory: 'nope'
+stat bytes missing !! FileNotFoundError [Errno 2] No such file or directory: b'nope'
+stat type !! TypeError stat: path should be string, bytes, os.PathLike or integer, not float
+stat list !! TypeError listdir: path should be string, bytes, os.PathLike, integer or None, not list
+stat null !! ValueError stat: embedded null character in path
+rename -> (None, ['b.txt', 'deep', 'sub'])
+replace -> (None, None, ['c.txt', 'deep', 'sub'], 19)
+rename missing !! FileNotFoundError [Errno 2] No such file or directory: 'nope' -> 'x'
+rename mixed -> (None, None)
+removedirs -> (None, False)
+symlink -> (None, 'c.txt', True, True, 5, True)
+readlink file !! OSError [Errno 22] Invalid argument: 'c.txt'
+dangling -> (None, False, True, None)
+realpath -> True
+utime -> (None, 2000.0, 1000.0, 2000.0)
+utime ns -> (None, 7000000005)
+utime both !! ValueError utime: you may specify either 'times' or 'ns' but not both
+chmod -> (None, '0o600')
+truncate -> (None, 3, None, 10)
+ftruncate -> (None, 2, b'he')
+access -> (True, True, False)
+pathlike -> ('c.txt', 2, b'x', 'a/b')
+fspath bad !! TypeError expected P.__fspath__() to return str or bytes, not int
+fspath int !! TypeError expected str, bytes or os.PathLike object, not int
+stat pathlike bad !! TypeError expected P.__fspath__() to return str or bytes, not int
+environ -> (None, 'd')
+environ bad !! TypeError str expected, not int
+putenv bad !! ValueError illegal environment variable name
+path -> ('/c/d', ('/a/b', 'c'), 'a/c/d', ('x.tar', '.gz'), 'b', '/a', True, 'b/c', '/a/b', 'ab', ('', '//', 'a/b'))
+abspath -> True
+expandvars -> $NOPE_X/y
+urandom -> (5, 'bytes')
+misc -> (True, 'int', False, None, True)
+umask -> (18, 18)
+terminal !! OSError [Errno 9] Bad file descriptor
+stat_result -> (os.stat_result(st_mode=0, st_ino=1, st_dev=2, st_nlink=3, st_uid=4, st_gid=5, st_size=6, st_atime=7, st_mtime=8, st_ctime=9), 7, 10)
+stat_result bad !! TypeError os.stat_result() takes an at least 10-sequence (2-sequence given)
+stat_result repr -> os.stat_result(st_mode=0, st_ino=1, st_dev=2, st_nlink=3, st_uid=4, st_gid=5, st_size=6, st_atime=7, st_mtime=8, st_ctime=9)
+DirEntry new !! TypeError cannot create 'posix.DirEntry' instances
+errors -> (True, 2, 'FileNotFoundError')
+suppressed
+enter 3
+body 6
+exit 3
+enter 0
+enter 1
+enter 2
+callback
+exit 2
+exit 1
+exit 0
+null 5
+closed
+chdir cm -> (None, True, None)
+cleaned False

@@ -580,7 +580,7 @@ object PyRt {
         is PyTemplate -> PyLiterals.templateRepr(v)
         is PyDictView -> PyContainers.repr(v)
         is PyModule -> v.repr()
-        is PyStream -> "<_io.TextIOWrapper name='${v.name}' mode='w' encoding='utf-8'>"
+        is PyStream -> "<_io.TextIOWrapper name='${v.name}' mode='${v.mode}' encoding='utf-8'>"
         is PyInterpolation -> PyLiterals.interpolationRepr(v)
         is PyRange -> PyRanges.repr(v)
         is PyByteArray -> PyByteSeqs.repr(v)
