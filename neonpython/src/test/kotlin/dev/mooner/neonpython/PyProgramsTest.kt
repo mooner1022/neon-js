@@ -40,9 +40,17 @@ class PyProgramsTest {
         javaClass.getResourceAsStream("/programs/$name")?.readBytes()?.toString(Charsets.UTF_8)?.replace("\r\n", "\n")
             ?: fail("no resource $name")
 
+    /** The modules programs import: src/test/resources/modules/, a package's __init__.py under its name. */
+    private val loader = PyModuleLoader { name ->
+        val base = "/modules/" + name.replace('.', '/')
+        fun read(path: String) = javaClass.getResourceAsStream(path)?.readBytes()?.toString(Charsets.UTF_8)?.replace("\r\n", "\n")
+        read("$base/__init__.py")?.let { PyModuleSource(it, "$base/__init__.py", true) } ?: read("$base.py")?.let { PyModuleSource(it, "$base.py", false) }
+    }
+
     private fun run(src: String, mode: Mode): Pair<String, PyDict> {
         val out = StringBuilder()
-        val globals = PyContext(out, config(mode)).exec(src)
+        // (what sys.stderr writes is not CPython's output recorded: apart)
+        val globals = PyContext(out, config(mode), loader, StringBuilder()).exec(src)
         return out.toString() to globals
     }
 
@@ -88,8 +96,10 @@ class PyProgramsTest {
         val reasonsBefore = T2.baselineReasons.keys.toSet()
         for (name in programs()) {
             val cb = PyCompiler.compileModule(resource("$name.py"))
-            PyContext(StringBuilder(), config(Mode.COMPILED)).exec(cb)
-            for (b in blocks(cb)) {
+            val ctx = PyContext(StringBuilder(), config(Mode.COMPILED), loader, StringBuilder())
+            ctx.exec(cb)
+            // (the modules it imported too)
+            for (b in blocks(cb) + ctx.moduleUnits.flatMap { blocks(it) }) {
                 assertTrue(!b.jitFailed, "$name: ${b.name} not compiled (${T2.baselineReasons.keys})")
                 if (b.compiled != null) assertTrue(b.compiled is T2Code, "$name: ${b.name}: ${b.compiled}")
             }
@@ -412,6 +422,11 @@ class PyProgramsTest {
             "class C:\n    __match_args__ = ['a']\n    a = 1\nmatch C():\n    case C(x):\n        pass\n" to Triple("TypeError", "C.__match_args__ must be a tuple (got list)", 5),
             "match 1:\n    case x if 1 / 0:\n        pass\n" to Triple("ZeroDivisionError", "division by zero", 2),
             "match {'a': 1}:\n    case {'a': 1, **r} if r['x']:\n        pass\n" to Triple("KeyError", "'x'", 2),
+            "import nope\n" to Triple("ModuleNotFoundError", "No module named 'nope'", 1),
+            "from . import x\n" to Triple("ImportError", "attempted relative import with no known parent package", 1),
+            "import sys\nsys.exit('bye')\n" to Triple("SystemExit", "bye", 2),
+            "import sys\nsys.nope\n" to Triple("AttributeError", "module 'sys' has no attribute 'nope'", 2),
+            "import string.nope\n" to Triple("ModuleNotFoundError", "No module named 'string.nope'", 1),
         )
         for (mode in Mode.entries) for ((src, want) in cases) {
             val e = try {
@@ -431,7 +446,7 @@ class PyProgramsTest {
         for (mode in Mode.entries) {
             val out = StringBuilder()
             val e = try {
-                PyContext(out, config(mode)).exec(src)
+                PyContext(out, config(mode), loader, StringBuilder()).exec(src)
                 fail("no exception ($mode)")
             } catch (e: PyException) {
                 e
@@ -446,7 +461,7 @@ class PyProgramsTest {
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
             "speculation", "functions", "closures", "unpacking", "types", "classes", "descriptors",
-            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods", "containers", "match",
+            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods", "containers", "match", "imports",
         )
 
         /** The code blocks of [cb] and every function it defines. */

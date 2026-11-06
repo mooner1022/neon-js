@@ -275,6 +275,7 @@ object PyClasses {
     /** obj.name for an instance of a class (or a builtin value): its class's __getattribute__, else [genericGetAttr]; __getattr__. */
     @JvmStatic
     fun getAttr(obj: Any?, name: String): Any? {
+        if (obj is PyModule) return moduleAttr(obj, name)
         val cls = classOf(obj)
         if (cls != null && cls.hooks and 1 != 0) {
             val type = cls
@@ -288,6 +289,18 @@ object PyClasses {
             }
         }
         return attr(obj, name, true)
+    }
+
+    /** A module's attribute: its dict's, then its module-level __getattr__ (PEP 562). */
+    private fun moduleAttr(m: PyModule, name: String): Any? {
+        m.dict[PyStr(name)]?.let { return it }
+        when (name) {
+            "__dict__" -> return m.dict
+            "__class__" -> return PyImport.MODULE_TYPE
+        }
+        PyImport.MODULE_TYPE.lookup(name)?.let { return descrGet(null, it, m, PyImport.MODULE_TYPE) }
+        m.dict[PyStr("__getattr__")]?.let { return PyCalls.callWith(PyContext.current(), it, arrayOf(PyStr(name)), NO_ARGS, NO_ARGS) }
+        throw PyException.attributeError(m, name, "module '${m.name}' has no attribute '$name'")
     }
 
     /** object.__getattribute__: data descriptors, the instance's dict, other attributes. */
@@ -415,6 +428,10 @@ object PyClasses {
     /** object.__setattr__ (and type's): data descriptors, else the instance's dict. */
     @JvmStatic
     fun genericSetAttr(obj: Any?, name: String, v: Any?) {
+        if (obj is PyModule) {
+            obj.dict[PyStr(name)] = v
+            return
+        }
         if (obj is PyType) {
             if (obj.module == "builtins") {
                 throw PyRt.typeError("cannot set '$name' attribute of immutable type '${obj.name}'")
@@ -462,6 +479,10 @@ object PyClasses {
     /** object.__delattr__: a property's deleter, else the instance's dict. */
     @JvmStatic
     fun genericDelAttr(obj: Any?, name: String) {
+        if (obj is PyModule) {
+            if (obj.dict.map.remove(PyDict.Key(PyStr(name))) == null) throw PyException.attributeError(obj, name, "module '${obj.name}' has no attribute '$name'")
+            return
+        }
         if (obj is PyType) {
             if (obj.dict.map.remove(PyDict.Key(PyStr(name))) == null) throw PyException("AttributeError", "type object '${obj.name}' has no attribute '$name'")
             if (name == "__getattribute__" || name == "__setattr__" || name == "__delattr__") obj.hooks = hooksOf(obj)

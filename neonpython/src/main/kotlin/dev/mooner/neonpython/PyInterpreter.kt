@@ -13,9 +13,21 @@ import dev.mooner.neonjs.vm.VmFrame
  * limits and interrupts, the execution mode and the JIT's settings: [VmConfig]), which frames carry. One thread at a
  * time (docs/PYTHON_PLATFORM.md: single-threaded, its state in one place for a GIL later).
  */
-class PyContext(@JvmField val out: Appendable = StringBuilder(), config: VmConfig = VmConfig()) {
+class PyContext(
+    @JvmField val out: Appendable = StringBuilder(),
+    config: VmConfig = VmConfig(),
+    /** Where the modules `import` imports come from (none: the builtin modules only). */
+    @JvmField val loader: PyModuleLoader? = null,
+    /** What sys.stderr writes to. */
+    @JvmField val err: Appendable = out,
+) {
     @JvmField val agent = VmAgent(config)
     @JvmField val builtins: PyDict = PyBuiltins.module()
+    /** sys.modules */
+    @JvmField val modules = PyDict()
+    /** The code of each module imported (the tests check them all compiled). */
+    @JvmField val moduleUnits = ArrayList<dev.mooner.neonjs.compiler.CodeUnit>()
+    @JvmField val sysModule: PyModule = PyImport.sys(this)
     /** The exception being handled (PyExceptions: PUSH_EXC_INFO sets it, POP_EXCEPT puts the one before back), or null. */
     @JvmField var handled: PyBaseException? = null
     /** The callers' exceptions handled, under the generators running (each its own [handled]: PyGenerator.resume). */
@@ -35,6 +47,9 @@ class PyContext(@JvmField val out: Appendable = StringBuilder(), config: VmConfi
     fun exec(cb: dev.mooner.neonjs.compiler.CodeUnit, name: String = "<module>"): PyDict {
         val globals = PyDict()
         globals[PyStr("__name__")] = PyStr("__main__")
+        globals[PyStr("__doc__")] = PyNone
+        globals[PyStr("__package__")] = PyNone
+        modules[PyStr("__main__")] = PyModule("__main__", globals)
         val outer = CURRENT.get()
         val outerHandled = handled
         CURRENT.set(this)
@@ -49,6 +64,11 @@ class PyContext(@JvmField val out: Appendable = StringBuilder(), config: VmConfi
             handled = outerHandled
         }
         return globals
+    }
+
+    /** Runs an imported module's code [cb] in its dict [globals] (PyImport). */
+    fun runModule(cb: dev.mooner.neonjs.compiler.CodeUnit, globals: PyDict) {
+        PyInterpreter.call(this, PyFunction(cb, globals, "<module>"), NO_ARGS)
     }
 
     companion object {
@@ -447,6 +467,12 @@ object PyInterpreter {
                 s[sp++] = PyLiterals.buildInterpolation(p[0], p[1], p[2], p[3])
             }
             PyOp.LOAD_FAST_RAW -> s[sp++] = s[a]
+            PyOp.IMPORT_NAME -> {
+                val fromlist = pop()
+                s[sp - 1] = PyImport.importName(f, s[sp - 1], fromlist, k[a])
+            }
+            PyOp.IMPORT_FROM -> s[sp - 1] = PyImport.importFrom(s[sp - 1], k[a])
+            PyOp.IMPORT_STAR -> PyImport.importStar(f, pop())
             PyOp.MATCH_SEQUENCE -> s[sp - 1] = PyMatch.matchSequence(s[sp - 1])
             PyOp.MATCH_MAPPING -> s[sp - 1] = PyMatch.matchMapping(s[sp - 1])
             PyOp.GET_LEN -> s[sp - 1] = PyMatch.getLen(s[sp - 1])

@@ -56,7 +56,7 @@ class PyFrontTest {
         assertThrows<PySyntaxError> { PyParser("if x:\npass\n").parseModule() }
         assertThrows<PySyntaxError> { PyCompiler.compileModule("break\n") }
         assertThrows<PySyntaxError> { PyCompiler.compileModule("return 1\n") }
-        val e = assertThrows<PySyntaxError> { PyCompiler.compileModule("import os\n") }
+        val e = assertThrows<PySyntaxError> { PyCompiler.compileModule("async def f(): pass\n") }
         assertTrue(e.message!!.contains("not supported"), e.message)
     }
 
@@ -91,6 +91,10 @@ class PyFrontTest {
             "match 1:\n    case [*a, *b]:\n        pass\n" to ("multiple starred names in sequence pattern" to 2),
             "match {}:\n    case {'a': 1, 'a': 2}:\n        pass\n" to ("mapping pattern checks duplicate key ('a')" to 2),
             "match 1:\n    case [x, x]:\n        pass\n" to ("multiple assignments to name 'x' in pattern" to 2),
+            "def f():\n    from plain import *\n" to ("import * only allowed at module level" to 2),
+            "x = 1\nfrom __future__ import annotations\n" to ("from __future__ imports must occur at the beginning of the file" to 2),
+            "from __future__ import nope\n" to ("future feature nope is not defined" to 1),
+            "from __future__ import braces\n" to ("not a chance" to 1),
         )
         for ((src, want) in cases) {
             val e = assertThrows<PySyntaxError>(src) { PyCompiler.compileModule(src) }

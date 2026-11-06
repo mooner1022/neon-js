@@ -505,6 +505,8 @@ object PyRt {
         is PySlice -> v.toString()
         is PyTemplate -> PyLiterals.templateRepr(v)
         is PyDictView -> PyContainers.repr(v)
+        is PyModule -> v.repr()
+        is PyStream -> "<_io.TextIOWrapper name='${v.name}' mode='w' encoding='utf-8'>"
         is PyInterpolation -> PyLiterals.interpolationRepr(v)
         is PyRange -> if (v.step == 1L) "range(${v.start}, ${v.stop})" else "range(${v.start}, ${v.stop}, ${v.step})"
         is PyType -> v.repr()

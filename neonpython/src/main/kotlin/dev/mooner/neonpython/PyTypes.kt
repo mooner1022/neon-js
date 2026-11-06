@@ -164,6 +164,8 @@ object PyTypes {
         is PySlice -> SLICE
         is PyTemplate -> TEMPLATE
         is PyDictView -> PyContainers.typeOf(v)
+        is PyModule -> PyImport.MODULE_TYPE
+        is PyStream -> PyImport.STREAM_TYPE
         is PyInterpolation -> INTERPOLATION
         is PyComplex -> COMPLEX
         is PyBytes -> BYTES

@@ -28,16 +28,23 @@ object PyBuiltins {
         fun print(ctx: PyContext, args: Array<Any?>, kw: PyDict?): Any? {
             var sep = " "
             var end = "\n"
+            var file: Any? = null
             if (kw != null) for ((k, v) in kw.map) {
                 when ((k.v as PyStr).s) {
                     "sep" -> sep = if (v === PyNone) " " else (v as? PyStr)?.s ?: throw PyRt.typeError("sep must be None or a string, not ${PyTypes.name(v)}")
                     "end" -> end = if (v === PyNone) "\n" else (v as? PyStr)?.s ?: throw PyRt.typeError("end must be None or a string, not ${PyTypes.name(v)}")
                     "flush" -> {}
-                    "file" -> if (v !== PyNone) throw PyRt.typeError("print(file=...) is not supported yet")
+                    "file" -> if (v !== PyNone) file = v
                     else -> throw PyRt.typeError("print() got an unexpected keyword argument '${k.v}'")
                 }
             }
-            ctx.out.append(args.joinToString(sep) { PyRt.str(it) }).append(end)
+            val text = args.joinToString(sep) { PyRt.str(it) } + end
+            when (file) {
+                null -> ctx.out.append(text)
+                is PyStream -> file.out.append(text)
+                // (a file of one's own: its write)
+                else -> PyCalls.callWith(ctx, PyRt.getAttr(file, "write"), arrayOf(PyStr(text)), arrayOfNulls(0), arrayOfNulls(0))
+            }
             return PyNone
         }
         d[PyStr("print")] = PyBuiltin("print", { ctx, args -> print(ctx, args, null) }, { ctx, args, kw -> print(ctx, args, kw) })
@@ -330,6 +337,7 @@ object PyBuiltins {
         // lists', tuples' and dicts' methods, dicts' views (after these: their keys() are views)
         PyContainers.define()
         PyStrings.define()
+        PyImport.define(d)
         return d
     }
 

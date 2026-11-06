@@ -723,6 +723,19 @@ Made with literals and strings (M5):
   tuples iterates and prints as CPython's does. A str's hash is the JVM's: CPython randomizes them, so no program can
   rely on the order of a set of strs. `hash()` gives CPython's values for those types.
 
+Made with import (M7):
+
+- **A host gives the modules** (`PyModuleLoader.find(name)`: a module's source, its path, whether it is a package);
+  NeonPy never reads a file system. A context without a loader imports its builtin modules only: `sys` (its
+  modules, path, argv, stdout and stderr writing to the context's `out` and `err`, exit, exc_info, the recursion
+  limit, version), `builtins`, `string` and `string.templatelib`, `__future__`. The registry comes before the
+  loader. Other standard modules (math, re...) are not the syntax's: §3.7.
+- **import is importlib's**: sys.modules first; a module put there before its body runs (a circular import meets it
+  partially initialized, with CPython's message), taken out where its body raises; a submodule an attribute of its
+  package; relative imports from `__package__`; `from m import x` an attribute or a submodule; `import a.b as x`
+  IMPORT_NAME then IMPORT_FROM, as 3.12 compiles it. A module's attributes are its dict (PEP 562's `__getattr__`
+  after). `__spec__` and `__loader__` are None.
+
 - **A statement gives its temporaries back** when it ends, so that the registers of one try or with serve the next:
   the tier's code keeps every register a handler may read in a home at the start of each block a handler covers
   (GraphBuilder), so a function's size grows with its handlers times those registers. (The core could keep only the

@@ -52,6 +52,7 @@ internal class Generic(
         const val LIT = "dev/mooner/neonpython/PyLiterals"
         const val LIB = "dev/mooner/neonpython/PyLibrary"
         const val MATCH = "dev/mooner/neonpython/PyMatch"
+        const val IMP = "dev/mooner/neonpython/PyImport"
     }
 }
 
@@ -129,6 +130,10 @@ internal object PyGeneric {
         t[PyOp.MATCH_KEYS] = Generic("matchKeys", "vv", pops = 2, result = true, owner = mt)
         t[PyOp.COPY_DICT_WITHOUT_KEYS] = Generic("copyWithoutKeys", "vv", pops = 2, result = true, owner = mt)
         t[PyOp.MATCH_CLASS] = Generic("matchClass", "vvva", pops = 3, result = true, owner = mt)
+        val im = Generic.IMP
+        t[PyOp.IMPORT_NAME] = Generic("importName", "fvvk", pops = 2, result = true, owner = im)
+        t[PyOp.IMPORT_FROM] = Generic("importFrom", "vk", pops = 1, result = true, owner = im)
+        t[PyOp.IMPORT_STAR] = Generic("importStar", "fv", pops = 1, result = false, owner = im)
         t[PyOp.WRAP_STAR] = Generic("wrapStar", "v", pops = 1, result = true, throws = false, owner = c, flags = OpInfo.REMOVABLE or OpInfo.ALLOCATES)
     }
 

@@ -152,6 +152,12 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         /** The code block of module [src]. */
         @JvmStatic fun compileModule(src: String, name: String = "<module>"): CodeUnit {
             val m = PyParser(src).parseModule()
+            var start = true
+            for ((i, st) in m.body.withIndex()) {
+                val future = st is ImportFrom && st.module == "__future__" && st.level == 0
+                if (future && !start) throw PySyntaxError("from __future__ imports must occur at the beginning of the file", st.line, st.col)
+                if (!future && !(i == 0 && st is ExprStmt && st.value is Constant && (st.value as Constant).value is PyStr)) start = false
+            }
             val st = PySymtable.build(m)
             return PyCompiler(st, st.scopes[m]!!, name).compileBody(m.body, null)
         }
@@ -507,7 +513,17 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             }
             is With -> if (s.isAsync) unsupported("async with", s) else withItems(s, 0)
             is Match -> matchStmt(s)
-            is Import, is ImportFrom -> unsupported("import", s)
+            is Import -> for (a in s.names) {
+                loadConst(0L)
+                loadConst(PyNone)
+                emit(PyOp.IMPORT_NAME, name(a.name))
+                if (a.asname != null) {
+                    // (import a.b as x: a's attribute b, as 3.12 imports it)
+                    for (part in a.name.split('.').drop(1)) emit(PyOp.IMPORT_FROM, name(part))
+                    storeName(a.asname)
+                } else storeName(a.name.substringBefore('.'))
+            }
+            is ImportFrom -> importFrom(s)
             is TypeAlias -> unsupported("type", s)
         }
     }
@@ -1016,6 +1032,35 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 caps.putAll(shared)
             }
             is MatchStar -> throw PySyntaxError("can't use starred expression here", p.line, p.col)
+        }
+    }
+
+    /**
+     * `from m import a, b as c` (and `*`, at a module's level only): the module once (its fromlist the names), each
+     * name its attribute or its submodule. `from __future__` only at the start, of the features CPython knows.
+     */
+    private fun importFrom(s: ImportFrom) {
+        if (s.module == "__future__" && s.level == 0) {
+            for (a in s.names) {
+                if (a.name == "braces") throw PySyntaxError("not a chance", s.line, s.col)
+                if (a.name !in PyImport.FUTURES) throw PySyntaxError("future feature ${a.name} is not defined", s.line, s.col)
+            }
+        }
+        val star = s.names.size == 1 && s.names[0].name == "*"
+        if (star && !module) throw PySyntaxError("import * only allowed at module level", s.line, s.col)
+        loadConst(s.level.toLong())
+        loadConst(PyTuple(s.names.map { PyStr(it.name) }.toTypedArray()))
+        emit(PyOp.IMPORT_NAME, name(s.module ?: ""))
+        if (star) {
+            emit(PyOp.IMPORT_STAR)
+            return
+        }
+        val m = temp()
+        emit(PyOp.STORE_FAST, m)
+        for (a in s.names) {
+            emit(PyOp.LOAD_FAST, m)
+            emit(PyOp.IMPORT_FROM, name(a.name))
+            storeName(a.asname ?: a.name)
         }
     }
 
