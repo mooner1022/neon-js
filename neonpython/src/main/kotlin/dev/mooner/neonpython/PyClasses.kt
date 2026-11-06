@@ -21,24 +21,29 @@ object PyClasses {
     private val NO_ARGS = arrayOfNulls<Any?>(0)
 
     /** object.__new__(cls) and object.__init__(self): builtins of object's dict, which instantiation recognizes. */
-    @JvmField val OBJECT_NEW = PyBuiltin("__new__") { _, a ->
+    // (keyword arguments are excess arguments as positional ones are)
+    @JvmField val OBJECT_NEW = PyBuiltin("__new__", { _, a -> objectNew(a, false) }, { _, a, kw -> objectNew(a, kw.size > 0) })
+    @JvmField val OBJECT_INIT = PyBuiltin("__init__", { _, a -> objectInit(a, false) }, { _, a, kw -> objectInit(a, kw.size > 0) })
+
+    private fun objectNew(a: Array<Any?>, kw: Boolean): Any? {
         if (a.isEmpty() || a[0] !is PyType) throw PyRt.typeError("object.__new__(X): X is not a type object (${PyTypes.name(a.getOrNull(0))})")
         val cls = a[0] as PyType
-        if (a.size > 1 && (cls.lookup("__new__") !== OBJECT_NEW_HOLDER || cls.lookup("__init__") === OBJECT_INIT_HOLDER)) {
+        if ((a.size > 1 || kw) && (cls.lookup("__new__") !== OBJECT_NEW_HOLDER || cls.lookup("__init__") === OBJECT_INIT_HOLDER)) {
             throw PyRt.typeError(if (cls.lookup("__new__") !== OBJECT_NEW_HOLDER) "object.__new__() takes exactly one argument (the type to instantiate)"
                 else "${cls.name}() takes no arguments")
         }
-        PyObject(cls)
+        return PyObject(cls)
     }
-    @JvmField val OBJECT_INIT = PyBuiltin("__init__") { _, a ->
-        if (a.size > 1) {
+
+    private fun objectInit(a: Array<Any?>, kw: Boolean): Any? {
+        if (a.size > 1 || kw) {
             val cls = PyTypes.typeOf(a[0])
             if (cls.lookup("__init__") !== OBJECT_INIT_HOLDER || cls.lookup("__new__") === OBJECT_NEW_HOLDER) {
                 throw PyRt.typeError(if (cls.lookup("__init__") !== OBJECT_INIT_HOLDER) "object.__init__() takes exactly one argument (the instance to initialize)"
                     else "${cls.name}() takes no arguments")
             }
         }
-        PyNone
+        return PyNone
     }
     // (object's __new__ is a staticmethod in its dict: what lookup finds)
     private val OBJECT_NEW_HOLDER: Any = OBJECT_NEW
