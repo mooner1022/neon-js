@@ -5,3 +5,4 @@ copyreg.py
 heapq.py
 keyword.py
 operator.py
+reprlib.py

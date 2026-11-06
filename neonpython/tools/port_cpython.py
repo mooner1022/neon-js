@@ -25,6 +25,7 @@ copyreg.py
 heapq.py
 keyword.py
 operator.py
+reprlib.py
 """
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))

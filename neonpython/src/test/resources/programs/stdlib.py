@@ -5,6 +5,7 @@ import copyreg
 import heapq
 import keyword
 import operator
+import reprlib
 
 
 def keywords():
@@ -45,8 +46,26 @@ def futures():
     print(heapq.__name__, heapq.__file__.endswith('heapq.py'), type(copyreg.dispatch_table).__name__, copyreg.__newobj__.__name__)
 
 
+def reprs():
+    r = reprlib.Repr(maxlist=3, maxstring=10)
+    print(reprlib.repr(list(range(100))), reprlib.repr('x' * 100), r.repr([1, 2, 3, 4, 5]), r.repr({'a': 1, 'b': 2, 'c': 3, 'd': 4, 'e': 5}))
+    print(reprlib.repr(set(range(20))), reprlib.repr(10 ** 50), reprlib.repr(tuple(range(10))), reprlib.repr(frozenset('abcdefgh')))
+    print(r.repr([[[[1]]]]), reprlib.Repr(indent=2).repr([1, [2, 3]]))
+
+    class Node:
+        def __init__(self):
+            self.kids = [self]
+
+        @reprlib.recursive_repr()
+        def __repr__(self):
+            return f'Node({self.kids})'
+
+    print(Node(), Node.__repr__.__name__, Node.__repr__.__wrapped__.__qualname__)
+
+
 keywords()
 operators()
 heaps()
 bisects()
 futures()
+reprs()

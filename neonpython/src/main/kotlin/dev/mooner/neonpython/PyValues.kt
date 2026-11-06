@@ -254,7 +254,7 @@ class PyRange(@JvmField val start: Long, @JvmField val stop: Long, @JvmField val
 }
 
 /** An iterator of the runtime's: over a range, a list, a tuple, a str or a dict's keys. */
-class PyIterator(@JvmField val next: () -> Any?) {
+open class PyIterator(@JvmField val next: () -> Any?) {
     /** Its type (list_iterator, map, zip...): `iterator` where none is given. */
     @JvmField var type: PyType? = null
 

@@ -1,0 +1,40 @@
+count(0) count(5) count(1, 2) count(1.5, 0.5) count(0, -1) repeat('a') repeat('a', 3) repeat(1, 0)
+count(4)
+repeat(1, 1) 1
+TypeError a number is required
+ValueError Stop argument for islice() must be None or an integer: 0 <= x <= sys.maxsize.
+ValueError Stop argument for islice() must be None or an integer: 0 <= x <= sys.maxsize.
+ValueError Step for islice() must be a positive integer or None.
+ValueError Stop argument for islice() must be None or an integer: 0 <= x <= sys.maxsize.
+TypeError islice expected at least 2 arguments, got 1
+ValueError Indices for islice() must be None or an integer: 0 <= x <= sys.maxsize.
+ValueError n must be at least one
+ValueError batched(): incomplete batch
+ValueError r must be non-negative
+ValueError r must be non-negative
+ValueError repeat argument cannot be negative
+ValueError n must be >= 0
+TypeError 'int' object is not iterable
+TypeError repeat() missing required argument 'object' (pos 1)
+TypeError islice expected at most 4 arguments, got 5
+TypeError cycle expected 1 argument, got 0
+TypeError accumulate() missing required argument 'iterable' (pos 1)
+TypeError 'int' object is not iterable
+TypeError compress() missing required argument 'selectors' (pos 2)
+TypeError starmap expected 2 arguments, got 1
+TypeError pairwise expected 1 argument, got 0
+TypeError groupby() missing required argument 'iterable' (pos 1)
+TypeError count() takes at most 2 arguments (3 given)
+['count', 'chain', '_tee', 'groupby', '_grouper', 'islice', 'zip_longest', 'batched']
+itertools itertools _tee
+[10, 11, 13, 16] [1, 2, 6] [('a', 'b', 'c'), ('d', 'e', 'f'), ('g',)] [('a', 'b'), ('b', 'c'), ('c', 'd')]
+[('a', 'a'), ('a', 'b'), ('b', 'a'), ('b', 'b')] [(0, 1), (0, 2), (1, 0), (1, 2), (2, 0), (2, 1)] [('a', 'a'), ('a', 'b'), ('a', 'c'), ('b', 'b'), ('b', 'c'), ('c', 'c')] ['a', 'c']
+[('a', ['a', 'a']), ('b', ['b', 'b', 'b']), ('c', ['c'])] [2, 5] [('a', 'c'), ('b', '-')]
+[1, 2, 3] [1, 2, 3] [1, 2] [3, 1] [0, 0]
+[]
+_tee False
+count(1180591620717411303424) count(1, 1.0) [(0, 1, 2), (0, 1, 3), (0, 2, 3), (1, 2, 3)] [()] [] [()]
+['a', 'b', 'a', 'b', 'a'] ['a', 'b', 'c', 'd'] [8, 9] ['a', 'c', 'e']
+[0, 1, 2] 3
+[0, 1, 2, 3, 4] [2, 3, 4]
+[()] [] [] itertools.chain[int]

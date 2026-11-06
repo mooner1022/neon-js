@@ -11,3 +11,13 @@ operator.itemgetter(1) operator.attrgetter('a.b') operator.methodcaller('f', 1, 
 [1, 2, 3, 4, 4, 4, 8] 1
 _Feature None (3, 7, 0, 'beta', 1) ['nested_scopes', 'generators', 'division']
 heapq True dict __newobj__
+[0, 1, 2, 3, 4, 5, ...] 'xxxxxxxxxxxx...xxxxxxxxxxxxx' [1, 2, 3, ...] {'a': 1, 'b': 2, 'c': 3, 'd': 4, ...}
+{0, 1, 2, 3, 4, 5, ...} 100000000000000000...0000000000000000000 (0, 1, 2, 3, 4, 5, ...) frozenset({'a', 'b', 'c', 'd', 'e', 'f', ...})
+[[[[1]]]] [
+  1,
+  [
+    2,
+    3,
+  ],
+]
+Node([...]) __repr__ reprs.<locals>.Node.__repr__

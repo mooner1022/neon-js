@@ -1,0 +1,38 @@
+deque([1, 2, 3], maxlen=3) deque([]) deque([], maxlen=2)
+ValueError deque.index(x): x not in deque
+ValueError deque.remove(x): x not in deque
+IndexError pop from an empty deque
+IndexError pop from an empty deque
+IndexError deque index out of range
+TypeError sequence index must be integer, not 'str'
+IndexError deque already at its maximum size
+ValueError maxlen must be non-negative
+TypeError an integer is required
+TypeError can only concatenate deque (not "list") to deque
+AttributeError attribute 'maxlen' of 'collections.deque' objects is not writable
+TypeError '<' not supported between instances of 'collections.deque' and 'list'
+TypeError unhashable type: 'collections.deque'
+TypeError sequence index must be integer, not 'slice'
+deque([1, 2, [...]])
+D([1]) _deque_iterator _deque_reverse_iterator 3 None D
+deque([3, 4, 0, 1, 2]) deque([3, 4, 0, 1, 2, 3, 4, 0, 1, 2]) True 1 0 deque([3, 4, 0, 1, 2])
+deque mutated during iteration
+deque(['x', 'z', 'a', 'b', 'c', 'd']) e y 6 ['d', 'c', 'b', 'a', 'z', 'x'] x d
+deque(['a', 'b', 'c', 'd', 'x', 'z'])
+deque(['z', 'x', 'd', 'c', 'b', 'a'])
+deque(['Q', 'd', 'c', 'a']) True False
+deque([3, 4], maxlen=2)
+deque([9, 3], maxlen=2)
+True True False True
+deque([1, 2, 3, 1, 2, 3]) collections.deque[int] collections deque
+[1, 2, 3] 6 c ['a', 'b', 'c', 'd']
+deque([1, 1])
+defaultdict(<class 'list'>, {'a': [1]}) defaultdict(None, {}) <class 'list'> defaultdict(<class 'list'>, {'a': [1]})
+first argument must be callable or None
+KeyError('x')
+DD(<class 'int'>, {'a': 1}) defaultdict(<class 'list'>, {'a': [1], 'b': 2}) defaultdict defaultdict(<class 'list'>, {'b': 2, 'a': [1]}) defaultdict
+collections True True False None 1
+[('a', 5), ('b', 2), ('c', 1), ('d', 1), ('r', 2)] <class 'int'>
+KeyError('q')
+abab xyxy!
+defaultdict(<class 'list'>, {'self': defaultdict(<class 'list'>, {...})})

@@ -595,7 +595,13 @@ object PyBuiltins {
         }
         fun sameKind(a: Any?, b: Any?) = a is PyStr && b is PyStr || a is PyList && b is PyList || a is PyTuple && b is PyTuple || a is PyDict && b is PyDict
         for (t in arrayOf(PyTypes.STR, PyTypes.LIST, PyTypes.TUPLE, PyTypes.DICT)) {
-            dunder(t, "__getitem__", 1) { a -> PyRt.getItemValues(a[0], a[1]) }
+            dunder(t, "__getitem__", 1) { a ->
+                // (a dict's subclass's __missing__ for a key it has not: dict.__getitem__'s, through super() too)
+                val o = a[0]
+                val missing = if (o is PyDict && o.sub != null && !o.containsKey(a[1])) PyDunder.userMethod(o.sub!!.cls, "__missing__") else null
+                if (missing != null) PyCalls.callWith(PyContext.current(), missing, arrayOf(o, a[1]), NO_ARGS, NO_ARGS)
+                else PyRt.getItemValues(o, a[1])
+            }
             dunder(t, "__len__", 0) { a -> PyRt.lenValues(a[0]) }
             dunder(t, "__contains__", 1) { a -> PyBool.of(PyRt.containsValues(a[0], a[1])) }
             dunder(t, "__iter__", 0) { a -> PyRt.iterValues(a[0]) }
