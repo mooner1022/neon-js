@@ -369,8 +369,11 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
                 PyOp.LOAD_FAST, PyOp.LOAD_FAST_RAW -> stack.add(regs[a]!!)
                 PyOp.LOAD_FAST_CHECK -> {
                     val v = regs[a]!!
-                    // only the dead value is none, and a phi may be it (an instruction's result never is)
-                    if (v is Phi || v is Const && v.value == null) inst(PyIr.CHECK_BOUND, arrayOf(v), result = true)
+                    // only the dead value is none, and a phi may be it (an instruction's result never is), or what a
+                    // resumed generator's frame holds (its slot read where it resumes)
+                    if (v is Phi || v is Const && v.value == null || v is Inst && v.op == Ir.RESUME_SLOT) {
+                        inst(PyIr.CHECK_BOUND, arrayOf(v), result = true)
+                    }
                     else stack.add(v)
                 }
                 PyOp.STORE_FAST -> {

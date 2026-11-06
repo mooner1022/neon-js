@@ -162,5 +162,35 @@ def expressions():
     print(sum(i * i for i in range(100)), list(x + 1 for x in (y * 2 for y in range(5))))
 
 
-for f in (first_values, resumed_later, overflow, on_the_stack, handlers, delegating, coroutines, async_generators, expressions):
+def unbound():
+    # a local that may have no value where the generator resumes is still checked there
+    def maybe(c):
+        if c:
+            x = 1
+        yield
+        return x
+
+    def deleted():
+        x = 1
+        del x
+        yield
+        print(x)
+
+    def deleting(c):
+        if c:
+            x = 1
+        yield
+        del x
+        return 'deleted'
+    for g in (maybe(True), maybe(False), deleted(), deleting(True), deleting(False)):
+        next(g)
+        try:
+            next(g)
+        except StopIteration as e:
+            print('returned', e.value)
+        except UnboundLocalError as e:
+            print('UnboundLocalError', e)
+
+
+for f in (first_values, resumed_later, overflow, on_the_stack, handlers, delegating, coroutines, async_generators, expressions, unbound):
     f()

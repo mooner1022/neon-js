@@ -20,3 +20,8 @@ closed True
 [('waiting', 0), ('waiting', 1), ('waiting', 2), ('waiting', 3), ('result', 10)]
 [('waiting', 0), (0, 'sent'), ('waiting', 1), (1, 'sent'), ('waiting', 2), (2, 'sent'), 'done']
 328350 [1, 3, 5, 7, 9]
+returned 1
+UnboundLocalError cannot access local variable 'x' where it is not associated with a value
+UnboundLocalError cannot access local variable 'x' where it is not associated with a value
+returned deleted
+UnboundLocalError cannot access local variable 'x' where it is not associated with a value
