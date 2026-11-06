@@ -191,6 +191,10 @@ object PyClasses {
     fun instantiate(ctx: PyContext, cls: PyType, pos: Array<Any?>, kwNames: Array<Any?>, kwValues: Array<Any?>): Any? {
         val meta = cls.meta
         if (meta != null) PyDunder.userMethod(meta, "__call__")?.let { call ->
+            // (a __call__ not a method, as _TypedDictMeta's `__call__ = dict`: what its __get__ gives, called as it is)
+            if (!(call is PyFunction || call is PyBuiltin && call.method)) {
+                return PyCalls.callWith(ctx, descrGet(ctx, call, cls, meta), pos, kwNames, kwValues)
+            }
             val all = arrayOfNulls<Any?>(pos.size + 1)
             all[0] = cls
             pos.copyInto(all, 1)
@@ -282,6 +286,15 @@ object PyClasses {
 
     init {
         PyTypes.TYPE.def("__new__", TYPE_NEW)
+        // (type.__init__: its arguments checked, nothing done, as CPython's type_init)
+        fun typeInit(a: Array<Any?>, kw: PyDict?): Any? {
+            val n = a.size - 1
+            if (kw != null && kw.size > 0 && n == 1) throw PyRt.typeError("type.__init__() takes no keyword arguments")
+            if (n != 1 && n != 3) throw PyRt.typeError("type.__init__() takes 1 or 3 arguments")
+            return PyNone
+        }
+        PyTypes.TYPE.def("__init__", PyBuiltin("__init__", { _, a -> typeInit(a, null) }, { _, a, kw -> typeInit(a, kw) }))
+        PyAttrDescrs.defineTypeDescriptors()
         fun self(a: Array<Any?>, n: String): PyType = a.getOrNull(0) as? PyType
             ?: throw PyRt.typeError("descriptor '$n' for 'type' objects doesn't apply to a '${PyTypes.name(a.getOrNull(0))}' object")
         PyTypes.TYPE.def("__subclasses__", PyBuiltin("__subclasses__") { ctx, a -> PyList(ArrayList<Any?>(self(a, "__subclasses__").subclasses(ctx))) })
@@ -372,7 +385,7 @@ object PyClasses {
     @JvmStatic
     fun builtinGet(ctx: PyContext?, d: Any?, obj: Any?, type: PyType): Any? = when (d) {
         is PyFunction -> if (obj == null) d else PyMethod(d, obj)
-        is PyBuiltin -> if (obj == null) d else PyBoundMethod(obj, d)
+        is PyBuiltin -> if (obj == null || !d.method) d else PyBoundMethod(obj, d)
         is PyStaticMethod -> d.fn
         is PyClassMethod -> d.fn.let { fn -> if (fn is PyBuiltin) PyBoundMethod(type, fn) else PyMethod(fn, type) }
         is PyProperty -> if (obj == null) d else {
@@ -502,6 +515,12 @@ object PyClasses {
                 "__closure__" -> obj.closure?.let { PyTuple(it) } ?: PyNone
                 "__dict__" -> obj.dict ?: PyDict().also { obj.dict = it }
                 "__globals__" -> obj.globals
+                // (the builtins its code reads: its globals' __builtins__ (a module's dict), else the interpreter's)
+                "__builtins__" -> when (val b = obj.globals[PyStr("__builtins__")]) {
+                    is PyDict -> b
+                    is PyModule -> b.dict
+                    else -> PyContext.current().builtins
+                }
                 else -> null
             }
             is PyMethod -> when (name) {
@@ -539,6 +558,8 @@ object PyClasses {
                 "format_spec" -> obj.formatSpec
                 else -> null
             }
+            // (a cell's contents; empty: CPython's ValueError)
+            is PyCell -> if (name == "cell_contents") obj.value ?: throw PyException("ValueError", "Cell is empty") else null
             is PyRange -> when (name) {
                 "start" -> PyRanges.start(obj)
                 "stop" -> PyRanges.stop(obj)
@@ -592,13 +613,15 @@ object PyClasses {
         if (PyAnnotations.isName(name)) return PyAnnotations.typeGet(t, name)
         // (a class's own type parameters, not a base's)
         if (name == "__type_params__") return t.dict[PyStr(name)] ?: PyTuple.EMPTY
-        // (type's data descriptors: what the class's dict holds of the names does not hide them)
+        // (type's data descriptors, for a class whose metaclass is type: what the class's dict holds of the names does
+        // not hide them, as the metatype's data descriptors come first in CPython)
         when (name) {
             "__name__" -> return PyStr(t.name)
             "__qualname__" -> return PyStr(t.qualname)
             "__mro__" -> return PyTuple(arrayOf(*t.mro))
             "__bases__" -> return PyTuple(arrayOf(*t.bases))
         }
+        if (meta === PyTypes.TYPE) (PyTypes.TYPE.dict[PyStr(name)] as? PyAttrDescr)?.getter?.let { return it(t) }
         // (its own abstract methods, where they were set: not a base's, not type's)
         if (name == "__abstractmethods__") {
             return (if (t === PyTypes.TYPE) null else t.dict[PyStr(name)]) ?: throw PyException("AttributeError", "__abstractmethods__")
@@ -702,6 +725,10 @@ object PyClasses {
                 return
             }
         }
+        if (obj is PyCell && name == "cell_contents") {
+            obj.value = v
+            return
+        }
         when (obj) {
             is PyObject -> (obj.dict ?: PyDict().also { obj.dict = it })[PyStr(name)] = v
             is PyFunction -> (obj.dict ?: PyDict().also { obj.dict = it })[PyStr(name)] = v
@@ -767,6 +794,11 @@ object PyClasses {
             }
             if (obj.dict.map.remove(PyDict.Key(PyStr(name))) == null) throw PyException("AttributeError", "type object '${obj.name}' has no attribute '$name'")
             if (name == "__getattribute__" || name == "__setattr__" || name == "__delattr__") obj.hooks = hooksOf(obj)
+            return
+        }
+        if (obj is PyCell && name == "cell_contents") {
+            if (obj.value == null) throw PyException("ValueError", "Cell is empty")
+            obj.value = null
             return
         }
         val type = PyTypes.typeOf(obj)

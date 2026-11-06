@@ -26,6 +26,7 @@ _py_abc.py
 _py_warnings.py
 _weakrefset.py
 abc.py
+annotationlib.py
 ast.py
 bisect.py
 collections/__init__.py
@@ -48,6 +49,7 @@ reprlib.py
 string/__init__.py
 string/templatelib.py
 types.py
+typing.py
 warnings.py
 weakref.py
 """

@@ -5,7 +5,11 @@ package dev.mooner.neonpython
  * member_descriptor, read-only where CPython's is. Its instances' attributes stay where the runtime keeps them
  * (PyClasses); this is what the class shows of them (types.GetSetDescriptorType, inspect).
  */
-class PyAttrDescr(type: PyType, @JvmField val owner: PyType, @JvmField val name: String, @JvmField val readonly: Boolean) : PyObject(type)
+class PyAttrDescr(type: PyType, @JvmField val owner: PyType, @JvmField val name: String, @JvmField val readonly: Boolean) : PyObject(type) {
+    /** What reads and sets the attribute where it is not the instance's generic getattr's (type's own, whose lookups would come back here). */
+    @JvmField var getter: ((Any?) -> Any?)? = null
+    @JvmField var setter: ((Any?, Any?) -> Unit)? = null
+}
 
 object PyAttrDescrs {
     private val NO_ARGS = arrayOfNulls<Any?>(0)
@@ -26,6 +30,35 @@ object PyAttrDescrs {
 
     // (one each: FunctionType.__code__ is FunctionType.__code__; every context's, as the types are)
     private val made = java.util.concurrent.ConcurrentHashMap<Pair<PyType, String>, PyAttrDescr>()
+
+    /**
+     * type's own getset descriptors, in its dict (`type.__dict__["__annotations__"].__get__`, annotationlib's and
+     * inspect's way to read a class's own): each reads what type's attribute lookup gives for the name.
+     */
+    @JvmStatic
+    fun defineTypeDescriptors() {
+        val t = PyTypes.TYPE
+        fun def(n: String, readonly: Boolean, get: (PyType) -> Any?, set: ((PyType, Any?) -> Unit)? = null) {
+            val d = PyAttrDescr(GETSET, t, n, readonly)
+            d.getter = { o -> get(o as PyType) }
+            if (set != null) d.setter = { o, v -> set(o as PyType, v) }
+            t.dict[PyStr(n)] = d
+        }
+        def("__annotations__", false, { PyAnnotations.typeGet(it, "__annotations__") }) { c, v -> PyAnnotations.typeSet(c, "__annotations__", v) }
+        def("__annotate__", false, { PyAnnotations.typeGet(it, "__annotate__") }) { c, v -> PyAnnotations.typeSet(c, "__annotate__", v) }
+        def("__mro__", true, { PyTuple(arrayOf(*it.mro)) })
+        def("__dict__", true, { PyMappingProxies.of(it.dict) })
+        def("__name__", false, { PyStr(it.name) }) { c, v -> PyClasses.setAttr(c, "__name__", v) }
+        def("__qualname__", false, { PyStr(it.qualname) }) { c, v -> PyClasses.setAttr(c, "__qualname__", v) }
+        def("__bases__", true, { PyTuple(arrayOf(*it.bases)) })
+        // (a class's own, not these descriptors in type's dict)
+        def("__module__", false, { c -> (c.dict[PyStr("__module__")] as? PyStr) ?: PyStr(c.module) }) { c, v ->
+            if (c.module == "builtins" && !c.heap) throw PyRt.typeError("cannot set '__module__' attribute of immutable type '${c.name}'")
+            c.dict[PyStr("__module__")] = v
+            (v as? PyStr)?.let { c.module = it.s }
+        }
+        def("__type_params__", false, { c -> (c.dict[PyStr("__type_params__")] as? PyTuple) ?: PyTuple.EMPTY }) { c, v -> PyClasses.setAttr(c, "__type_params__", v) }
+    }
 
     /** [t]'s descriptor of attribute [name], or null. */
     @JvmStatic
@@ -49,12 +82,13 @@ object PyAttrDescrs {
             t.def("__get__", PyBuiltin("__get__") { _, a ->
                 val d = self(a)
                 val obj = a.getOrNull(1)
-                if (obj == null || obj === PyNone) d else PyRt.getAttr(target(d, obj), d.name)
+                if (obj == null || obj === PyNone) d else d.getter?.invoke(target(d, obj)) ?: PyRt.getAttr(target(d, obj), d.name)
             })
             t.def("__set__", PyBuiltin("__set__") { _, a ->
                 val d = self(a)
                 if (d.readonly) throw PyException("AttributeError", "readonly attribute")
-                PyClasses.setAttr(target(d, a[1]), d.name, a[2])
+                val s = d.setter
+                if (s != null) s(target(d, a[1]), a[2]) else PyClasses.setAttr(target(d, a[1]), d.name, a[2])
                 PyNone
             })
             t.def("__delete__", PyBuiltin("__delete__") { _, a ->

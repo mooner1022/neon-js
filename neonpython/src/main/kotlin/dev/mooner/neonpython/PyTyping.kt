@@ -34,6 +34,11 @@ class PyTypeParam(@JvmField val kind: Int, @JvmField val name: String) {
     @JvmField var default: Any? = null
     /** Attributes set on it. */
     @JvmField var dict: PyDict? = null
+    /** Its variance (a type parameter of the syntax's infers it) and module (a constructed one's: its caller's). */
+    @JvmField var covariant = false
+    @JvmField var contravariant = false
+    @JvmField var inferVariance = true
+    @JvmField var module: Any? = null
 
     companion object {
         const val TYPEVAR = 0
@@ -121,6 +126,7 @@ object PyTyping {
 
     @JvmStatic
     fun define() {
+        defineConstructors()
         if (!GENERIC.dict.containsKey(PyStr("__class_getitem__"))) {
             GENERIC.def("__class_getitem__", PyClassMethod(PyBuiltin("__class_getitem__") { _, a ->
                 if (a.size != 2) throw PyRt.typeError("__class_getitem__() takes exactly one argument (${a.size - 1} given)")
@@ -305,7 +311,12 @@ object PyTyping {
         is PyGenericAlias -> if (v.typing) typeRepr(v.origin) + "[" + (if (v.args.items.isEmpty()) "()" else v.args.items.joinToString(", ") { typeRepr(it) }) + "]"
             else gaRepr(v)
         // (a PEP 695 type variable's variance is inferred: no +, - or ~)
-        is PyTypeParam -> v.name
+        is PyTypeParam -> when {
+            v.kind == PyTypeParam.TYPEVARTUPLE || v.inferVariance -> v.name
+            v.covariant -> "+" + v.name
+            v.contravariant -> "-" + v.name
+            else -> "~" + v.name
+        }
         is PyParamSpecPart -> v.origin.name + if (v.kwargs) ".kwargs" else ".args"
         is PyUnpacked -> "typing.Unpack[${reprItem(v.arg)}]"
         is PyTypeAlias -> v.name
@@ -513,6 +524,143 @@ object PyTyping {
     /** MAKE_TYPEVAR [kind] (TypeVar, TypeVarTuple, ParamSpec): one named [name]. */
     @JvmStatic fun makeTypeVar(name: Any?, kind: Int): Any? = PyTypeParam(kind, (name as PyStr).s)
 
+    // ------------------------------------------------------------------ the constructors (_typing's, typing.py's)
+
+    /** CPython's type_check: typing._type_check(arg, msg) (None its type). */
+    private fun typeCheck(ctx: PyContext, v: Any?, msg: String): Any? {
+        if (v === PyNone || v == null) return PyTypes.NONE
+        val typing = PyImport.importModule(ctx, "typing")
+        return PyCalls.callWith(ctx, PyRt.getAttr(typing, "_type_check"), arrayOf(v, PyStr(msg)), NO_ARGS, NO_ARGS)
+    }
+
+    /** The module of the code calling a constructor (CPython's caller()). */
+    private fun callerModule(ctx: PyContext): Any? = try {
+        PyFrames.getFrame(ctx, 0L).f.globals[PyStr("__name__")] ?: PyNone
+    } catch (e: PyException) {
+        PyNone
+    }
+
+    private fun kwArgs(fn: String, kw: PyDict?, names: Set<String>): Map<String, Any?> {
+        val out = HashMap<String, Any?>()
+        kw?.map?.forEach { (k, v) ->
+            val n = (k.v as PyStr).s
+            if (n !in names) throw PyRt.typeError("$fn() got an unexpected keyword argument '$n'")
+            out[n] = v
+        }
+        return out
+    }
+
+    private fun nameArg(fn: String, a: Array<Any?>, kw: Map<String, Any?>): String {
+        val n = a.getOrNull(0) ?: kw["name"] ?: throw PyRt.typeError("$fn() missing required argument 'name' (pos 1)")
+        return (n as? PyStr ?: throw PyRt.typeError("$fn() argument 'name' must be str, not ${PyTypes.name(n)}")).s
+    }
+
+    private fun variance(t: PyTypeParam, kw: Map<String, Any?>) {
+        t.covariant = kw["covariant"]?.let { PyRt.truthy(it) } ?: false
+        t.contravariant = kw["contravariant"]?.let { PyRt.truthy(it) } ?: false
+        t.inferVariance = kw["infer_variance"]?.let { PyRt.truthy(it) } ?: false
+        if (t.covariant && t.contravariant) throw PyException("ValueError", "Bivariant types are not supported.")
+        if (t.inferVariance && (t.covariant || t.contravariant)) throw PyException("ValueError", "Variance cannot be specified with infer_variance.")
+    }
+
+    private fun defineConstructors() {
+        TYPEVAR.newImpl = { ctx, _, a, kw0 ->
+            val kw = kwArgs("TypeVar", kw0, setOf("name", "bound", "default", "covariant", "contravariant", "infer_variance"))
+            val t = PyTypeParam(PyTypeParam.TYPEVAR, nameArg("TypeVar", a, kw))
+            variance(t, kw)
+            val bound = kw["bound"]?.takeIf { it !== PyNone }?.let { typeCheck(ctx, it, "Bound must be a type.") }
+            val constraints = if (a.size > 1) a.copyOfRange(1, a.size) else emptyArray()
+            if (constraints.size == 1) throw PyRt.typeError("A single constraint is not allowed")
+            if (constraints.isNotEmpty() && bound != null) throw PyRt.typeError("Constraints cannot be combined with bound=...")
+            t.bound = bound
+            t.evaluateBound = null
+            if (bound != null) t.evaluateBound = PyBuiltin("evaluate_bound") { _, _ -> bound }
+            if (constraints.isNotEmpty()) {
+                val cs = PyTuple(Array(constraints.size) { typeCheck(ctx, constraints[it], "TypeVar(name, constraint, ...): constraints must be types.") })
+                t.constraints = cs
+                t.evaluateConstraints = PyBuiltin("evaluate_constraints") { _, _ -> cs }
+            }
+            kw["default"]?.takeIf { it !== PyNoDefault }?.let { d -> t.default = d; t.evaluateDefault = PyBuiltin("evaluate_default") { _, _ -> d } }
+            t.module = callerModule(ctx)
+            t
+        }
+        PARAMSPEC.newImpl = { ctx, _, a, kw0 ->
+            val kw = kwArgs("ParamSpec", kw0, setOf("name", "bound", "default", "covariant", "contravariant", "infer_variance"))
+            if (a.size > 1) throw PyRt.typeError("ParamSpec() takes at most 1 positional argument (${a.size} given)")
+            val t = PyTypeParam(PyTypeParam.PARAMSPEC, nameArg("ParamSpec", a, kw))
+            variance(t, kw)
+            kw["bound"]?.takeIf { it !== PyNone }?.let { b ->
+                val v = typeCheck(ctx, b, "Bound must be a type.")
+                t.bound = v
+                t.evaluateBound = PyBuiltin("evaluate_bound") { _, _ -> v }
+            }
+            kw["default"]?.takeIf { it !== PyNoDefault }?.let { d -> t.default = d; t.evaluateDefault = PyBuiltin("evaluate_default") { _, _ -> d } }
+            t.module = callerModule(ctx)
+            t
+        }
+        TYPEVARTUPLE.newImpl = { ctx, _, a, kw0 ->
+            val kw = kwArgs("TypeVarTuple", kw0, setOf("name", "default"))
+            if (a.size > 1) throw PyRt.typeError("TypeVarTuple() takes at most 1 positional argument (${a.size} given)")
+            val t = PyTypeParam(PyTypeParam.TYPEVARTUPLE, nameArg("TypeVarTuple", a, kw))
+            kw["default"]?.takeIf { it !== PyNoDefault }?.let { d -> t.default = d; t.evaluateDefault = PyBuiltin("evaluate_default") { _, _ -> d } }
+            t.module = callerModule(ctx)
+            t
+        }
+        for ((ty, kwargs) in listOf(PARAMSPEC_ARGS to false, PARAMSPEC_KWARGS to true)) ty.newImpl = { _, _, a, kw ->
+            if (kw != null && kw.size > 0) throw PyRt.typeError("${ty.name}() takes no keyword arguments")
+            if (a.size != 1) throw PyRt.typeError("${ty.name}() takes exactly one argument (${a.size} given)")
+            PyParamSpecPart(a[0] as? PyTypeParam ?: throw PyRt.typeError("${ty.name}() argument must be a ParamSpec"), kwargs)
+        }
+        TYPE_ALIAS.newImpl = { ctx, _, a, kw0 ->
+            val kw = kwArgs("TypeAliasType", kw0, setOf("name", "value", "type_params"))
+            if (a.size > 2) throw PyRt.typeError("TypeAliasType() takes at most 2 positional arguments (${a.size} given)")
+            val name = nameArg("TypeAliasType", a, kw)
+            val value = a.getOrNull(1) ?: kw["value"] ?: throw PyRt.typeError("TypeAliasType() missing required argument 'value' (pos 2)")
+            val tps = kw["type_params"]?.let { it as? PyTuple ?: throw PyRt.typeError("type_params must be a tuple") }
+            tps?.items?.forEach { if (it !is PyTypeParam) throw PyRt.typeError("Expected a type param, got ${PyRt.repr(it)}") }
+            PyTypeAlias(name, tps, null, callerModule(ctx)).also { it.value = value }
+        }
+        UNION.def("__class_getitem__", PyClassMethod(PyBuiltin("__class_getitem__") { ctx, a -> unionGetItem(ctx, a.getOrNull(1)) }))
+        NODEFAULT.newImpl = { _, _, a, kw ->
+            if (a.isNotEmpty() || kw != null && kw.size > 0) throw PyRt.typeError("NoDefaultType takes no arguments")
+            PyNoDefault
+        }
+    }
+
+    /**
+     * Union[X, Y, ...] (union_class_getitem): each argument typing._type_check's, None as NoneType, unions flattened,
+     * duplicates dropped; one left is itself, none an error.
+     */
+    private fun unionGetItem(ctx: PyContext, args: Any?): Any? {
+        val items = if (args is PyTuple && args.sub == null) args.items.toList() else listOf(args)
+        val checked = ArrayList<Any?>()
+        fun add(x: Any?) {
+            when {
+                x === PyNone -> checked.add(PyTypes.NONE)
+                x is PyUnion -> x.args.items.forEach { add(it) }
+                else -> checked.add(typeCheck(ctx, x, "Union[arg, ...]: each arg must be a type."))
+            }
+        }
+        for (x in items) add(x)
+        if (checked.isEmpty()) throw PyRt.typeError("Cannot take a Union of no types.")
+        return unionOf(checked)
+    }
+
+    /** `_typing` as a module: the types typing.py is made of. */
+    @JvmStatic
+    fun fillTyping(ctx: PyContext, d: PyDict) {
+        d[PyStr("_idfunc")] = PyBuiltin("_idfunc") { _, a -> a.getOrNull(0) }
+        d[PyStr("TypeVar")] = TYPEVAR
+        d[PyStr("ParamSpec")] = PARAMSPEC
+        d[PyStr("TypeVarTuple")] = TYPEVARTUPLE
+        d[PyStr("ParamSpecArgs")] = PARAMSPEC_ARGS
+        d[PyStr("ParamSpecKwargs")] = PARAMSPEC_KWARGS
+        d[PyStr("TypeAliasType")] = TYPE_ALIAS
+        d[PyStr("Generic")] = GENERIC
+        d[PyStr("Union")] = UNION
+        d[PyStr("NoDefault")] = PyNoDefault
+    }
+
     /** MAKE_TYPEVAR_BOUND: a TypeVar with its bound ([kind] 1) or constraints (2) evaluated by [fn]. */
     @JvmStatic
     fun makeTypeVarBound(name: Any?, fn: Any?, kind: Int): Any? {
@@ -566,7 +714,7 @@ object PyTyping {
         val tv = t.kind == PyTypeParam.TYPEVAR
         when (name) {
             "__name__" -> return PyStr(t.name)
-            "__module__" -> return PyStr("typing")
+            "__module__" -> return t.module ?: PyStr("typing")
             "__class__" -> return typeParamType(t)
             "__default__" -> return defaultOf(t)
             "evaluate_default" -> return t.evaluateDefault ?: PyNone
@@ -574,8 +722,9 @@ object PyTyping {
             "__typing_subst__" -> return PyBuiltin("__typing_subst__") { _, a -> a.getOrNull(0) }
         }
         if (t.kind != PyTypeParam.TYPEVARTUPLE) when (name) {
-            "__covariant__", "__contravariant__" -> return PyBool.FALSE
-            "__infer_variance__" -> return PyBool.TRUE
+            "__covariant__" -> return PyBool.of(t.covariant)
+            "__contravariant__" -> return PyBool.of(t.contravariant)
+            "__infer_variance__" -> return PyBool.of(t.inferVariance)
             "__bound__" -> return if (!tv || t.evaluateBound == null) PyNone else t.bound ?: evaluate(t.evaluateBound).also { t.bound = it }
         }
         if (tv) when (name) {

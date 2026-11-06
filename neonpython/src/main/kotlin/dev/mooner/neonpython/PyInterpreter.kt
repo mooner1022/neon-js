@@ -22,7 +22,8 @@ class PyContext(
     @JvmField val err: Appendable = out,
 ) {
     @JvmField val agent = VmAgent(config)
-    @JvmField val builtins: PyDict = PyBuiltins.module()
+    // (the builtins are functions, not methods: a class holding one gives it as it is)
+    @JvmField val builtins: PyDict = PyBuiltins.module().also { d -> for (v in d.map.values) if (v is PyBuiltin) v.method = false }
     /** sys.modules */
     @JvmField val modules = PyDict()
     /** The code of each module imported (the tests check them all compiled). */

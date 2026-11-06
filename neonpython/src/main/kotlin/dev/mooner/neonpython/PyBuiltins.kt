@@ -465,16 +465,8 @@ object PyBuiltins {
         if (args.size > 1) throw PyRt.typeError("dict expected at most 1 argument, got ${args.size}")
         if (args.isNotEmpty()) {
             val src = args[0]
-            if (src is PyDict) for ((k, v) in src.map) out.map[k] = v
-            else for ((i, item) in toList(src).withIndex()) {
-                val pair = try {
-                    toList(item)
-                } catch (e: PyException) {
-                    throw PyRt.typeError("object is not iterable")
-                }
-                if (pair.size != 2) throw PyException("ValueError", "dictionary update sequence element #$i has length ${pair.size}; 2 is required")
-                out[pair[0]] = pair[1]
-            }
+            // (a mapping, one with keys(), a mappingproxy too, its keys' items; else the pairs: dict_update_arg)
+            if (src is PyDict) for ((k, v) in src.map) out.map[k] = v else PyContainers.update(out, src)
         }
         if (kw != null) for ((k, v) in kw.map) out.map[k] = v
         return out

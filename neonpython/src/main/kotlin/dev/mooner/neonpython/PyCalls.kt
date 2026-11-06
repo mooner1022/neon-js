@@ -115,8 +115,13 @@ object PyCalls {
         is PyGenericAlias -> PyTyping.call(ctx, fn, pos, kwNames, kwValues)
         else -> {
             // an instance whose class has __call__
-            val call = PyClasses.classOf(fn)?.lookup("__call__")
+            val cls = PyClasses.classOf(fn)
+            val call = cls?.lookup("__call__")
                 ?: throw PyRt.typeError("'${PyTypes.name(fn)}' object is not callable")
+            // (a __call__ not a method, as NewType's `__call__ = _idfunc`: what its __get__ gives, called as it is)
+            if (!(call is PyFunction || call is PyBuiltin && call.method)) {
+                return callWith(ctx, PyClasses.descrGet(ctx, call, fn, cls), pos, kwNames, kwValues)
+            }
             val all = arrayOfNulls<Any?>(pos.size + 1)
             all[0] = fn
             pos.copyInto(all, 1)

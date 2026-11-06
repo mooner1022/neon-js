@@ -1,0 +1,30 @@
+typevar -> (~T, ~K, +V_co, <class 'str'>, True, '__main__', ~P, P.args, P.kwargs)
+variance -> ('-C', 'I', ())
+constrained -> (<class 'int'>, <class 'str'>)
+aliases -> (typing.List[int], typing.Dict[str, int], int | None, int | str, typing.Tuple[int, ...], typing.Callable[[int], str], typing.Callable[..., int])
+origin -> (<class 'list'>, (<class 'str'>, <class 'int'>), <class 'typing.Union'>, (<class 'int'>, <class 'str'>), ([<class 'int'>], <class 'str'>))
+union -> (<class 'int'>, int | str, int | str | bytes, True, True)
+union errors -> 1
+union empty !! TypeError Cannot take a Union of no types.
+generic -> (__main__.Box[int], 3, (~T,), __main__.Pair[str, int], (typing.Generic[~T],))
+namedtuple -> (Point(x=1, y=0), {'x': 1, 'y': 2}, ('x', 'y'), {'x': <class 'int'>, 'y': <class 'int'>}, {'y': 0})
+typeddict -> ({'title': 'x'}, False, {'title': <class 'str'>, 'year': <class 'int'>}, ['title', 'year'], ['name'])
+typeddict check !! TypeError TypedDict does not support instance and class checks
+newtype -> (5, __main__.UserId, <class 'int'>, 'UserId')
+literal -> (typing.Literal[1, 'a'], (1, 2), True)
+annotated -> (typing.Annotated[int, 'meta'], (<class 'int'>, 'meta'), ('m',))
+hints -> ({'a': <class 'int'>, 'b': <class 'str'>, 'return': list[int] | None}, {'x': <class 'int'>, 'y': <class 'int'>}, {'v': ~T, 'return': <class 'NoneType'>}, {'a': <class 'int'>, 'b': list[str]})
+hints extras -> {'a': <class 'int'>, 'b': <class 'str'>, 'return': list[int] | None}
+cast -> ('x', 3)
+overload -> (1, ['f', 'f'])
+misc -> (typing.Any, typing.ClassVar[int], typing.Final[int], typing.Never, typing.Self, typing.Concatenate[int, ~P], False, typing.Iterable[int], True)
+union op -> (int | str, typing.List[int] | None)
+type alias -> (typing.TypeAlias, A, <class 'int'>)
+errors2 !! TypeError Too many arguments for <class '__main__.Box'>; actual 2, expected 1
+errors3 !! TypeError A single constraint is not allowed
+forward -> (ForwardRef('int'), {'x': 'Undefined', 'y': <class 'int'>})
+ann string -> {'x': 'Undefined', 'y': 'int'}
+ann value -> {'x': 'Undefined', 'y': <class 'int'>}
+call_annotate -> {'a': 'int', 'b': 'list[str]'}
+final -> True
+assert_never !! AssertionError Expected code to be unreachable, but got: 1

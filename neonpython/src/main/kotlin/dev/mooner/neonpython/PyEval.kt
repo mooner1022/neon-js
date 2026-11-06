@@ -18,6 +18,16 @@ object PyEval {
 
     @JvmField val CODE = PyTypes.newBuiltin("code", subclassable = false)
 
+    init {
+        PyTypes.FUNCTION.newImpl = { _, _, a, kw -> newFunction(a, kw?.takeIf { it.size > 0 }) }
+        // (types.CellType(contents): a cell, empty without them)
+        PyTypes.CELL.newImpl = { _, _, a, kw ->
+            if (kw != null && kw.size > 0) throw PyRt.typeError("cell() takes no keyword arguments")
+            if (a.size > 1) throw PyRt.typeError("cell expected at most 1 argument, got ${a.size}")
+            PyCell(a.getOrNull(0))
+        }
+    }
+
     /** compile()'s PyCF_ONLY_AST, and the future feature annotations' flag. */
     private const val ONLY_AST = 0x400
     private const val FUTURE_ANNOTATIONS = 0x1000000
@@ -167,8 +177,51 @@ object PyEval {
     fun define(d: PyDict) {
         d[PyStr("dir")] = builtin("dir", ::dir)
         d[PyStr("compile")] = PyBuiltin("compile", { _, a -> compileArgs(a, null) }, { _, a, kw -> compileArgs(a, kw) })
-        d[PyStr("exec")] = builtin("exec", ::exec)
-        d[PyStr("eval")] = builtin("eval", ::eval)
+        d[PyStr("exec")] = builtin("exec", ::exec).also { b -> b.kwImpl = { ctx, a, kw -> execEvalKw(ctx, a, kw, "exec") } }
+        d[PyStr("eval")] = builtin("eval", ::eval).also { b -> b.kwImpl = { ctx, a, kw -> execEvalKw(ctx, a, kw, "eval") } }
+    }
+
+    /**
+     * exec(source, /, globals=None, locals=None, *, closure=None) and eval(source, /, globals=None, locals=None) called
+     * with keywords: those in their places, in the frame calling them (the innermost running).
+     */
+    private fun execEvalKw(ctx: PyContext, a: Array<Any?>, kw: PyDict, what: String): Any? {
+        if (a.size > 3) throw PyRt.typeError("$what expected at most 3 arguments, got ${a.size}")
+        val v = arrayOfNulls<Any?>(3)
+        a.copyInto(v)
+        var closure: Any? = null
+        for ((k, x) in kw.map) {
+            val n = (k.v as PyStr).s
+            val i = when (n) {
+                "globals" -> 1
+                "locals" -> 2
+                "closure" -> if (what == "exec") -1 else throw PyRt.typeError("$what() got an unexpected keyword argument '$n'")
+                else -> throw PyRt.typeError("$what() got an unexpected keyword argument '$n'")
+            }
+            if (i < 0) { closure = x; continue }
+            if (i < a.size) throw PyRt.typeError("argument for $what() given by name ('$n') and position (${i + 1})")
+            v[i] = x
+        }
+        if (v[0] == null) throw PyRt.typeError("$what expected at least 1 argument, got 0")
+        // (the places before one given by name: None, as if they were)
+        val n = if (v[2] != null) 3 else if (v[1] != null) 2 else 1
+        val args = Array<Any?>(n) { v[it] ?: PyNone }
+        if (closure != null && closure !== PyNone) return execClosure(ctx.top, args, closure)
+        return if (what == "exec") exec(ctx.top, args) else eval(ctx.top, args)
+    }
+
+    /** exec(code, globals, locals, closure=cells): a function's code run with the cells of its free variables. */
+    private fun execClosure(f: VmFrame?, a: Array<Any?>, closure: Any?): Any? {
+        val code = a[0] as? PyCode ?: throw PyRt.typeError("closure can only be used when source is a code object")
+        val frees = (code.code.dialectData as PyCodeInfo).freeNames.size
+        val cells = (closure as? PyTuple)?.items
+        if (cells == null || cells.size != frees) throw PyRt.typeError("code object requires a closure of exactly length $frees")
+        if (cells.any { it !is PyCell }) throw PyRt.typeError("closure can only contain cells")
+        val (g, l) = namespaces(f, a, "exec")
+        val fn = PyFunction(code.code, g, code.code.name)
+        fn.closure = cells.copyOf()
+        PyInterpreter.callWithLocals(PyContext.current(), fn, l)
+        return PyNone
     }
 
     /** compile(source, filename, mode, flags=0, dont_inherit=False, optimize=-1). */
@@ -191,6 +244,40 @@ object PyEval {
         val mode = (v[2] as? PyStr)?.s ?: throw PyRt.typeError("compile() argument 'mode' must be str, not ${PyTypes.name(v[2])}")
         val flags = (v[3] as? Long)?.toInt() ?: 0
         return compile(v[0], filename, mode, flags)
+    }
+
+    /**
+     * types.FunctionType(code, globals, name=None, argdefs=None, closure=None, kwdefaults=None): a function of
+     * [code] in other globals (annotationlib's way to run an __annotate__ with fake globals).
+     */
+    @JvmStatic
+    fun newFunction(a: Array<Any?>, kw: PyDict?): PyFunction {
+        val names = listOf("code", "globals", "name", "argdefs", "closure", "kwdefaults")
+        val v = arrayOfNulls<Any?>(names.size)
+        if (a.size > names.size) throw PyRt.typeError("function() takes at most 6 arguments (${a.size} given)")
+        a.copyInto(v)
+        kw?.map?.forEach { (k, x) ->
+            val i = names.indexOf((k.v as PyStr).s)
+            if (i < 0) throw PyRt.typeError("function() got an unexpected keyword argument '${k.v}'")
+            v[i] = x
+        }
+        val code = v[0] as? PyCode ?: throw PyRt.typeError("function() argument 'code' must be code, not ${PyTypes.name(v[0])}")
+        val globals = v[1] as? PyDict ?: throw PyRt.typeError("function() argument 'globals' must be dict, not ${PyTypes.name(v[1])}")
+        val name = v[2]?.takeIf { it !== PyNone }?.let { (it as? PyStr ?: throw PyRt.typeError("arg 3 (name) must be None or string")).s }
+            ?: (code.code.dialectData as PyCodeInfo).name
+        val f = PyFunction(code.code, globals, name)
+        v[3]?.takeIf { it !== PyNone }?.let { f.defaults = it as? PyTuple ?: throw PyRt.typeError("arg 4 (defaults) must be None or tuple") }
+        val free = (code.code.dialectData as PyCodeInfo).freeNames.size
+        val closure = v[4]?.takeIf { it !== PyNone }?.let { it as? PyTuple ?: throw PyRt.typeError("arg 5 (closure) must be tuple") }
+        if (closure == null && free > 0) throw PyRt.typeError("arg 5 (closure) must be tuple")
+        if ((closure?.items?.size ?: 0) != free) {
+            throw PyException("ValueError", "${(code.code.dialectData as PyCodeInfo).name} requires closure of length $free, not ${closure?.items?.size ?: 0}")
+        }
+        closure?.items?.forEach { if (it !is PyCell) throw PyRt.typeError("arg 5 (closure) expected cell, found ${PyTypes.name(it)}") }
+        if (closure != null) f.closure = closure.items.copyOf()
+        v[5]?.takeIf { it !== PyNone }?.let { f.kwdefaults = it as? PyDict ?: throw PyRt.typeError("arg 6 (kwdefaults) must be None or dict") }
+        if (!globals.containsKey(PyStr("__builtins__"))) globals[PyStr("__builtins__")] = PyContext.current().builtins
+        return f
     }
 
     /** f.__code__: its function's code object (the same each time). */

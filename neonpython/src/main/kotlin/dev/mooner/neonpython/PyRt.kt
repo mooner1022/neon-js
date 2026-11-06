@@ -993,7 +993,11 @@ object PyRt {
     /** The global [name] of [f]'s module, else the builtin, else a NameError. */
     @JvmStatic fun loadGlobal(f: dev.mooner.neonjs.vm.VmFrame, name: Any?): Any? {
         val pf = f as PyFrame
-        return pf.globals[name] ?: pf.ctx.builtins[name] ?: throw PyException.nameError(name)
+        val g = pf.globals
+        // (globals of a dict's subclass: its own __getitem__ and __missing__, as CPython's LOAD_GLOBAL does for one;
+        // annotationlib runs annotations with such)
+        if (g.sub != null) return PyClasses.namespaceGet(g, name) ?: pf.ctx.builtins[name] ?: throw PyException.nameError(name)
+        return g[name] ?: pf.ctx.builtins[name] ?: throw PyException.nameError(name)
     }
 
     @JvmStatic fun storeGlobal(f: dev.mooner.neonjs.vm.VmFrame, name: Any?, v: Any?) {

@@ -228,6 +228,12 @@ class PyBuiltin(@JvmField val name: String, @JvmField val impl: (PyContext, Arra
     @JvmField var kwImpl: ((PyContext, Array<Any?>, PyDict) -> Any?)? = null
     /** An int's or a float's method: a subclass's instance passed to it as its number (PyNumSub.num). */
     @JvmField var numSelf = false
+    /**
+     * Whether it binds to an instance as a method where a class holds it (a type's method: CPython's method
+     * descriptors), or is a function a module gives, which a class holding it gives as it is (NewType's
+     * `__call__ = _idfunc`).
+     */
+    @JvmField var method = true
     /** A builtin of its caller's frame (globals()): what a call from code calls, with the frame. */
     @JvmField var frameImpl: ((dev.mooner.neonjs.vm.VmFrame, Array<Any?>) -> Any?)? = null
 
