@@ -254,12 +254,16 @@ object PyImport {
                 PyContextVars.fill(ctx, d)
                 return mod()
             }
+            "_sre" -> {
+                PySre.fill(ctx, d)
+                return mod()
+            }
             else -> return null
         }
     }
 
     /** The modules NeonPy makes itself (sys.builtin_module_names). */
-    @JvmField val BUILTIN_NAMES = listOf("sys", "builtins", "string", "string.templatelib", "_thread", "_weakref", "gc", "_collections", "itertools", "_contextvars")
+    @JvmField val BUILTIN_NAMES = listOf("sys", "builtins", "string", "string.templatelib", "_thread", "_weakref", "gc", "_collections", "itertools", "_contextvars", "_sre")
 
     /** The features `from __future__ import` knows (CPython 3.14's). */
     @JvmField val FUTURES = listOf("nested_scopes", "generators", "division", "absolute_import", "with_statement", "print_function",

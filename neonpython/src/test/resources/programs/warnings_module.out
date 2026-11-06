@@ -1,0 +1,11 @@
+[('UserWarning', 'first', 'UserWarning', True, True), ('DeprecationWarning', 'second', 'DeprecationWarning', True, True), ('MyWarning', 'mine', 'MyWarning', True, True)]
+error !! RuntimeWarning boom
+0
+['keep this']
+1
+f.py:3: UserWarning: msg
+  src
+
+bad category !! TypeError category must be a Warning subclass, not 'type'
+[('file.py', 7)]
+list showwarning

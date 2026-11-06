@@ -2,6 +2,7 @@
 __future__.py
 _collections_abc.py
 _py_abc.py
+_py_warnings.py
 _weakrefset.py
 abc.py
 bisect.py
@@ -13,8 +14,15 @@ enum.py
 functools.py
 heapq.py
 keyword.py
+linecache.py
 numbers.py
 operator.py
+re/__init__.py
+re/_casefix.py
+re/_compiler.py
+re/_constants.py
+re/_parser.py
 reprlib.py
 types.py
+warnings.py
 weakref.py

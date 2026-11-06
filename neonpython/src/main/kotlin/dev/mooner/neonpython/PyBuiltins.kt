@@ -109,10 +109,13 @@ object PyBuiltins {
             if (base != null) {
                 val b = longOf(base, "base")
                 val v = args.getOrNull(0) ?: throw PyRt.typeError("int() missing string argument")
-                if (v !is PyStr) throw PyRt.typeError("int() can't convert non-string with explicit base")
+                // (bytes and bytearray too: their ASCII digits)
+                val text = bytesText(v) ?: (v as? PyStr) ?: ((v as? PyNumSub)?.num as? PyStr)
+                    ?: throw PyRt.typeError("int() can't convert non-string with explicit base")
                 if (b != 0L && (b < 2 || b > 36)) throw PyException("ValueError", "int() base must be >= 2 and <= 36, or 0")
-                return@type parseInt(v, b.toInt())
+                return@type parseInt(text, b.toInt(), PyRt.repr(v))
             }
+            if (args.isNotEmpty()) bytesText(args[0])?.let { return@type parseInt(it, 10, PyRt.repr(args[0])) }
             if (args.isEmpty()) 0L else when (val v = intArg(args[0])) {
                 is Long, is BigInteger -> v
                 is PyBool -> if (v.value) 1L else 0L
@@ -639,7 +642,6 @@ object PyBuiltins {
         dunder(PyTypes.STR, "__str__", 0) { a -> PyStr((a[0] as PyStr).s) }
     }
 
-    /** int(s, base): Python's int literal syntax (sign, underscores between digits, a prefix where base is 0 or matches). */
     /** str(object='', encoding, errors): the object's str, or (an encoding or errors given) a bytes-like object decoded. */
     private fun newStr(args: Array<Any?>, kw: PyDict?, sub: Boolean): PyStr {
         // (CPython's words for a subclass's, str.__new__'s, and for str()'s own)
@@ -659,8 +661,13 @@ object PyBuiltins {
         return PyStr(PyLiterals.decode(b, s(x[1], "encoding") ?: "utf-8", s(x[2], "errors") ?: "strict"))
     }
 
-    @JvmStatic fun parseInt(v: PyStr, base: Int): Any {
-        fun bad(): Nothing = throw PyException("ValueError", "invalid literal for int() with base $base: ${PyRt.repr(v)}")
+    /** The text of bytes or a bytearray as int() reads it (Latin-1: its ASCII digits), or null for anything else. */
+    private fun bytesText(v: Any?): PyStr? =
+        if (v is PyBytes || v is PyByteArray || v is PyNumSub && v.num is PyBytes) PyStr(String(PyByteSeqs.content(v)!!, Charsets.ISO_8859_1)) else null
+
+    /** int(s, base): Python's int literal syntax (sign, underscores between digits, a prefix where base is 0 or matches). */
+    @JvmStatic fun parseInt(v: PyStr, base: Int, shown: String? = null): Any {
+        fun bad(): Nothing = throw PyException("ValueError", "invalid literal for int() with base $base: ${shown ?: PyRt.repr(v)}")
         var s = v.s.trim()
         var neg = false
         if (s.startsWith("+") || s.startsWith("-")) { neg = s[0] == '-'; s = s.substring(1) }
