@@ -36,6 +36,8 @@ class PyNumSub(@JvmField val num: Any) : PyValue() {
 /** What makes a builtin value an instance of a subclass: the class, and the instance's attributes. */
 class PySub(@JvmField val cls: PyType) {
     @JvmField var dict: PyDict? = null
+    /** What a builtin subclass keeps of its own (a defaultdict's default_factory). */
+    @JvmField var state: Any? = null
 }
 
 /** True and False: a subclass of int (`True + 1 == 2`). */

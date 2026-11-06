@@ -246,6 +246,9 @@ object PyImport {
         }
     }
 
+    /** The modules NeonPy makes itself (sys.builtin_module_names). */
+    @JvmField val BUILTIN_NAMES = listOf("sys", "builtins", "string", "string.templatelib", "_thread", "_weakref", "gc")
+
     /** The features `from __future__ import` knows (CPython 3.14's). */
     @JvmField val FUTURES = listOf("nested_scopes", "generators", "division", "absolute_import", "with_statement", "print_function",
         "unicode_literals", "barry_as_FLUFL", "generator_stop", "annotations")
@@ -267,7 +270,6 @@ object PyImport {
         d[PyStr("maxsize")] = Long.MAX_VALUE
         d[PyStr("byteorder")] = PyStr("little")
         d[PyStr("version")] = PyStr("3.14.6 (NeonPy)")
-        d[PyStr("version_info")] = PyTuple(arrayOf(3L, 14L, 6L, PyStr("final"), 0L))
         d[PyStr("hexversion")] = 0x030e06f0L
         d[PyStr("platform")] = PyStr(platform())
         d[PyStr("executable")] = PyStr("")
@@ -311,7 +313,8 @@ object PyImport {
             ctx.agent.maxDepth = n.toInt()
             PyNone
         }
-        def("intern") { a -> a[0] }
+        def("intern") { a -> a[0] as? PyStr ?: throw PyRt.typeError("intern() argument must be str, not ${PyTypes.name(a[0])}") }
+        PySys.fill(ctx, d)
         val m = PyModule("sys", d)
         m.builtin = true
         ctx.modules[PyStr("sys")] = m

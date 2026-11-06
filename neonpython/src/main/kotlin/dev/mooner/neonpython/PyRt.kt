@@ -515,17 +515,43 @@ object PyRt {
 
     @JvmStatic fun repr(v: Any?): String = if (v is PyValue && v.sub != null) PyDunder.repr(v) else reprValues(v)
 
+    /** [body]'s repr of container [v], or [recursive] where [v]'s repr is being made already (it holds itself). */
+    @JvmStatic inline fun reprGuarded(ctx: PyContext, v: Any, recursive: String, body: () -> String): String {
+        if (ctx.reprActive.put(v, true) != null) return recursive
+        try {
+            return body()
+        } finally {
+            ctx.reprActive.remove(v)
+        }
+    }
+
+    /**
+     * An int's decimal digits; past sys.get_int_max_str_digits() digits (where the int is that long: CPython's
+     * conversion is quadratic) a ValueError.
+     */
+    @JvmStatic fun decimal(v: BigInteger): String {
+        // (640 digits take at least 2126 bits)
+        if (v.bitLength() < 2126) return v.toString()
+        val max = PyContext.current().maxStrDigits
+        val s = v.toString()
+        if (max > 0 && s.length - (if (v.signum() < 0) 1 else 0) > max) {
+            throw PyException("ValueError", "Exceeds the limit ($max digits) for integer string conversion; use sys.set_int_max_str_digits() to increase the limit")
+        }
+        return s
+    }
+
     /** repr of a builtin value (a subclass's instance as its base type's value), an object's through its class. */
     @JvmStatic fun reprValues(v: Any?): String = when (v) {
         is PyNumSub -> reprValues(v.num)
         null, PyNone -> "None"
         is PyBool -> v.toString()
-        is Long, is BigInteger -> v.toString()
+        is Long -> v.toString()
+        is BigInteger -> decimal(v)
         is Double -> floatRepr(v)
         is PyStr -> strRepr(v.s)
-        is PyList -> v.items.joinToString(", ", "[", "]") { repr(it) }
+        is PyList -> if (v.items.isEmpty()) "[]" else reprGuarded(PyContext.current(), v, "[...]") { v.items.joinToString(", ", "[", "]") { repr(it) } }
         is PyTuple -> if (v.items.size == 1) "(" + repr(v.items[0]) + ",)" else v.items.joinToString(", ", "(", ")") { repr(it) }
-        is PyDict -> v.map.entries.joinToString(", ", "{", "}") { repr(it.key.v) + ": " + repr(it.value) }
+        is PyDict -> if (v.size == 0) "{}" else reprGuarded(PyContext.current(), v, "{...}") { v.map.entries.joinToString(", ", "{", "}") { repr(it.key.v) + ": " + repr(it.value) } }
         is PySet -> PySets.repr(v)
         is PySlice -> v.toString()
         is PyTemplate -> PyLiterals.templateRepr(v)

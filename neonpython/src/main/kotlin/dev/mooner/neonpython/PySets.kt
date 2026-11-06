@@ -99,14 +99,14 @@ object PyHash {
     private fun special(v: Any): Long {
         val t = PyTypes.typeOf(v)
         val h = t.lookup("__hash__")
-        if (h === PyNone) throw PyRt.typeError("unhashable type: '${t.name}'")
+        if (h === PyNone) throw PyRt.typeError("unhashable type: '${t.tpName ?: t.name}'")
         if (h == null || h is PyBuiltin && !t.dispatchBuiltins) return when (v) {
             is PyStr -> fix(v.s.hashCode().toLong())
             is PyTuple -> tuple(v.items)
-            is PySet -> if (v.frozen) v.frozenHash() else throw PyRt.typeError("unhashable type: '${t.name}'")
+            is PySet -> if (v.frozen) v.frozenHash() else throw PyRt.typeError("unhashable type: '${t.tpName ?: t.name}'")
             // (an int's or a float's subclass: its number's)
             is PyNumSub -> hash(v.num)
-            is PyValue -> throw PyRt.typeError("unhashable type: '${t.name}'")
+            is PyValue -> throw PyRt.typeError("unhashable type: '${t.tpName ?: t.name}'")
             else -> System.identityHashCode(v).toLong()
         }
         return when (val r = PyCalls.callWith(PyContext.current(), PyClasses.descrGet(null, h, v, t), arrayOfNulls(0), arrayOfNulls(0), arrayOfNulls(0))) {

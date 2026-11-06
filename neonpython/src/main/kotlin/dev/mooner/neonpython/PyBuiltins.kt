@@ -458,7 +458,8 @@ object PyBuiltins {
     }
 
     /** dict(src, **kw) and dict.__init__: the pairs of a mapping or an iterable of pairs, then the keywords. */
-    private fun dictFill(out: PyDict, args: Array<Any?>, kw: PyDict?): PyDict {
+    @JvmStatic
+    fun dictFill(out: PyDict, args: Array<Any?>, kw: PyDict?): PyDict {
         if (args.size > 1) throw PyRt.typeError("dict expected at most 1 argument, got ${args.size}")
         if (args.isNotEmpty()) {
             val src = args[0]
@@ -640,6 +641,12 @@ object PyBuiltins {
         if (s.isEmpty() || s.startsWith("_") || s.endsWith("_") || "__" in s) bad()
         val digits = s.replace("_", "")
         if (digits.any { Character.digit(it, b) < 0 }) bad()
+        // (a base not a power of 2: no more digits than sys.get_int_max_str_digits())
+        if (digits.length > PySys.STR_DIGITS_CHECK_THRESHOLD && b and (b - 1) != 0) {
+            val max = PyContext.current().maxStrDigits
+            if (max > 0 && digits.length > max) throw PyException("ValueError",
+                "Exceeds the limit ($max digits) for integer string conversion: value has ${digits.length} digits; use sys.set_int_max_str_digits() to increase the limit")
+        }
         val r = BigInteger(digits, b)
         return PyRt.norm(if (neg) r.negate() else r)
     }

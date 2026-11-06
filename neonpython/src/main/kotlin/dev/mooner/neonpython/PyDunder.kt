@@ -239,7 +239,7 @@ object PyDunder {
     fun hash(v: Any): Int {
         val t = PyTypes.typeOf(v)
         val h = t.lookup("__hash__")
-        if (h === PyNone) throw PyRt.typeError("unhashable type: '${t.name}'")
+        if (h === PyNone) throw PyRt.typeError("unhashable type: '${t.tpName ?: t.name}'")
         if (h == null || h is PyBuiltin && !t.dispatchBuiltins) return if (v is PyValue) PyRt.hashValues(v) else System.identityHashCode(v)
         return when (val r = call(h, v)) {
             is Long -> java.lang.Long.hashCode(r)
@@ -262,7 +262,7 @@ object PyDunder {
             val h = t.lookup("__hash__")
             when {
                 !PyRt.special(v) -> PyRt.hash(v).toLong()
-                h === PyNone -> throw PyRt.typeError("unhashable type: '${t.name}'")
+                h === PyNone -> throw PyRt.typeError("unhashable type: '${t.tpName ?: t.name}'")
                 h == null || h is PyBuiltin && !t.dispatchBuiltins -> if (v is PyNumSub) hashValue(v.num) else if (v is PyValue) PyRt.hashValues(v).toLong() else System.identityHashCode(v).toLong()
                 else -> when (val r = call(h, v)) {
                     is Long -> intHash(BigInteger.valueOf(r))

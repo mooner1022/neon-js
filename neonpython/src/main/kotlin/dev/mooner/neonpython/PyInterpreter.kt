@@ -43,6 +43,10 @@ class PyContext(
     @JvmField var draining = false
     @JvmField var weakrefNotes = 0
     @JvmField var gcEnabled = true
+    /** sys.set_int_max_str_digits: the most digits an int-str conversion of a base not a power of 2 takes (0: no limit). */
+    @JvmField var maxStrDigits = PySys.DEFAULT_MAX_STR_DIGITS
+    /** The containers whose repr is being made ([PyRt.reprGuarded]: `[...]` where one holds itself). */
+    @JvmField val reprActive = java.util.IdentityHashMap<Any, Boolean>()
 
     /** The source of each module imported, by its file (a traceback's lines). */
     @JvmField val sources = HashMap<String, String>()

@@ -1,0 +1,37 @@
+sys.version_info(major=3, minor=14, micro=6, releaselevel='final', serial=0) 3 (3, 14) True version_info sys 5 final final
+18 0 1 1 21 18
+('major', 'minor', 'micro', 'releaselevel', 'serial') int_max_str_digits {'gil': 1, 'thread_inherit_context': 0, 'context_aware_warnings': 0}
+1.7976931348623157e+308 2.220446049250313e-16 2.2250738585072014e-308 15 53 sys.float_info(max=1.7976931348623157e+308, max_exp=1024, max_10_exp=308, min=2.2250738585072014e-308, min_exp=-1021, min_10_exp=-307, dig=15, mant_dig=53, epsilon=2.220446049250313e-16, radix=2, rounds=1)
+sys.int_info(bits_per_digit=30, sizeof_digit=4, default_max_str_digits=4300, str_digits_check_threshold=640) 2305843009213693951 314159 1114111 9223372036854775807
+True True None
+TypeError cannot create 'sys.flags' instances
+AttributeError readonly attribute
+3 with 14
+SimpleNamespace types True True True
+namespace(a=1, b='x') True True namespace(c=2, d=3) {'a': 1, 'b': 'x'}
+namespace(a=1, b='x', c=[namespace(...)]) namespace(a=5, b='x', c=[namespace(a=1, b='x', c=[...])])
+namespace(a=1, b='x')
+N(x=1) namespace()
+TypeError 'int' object is not iterable
+TypeError keywords must be strings
+TypeError unhashable type: 'types.SimpleNamespace'
+TypeError SimpleNamespace expected at most 1 argument, got 2
+4300 4300
+5000 5000 5001
+ValueError maxdigits must be >= 640 or 0 for unlimited
+ValueError Exceeds the limit (5000 digits) for integer string conversion; use sys.set_int_max_str_digits() to increase the limit
+ValueError Exceeds the limit (5000 digits) for integer string conversion: value has 5001 digits; use sys.set_int_max_str_digits() to increase the limit
+ValueError Exceeds the limit (5000 digits) for integer string conversion; use sys.set_int_max_str_digits() to increase the limit
+ValueError Exceeds the limit (5000 digits) for integer string conversion; use sys.set_int_max_str_digits() to increase the limit
+4985
+True
+None
+700
+6001 6001 6000
+[1, [...]] {'me': {...}, 'l': [1, [...]]} [[1, [...]], [1, [...]]] {'x': [{'me': {...}, 'l': [1, [...]]}]}
+utf-8 utf-8 ab False True True
+True True tuple
+True True list list []
+[('my.event', (1, 2)), ('other', ())]
+intern() argument must be str, not int
+True

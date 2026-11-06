@@ -96,7 +96,7 @@ object PyFormat {
     fun builtinFormat(v: Any?, spec: String): String = when (v) {
         is PyBool -> if (spec.isEmpty()) v.toString() else formatInt(BigInteger.valueOf(if (v.value) 1L else 0L), parse(spec, v), v)
         is Long -> if (spec.isEmpty()) v.toString() else formatInt(BigInteger.valueOf(v), parse(spec, v), v)
-        is BigInteger -> if (spec.isEmpty()) v.toString() else formatInt(v, parse(spec, v), v)
+        is BigInteger -> if (spec.isEmpty()) PyRt.decimal(v) else formatInt(v, parse(spec, v), v)
         is Double -> if (spec.isEmpty()) PyRt.floatRepr(v) else formatFloat(v, parse(spec, v), v)
         is PyStr -> if (spec.isEmpty()) v.s else formatStr(v.s, parse(spec, v), v)
         else -> {
@@ -172,7 +172,7 @@ object PyFormat {
         if (s.grouping == ',' && t != 0.toChar() && t != 'd') throw PyException("ValueError", "Cannot specify ',' with '$t'.")
         if (s.grouping == '_' && t == 'n') throw PyException("ValueError", "Cannot specify '_' with 'n'.")
         val radix = when (t) { 'b' -> 2; 'o' -> 8; 'x', 'X' -> 16; else -> 10 }
-        var digits = n.abs().toString(radix)
+        var digits = if (radix == 10) PyRt.decimal(n.abs()) else n.abs().toString(radix)
         if (t == 'X') digits = digits.uppercase()
         val prefix = if (!s.alt) "" else when (t) { 'b' -> "0b"; 'o' -> "0o"; 'x' -> "0x"; 'X' -> "0X"; else -> "" }
         val sign = signOf(n.signum() < 0, s)
