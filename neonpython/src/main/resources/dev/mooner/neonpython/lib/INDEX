@@ -43,3 +43,6 @@ typing.py
 warnings.py
 weakref.py
 _ast.py  # NeonPy's: generated from CPython's Parser/Python.asdl by neonpython/tools/gen_ast.py
+importlib/__init__.py  # NeonPy's: importlib's API over NeonPy's import (_imp), CPython's checks and messages
+importlib/machinery.py  # NeonPy's: importlib.machinery over NeonPy's import, CPython's ModuleSpec
+importlib/util.py  # NeonPy's: CPython's importlib.util over NeonPy's import, a spec made where a module has none

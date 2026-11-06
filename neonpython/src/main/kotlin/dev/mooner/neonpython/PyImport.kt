@@ -54,7 +54,28 @@ class PyStream(@JvmField val out: Appendable, @JvmField val name: String, @JvmFi
 object PyImport {
     private val NO_ARGS = arrayOfNulls<Any?>(0)
 
-    @JvmField val MODULE_TYPE = PyTypes.newBuiltin("module", subclassable = true)
+    @JvmField val MODULE_TYPE = PyTypes.newBuiltin("module", subclassable = true).also { t ->
+        // (types.ModuleType(name, doc=None): a module of its own, as module_init makes one)
+        t.newImpl = { _, _, a, kw ->
+            val v = arrayOfNulls<Any?>(2)
+            if (a.size > 2) throw PyRt.typeError("module() takes at most 2 arguments (${a.size} given)")
+            a.copyInto(v)
+            kw?.map?.forEach { (k, x) ->
+                val i = listOf("name", "doc").indexOf((k.v as PyStr).s)
+                if (i < 0) throw PyRt.typeError("module() got an unexpected keyword argument '${k.v}'")
+                v[i] = x
+            }
+            val name = v[0] ?: throw PyRt.typeError("module.__init__() missing required argument 'name' (pos 1)")
+            if (name !is PyStr) throw PyRt.typeError("module.__init__() argument 'name' must be str, not ${PyTypes.name(name)}")
+            val d = PyDict()
+            d[PyStr("__name__")] = name
+            d[PyStr("__doc__")] = v[1] ?: PyNone
+            d[PyStr("__package__")] = PyNone
+            d[PyStr("__loader__")] = PyNone
+            d[PyStr("__spec__")] = PyNone
+            PyModule(name.s, d)
+        }
+    }
     @JvmField val STREAM_TYPE = PyTypes.newBuiltin("TextIOWrapper", subclassable = false).also { it.module = "_io" }
 
     private fun ctx() = PyContext.current()
@@ -78,6 +99,21 @@ object PyImport {
         val m = builtinModule(ctx, name) ?: load(ctx, name, parent)
         if (pm is PyModule) pm.dict[PyStr(name.substringAfterLast('.'))] = ctx.modules[key] ?: m
         return ctx.modules[key] ?: m
+    }
+
+    /** importlib.reload: [m]'s source found again and its body run in its dict (a builtin module's nothing). */
+    private fun reload(ctx: PyContext, m: PyModule) {
+        if (m.builtin) return
+        val src = ctx.loader?.find(m.name) ?: PyStdlib.find(m.name) ?: throw notFound(m.name, "spec not found for the module '${m.name}'")
+        val cb = try {
+            PyCompiler.withFilename(PyCompiler.compileModule(src.source, "<module>"), src.path)
+        } catch (e: PySyntaxError) {
+            throw PyException("SyntaxError", "${e.msg} (${src.path}, line ${e.line})")
+        }
+        if (src.library) ctx.libraryUnits.add(cb) else ctx.moduleUnits.add(cb)
+        ctx.sources[src.path] = src.source
+        m.dict[PyStr("__file__")] = PyStr(src.path)
+        ctx.runModule(cb, m.dict)
     }
 
     /** A module of the host's loader: made, put in sys.modules, its body run in its dict. */
@@ -276,6 +312,30 @@ object PyImport {
                 PyRandom.fill(d)
                 return mod().also { d[PyStr("__doc__")] = PyStr("Module implements the Mersenne Twister random number generator.") }
             }
+            // (what NeonPy's own importlib stands on: its import's, CPython's _imp's names where they are CPython's)
+            "_imp" -> {
+                def("extension_suffixes") { _ -> PyList() }
+                def("is_builtin") { a ->
+                    val n = (a.getOrNull(0) as? PyStr ?: throw PyRt.typeError("is_builtin() argument must be str, not ${PyTypes.name(a.getOrNull(0))}")).s
+                    if (n == "sys" || n == "builtins") -1L else if (n in BUILTIN_NAMES) 1L else 0L
+                }
+                def("is_frozen") { _ -> PyBool.FALSE }
+                def("acquire_lock") { _ -> PyNone }
+                def("release_lock") { _ -> PyNone }
+                def("lock_held") { _ -> PyBool.FALSE }
+                // (NeonPy's: a module's source found as import finds it, not run: (path, is a package, text), or None)
+                def("_find_source") { a ->
+                    val n = (a.getOrNull(0) as? PyStr ?: throw PyRt.typeError("_find_source() argument must be str")).s
+                    val src = ctx.loader?.find(n) ?: PyStdlib.find(n)
+                    if (src == null) PyNone else PyTuple(arrayOf(PyStr(src.path), PyBool.of(src.isPackage), PyStr(src.source)))
+                }
+                // (NeonPy's: a module's body run again in its dict, its source found again: importlib.reload's)
+                def("_reload") { a ->
+                    reload(ctx, a.getOrNull(0) as? PyModule ?: throw PyRt.typeError("reload() argument must be a module"))
+                    PyNone
+                }
+                return mod()
+            }
             "_operator" -> {
                 PyOperator.fill(d)
                 return mod()
@@ -289,7 +349,7 @@ object PyImport {
     }
 
     /** The modules NeonPy makes itself (sys.builtin_module_names). */
-    @JvmField val BUILTIN_NAMES = listOf("sys", "builtins", "_thread", "_weakref", "gc", "_collections", "itertools", "_contextvars", "_sre", "_string", "_typing", "math", "errno", "posix", "_random", "_sha2", "_md5", "_sha1", "_operator")
+    @JvmField val BUILTIN_NAMES = listOf("sys", "builtins", "_thread", "_weakref", "gc", "_collections", "itertools", "_contextvars", "_sre", "_string", "_typing", "math", "errno", "posix", "_random", "_sha2", "_md5", "_sha1", "_operator", "_imp")
 
     /** The features `from __future__ import` knows (CPython 3.14's). */
     @JvmField val FUTURES = listOf("nested_scopes", "generators", "division", "absolute_import", "with_statement", "print_function",

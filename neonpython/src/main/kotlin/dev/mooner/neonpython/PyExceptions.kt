@@ -458,9 +458,17 @@ object PyExceptions {
         b.def("__new__", PyBuiltin("__new__", { _, a -> newImpl(a) }, { _, a, _ -> newImpl(a) }))
         fun initImpl(a: Array<Any?>, kw: PyDict?): Any? {
             val o = self(a, "__init__")
-            if (kw != null && kw.size > 0) throw PyRt.typeError("${o.type.name}() takes no keyword arguments")
+            // (ImportError's keyword-only name, path and name_from: ImportError_init's)
+            val importError = o.type.isSubtype(type("ImportError"))
+            if (kw != null && kw.size > 0 && !importError) throw PyRt.typeError("${o.type.name}() takes no keyword arguments")
             o.args = if (a.size > 1) PyTuple(a.copyOfRange(1, a.size)) else PyTuple.EMPTY
             initFields(o)
+            if (importError) kw?.map?.forEach { (k, v) ->
+                when (val n = (k.v as PyStr).s) {
+                    "name", "path", "name_from" -> o.setField(n, v)
+                    else -> throw PyRt.typeError("'$n' is an invalid keyword argument for ImportError()")
+                }
+            }
             return PyNone
         }
         b.def("__init__", PyBuiltin("__init__", { _, a -> initImpl(a, null) }, { _, a, kw -> initImpl(a, kw) }))

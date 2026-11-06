@@ -1,0 +1,21 @@
+import_module -> ('string', 're._parser', 're._parser')
+relative no package !! TypeError the 'package' argument is required to perform a relative import for '.x'
+missing !! ModuleNotFoundError No module named 'no_such_mod_xyz'
+bad name !! AttributeError 'int' object has no attribute 'startswith'
+empty !! ValueError Empty module name
+beyond !! ImportError attempted relative import beyond top-level package
+suffixes -> (['.py'], '.pyc', True)
+find_spec pkg -> ('collections', True, 'collections', True, True, 'ModuleSpec')
+find_spec textwrap -> ('textwrap', True, '', None)
+find_spec missing -> None
+find_spec missing sub -> None
+find_spec nonpkg sub !! ModuleNotFoundError __path__ attribute not found on 'textwrap' while trying to find 'textwrap.x'
+find_spec builtin -> ('sys', 'built-in')
+find_spec loaded -> ('textwrap', True)
+resolve -> ('a.c.b', 'a.b', 'x')
+resolve bad !! ImportError no package specified for '.b' (required for relative module names)
+spec repr -> ("ModuleSpec(name='m', loader=None, origin='o')", '', True)
+module_from_spec -> ('module', 'm', True, None)
+reload -> (True, 1, True)
+reload bad !! TypeError reload() argument must be a module
+builtin importer -> ('built-in', None)
