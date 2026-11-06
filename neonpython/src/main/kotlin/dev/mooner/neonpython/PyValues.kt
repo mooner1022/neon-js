@@ -190,6 +190,11 @@ class PyFunction(@JvmField val code: CodeUnit, @JvmField val globals: PyDict, @J
     @JvmField var defaults: PyTuple? = null
     @JvmField var kwdefaults: PyDict? = null
     @JvmField var closure: Array<Any?>? = null
+    /** Its __name__ and __qualname__, the same object each time. */
+    @JvmField var nameObj: PyStr? = null
+    @JvmField var qualnameObj: PyStr? = null
+    /** Its __doc__ once read (a str or None), the same object each time. */
+    @JvmField var docObj: Any? = null
     /** Its attributes (`f.attr = v`). */
     @JvmField var dict: PyDict? = null
     /** Its `__annotate__` (PEP 649: made with it where it has annotations; null, None, or a callable), and the dict it gave. */

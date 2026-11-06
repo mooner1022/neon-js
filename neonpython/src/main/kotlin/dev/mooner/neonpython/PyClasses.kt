@@ -347,6 +347,12 @@ object PyClasses {
     }
 
     /** The attributes every object of a kind has (not in a type's dict). */
+    private fun wrapperAttr(fn: Any?, name: String): Any? = when (name) {
+        "__func__", "__wrapped__" -> fn
+        "__module__", "__qualname__", "__name__", "__doc__", "__annotations__" -> getAttr(fn, name)
+        else -> null
+    }
+
     private fun special(obj: Any?, name: String): Any? {
         if (name == "__class__") return PyTypes.typeOf(obj)
         return when (obj) {
@@ -356,9 +362,9 @@ object PyClasses {
                 if (name == "__dict__" && s != null) s.dict ?: PyDict().also { s.dict = it } else null
             }
             is PyFunction -> when (name) {
-                "__name__" -> PyStr(obj.name)
-                "__qualname__" -> PyStr(obj.qualname)
-                "__doc__" -> obj.info.doc?.let { PyStr(it) } ?: PyNone
+                "__name__" -> obj.nameObj ?: PyStr(obj.name).also { obj.nameObj = it }
+                "__qualname__" -> obj.qualnameObj ?: PyStr(obj.qualname).also { obj.qualnameObj = it }
+                "__doc__" -> obj.docObj ?: (obj.info.doc?.let { PyStr(it) } ?: PyNone).also { obj.docObj = it }
                 "__module__" -> obj.globals[PyStr("__name__")] ?: PyNone
                 "__defaults__" -> obj.defaults ?: PyNone
                 "__kwdefaults__" -> obj.kwdefaults ?: PyNone
@@ -376,6 +382,9 @@ object PyClasses {
                 "__name__", "__qualname__" -> PyStr(obj.name)
                 else -> null
             }
+            // (a staticmethod's or classmethod's, the function's: CPython copies its attributes, and __wrapped__)
+            is PyStaticMethod -> wrapperAttr(obj.fn, name)
+            is PyClassMethod -> wrapperAttr(obj.fn, name)
             is PyTemplate -> when (name) {
                 "strings" -> PyTuple(obj.strings)
                 "interpolations" -> PyTuple(obj.interpolations)
@@ -478,6 +487,10 @@ object PyClasses {
             PyTyping.setFunctionTypeParams(obj, v)
             return
         }
+        if (obj is PyFunction && (name == "__defaults__" || name == "__kwdefaults__")) {
+            setDefaults(obj, name, v)
+            return
+        }
         if (obj is PyTypeParam) {
             PyTyping.typeParamSet(obj, name, v)
             return
@@ -531,6 +544,17 @@ object PyClasses {
         genericDelAttr(obj, name)
     }
 
+    /** f.__defaults__ = (a tuple or None), f.__kwdefaults__ = (a dict or None): what its calls fill in then. */
+    private fun setDefaults(f: PyFunction, name: String, v: Any?) {
+        if (name == "__defaults__") {
+            if (v !== PyNone && v !is PyTuple) throw PyRt.typeError("__defaults__ must be set to a tuple object")
+            f.defaults = v as? PyTuple
+        } else {
+            if (v !== PyNone && v !is PyDict) throw PyRt.typeError("__kwdefaults__ must be set to a dict object")
+            f.kwdefaults = v as? PyDict
+        }
+    }
+
     /** object.__delattr__: a property's deleter, else the instance's dict. */
     @JvmStatic
     fun genericDelAttr(obj: Any?, name: String) {
@@ -541,6 +565,10 @@ object PyClasses {
         }
         if (obj is PyFunction && PyAnnotations.isName(name)) {
             PyAnnotations.functionSet(obj, name, null)
+            return
+        }
+        if (obj is PyFunction && (name == "__defaults__" || name == "__kwdefaults__")) {
+            setDefaults(obj, name, PyNone)
             return
         }
         if (obj is PyFunction && name == "__type_params__") {
@@ -628,10 +656,14 @@ object PyClasses {
 }
 
 /** staticmethod(f): a function a class gives as it is. */
-class PyStaticMethod(@JvmField val fn: Any?)
+class PyStaticMethod(@JvmField val fn: Any?) {
+    override fun toString() = "<staticmethod(${PyRt.repr(fn)})>"
+}
 
 /** classmethod(f): a function a class binds to itself (or to an instance's class). */
-class PyClassMethod(@JvmField val fn: Any?)
+class PyClassMethod(@JvmField val fn: Any?) {
+    override fun toString() = "<classmethod(${PyRt.repr(fn)})>"
+}
 
 /** property(fget, fset, fdel, doc). */
 class PyProperty(@JvmField val fget: Any?, @JvmField val fset: Any?, @JvmField val fdel: Any?, @JvmField val doc: Any?) {

@@ -1693,7 +1693,8 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     private fun kwDefaultsDict(args: Arguments) {
         val kwd = args.kwonlyargs.indices.filter { args.kwDefaults[it] != null }
         for (i in kwd) {
-            loadConst(PyStr(args.kwonlyargs[i].arg))
+            // (its parameter's name, mangled as the parameter is)
+            loadConst(PyStr(mangle(args.kwonlyargs[i].arg)))
             expr(args.kwDefaults[i]!!)
         }
         emit(PyOp.BUILD_MAP, kwd.size)

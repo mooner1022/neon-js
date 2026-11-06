@@ -14,3 +14,23 @@ no args
 ab
 0 1 2 3 4
 2432902008176640000
+True True True
+[True, True, True, True, True]
+1
+True True True
+[True, True, True, True, True]
+TypeError 'classmethod' object is not callable
+True True
+{'k2': 0} (0,)
+TypeError foo() missing 1 required keyword-only argument: 'k2'
+6
+10 (7,)
+TypeError foo() missing 1 required positional argument: 'p2'
+TypeError __defaults__ must be set to a tuple object
+TypeError __kwdefaults__ must be set to a dict object
+TypeError __defaults__ must be set to a tuple object
+TypeError __kwdefaults__ must be set to a dict object
+None
+None
+None
+42 {'_X__a': 42} 3
