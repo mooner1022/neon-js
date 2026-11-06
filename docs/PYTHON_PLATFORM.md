@@ -897,6 +897,42 @@ How the errors are made, so that later syntax keeps them:
   first one failed) is tried only where the parse has failed: an assignment's targets after one does not parse,
   a match subject's error only where the line is no statement either.
 
+## 12. What is left after the syntax (plan, 2026-11-07)
+
+After §11, what is left is the language's last gaps and the standard library (§3.7, Y2). On branch
+`neonpy-stdlib`, stacked on `neonpy-language`. Each step is commits gated by the quick check and pushed when it is
+done. Each module is checked against CPython's `Lib/test/test_X.py` (through the conformance harness, §11.4, with
+stand-ins until the real `unittest` imports: from then on CPython's own).
+
+### 12.1 Order (by what needs what)
+
+| | what | needs |
+|---|---|---|
+| L1 | rich comparisons: `__lt__` and the others may return any object; `in`, `not in`, `is` stay bools; a branch tests truth | — |
+| L2 | subclasses of int and float (and of complex, bytes): a value with its class, as `PyValue.sub` for str and list; never speculated on as an int | — |
+| L3 | frames and tracebacks: a frame chain (`sys._getframe`, `f_back`), frame objects (`f_code`, `f_lineno`, `f_globals`, `f_locals`), traceback objects added as an exception passes each frame (`tb_next`, `tb_lineno`), `with_traceback`, `sys.exc_info`; an uncaught exception printed as CPython prints it | — |
+| L4 | weak references (`_weakref`: `ref`, `proxy`, callbacks) and `__del__`, run when the JVM's collector finds the object unreachable (12.2), and a `gc` module | — |
+| S1 | the bundled library: CPython's `Lib` at tag v3.14.6 in `third_party/cpython`, a port script (file list and rules, as `neonjs-node/tools/port_node.py`), PSF's license in NOTICE, a loader behind the host's; `sys` as the library reads it | L1–L4 |
+| S2 | the C modules, in Kotlin, in the order the imports need them: `_thread` (single-threaded), `_operator`, `itertools`, `math`, `time`, `errno`, `_string`, `_collections`, `_random`, `_struct`; with them the pure modules (`collections`, `functools`, `abc`, `types`, `enum`, `copy`, `heapq`, `bisect`, `string`, `contextlib`, `datetime` through `_pydatetime`, `random`, `fractions`…) | S1 |
+| S3 | `_sre` (the engine of `re`, Python's semantics: `re._parser` and `re._compiler` are Python) → `re`, `json`; `_typing` (the types §11 made, their constructors callable) → `typing` | S2 |
+| S4 | `_io`, `open()`, `os` and `posix` over a file system the host gives (none by default: §3.8), `_codecs` and `encodings`; `sys.stdout` a text stream | S2 |
+| S5 | `_ast` from `PyAst` (`compile(..., ast.PyCF_ONLY_AST)`, a tree compiled), `inspect`, `dataclasses`, `tokenize` | S3, S4 |
+| S6 | asyncio's basics: `_contextvars`, a loop of timers and a ready queue without I/O (no `selectors`, no `socket`), `asyncio.run`, tasks, `gather`, `sleep`, `wait_for`, queues, locks, events | S2–S5 |
+| C1 | a generator inlined into the loop consuming it (no resumption or iterator protocol per value): the core's work, on a core branch, not here | — |
+
+### 12.2 Decisions
+
+- **`__del__` runs when the collector finds the object unreachable, not at its last reference** (PyPy's choice: the
+  JVM counts no references). The objects of classes with `__del__` are registered with a reference queue that is
+  drained on the interpreter's thread at safe points (calls' interrupt checks), and `gc.collect()` asks the JVM to
+  collect and then drains it. A weak reference's callback goes the same way.
+- **A module body larger than the tier's block limit is interpreted.** It runs once, at import. The bundled
+  library's module bodies are not held to `noBlockFallsBackToTheInterpreter`.
+- **`dis` is NeonPy's, not CPython's.** NeonPy's bytecode is its own, so `dis` lists NeonPy's instructions and
+  keeps CPython's names that other modules read (`COMPILER_FLAG_NAMES`). There is no `opcode` module.
+- **The sandbox's defaults come first:** no file system, an empty `os.environ`, `getcwd()` `/`, `random` seeded by
+  the host, `time` from the agent's clock.
+
 ## References (checked in this review)
 
 - Chicory: [docs](https://docsearch.algolia.com/mcp/docs/repo/dylibso/chicory), [porting the Chicory compiler to Android (2025-07)](https://hn.jakechampion.name/reader/https://blog.evacchi.dev/posts/2025/07/11/wasm-the-hard-way-porting-the-chicory-compiler-to-android), [mcpx4j Android support](https://docs.mcp.run/blog/2025/07/11/android-support-mcpx4j), [Endive](https://bytecodealliance.org/articles/endive-and-the-next-chapter-of-webassembly-on-the-jvm)
