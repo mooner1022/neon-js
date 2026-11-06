@@ -1,0 +1,54 @@
+random -> [0.6394267984578837, 0.025010755222666936, 0.27502931836911926]
+bits -> (0, 7, 808053162473, 1167876019479626170561453694887)
+bits neg !! ValueError Cannot convert negative int
+bits type !! TypeError 'float' object cannot be interpreted as an integer
+seed float -> (None, 0.551763726942059)
+seed neg -> (None, 0.6229016948897019, None, 0.6229016948897019)
+seed big -> (None, 0.41604161323913513)
+seed tuple -> (None, 0.9332138816850685)
+seed list !! TypeError unhashable type: 'list'
+state -> (625, 2, 'int')
+setstate -> (None, True)
+setstate bad !! TypeError state vector must be a tuple
+setstate size !! ValueError state vector is the wrong size
+setstate index !! ValueError invalid state
+setstate neg !! OverflowError can't convert negative value to unsigned int
+init kw !! TypeError Random() takes no keyword arguments
+init many !! TypeError Random expected at most 1 argument, got 2
+subclass -> 0.23796462709189137
+sha -> ('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad', b'\x1f@\xfc\x92', 'sha224', 48, 64)
+sha update -> ('ca978112', 'fb8e20fc', 'fb8e20fc')
+sha str !! TypeError Strings must be encoded before hashing
+sha kw -> ('ca9781', 'ca9781', 'sha256')
+sha types -> ('SHA256Type', '_sha2', True)
+index -> (5, 1, 7, 1180591620717411303424)
+float !! TypeError 'float' object cannot be interpreted as an integer
+bad !! TypeError __index__ returned non-int (type float)
+cd -> (True, False, False)
+cd mixed !! TypeError a bytes-like object is required, not 'str'
+cd nonascii !! TypeError comparing strings with non-ASCII characters is not supported
+cd int !! TypeError unsupported operand types(s) or combination of types: 'int' and 'int'
+basic -> (0.41661987254534116, 2, 91, 'c', 1.855138341847149)
+choices -> ([9, 2, 4, 3, 8], ['b', 'c', 'c', 'b', 'c', 'c'], ['b', 'c', 'b', 'a'])
+shuffle -> [7, 4, 8, 0, 5, 2, 6, 9, 1, 3]
+sample -> ([3, 65, 88, 95, 53], ['a', 'c', 'a', 'b'])
+dists -> [2.31650878235, 0.839031115916, 8.13522925812, 1.697057126577, 0.370746181047, 2.68604267282, 2.85415478076, 0.431895454485, 0.458374138533, 1.813037956859, 0.40353380168]
+binomial -> [4, 12, 687, 0, 5]
+randbytes -> b'\xdd\x03%^9!7'
+getrandbits -> 894898103225751154702
+state -> (True, 3)
+seed str -> 0.3537754404730722
+seed bytes -> 0.3537754404730722
+seed bytearray -> 0.6307877176639078
+seed float -> 0.10626827177291942
+seed v1 -> 0.8180391270568783
+seed bad !! TypeError The only supported seed types are:
+None, int, float, str, bytes, and bytearray.
+instance -> (0.32383276483316237, 51572342490066390446489079095, (<class 'random.Random'>, <class '_random.Random'>, <class 'object'>))
+errors !! ValueError empty range for randrange()
+errors2 !! IndexError Cannot choose from an empty sequence
+errors3 !! ValueError Sample larger than population or is negative
+errors4 !! TypeError 'float' object cannot be interpreted as an integer
+errors5 !! TypeError 'float' object cannot be interpreted as an integer
+system -> (True, True, 3)
+system state !! NotImplementedError System entropy source does not have state.

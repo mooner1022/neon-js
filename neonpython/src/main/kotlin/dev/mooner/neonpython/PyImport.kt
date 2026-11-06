@@ -272,12 +272,24 @@ object PyImport {
                 PyPosix.fill(ctx, d)
                 return mod().also { d[PyStr("__doc__")] = PyStr(PyErrno.POSIX_DOC) }
             }
+            "_random" -> {
+                PyRandom.fill(d)
+                return mod().also { d[PyStr("__doc__")] = PyStr("Module implements the Mersenne Twister random number generator.") }
+            }
+            "_operator" -> {
+                PyOperator.fill(d)
+                return mod()
+            }
+            "_sha2", "_md5", "_sha1" -> {
+                PyRandom.fillHash(name, d)
+                return mod()
+            }
             else -> return null
         }
     }
 
     /** The modules NeonPy makes itself (sys.builtin_module_names). */
-    @JvmField val BUILTIN_NAMES = listOf("sys", "builtins", "_thread", "_weakref", "gc", "_collections", "itertools", "_contextvars", "_sre", "_string", "_typing", "math", "errno", "posix")
+    @JvmField val BUILTIN_NAMES = listOf("sys", "builtins", "_thread", "_weakref", "gc", "_collections", "itertools", "_contextvars", "_sre", "_string", "_typing", "math", "errno", "posix", "_random", "_sha2", "_md5", "_sha1", "_operator")
 
     /** The features `from __future__ import` knows (CPython 3.14's). */
     @JvmField val FUTURES = listOf("nested_scopes", "generators", "division", "absolute_import", "with_statement", "print_function",
