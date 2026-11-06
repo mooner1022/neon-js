@@ -4,6 +4,7 @@ _ast_unparse.py
 _collections_abc.py
 _py_abc.py
 _py_warnings.py
+_strptime.py
 _weakrefset.py
 abc.py
 annotationlib.py

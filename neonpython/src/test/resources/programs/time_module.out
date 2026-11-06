@@ -1,0 +1,184 @@
+['CLOCK_BOOTTIME', 'CLOCK_MONOTONIC', 'CLOCK_MONOTONIC_RAW', 'CLOCK_PROCESS_CPUTIME_ID', 'CLOCK_REALTIME', 'CLOCK_THREAD_CPUTIME_ID', '_STRUCT_TM_ITEMS', 'altzone', 'asctime', 'clock_getres', 'clock_gettime', 'clock_gettime_ns', 'clock_settime', 'clock_settime_ns', 'ctime', 'daylight', 'get_clock_info', 'gmtime', 'localtime', 'mktime', 'monotonic', 'monotonic_ns', 'perf_counter', 'perf_counter_ns', 'process_time', 'process_time_ns', 'pthread_getcpuclockid', 'sleep', 'strftime', 'strptime', 'struct_time', 'thread_time', 'thread_time_ns', 'time', 'time_ns', 'timezone', 'tzname', 'tzset']
+time This module provides various functions to manipulate time values. ('UTC', 'UTC') 0 0 0 11
+0 1 2 3 4 7
+<built-in function time> <class 'time.struct_time'> time
+None 0 ('UTC', 'UTC')
+float int True True
+monotonic float int True True True True
+perf_counter float int True True True True
+process_time float int True True True True
+thread_time float int True True True True
+SimpleNamespace ['adjustable', 'implementation', 'monotonic', 'resolution'] clock_gettime(CLOCK_REALTIME) False True 1e-09
+SimpleNamespace ['adjustable', 'implementation', 'monotonic', 'resolution'] clock_gettime(CLOCK_MONOTONIC) True False 1e-09
+SimpleNamespace ['adjustable', 'implementation', 'monotonic', 'resolution'] clock_gettime(CLOCK_MONOTONIC) True False 1e-09
+SimpleNamespace ['adjustable', 'implementation', 'monotonic', 'resolution'] clock_gettime(CLOCK_PROCESS_CPUTIME_ID) True False 1e-09
+SimpleNamespace ['adjustable', 'implementation', 'monotonic', 'resolution'] clock_gettime(CLOCK_THREAD_CPUTIME_ID) True False 1e-09
+ValueError: unknown clock TypeError: get_clock_info() argument 1 must be str, not int TypeError: get_clock_info() takes exactly 1 argument (0 given) ValueError: embedded null character TypeError: get_clock_info() takes no keyword arguments
+TypeError: time.time() takes no arguments (1 given) TypeError: time.time() takes no keyword arguments TypeError: time.monotonic_ns() takes no arguments (1 given) float
+None None None True
+ValueError: sleep length must be non-negative | ValueError: sleep length must be non-negative | None | ValueError: Invalid value NaN (not a number) | OverflowError: timestamp out of range for platform time_t | OverflowError: timestamp too large to convert to C PyTime_t | OverflowError: timestamp out of range for platform time_t | TypeError: 'str' object cannot be interpreted as an integer or float | TypeError: 'NoneType' object cannot be interpreted as an integer or float | TypeError: 'Real' object cannot be interpreted as an integer or float | TypeError: 'complex' object cannot be interpreted as an integer or float | OSError: [Errno 22] Invalid argument (errno 22) | OverflowError: timestamp too large to convert to C PyTime_t | TypeError: time.sleep() takes exactly one argument (0 given) TypeError: time.sleep() takes exactly one argument (2 given) TypeError: time.sleep() takes no keyword arguments
+(1970, 1, 1, 0, 0, 0, 3, 1, 0) GMT 0 UTC Thu Jan  1 00:00:00 1970 0.0
+(1970, 1, 1, 0, 0, 1, 3, 1, 0) GMT 0 UTC Thu Jan  1 00:00:01 1970 1.0
+(1969, 12, 31, 23, 59, 59, 2, 365, 0) GMT 0 UTC Wed Dec 31 23:59:59 1969 -1.0
+(1970, 1, 1, 0, 0, 1, 3, 1, 0) GMT 0 UTC Thu Jan  1 00:00:01 1970 1.0
+(1969, 12, 31, 23, 59, 58, 2, 365, 0) GMT 0 UTC Wed Dec 31 23:59:58 1969 -2.0
+(1969, 12, 31, 23, 59, 59, 2, 365, 0) GMT 0 UTC Wed Dec 31 23:59:59 1969 -1.0
+(1970, 1, 1, 23, 59, 59, 3, 1, 0) GMT 0 UTC Thu Jan  1 23:59:59 1970 86399.0
+(2000, 2, 29, 0, 0, 0, 1, 60, 0) GMT 0 UTC Tue Feb 29 00:00:00 2000 951782400.0
+(2001, 9, 9, 1, 46, 40, 6, 252, 0) GMT 0 UTC Sun Sep  9 01:46:40 2001 1000000000.0
+(2038, 1, 19, 3, 14, 8, 1, 19, 0) GMT 0 UTC Tue Jan 19 03:14:08 2038 2147483648.0
+(1901, 12, 13, 20, 45, 52, 4, 347, 0) GMT 0 UTC Fri Dec 13 20:45:52 1901 -2147483648.0
+(10000, 1, 1, 0, 0, 0, 5, 1, 0) GMT 0 UTC Sat Jan  1 00:00:00 10000 253402300800.0
+(0, 12, 31, 23, 59, 59, 6, 366, 0) GMT 0 UTC Sun Dec 31 23:59:59 0 -62135596801.0
+(-1, 12, 31, 23, 59, 59, 4, 365, 0) GMT 0 UTC Fri Dec 31 23:59:59 -1 -62167219201.0
+(31690708, 7, 5, 1, 46, 40, 6, 187, 0) GMT 0 UTC Sun Jul  5 01:46:40 31690708 1000000000000000.0
+(-31686769, 6, 29, 22, 13, 20, 6, 180, 0) GMT 0 UTC Sun Jun 29 22:13:20 -31686769 -1000000000000000.0
+(-2147481749, 12, 31, 23, 59, 59, 2, 365, 0) GMT 0 UTC Wed Dec 31 23:59:59 -2147481749 OverflowError: year out of range
+(-2147481748, 1, 1, 0, 0, 0, 3, 1, 0) GMT 0 UTC Thu Jan  1 00:00:00 -2147481748 -6.77680406097408e+16
+(1970, 1, 1, 0, 0, 5, 3, 1, 0) GMT 0 UTC Thu Jan  1 00:00:05 1970 5.0
+(1970, 1, 1, 0, 0, 1, 3, 1, 0) GMT 0 UTC Thu Jan  1 00:00:01 1970 1.0
+(1970, 1, 1, 0, 0, 2, 3, 1, 0) GMT 0 UTC Thu Jan  1 00:00:02 1970 2.0
+OSError: [Errno 75] Value too large for defined data type (errno 75) OSError: [Errno 75] Value too large for defined data type (errno 75) OSError: [Errno 75] Value too large for defined data type (errno 75)
+OSError: [Errno 75] Value too large for defined data type (errno 75) OSError: [Errno 75] Value too large for defined data type (errno 75) OSError: [Errno 75] Value too large for defined data type (errno 75)
+OSError: [Errno 75] Value too large for defined data type (errno 75) OSError: [Errno 75] Value too large for defined data type (errno 75) OSError: [Errno 75] Value too large for defined data type (errno 75)
+OverflowError: timestamp out of range for platform time_t OverflowError: timestamp out of range for platform time_t OverflowError: timestamp out of range for platform time_t
+OSError: [Errno 75] Value too large for defined data type (errno 75) OSError: [Errno 75] Value too large for defined data type (errno 75) OSError: [Errno 75] Value too large for defined data type (errno 75)
+OverflowError: timestamp out of range for platform time_t OverflowError: timestamp out of range for platform time_t OverflowError: timestamp out of range for platform time_t
+OSError: [Errno 75] Value too large for defined data type (errno 75) OSError: [Errno 75] Value too large for defined data type (errno 75) OSError: [Errno 75] Value too large for defined data type (errno 75)
+ValueError: Invalid value NaN (not a number) ValueError: Invalid value NaN (not a number) ValueError: Invalid value NaN (not a number)
+OverflowError: timestamp out of range for platform time_t OverflowError: timestamp out of range for platform time_t OverflowError: timestamp out of range for platform time_t
+TypeError: 'str' object cannot be interpreted as an integer TypeError: 'str' object cannot be interpreted as an integer TypeError: 'str' object cannot be interpreted as an integer
+TypeError: 'Real' object cannot be interpreted as an integer TypeError: 'Real' object cannot be interpreted as an integer TypeError: 'Real' object cannot be interpreted as an integer
+TypeError: gmtime() takes at most 1 argument (2 given) TypeError: gmtime() takes no keyword arguments TypeError: ctime() takes at most 1 argument (2 given) TypeError: localtime() takes at most 1 argument (2 given)
+24 True UTC 24
+946684800.0 | 946684800.0 | 946681200.0 | -1.0 | 978307200.0 | 943920000.0 | 946684700.0 | 899948259.0 | 6.77679762019968e+16 | -6.77680406097408e+16 | OverflowError: mktime argument out of range | OverflowError: mktime argument out of range | OverflowError: signed integer is greater than maximum | OverflowError: year out of range | 3094168447.0 | 5647337474745600.0 | -5647335586819200.0 | TypeError: 'float' object cannot be interpreted as an integer | OverflowError: Python int too large to convert to C long | TypeError: mktime(): illegal time tuple argument | TypeError: Tuple or struct_time argument required | 946684800.0 | TypeError: Tuple or struct_time argument required | 1000000000.0 | TypeError: time.mktime() takes exactly one argument (0 given) TypeError: time.mktime() takes exactly one argument (2 given)
+11 9 0 ('tm_year', 'tm_mon', 'tm_mday', 'tm_hour', 'tm_min', 'tm_sec', 'tm_wday', 'tm_yday', 'tm_isdst') struct_time time (<class 'tuple'>,) The time value as returned by gmtime(), localtime(), and strptime(), and
+year, for example, 1993 abbreviation of timezone name offset from UTC in seconds
+TypeError: structseq() missing required argument 'sequence' (pos 1) 
+TypeError: constructor requires a sequence 
+TypeError: time.struct_time() takes an at least 9-sequence (8-sequence given) 
+time.struct_time(tm_year=1, tm_mon=1, tm_mday=1, tm_hour=1, tm_min=1, tm_sec=1, tm_wday=1, tm_yday=1, tm_isdst=1) (None, None)
+time.struct_time(tm_year=1, tm_mon=1, tm_mday=1, tm_hour=1, tm_min=1, tm_sec=1, tm_wday=1, tm_yday=1, tm_isdst=1) (1, None)
+time.struct_time(tm_year=1, tm_mon=1, tm_mday=1, tm_hour=1, tm_min=1, tm_sec=1, tm_wday=1, tm_yday=1, tm_isdst=1) (1, 1)
+TypeError: time.struct_time() takes an at most 11-sequence (12-sequence given) 
+time.struct_time(tm_year=1, tm_mon=1, tm_mday=1, tm_hour=1, tm_min=1, tm_sec=1, tm_wday=1, tm_yday=1, tm_isdst=1) (None, None)
+time.struct_time(tm_year=0, tm_mon=1, tm_mday=2, tm_hour=3, tm_min=4, tm_sec=5, tm_wday=6, tm_yday=7, tm_isdst=8) (None, None)
+time.struct_time(tm_year='a', tm_mon='b', tm_mday='c', tm_hour='d', tm_min='e', tm_sec='f', tm_wday='g', tm_yday='h', tm_isdst='i') (None, None)
+TypeError: time.struct_time() takes a dict as second arg, if any 
+time.struct_time(tm_year=1, tm_mon=1, tm_mday=1, tm_hour=1, tm_min=1, tm_sec=1, tm_wday=1, tm_yday=1, tm_isdst=1) ('Z', None)
+TypeError: time.struct_time() got duplicate or unexpected field name(s) 
+TypeError: time.struct_time() got duplicate or unexpected field name(s) 
+time.struct_time(tm_year=1, tm_mon=1, tm_mday=1, tm_hour=1, tm_min=1, tm_sec=1, tm_wday=1, tm_yday=1, tm_isdst=1) (1, 7)
+TypeError: structseq() takes at most 2 arguments (3 given) 
+time.struct_time(tm_year=1, tm_mon=1, tm_mday=1, tm_hour=1, tm_min=1, tm_sec=1, tm_wday=1, tm_yday=1, tm_isdst=1) TypeError: structseq() missing required argument 'sequence' (pos 1) time.struct_time(tm_year=1, tm_mon=1, tm_mday=1, tm_hour=1, tm_min=1, tm_sec=1, tm_wday=1, tm_yday=1, tm_isdst=1) TypeError: structseq() got an unexpected keyword argument 'dct'. Did you mean 'dict'?
+time.struct_time(tm_year=2001, tm_mon=9, tm_mday=9, tm_hour=1, tm_min=46, tm_sec=40, tm_wday=6, tm_yday=252, tm_isdst=0) (<class 'time.struct_time'>, ((2001, 9, 9, 1, 46, 40, 6, 252, 0), {'tm_zone': 'GMT', 'tm_gmtoff': 0})) (<class 'time.struct_time'>, ((1, 1, 1, 1, 1, 1, 1, 1, 1), {'tm_zone': 1, 'tm_gmtoff': 1})) 9 True True
+2001 0 (2001, 9, 9) IndexError: tuple index out of range (2001, 9, 9, 1, 46, 40, 6, 252, 0, 1) tuple 2001 252 8 True
+time.struct_time(tm_year=5, tm_mon=9, tm_mday=9, tm_hour=1, tm_min=46, tm_sec=40, tm_wday=6, tm_yday=252, tm_isdst=0) Q TypeError: Got unexpected field name(s): ['x'] TypeError: __replace__() takes no positional arguments 9
+time.struct_time(tm_year=1, tm_mon=1, tm_mday=1, tm_hour=1, tm_min=1, tm_sec=1, tm_wday=1, tm_yday=1, tm_isdst=1) TypeError: time.struct_time.__new__(tuple): tuple is not a subtype of time.struct_time TypeError: time.struct_time.__new__(X): X is not a type object (int)
+set tm_year readonly attribute
+set tm_zone readonly attribute
+type 'time.struct_time' is not an acceptable base type
+match 2001 9
+'Mon Jan  1 00:00:00 2000' | 'Mon Jan  1 00:00:00 2000' | 'Mon Jan  1 00:00:61 2000' | 'Sun Jan  1 00:00:00 2000' | 'Sun Jan  1 00:00:00 2000' | 'Wed Jan  1 00:00:00 2000' | 'Mon Jan  1 00:00:00 99999' | 'Mon Jan  1 00:00:00 -5' | 'Mon Jan  1 00:00:00 2147483647' | 'Mon Jan  1 00:00:00 -2147481748' | ValueError: month out of range | ValueError: month out of range | ValueError: day of month out of range | ValueError: day of month out of range | ValueError: hour out of range | ValueError: minute out of range | ValueError: seconds out of range | ValueError: day of week out of range | ValueError: day of year out of range | ValueError: day of year out of range | TypeError: 'str' object cannot be interpreted as an integer | OverflowError: signed integer is greater than maximum | OverflowError: signed integer is less than minimum | 'Mon May  1 00:00:00 2000' | TypeError: asctime(): illegal time tuple argument | OverflowError: year out of range | TypeError: Tuple or struct_time argument required | TypeError: Tuple or struct_time argument required | TypeError: Tuple or struct_time argument required | TypeError: asctime expected at most 1 argument, got 2 TypeError: asctime() takes no keyword arguments
+'Sat' 'Jan' 'Sat Jan  1 00:00:00 2000' '01' ' 1' '%f' '99' 'Jan' '%i' '001' ' 0' '12' '01' '\n' '%o' 'AM' '%q' '12:00:00 AM' '946684800' '\t' '6' '%v' '6' '01/01/00' '00' '+0000' 'Saturday' 'January' '20' '01/01/00' '%E' '2000-01-01' '1999' '00' '12' '%J' '%K' '%L' '00' '%N' '%O' 'am' '%Q' '00:00' '00' '00:00:00' '00' '52' '00' '00:00:00' '2000' 'UTC' '%' '%+' '%'
+'%Ea' '%Eb' 'Sat Jan  1 00:00:00 2000' '%Ed' '%Ee' '%Ef' '%Eg' '%Eh' '%Ei' '%Ej' '%Ek' '%El' '%Em' '\n' '%Eo' 'AM' '%Eq' '12:00:00 AM' '946684800' '\t' '6' '%Ev' '%Ew' '01/01/00' '00' '+0000' '%EA' '%EB' '20' '%ED' '%EE' '%EF' '%EG' '%EH' '%EI' '%EJ' '%EK' '%EL' '%EM' '%EN' '%EO' 'am' '%EQ' '00:00' '%ES' '00:00:00' '%EU' '%EV' '%EW' '00:00:00' '2000' 'UTC' '%' '%E+' '%E' '%Oa' 'Jan' '%Oc' '01' ' 1' '%Of' '99' 'Jan' '%Oi' '001' ' 0' '12' '01' '\n' '%Oo' 'AM' '%Oq' '12:00:00 AM' '946684800' '\t' '6' '%Ov' '6' '%Ox' '00' '+0000' '%OA' 'January' '20' '%OD' '%OE' '%OF' '1999' '00' '12' '%OJ' '%OK' '%OL' '00' '%ON' '%OO' 'am' '%OQ' '00:00' '00' '00:00:00' '00' '52' '00' '%OX' '%OY' 'UTC' '%' '%O+' '%O'
+'Wed' 'Mar' 'Wed Mar  7 07:30:00 -5' '07' ' 7' '%f' '95' 'Mar' '%i' '066' ' 7' ' 7' '03' '\n' '%o' 'AM' '%q' '07:30:00 AM' '-62319342600' '\t' '3' '%v' '3' '03/07/95' '95' '+0000' 'Wednesday' 'March' '-1' '03/07/95' '%E' '-5-03-07' '-5' '07' '07' '%J' '%K' '%L' '30' '%N' '%O' 'am' '%Q' '07:30' '00' '07:30:00' '09' '10' '10' '07:30:00' '-5' 'UTC' '%' '%+' '%'
+'%Ea' '%Eb' 'Wed Mar  7 07:30:00 -5' '%Ed' '%Ee' '%Ef' '%Eg' '%Eh' '%Ei' '%Ej' '%Ek' '%El' '%Em' '\n' '%Eo' 'AM' '%Eq' '07:30:00 AM' '-62319342600' '\t' '3' '%Ev' '%Ew' '03/07/95' '95' '+0000' '%EA' '%EB' '-1' '%ED' '%EE' '%EF' '%EG' '%EH' '%EI' '%EJ' '%EK' '%EL' '%EM' '%EN' '%EO' 'am' '%EQ' '07:30' '%ES' '07:30:00' '%EU' '%EV' '%EW' '07:30:00' '-5' 'UTC' '%' '%E+' '%E' '%Oa' 'Mar' '%Oc' '07' ' 7' '%Of' '95' 'Mar' '%Oi' '066' ' 7' ' 7' '03' '\n' '%Oo' 'AM' '%Oq' '07:30:00 AM' '-62319342600' '\t' '3' '%Ov' '3' '%Ox' '95' '+0000' '%OA' 'March' '-1' '%OD' '%OE' '%OF' '-5' '07' '07' '%OJ' '%OK' '%OL' '30' '%ON' '%OO' 'am' '%OQ' '07:30' '00' '07:30:00' '09' '10' '10' '%OX' '%OY' 'UTC' '%' '%O+' '%O'
+'Fri' 'Dec' 'Fri Dec 31 23:59:60 2021' '31' '31' '%f' '21' 'Dec' '%i' '365' '23' '11' '12' '\n' '%o' 'PM' '%q' '11:59:60 PM' '1640991600' '\t' '5' '%v' '5' '12/31/21' '21' '+0000' 'Friday' 'December' '20' '12/31/21' '%E' '2021-12-31' '2021' '23' '11' '%J' '%K' '%L' '59' '%N' '%O' 'pm' '%Q' '23:59' '60' '23:59:60' '52' '52' '52' '23:59:60' '2021' 'UTC' '%' '%+' '%'
+'%Ea' '%Eb' 'Fri Dec 31 23:59:60 2021' '%Ed' '%Ee' '%Ef' '%Eg' '%Eh' '%Ei' '%Ej' '%Ek' '%El' '%Em' '\n' '%Eo' 'PM' '%Eq' '11:59:60 PM' '1640991600' '\t' '5' '%Ev' '%Ew' '12/31/21' '21' '+0000' '%EA' '%EB' '20' '%ED' '%EE' '%EF' '%EG' '%EH' '%EI' '%EJ' '%EK' '%EL' '%EM' '%EN' '%EO' 'pm' '%EQ' '23:59' '%ES' '23:59:60' '%EU' '%EV' '%EW' '23:59:60' '2021' 'UTC' '%' '%E+' '%E' '%Oa' 'Dec' '%Oc' '31' '31' '%Of' '21' 'Dec' '%Oi' '365' '23' '11' '12' '\n' '%Oo' 'PM' '%Oq' '11:59:60 PM' '1640991600' '\t' '5' '%Ov' '5' '%Ox' '21' '+0000' '%OA' 'December' '20' '%OD' '%OE' '%OF' '2021' '23' '11' '%OJ' '%OK' '%OL' '59' '%ON' '%OO' 'pm' '%OQ' '23:59' '60' '23:59:60' '52' '52' '52' '%OX' '%OY' 'UTC' '%' '%O+' '%O'
+'Thu' 'Jul' 'Thu Jul  4 13:00:00 12345' '04' ' 4' '%f' '45' 'Jul' '%i' '185' '13' ' 1' '07' '\n' '%o' 'PM' '%q' '01:00:00 PM' '327419326800' '\t' '4' '%v' '4' '07/04/45' '45' '' 'Thursday' 'July' '123' '07/04/45' '%E' '12345-07-04' '12345' '13' '01' '%J' '%K' '%L' '00' '%N' '%O' 'pm' '%Q' '13:00' '00' '13:00:00' '26' '27' '26' '13:00:00' '12345' '' '%' '%+' '%'
+'%Ea' '%Eb' 'Thu Jul  4 13:00:00 12345' '%Ed' '%Ee' '%Ef' '%Eg' '%Eh' '%Ei' '%Ej' '%Ek' '%El' '%Em' '\n' '%Eo' 'PM' '%Eq' '01:00:00 PM' '327419326800' '\t' '4' '%Ev' '%Ew' '07/04/45' '45' '' '%EA' '%EB' '123' '%ED' '%EE' '%EF' '%EG' '%EH' '%EI' '%EJ' '%EK' '%EL' '%EM' '%EN' '%EO' 'pm' '%EQ' '13:00' '%ES' '13:00:00' '%EU' '%EV' '%EW' '13:00:00' '12345' '' '%' '%E+' '%E' '%Oa' 'Jul' '%Oc' '04' ' 4' '%Of' '45' 'Jul' '%Oi' '185' '13' ' 1' '07' '\n' '%Oo' 'PM' '%Oq' '01:00:00 PM' '327419326800' '\t' '4' '%Ov' '4' '%Ox' '45' '' '%OA' 'July' '123' '%OD' '%OE' '%OF' '12345' '13' '01' '%OJ' '%OK' '%OL' '00' '%ON' '%OO' 'pm' '%OQ' '13:00' '00' '13:00:00' '26' '27' '26' '%OX' '%OY' '' '%' '%O+' '%O'
+a 'Wed' 'Wed' '     Wed' 'Wed' 'Wed' '     Wed' 'Wed' 'Wed' '     Wed' 'Wed' 'Wed' '00000Wed' 'WED' 'WED' '     WED' 'WED' 'WED' '     WED' 'Wed' 'Wed' '00000Wed' 'Wed' 'Wed' '     Wed'
+A 'Wednesday' 'Wednesday' 'Wednesday' 'Wednesday' 'Wednesday' 'Wednesday' 'Wednesday' 'Wednesday' 'Wednesday' 'Wednesday' 'Wednesday' 'Wednesday' 'WEDNESDAY' 'WEDNESDAY' 'WEDNESDAY' 'WEDNESDAY' 'WEDNESDAY' 'WEDNESDAY' 'Wednesday' 'Wednesday' 'Wednesday' 'Wednesday' 'Wednesday' 'Wednesday'
+b 'Mar' 'Mar' '     Mar' 'Mar' 'Mar' '     Mar' 'Mar' 'Mar' '     Mar' 'Mar' 'Mar' '00000Mar' 'MAR' 'MAR' '     MAR' 'MAR' 'MAR' '     MAR' 'Mar' 'Mar' '00000Mar' 'Mar' 'Mar' '     Mar'
+B 'March' 'March' '   March' 'March' 'March' '   March' 'March' 'March' '   March' 'March' 'March' '000March' 'MARCH' 'MARCH' '   MARCH' 'MARCH' 'MARCH' '   MARCH' 'March' 'March' '000March' 'March' 'March' '   March'
+c 'Wed Mar  7 07:30:00 -5' 'Wed Mar  7 07:30:00 -5' 'Wed Mar  7 07:30:00 -5' 'Wed Mar  7 07:30:00 -5' 'Wed Mar  7 07:30:00 -5' 'Wed Mar  7 07:30:00 -5' 'Wed Mar  7 07:30:00 -5' 'Wed Mar  7 07:30:00 -5' 'Wed Mar  7 07:30:00 -5' 'Wed Mar  7 07:30:00 -5' 'Wed Mar  7 07:30:00 -5' 'Wed Mar  7 07:30:00 -5' 'WED MAR  7 07:30:00 -5' 'WED MAR  7 07:30:00 -5' 'WED MAR  7 07:30:00 -5' 'Wed Mar  7 07:30:00 -5' 'Wed Mar  7 07:30:00 -5' 'Wed Mar  7 07:30:00 -5' 'Wed Mar  7 07:30:00 -5' 'Wed Mar  7 07:30:00 -5' 'Wed Mar  7 07:30:00 -5' 'Wed Mar  7 07:30:00 -5' 'Wed Mar  7 07:30:00 -5' 'Wed Mar  7 07:30:00 -5'
+C '-1' '-01' '-0000001' '-1' ' -1' '      -1' '-1' ' -1' '      -1' '-1' '-01' '-0000001' '-1' '-01' '-0000001' '-1' '-01' '-0000001' '-1' '-01' '-0000001' '-1' ' -1' '      -1'
+d '07' '007' '00000007' '7' '  7' '       7' ' 7' '  7' '       7' '07' '007' '00000007' '07' '007' '00000007' '07' '007' '00000007' '07' '007' '00000007' '7' '  7' '       7'
+D '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95'
+e ' 7' '  7' '       7' '7' '  7' '       7' ' 7' '  7' '       7' '07' '007' '00000007' ' 7' '  7' '       7' ' 7' '  7' '       7' '07' '007' '00000007' '7' '  7' '       7'
+F '-5-03-07' '-5-03-07' '-5-03-07' '-5-03-07' '-5-03-07' '-5-03-07' '-5-03-07' '-5-03-07' '-5-03-07' '-5-03-07' '-5-03-07' '-5-03-07' '-5-03-07' '-5-03-07' '-5-03-07' '-5-03-07' '-5-03-07' '-5-03-07' '-5-03-07' '-5-03-07' '-5-03-07' '-5-03-07' '-5-03-07' '-5-03-07'
+g '95' '095' '00000095' '95' ' 95' '      95' '95' ' 95' '      95' '95' '095' '00000095' '95' '095' '00000095' '95' '095' '00000095' '95' '095' '00000095' '95' ' 95' '      95'
+G '-5' '-05' '-0000005' '-5' ' -5' '      -5' '-5' ' -5' '      -5' '-5' '-05' '-0000005' '-5' '-05' '-0000005' '-5' '-05' '-0000005' '-5' '-05' '-0000005' '-5' ' -5' '      -5'
+H '07' '007' '00000007' '7' '  7' '       7' ' 7' '  7' '       7' '07' '007' '00000007' '07' '007' '00000007' '07' '007' '00000007' '07' '007' '00000007' '7' '  7' '       7'
+I '07' '007' '00000007' '7' '  7' '       7' ' 7' '  7' '       7' '07' '007' '00000007' '07' '007' '00000007' '07' '007' '00000007' '07' '007' '00000007' '7' '  7' '       7'
+j '066' '066' '00000066' '66' ' 66' '      66' ' 66' ' 66' '      66' '066' '066' '00000066' '066' '066' '00000066' '066' '066' '00000066' '066' '066' '00000066' '66' ' 66' '      66'
+k ' 7' '  7' '       7' '7' '  7' '       7' ' 7' '  7' '       7' '07' '007' '00000007' ' 7' '  7' '       7' ' 7' '  7' '       7' '07' '007' '00000007' '7' '  7' '       7'
+l ' 7' '  7' '       7' '7' '  7' '       7' ' 7' '  7' '       7' '07' '007' '00000007' ' 7' '  7' '       7' ' 7' '  7' '       7' '07' '007' '00000007' '7' '  7' '       7'
+m '03' '003' '00000003' '3' '  3' '       3' ' 3' '  3' '       3' '03' '003' '00000003' '03' '003' '00000003' '03' '003' '00000003' '03' '003' '00000003' '3' '  3' '       3'
+M '30' '030' '00000030' '30' ' 30' '      30' '30' ' 30' '      30' '30' '030' '00000030' '30' '030' '00000030' '30' '030' '00000030' '30' '030' '00000030' '30' ' 30' '      30'
+p 'AM' ' AM' '      AM' 'AM' ' AM' '      AM' 'AM' ' AM' '      AM' 'AM' '0AM' '000000AM' 'AM' ' AM' '      AM' 'am' ' am' '      am' 'AM' '0AM' '000000AM' 'AM' ' AM' '      AM'
+P 'am' ' am' '      am' 'am' ' am' '      am' 'am' ' am' '      am' 'am' '0am' '000000am' 'am' ' am' '      am' 'am' ' am' '      am' 'am' '0am' '000000am' 'am' ' am' '      am'
+s '-62319342600' '-62319342600' '-62319342600' '-62319342600' '-62319342600' '-62319342600' '-62319342600' '-62319342600' '-62319342600' '-62319342600' '-62319342600' '-62319342600' '-62319342600' '-62319342600' '-62319342600' '-62319342600' '-62319342600' '-62319342600' '-62319342600' '-62319342600' '-62319342600' '-62319342600' '-62319342600' '-62319342600'
+S '00' '000' '00000000' '0' '  0' '       0' ' 0' '  0' '       0' '00' '000' '00000000' '00' '000' '00000000' '00' '000' '00000000' '00' '000' '00000000' '0' '  0' '       0'
+u '3' '003' '00000003' '3' '  3' '       3' '3' '  3' '       3' '3' '003' '00000003' '3' '003' '00000003' '3' '003' '00000003' '3' '003' '00000003' '3' '  3' '       3'
+U '09' '009' '00000009' '9' '  9' '       9' ' 9' '  9' '       9' '09' '009' '00000009' '09' '009' '00000009' '09' '009' '00000009' '09' '009' '00000009' '9' '  9' '       9'
+V '10' '010' '00000010' '10' ' 10' '      10' '10' ' 10' '      10' '10' '010' '00000010' '10' '010' '00000010' '10' '010' '00000010' '10' '010' '00000010' '10' ' 10' '      10'
+w '3' '003' '00000003' '3' '  3' '       3' '3' '  3' '       3' '3' '003' '00000003' '3' '003' '00000003' '3' '003' '00000003' '3' '003' '00000003' '3' '  3' '       3'
+W '10' '010' '00000010' '10' ' 10' '      10' '10' ' 10' '      10' '10' '010' '00000010' '10' '010' '00000010' '10' '010' '00000010' '10' '010' '00000010' '10' ' 10' '      10'
+x '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95' '03/07/95'
+X '07:30:00' '07:30:00' '07:30:00' '07:30:00' '07:30:00' '07:30:00' '07:30:00' '07:30:00' '07:30:00' '07:30:00' '07:30:00' '07:30:00' '07:30:00' '07:30:00' '07:30:00' '07:30:00' '07:30:00' '07:30:00' '07:30:00' '07:30:00' '07:30:00' '07:30:00' '07:30:00' '07:30:00'
+y '95' '095' '00000095' '95' ' 95' '      95' '95' ' 95' '      95' '95' '095' '00000095' '95' '095' '00000095' '95' '095' '00000095' '95' '095' '00000095' '95' ' 95' '      95'
+Y '-5' '-05' '-0000005' '-5' ' -5' '      -5' '-5' ' -5' '      -5' '-5' '-05' '-0000005' '-5' '-05' '-0000005' '-5' '-05' '-0000005' '-5' '-05' '-0000005' '-5' ' -5' '      -5'
+z '+0000' '  +0000' '       +00000000' '+0' '  +  0' '       +       0' '+   0' '  +   0' '       +       0' '+0000' '00+0000' '0000000+00000000' '+0000' '  +0000' '       +00000000' '+0000' '  +0000' '       +00000000' '+0000' '00+0000' '0000000+00000000' '+0' '  +  0' '       +       0'
+Z 'UTC' 'UTC' '     UTC' 'UTC' 'UTC' 'UTC' 'UTC' 'UTC' '     UTC' 'UTC' 'UTC' '00000UTC' 'UTC' 'UTC' '     UTC' 'UTC' 'UTC' '     UTC' 'UTC' 'UTC' '00000UTC' 'UTC' 'UTC' 'UTC'
+q '%q' '%3q' '     %8q' '%-q' '%-3q' '    %-8q' '%_q' '%_3q' '    %_8q' '%0q' '%03q' '0000%08q' '%^Q' '%^3Q' '    %^8Q' '%#q' '%#3q' '    %#8q' '%_0q' '%_03q' '000%_08q' '%0-q' '%0-3q' '   %0-8q'
+% '%' '  %' '       %' '%' '  %' '       %' '%' '  %' '       %' '%' '00%' '0000000%' '%' '  %' '       %' '%' '  %' '       %' '%' '00%' '0000000%' '%' '  %' '       %'
+'1|0|01|1|01|01|00|01|001|-62135553291|||Mon Jan  1 12:05:09 1|||||'
+'1899|18|99|1899|99|52|53|52|365|-2209035600|+0000|UTC|Sun Dec 31 11:00:00 1899|UTC|UTC|    +00000|+   0|+0'
+'2147483647|21474836|47|-2147483648|52|01|53|53|366|67767976233446400|+0000|UTC|Mon Dec 31 00:00:00 2147483647|UTC|UTC|    +00000|+   0|+0'
+'-2147481748|-21474818|52|-2147481748|52|01|00|01|001|-67768040609740800|+0000|UTC|Mon Jan  1 00:00:00 -2147481748|UTC|UTC|    +00000|+   0|+0'
+'0|0|00|-1|99|52|00|00|001|-62167219200|+0000|UTC|Sat Jan  1 00:00:00 0|UTC|UTC|    +00000|+   0|+0'
+'-100|-1|00|-101|99|53|00|00|001|-65322892800|+0000|UTC|Fri Jan  1 00:00:00 -100|UTC|UTC|    +00000|+   0|+0'
+'-101|-2|99|-101|99|52|52|52|365|-65322979200|+0000|UTC|Fri Dec 31 00:00:00 -101|UTC|UTC|    +00000|+   0|+0'
+'2000|20|00|2000|00|01|00|01|001|946681200|+0000|UTC|Mon Jan  1 00:00:00 2000|UTC|UTC|    +00000|+   0|+0'
+'2001|20|01|2001|01|36|36|36|252|1000000000|+0000|GMT|Sun Sep  9 01:46:40 2001|GMT|GMT|    +00000|+   0|+0'
+'2001|20|01|2001|01|36|36|36|252|1000000000|+0000|UTC|Sun Sep  9 01:46:40 2001|UTC|UTC|    +00000|+   0|+0'
+'2000|20|00|1999|99|52|00|00|001|946684800|-0500|EST|Sat Jan  1 00:00:00 2000|EST|EST|    -00500|- 500|-500'
+'2000|20|00|1999|99|52|00|00|001|946681200|+0530|IST|Sat Jan  1 00:00:00 2000|IST|IST|    +00530|+ 530|+530'
+'2000|20|00|1999|99|52|00|00|001|946684800|+10000|UTC|Sat Jan  1 00:00:00 2000|UTC|UTC|    +10000|+10000|+10000'
+'2000|20|00|1999|99|52|00|00|001|946684800|||Sat Jan  1 00:00:00 2000|||||'
+'2000|20|00|1999|99|52|00|00|001|946684800|-59652314|x|Sat Jan  1 00:00:00 2000|x|x|    -59652314|-59652314|-59652314'
+'2000|20|00|1999|99|52|00|00|001|946684800|-0000|a|Sat Jan  1 00:00:00 2000|a|a|    -00000|-   0|-0'
+2003-01-01 Wed 001 00 00 01 2003 03 3 3 | 2003-01-03 Fri 003 00 00 01 2003 03 5 5 | 2003-01-04 Sat 004 00 00 01 2003 03 6 6 | 2003-12-28 Sun 362 52 51 52 2003 03 7 0 | 2003-12-29 Mon 363 52 52 01 2004 04 1 1 | 2003-12-31 Wed 365 52 52 01 2004 04 3 3 | 
+2004-01-01 Thu 001 00 00 01 2004 04 4 4 | 2004-01-03 Sat 003 00 00 01 2004 04 6 6 | 2004-01-04 Sun 004 01 00 01 2004 04 7 0 | 2004-12-28 Tue 363 52 52 53 2004 04 2 2 | 2004-12-29 Wed 364 52 52 53 2004 04 3 3 | 2004-12-31 Fri 366 52 52 53 2004 04 5 5 | 
+2005-01-01 Sat 001 00 00 53 2004 04 6 6 | 2005-01-03 Mon 003 01 01 01 2005 05 1 1 | 2005-01-04 Tue 004 01 01 01 2005 05 2 2 | 2005-12-28 Wed 362 52 52 52 2005 05 3 3 | 2005-12-29 Thu 363 52 52 52 2005 05 4 4 | 2005-12-31 Sat 365 52 52 52 2005 05 6 6 | 
+2006-01-01 Sun 001 01 00 52 2005 05 7 0 | 2006-01-03 Tue 003 01 01 01 2006 06 2 2 | 2006-01-04 Wed 004 01 01 01 2006 06 3 3 | 2006-12-28 Thu 362 52 52 52 2006 06 4 4 | 2006-12-29 Fri 363 52 52 52 2006 06 5 5 | 2006-12-31 Sun 365 53 52 52 2006 06 7 0 | 
+2007-01-01 Mon 001 00 01 01 2007 07 1 1 | 2007-01-03 Wed 003 00 01 01 2007 07 3 3 | 2007-01-04 Thu 004 00 01 01 2007 07 4 4 | 2007-12-28 Fri 362 51 52 52 2007 07 5 5 | 2007-12-29 Sat 363 51 52 52 2007 07 6 6 | 2007-12-31 Mon 365 52 53 01 2008 08 1 1 | 
+2008-01-01 Tue 001 00 00 01 2008 08 2 2 | 2008-01-03 Thu 003 00 00 01 2008 08 4 4 | 2008-01-04 Fri 004 00 00 01 2008 08 5 5 | 2008-12-28 Sun 363 52 51 52 2008 08 7 0 | 2008-12-29 Mon 364 52 52 01 2009 09 1 1 | 2008-12-31 Wed 366 52 52 01 2009 09 3 3 | 
+2009-01-01 Thu 001 00 00 01 2009 09 4 4 | 2009-01-03 Sat 003 00 00 01 2009 09 6 6 | 2009-01-04 Sun 004 01 00 01 2009 09 7 0 | 2009-12-28 Mon 362 52 52 53 2009 09 1 1 | 2009-12-29 Tue 363 52 52 53 2009 09 2 2 | 2009-12-31 Thu 365 52 52 53 2009 09 4 4 | 
+2010-01-01 Fri 001 00 00 53 2009 09 5 5 | 2010-01-03 Sun 003 01 00 53 2009 09 7 0 | 2010-01-04 Mon 004 01 01 01 2010 10 1 1 | 2010-12-28 Tue 362 52 52 52 2010 10 2 2 | 2010-12-29 Wed 363 52 52 52 2010 10 3 3 | 2010-12-31 Fri 365 52 52 52 2010 10 5 5 | 
+'' 0 '' ''
+'%' 1 '%' '%'
+'%%' 1 '%' '%'
+'abc' 3 'abc' 'abc'
+'%Y\x00%m' 7 '2000\x0001' '2000\x0001'
+'a\x00b%Yc' 8 'a\x00b2000c' 'a\x00b2000c'
+'%\x00Y' 3 '%\x00Y' '%\x00Y'
+'%-\x00' 3 '%-\x00' '%-\x00'
+'é%Y' 5 'é2000' 'é2000'
+'%Yé%m' 7 '2000é01' '2000é01'
+'%é' 2 '%é' '%é'
+'x€%5😀%Y' 12 'x€   %5😀2000' 'x€   %5😀2000'
+'%Eé' 3 '%Eé' '%Eé'
+'%2047Y' 2047 '0000000000000000' '0000000000002000'
+'%2048Y' 0 '' ''
+'%1000000000Y' 0 '' ''
+'%99999999999' 0 '' ''
+'%-1000000Y' 0 '' ''
+'%1030c' 1030 '                ' ' 2 03:04:05 2000'
+'%^1030c' 1030 '                ' ' 2 03:04:05 2000'
+'%1030z' 0 '' ''
+'%1030s' 1030 '                ' '       946782245'
+'xxxxxxxxxxxx' 5000 'xxxxxxxxxxxxxxxx' 'xxxxxxxxxxxxxxxx'
+'%Y%Y%Y%Y%Y%Y' 2400 '2000200020002000' '2000200020002000'
+'%3000Y\x00%1500' 1501 '\x00000000000000000' '0000000000002000'
+'%1500Y\x00%3000' 1501 '0000000000000000' '000000000002000\x00'
+'%z%z%z%z%z%z' 3001 '\x00000000000000000' '0000000000002000'
+TypeError: strftime() takes at least 1 argument (0 given) | TypeError: strftime() argument 1 must be str, not int | TypeError: strftime() argument 1 must be str, not bytes | TypeError: Tuple or struct_time argument required | TypeError: Tuple or struct_time argument required | TypeError: strftime(): illegal time tuple argument | TypeError: strftime() takes at most 2 arguments (3 given) | ValueError: month out of range | OverflowError: signed integer is greater than maximum | TypeError: bad argument type for built-in operation | TypeError: 'str' object cannot be interpreted as an integer | OverflowError: Python int too large to convert to C long | UnicodeEncodeError: 'utf-8' codec can't encode character '\ud800' in position 0: surrogates not allowed | '2000' | 'é€|    é€' | TypeError: strftime() takes no keyword arguments 23 UTC +0000
+0 float int 1e-09 | 1 float int 1e-09 | 2 float int 1e-09 | 3 float int 1e-09 | 4 float int 1e-09 | 5 float int 0.004 | 6 float int 0.004 | 7 float int 1e-09 | 8 float int 1e-09 | 9 float int 1e-09 | 11 float int 1e-09 | -2 float int 1e-09 | -6 float int 1e-09 | 
+OSError: [Errno 22] Invalid argument (errno 22) OSError: [Errno 22] Invalid argument (errno 22) OSError: [Errno 22] Invalid argument (errno 22) | OSError: [Errno 22] Invalid argument (errno 22) OSError: [Errno 22] Invalid argument (errno 22) OSError: [Errno 22] Invalid argument (errno 22) | OSError: [Errno 22] Invalid argument (errno 22) OSError: [Errno 22] Invalid argument (errno 22) OSError: [Errno 22] Invalid argument (errno 22) | OSError: [Errno 22] Invalid argument (errno 22) OSError: [Errno 22] Invalid argument (errno 22) OSError: [Errno 22] Invalid argument (errno 22) | OSError: [Errno 22] Invalid argument (errno 22) OSError: [Errno 22] Invalid argument (errno 22) OSError: [Errno 22] Invalid argument (errno 22) | TypeError: clk_id should be integer, not str TypeError: clk_id should be integer, not str TypeError: 'str' object cannot be interpreted as an integer | TypeError: clk_id should be integer, not float TypeError: clk_id should be integer, not float TypeError: 'float' object cannot be interpreted as an integer | TypeError: clk_id should be integer, not int TypeError: clk_id should be integer, not int OverflowError: signed integer is greater than maximum | TypeError: clk_id should be integer, not NoneType TypeError: clk_id should be integer, not NoneType TypeError: 'NoneType' object cannot be interpreted as an integer | 
+TypeError: time.clock_gettime() takes exactly one argument (0 given) TypeError: time.clock_gettime() takes no keyword arguments TypeError: clock_getres() takes exactly 1 argument (0 given) TypeError: clock_getres() takes no keyword arguments
+PermissionError: [Errno 1] Operation not permitted (errno 1) | PermissionError: [Errno 1] Operation not permitted (errno 1) | OSError: [Errno 22] Invalid argument (errno 22) | OSError: [Errno 22] Invalid argument (errno 22) | OSError: [Errno 22] Invalid argument (errno 22) | OSError: [Errno 22] Invalid argument (errno 22) | OSError: [Errno 22] Invalid argument (errno 22) | OSError: [Errno 22] Invalid argument (errno 22) | PermissionError: [Errno 1] Operation not permitted (errno 1) | PermissionError: [Errno 1] Operation not permitted (errno 1) | OSError: [Errno 22] Invalid argument (errno 22) | OverflowError: timestamp too large to convert to C PyTime_t | ValueError: Invalid value NaN (not a number) | OverflowError: timestamp out of range for platform time_t | TypeError: 'str' object cannot be interpreted as an integer | TypeError: 'str' object cannot be interpreted as an integer or float | OverflowError: signed integer is greater than maximum | TypeError: 'NoneType' object cannot be interpreted as an integer or float | 
+PermissionError: [Errno 1] Operation not permitted (errno 1) | OSError: [Errno 22] Invalid argument (errno 22) | OSError: [Errno 22] Invalid argument (errno 22) | PermissionError: [Errno 1] Operation not permitted (errno 1) | TypeError: expect int, got float | TypeError: expect int, got str | OverflowError: timestamp too large to convert to C PyTime_t | TypeError: clock_settime() takes exactly 2 arguments (1 given)
+True float TypeError: pthread_getcpuclockid() takes exactly 1 argument (0 given) TypeError: pthread_getcpuclockid() argument 1 must be int, not str TypeError: pthread_getcpuclockid() argument 1 must be int, not float
