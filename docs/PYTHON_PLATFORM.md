@@ -615,7 +615,7 @@ milestones. Each milestone is commits gated by the quick check and pushed when i
 | M1 | functions and scopes: defaults, keyword arguments, `*args`/`**kwargs`, keyword-only and positional-only parameters, `lambda`, closures and `nonlocal`, decorators, starred unpacking (calls, literals, targets), `:=`, `del`, `assert`, `global` done right | — |
 | M2 | the object model: type objects (the builtins' too), `class`, instances, the MRO, `super()`, the special methods (operators, containers, iteration, calls, `str`/`repr`/`hash`/`bool`/`len`), `property`/`staticmethod`/`classmethod`, `isinstance`/`type`/`getattr`…, class decorators, `__init_subclass__`/`__set_name__` | M1 (`super()` needs the `__class__` cell) |
 | M3 | exceptions: the hierarchy as classes, `try`/`except`/`else`/`finally`, `raise … from`, chaining, `with` (several items, parenthesized), `except*` and `ExceptionGroup`, `except A, B:` (PEP 758), `return`/`break` in `finally` (PEP 765's warning) | M2 |
-| M4 | generators: `yield`, `yield from`, `send`/`throw`/`close`, generator expressions, list/set/dict comprehensions | M3 (a generator's `close` is an exception) |
+| M4 | generators: `yield`, `yield from`, `send`/`throw`/`close`, generator expressions, list/set/dict comprehensions (done: a generator's code interpreted; M4b, the tier's suspensions, after the syntax) | M3 (a generator's `close` is an exception) |
 | M5 | literals and strings: f-strings as PEP 701 tokenizes them, the format-spec mini-language, `%` and `str.format`, t-strings (PEP 750, `string.templatelib`), bytes, complex, sets, slices and `slice`, `...` | M2 |
 | M6 | `match` (every pattern; or-patterns binding the same names, checked when compiling) | M2 |
 | M7 | `import`: module objects, a host-given loader (no file system unless the host gives one), a minimal `sys` | M2 |
@@ -711,6 +711,12 @@ Made with generators (M4):
   as its context while the generator has none (`currentHandled`).
 - **Comprehensions are functions** taking their first iterable's iterator (`.0`), made where they are; list and dict
   comprehensions append to a register, a generator expression is a generator. Set comprehensions come with sets (M5).
+
+Made with literals and strings (M5):
+
+- **Floats are formatted from their exact binary value**, rounded half to even (`BigDecimal`, as CPython's
+  dtoa): `f"{2.675:.2f}"` is `2.67`, never Java's `String.format` (which gives `2.68`). The mini-language is
+  CPython's for ints, floats and strs (`PyFormat`), str.format and `%` too; a class's `__format__` comes first.
 
 - **A statement gives its temporaries back** when it ends, so that the registers of one try or with serve the next:
   the tier's code keeps every register a handler may read in a home at the start of each block a handler covers

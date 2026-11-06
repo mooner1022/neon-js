@@ -47,6 +47,7 @@ internal class Generic(
         const val CLASSES = "dev/mooner/neonpython/PyClasses"
         const val DUNDER = "dev/mooner/neonpython/PyDunder"
         const val EXC = "dev/mooner/neonpython/PyExceptions"
+        const val FMT = "dev/mooner/neonpython/PyFormat"
     }
 }
 
@@ -104,6 +105,10 @@ internal object PyGeneric {
         t[PyOp.EXC_STAR_MATCH] = Generic("excStarMatch", "vv", pops = 2, result = true, owner = x)
         t[PyOp.EXC_STAR_RAISED] = Generic("excStarRaised", "vv", pops = 2, result = false, throws = false, owner = x)
         t[PyOp.EXC_STAR_END] = Generic("excStarEnd", "v", pops = 1, result = true, owner = x)
+        val fm = Generic.FMT
+        t[PyOp.FORMAT_VALUE] = Generic("formatValue", "va", pops = 1, result = true, owner = fm)
+        t[PyOp.FORMAT_SPEC] = Generic("formatSpec", "vva", pops = 2, result = true, owner = fm)
+        t[PyOp.BUILD_STRING] = Generic("buildString", "n", pops = 0, popsPerA = 1, result = true, throws = false, owner = fm)
         t[PyOp.WRAP_STAR] = Generic("wrapStar", "v", pops = 1, result = true, throws = false, owner = c, flags = OpInfo.REMOVABLE or OpInfo.ALLOCATES)
     }
 

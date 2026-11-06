@@ -433,6 +433,15 @@ object PyInterpreter {
             }
             PyOp.LOAD_SPECIAL -> s[sp - 1] = PyExceptions.loadSpecial(s[sp - 1], a)
             PyOp.RESUME -> s[sp - 1] = PyGenerators.resumeCheck(f, s[sp - 1])
+            PyOp.FORMAT_VALUE -> s[sp - 1] = PyFormat.formatValue(s[sp - 1], a)
+            PyOp.FORMAT_SPEC -> {
+                val spec = pop()
+                s[sp - 1] = PyFormat.formatSpec(s[sp - 1], spec, a)
+            }
+            PyOp.BUILD_STRING -> {
+                val parts = popN(a)
+                s[sp++] = PyFormat.buildString(parts)
+            }
             PyOp.GET_YIELD_FROM_ITER -> s[sp - 1] = PyGenerators.yieldFromIter(s[sp - 1])
             PyOp.EXC_STAR_BEGIN -> s[sp - 1] = PyExceptions.excStarBegin(s[sp - 1])
             PyOp.EXC_STAR_MATCH -> {

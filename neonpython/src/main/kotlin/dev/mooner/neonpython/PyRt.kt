@@ -64,6 +64,7 @@ object PyRt {
     @JvmStatic fun values(op: Int, a: Any?, b: Any?): Any? = when (op) {
         PyOp.ADD -> addValues(a, b)
         PyOp.MUL -> mulValues(a, b)
+        PyOp.MOD -> if (a is PyStr) PyStr(PyFormat.percent(a.s, b)) else null
         else -> null
     }
 
@@ -171,7 +172,7 @@ object PyRt {
 
     @JvmStatic fun mod(a: Any?, b: Any?): Any? {
         if (!isNumber(a) || !isNumber(b)) {
-            if (a is PyStr && a.sub == null) throw typeError("str formatting with % is not supported yet")
+            if (a is PyStr && a.sub == null) return PyStr(PyFormat.percent(a.s, b))
             return other(PyOp.MOD, "%", a, b)
         }
         if (a is Double || b is Double) {

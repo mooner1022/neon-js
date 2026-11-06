@@ -301,6 +301,35 @@ class PyProgramsTest {
             "def g():\n    yield 1\nit = g()\nlist(it)\nit.throw(KeyError('k'))\n" to Triple("KeyError", "'k'", 5),
             "def g():\n    yield 1\n    raise ValueError('after')\nlist(g())\n" to Triple("ValueError", "after", 3),
             "d = {k: 1 for k in [[]]}\n" to Triple("TypeError", "cannot use 'list' as a dict key (unhashable type: 'list')", 1),
+            "f'{1:z}'\n" to Triple("ValueError", "Negative zero coercion (z) not allowed in integer format specifier", 1),
+            "format(1, '.2d')\n" to Triple("ValueError", "Precision not allowed in integer format specifier", 1),
+            "format('a', '+')\n" to Triple("ValueError", "Sign not allowed in string format specifier", 1),
+            "format('a', '=5')\n" to Triple("ValueError", "'=' alignment not allowed in string format specifier", 1),
+            "format('a', ',')\n" to Triple("ValueError", "Cannot specify ',' with 's'.", 1),
+            "format(1.5, 'd')\n" to Triple("ValueError", "Unknown format code 'd' for object of type 'float'", 1),
+            "format(1, ',x')\n" to Triple("ValueError", "Cannot specify ',' with 'x'.", 1),
+            "format(1, '.')\n" to Triple("ValueError", "Format specifier missing precision", 1),
+            "format(1, '5x5')\n" to Triple("ValueError", "Invalid format specifier '5x5' for object of type 'int'", 1),
+            "class C: pass\nformat(C(), 'x')\n" to Triple("TypeError", "unsupported format string passed to C.__format__", 2),
+            "class C:\n    def __format__(self, s): return 1\nf'{C()}'\n" to Triple("TypeError", "__format__ must return a str, not int", 3),
+            "'{} {}'.format(1)\n" to Triple("IndexError", "Replacement index 1 out of range for positional args tuple", 1),
+            "'{a}'.format()\n" to Triple("KeyError", "'a'", 1),
+            "'{0} {}'.format(1, 2)\n" to Triple("ValueError", "cannot switch from manual field specification to automatic field numbering", 1),
+            "'{'.format()\n" to Triple("ValueError", "Single '{' encountered in format string", 1),
+            "'}'.format()\n" to Triple("ValueError", "Single '}' encountered in format string", 1),
+            "'{!x}'.format(1)\n" to Triple("ValueError", "Unknown conversion specifier x", 1),
+            "'%d' % 'x'\n" to Triple("TypeError", "%d format: a real number is required, not str", 1),
+            "'%s %s' % ('a',)\n" to Triple("TypeError", "not enough arguments for format string", 1),
+            "'%s' % ('a', 'b')\n" to Triple("TypeError", "not all arguments converted during string formatting", 1),
+            "'%z' % 1\n" to Triple("ValueError", "unsupported format character 'z' (0x7a) at index 1", 1),
+            "'%' % ()\n" to Triple("ValueError", "incomplete format", 1),
+            "'%(a)s' % 1\n" to Triple("TypeError", "format requires a mapping", 1),
+            "'abc' % 5\n" to Triple("TypeError", "not all arguments converted during string formatting", 1),
+            "'%x' % 1.5\n" to Triple("TypeError", "%x format: an integer is required, not float", 1),
+            "'%c' % 'ab'\n" to Triple("TypeError", "%c requires an int or a unicode character, not a string of length 2", 1),
+            "format(1, 'c', 2)\n" to Triple("TypeError", "format expected at most 2 arguments, got 3", 1),
+            "format(1, 'c', 2)\n" to Triple("TypeError", "format expected at most 2 arguments, got 3", 1),
+            "f'{1:{\"x\"}d}'\n" to Triple("ValueError", "Invalid format specifier 'xd' for object of type 'int'", 1),
         )
         for (mode in Mode.entries) for ((src, want) in cases) {
             val e = try {
@@ -335,7 +364,7 @@ class PyProgramsTest {
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
             "speculation", "functions", "closures", "unpacking", "types", "classes", "descriptors",
-            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions",
+            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting",
         )
 
         /** The code blocks of [cb] and every function it defines. */

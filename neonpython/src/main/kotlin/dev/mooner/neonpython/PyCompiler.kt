@@ -692,6 +692,31 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         }
     }
 
+    /** An f-string: its parts (strs, and fields formatted) joined; a part alone is the value. */
+    private fun fstring(e: JoinedStr) {
+        if (e.values.isEmpty()) {
+            loadConst(PyStr.EMPTY)
+            return
+        }
+        for (v in e.values) expr(v)
+        if (e.values.size > 1) emit(PyOp.BUILD_STRING, e.values.size)
+    }
+
+    /** An f-string's field: its value, converted (!s, !r, !a) and formatted with its spec (an f-string itself). */
+    private fun formatted(v: FormattedValue) {
+        expr(v.value)
+        val conv = when (v.conversion) {
+            's'.code -> 1
+            'r'.code -> 2
+            'a'.code -> 3
+            else -> 0
+        }
+        if (v.formatSpec != null) {
+            expr(v.formatSpec)
+            emit(PyOp.FORMAT_SPEC, conv)
+        } else emit(PyOp.FORMAT_VALUE, conv)
+    }
+
     /** A with's __exit__ (bound, in register [exit]) called with three Nones, its result dropped. */
     private fun exitWith(exit: Int) {
         emit(PyOp.LOAD_FAST, exit)
@@ -1224,7 +1249,8 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 patch(send, code.size)
             }
             is Await -> unsupported("await", e)
-            is JoinedStr, is FormattedValue -> unsupported("f-strings", e)
+            is JoinedStr -> fstring(e)
+            is FormattedValue -> formatted(e)
             is TemplateStr, is Interpolation -> unsupported("t-strings", e)
             is Slice -> unsupported("slicing", e)
         }

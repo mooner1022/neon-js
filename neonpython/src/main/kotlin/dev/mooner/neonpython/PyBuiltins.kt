@@ -278,6 +278,29 @@ object PyBuiltins {
         PyTypes.DICT.def("values", DICT_VALUES)
         PyTypes.DICT.def("items", DICT_ITEMS)
         PyTypes.STR.def("join", STR_JOIN)
+        // formatting: format(), ascii(), str.format, the types' __format__
+        def("format") { _, args ->
+            if (args.isEmpty() || args.size > 2) throw PyRt.typeError("format expected at most 2 arguments, got ${args.size}")
+            val spec = if (args.size > 1) (args[1] as? PyStr ?: throw PyRt.typeError("format() argument 2 must be str, not ${PyTypes.name(args[1])}")).s else ""
+            PyStr(PyFormat.format(args[0], spec))
+        }
+        def("ascii") { _, args ->
+            argc("ascii", args, 1)
+            PyStr(PyFormat.ascii(args[0]))
+        }
+        PyTypes.STR.def("format", PyBuiltin("format", { _, a -> PyStr(PyFormat.strFormat((a[0] as PyStr).s, a.copyOfRange(1, a.size), null)) },
+            { _, a, kw -> PyStr(PyFormat.strFormat((a[0] as PyStr).s, a.copyOfRange(1, a.size), kw)) }))
+        PyTypes.STR.def("format_map", PyBuiltin("format_map") { _, a ->
+            argc("format_map", a, 2)
+            PyStr(PyFormat.strFormat((a[0] as PyStr).s, arrayOfNulls(0), a[1]))
+        })
+        for (t in arrayOf(PyTypes.OBJECT, PyTypes.INT, PyTypes.FLOAT, PyTypes.STR, PyTypes.BOOL)) {
+            t.def("__format__", PyBuiltin("__format__") { _, a ->
+                argc("__format__", a, 2)
+                val spec = a[1] as? PyStr ?: throw PyRt.typeError("__format__() argument must be str, not ${PyTypes.name(a[1])}")
+                PyStr(PyFormat.builtinFormat(a[0], spec.s))
+            })
+        }
         PyTypes.STR.def("upper", STR_UPPER)
         PyTypes.STR.def("lower", STR_LOWER)
         return d
