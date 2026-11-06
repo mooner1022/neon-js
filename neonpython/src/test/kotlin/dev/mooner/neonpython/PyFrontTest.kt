@@ -226,6 +226,78 @@ class PyFrontTest {
     }
 
     @Test
+    fun parserErrorsAreCPythons() {
+        // (message and line as CPython 3.14's compile gives them: its generic error, its forced tokens, its invalid_ rules)
+        val cases = listOf(
+            "class R&D:\n    pass\n" to ("invalid syntax" to 1),
+            "for x in range 10:\n  pass\n" to ("invalid syntax" to 1),
+            "for x y: pass\n" to ("invalid syntax" to 1),
+            "lambda x\n" to ("invalid syntax" to 1),
+            "def f(x := 1): pass\n" to ("invalid syntax" to 1),
+            "with a as b\n" to ("expected ':'" to 1),
+            "with (a as b, c as d)\n" to ("expected ':'" to 1),
+            "with (a as b):\n    1 +\n" to ("invalid syntax" to 2),
+            "match x\n" to ("expected ':'" to 1),
+            "match x, y\n" to ("expected ':'" to 1),
+            "match x y\n" to ("invalid syntax" to 1),
+            "match x:\n    case 1\n" to ("expected ':'" to 2),
+            "try:\n    pass\nexcept\n" to ("expected ':'" to 3),
+            "try:\n    pass\nexcept*\n" to ("expected one or more exception types" to 3),
+            "try:\n    pass\nexcept E as e\n" to ("expected ':'" to 3),
+            "def f() -> : pass\n" to ("expected ':'" to 1),
+            "def f(x) pass\n" to ("expected ':'" to 1),
+            "def f x: pass\n" to ("expected '('" to 1),
+            "def f[T b](): pass\n" to ("expected '('" to 1),
+            "if x:\n    pass\nelse pass\n" to ("expected ':'" to 3),
+            "try pass\n" to ("expected ':'" to 1),
+            "if x pass\n" to ("invalid syntax" to 1),
+            "class C\n" to ("expected ':'" to 1),
+            "from x y\n" to ("invalid syntax" to 1),
+            "\\" to ("unexpected EOF while parsing" to 1),
+            "x = \\\n" to ("unexpected EOF while parsing" to 1),
+            "if x:\n    y \\" to ("unexpected EOF while parsing" to 2),
+            "f(a, b c)\n" to ("invalid syntax. Perhaps you forgot a comma?" to 1),
+            "{1:2, 2:5 3:12}\n" to ("invalid syntax. Perhaps you forgot a comma?" to 1),
+            "x = (1\ny = 2)\n" to ("invalid syntax. Perhaps you forgot a comma?" to 1),
+            "f(1 2\n" to ("'(' was never closed" to 1),
+            "1 2 (\n" to ("'(' was never closed" to 1),
+            "x[1 2]\n" to ("invalid syntax. Perhaps you forgot a comma?" to 1),
+            "f(a=1 b=2)\n" to ("invalid syntax. Perhaps you forgot a comma?" to 1),
+            "(a if b else c d)\n" to ("invalid syntax. Perhaps you forgot a comma?" to 1),
+            "(lambda: 1 a)\n" to ("invalid syntax. Perhaps you forgot a comma?" to 1),
+            "(*a b)\n" to ("invalid syntax. Perhaps you forgot a comma?" to 1),
+            "f(*a < b c)\n" to ("invalid syntax. Perhaps you forgot a comma?" to 1),
+            "f'{a b}'\n" to ("invalid syntax. Perhaps you forgot a comma?" to 1),
+            "(a 'b')\n" to ("invalid syntax" to 1),
+            "(_ b)\n" to ("invalid syntax" to 1),
+            "(a, *b c)\n" to ("invalid syntax" to 1),
+            "[x for x in y z]\n" to ("invalid syntax" to 1),
+            "1 2\n" to ("invalid syntax" to 1),
+            "(print 1)\n" to ("Missing parentheses in call to 'print'. Did you mean print(...)?" to 1),
+            "'a' x 'b'\n" to ("invalid syntax. Is this intended to be part of the string?" to 1),
+            "x if y\n" to ("expected 'else' after 'if' expression" to 1),
+            "{a if b: c}\n" to ("invalid syntax" to 1),
+            "x = 1 if 2 else\n" to ("expected expression after 'else', but statement is given" to 1),
+            "x = a if b else *c\n" to ("expected expression after 'else', but statement is given" to 1),
+            "x = pass if 1 else 1\n" to ("expected expression before 'if', but statement is given" to 1),
+            "[x for a, b, (c + 1, d()) if y]\n" to ("'in' expected after for-loop variables" to 1),
+            "[x for *a if y]\n" to ("invalid syntax" to 1),
+            "{**a, b}\n" to ("':' expected after dictionary key" to 1),
+            "{**a for a in b}\n" to ("dict unpacking cannot be used in dict comprehension" to 1),
+            "{1: *a}\n" to ("cannot use a starred expression in a dictionary value" to 1),
+            "{1:}\n" to ("expression expected after dictionary key and ':'" to 1),
+            "{1:2, 5:}\n" to ("expression expected after dictionary key and ':'" to 1),
+            "{a: b, c for a in x}\n" to ("':' expected after dictionary key" to 1),
+        )
+        for ((src, want) in cases) {
+            val e = assertThrows<PySyntaxError>(src) { PyCompiler.compileModule(src) }
+            assertEquals(want, e.msg to e.line, src)
+        }
+        // (accepted: the name match before an expression on its line)
+        PyCompiler.compileModule("match(x)\nmatch -x\nmatch[1]\n")
+    }
+
+    @Test
     fun localsThatMayHaveNoValueAreChecked() {
         val cb = PyCompiler.compileModule("def f(a):\n  if a:\n    b = 1\n  c = 2\n  return a + b + c\n")
         val f = cb.constants.filterIsInstance<dev.mooner.neonjs.compiler.CodeUnit>().single()

@@ -82,7 +82,13 @@ class PyLexer(private val src: String) {
                 val c = src[p]
                 if (c == '#' || c == '\n' || c == '\r' || c == '\\' && p + 1 < src.length && (src[p + 1] == '\n' || src[p + 1] == '\r')) {
                     pos = p
-                    if (c == '\\') { pos++; newline(); continue }
+                    if (c == '\\') {
+                        val l = line
+                        pos++
+                        newline()
+                        if (pos >= src.length) throw PySyntaxError("unexpected EOF while parsing", l, 0)
+                        continue
+                    }
                     skipComment()
                     if (pos < src.length) newline()
                     continue
@@ -106,9 +112,12 @@ class PyLexer(private val src: String) {
                 c == ' ' || c == '\t' || c == '\u000c' -> pos++
                 c == '#' -> skipComment()
                 c == '\\' -> {
-                    if (pos + 1 < src.length && (src[pos + 1] == '\n' || src[pos + 1] == '\r')) {
+                    if (pos + 1 >= src.length) throw PySyntaxError("unexpected EOF while parsing", line, col(pos))
+                    if (src[pos + 1] == '\n' || src[pos + 1] == '\r') {
+                        val l = line
                         pos++
                         newline()
+                        if (pos >= src.length) throw PySyntaxError("unexpected EOF while parsing", l, 0)
                     } else throw PySyntaxError("unexpected character after line continuation character", line, col(pos))
                 }
                 c == '\n' || c == '\r' -> {
