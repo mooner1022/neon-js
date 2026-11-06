@@ -38,6 +38,11 @@ class Scope(@JvmField val type: Type, @JvmField val name: String, @JvmField val 
     /** A class whose annotation scopes read its namespace: it makes the `__classdict__` cell. */
     @JvmField var classDict = false
     /**
+     * Comprehension iterables being visited, a scope made in one counting them too (CPython's ste_comp_iter_expr,
+     * bpo-37757): no assignment expression there.
+     */
+    @JvmField var compIterExpr = 0
+    /**
      * A module's or class's annotations recorded as they run (`__conditional_annotations__`): a module's all, a
      * class's those in a compound statement; [conditionCell] a class's set is a cell its annotation scope reads.
      */
@@ -138,6 +143,7 @@ class PySymtable private constructor() {
         // (a class's names are private to it, and to what is in it)
         s.private = if (type == Scope.Type.CLASS) name else cur.private
         if (type == Scope.Type.TYPE_VARIABLE) s.mangledOnly = cur.mangledOnly
+        s.compIterExpr = cur.compIterExpr
         if (attach) cur.children.add(s)
         if (register) scopes[node] = s
         cur = s
@@ -515,6 +521,7 @@ class PySymtable private constructor() {
             is BoolOp -> e.values.forEach { expr(it) }
             is NamedExpr -> {
                 notInAnnotation("named expression", e)
+                if (cur.compIterExpr > 0) err("assignment expression cannot be used in a comprehension iterable expression", e)
                 expr(e.value)
                 namedTarget(e)
             }
@@ -630,13 +637,19 @@ class PySymtable private constructor() {
      * around awaits, an async def's or a comprehension's (which becomes asynchronous too).
      */
     private fun comprehension(e: Expr, name: String, gens: List<Comprehension>, elt: () -> Unit) {
+        cur.compIterExpr++
         expr(gens[0].iter)
+        cur.compIterExpr--
         val s = push(Scope.Type.COMPREHENSION, name, e)
         s.params.add(".0")
         s.add(".0", Scope.DEF_PARAM)
         for ((i, g) in gens.withIndex()) {
             if (g.isAsync == 1) s.isCoroutine = true
-            if (i > 0) expr(g.iter)
+            if (i > 0) {
+                s.compIterExpr++
+                expr(g.iter)
+                s.compIterExpr--
+            }
             compTarget(g.target)
             g.ifs.forEach { expr(it) }
         }
@@ -653,6 +666,10 @@ class PySymtable private constructor() {
     private fun compTarget(e: Expr) {
         when (e) {
             is Name -> {
+                // (an assignment expression's target in the comprehension, bound around it)
+                if (cur.flagsOf(e.id) and (Scope.DEF_GLOBAL or Scope.DEF_NONLOCAL) != 0) {
+                    err("comprehension inner loop cannot rebind assignment expression target '${e.id}'", e)
+                }
                 cur.add(e.id, Scope.DEF_LOCAL or Scope.DEF_COMP_ITER)
             }
             is Starred -> compTarget(e.value)

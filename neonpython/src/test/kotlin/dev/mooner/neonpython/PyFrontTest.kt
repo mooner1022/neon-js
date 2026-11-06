@@ -171,6 +171,15 @@ class PyFrontTest {
             "match x:\ncase 1: pass\n" to ("expected an indented block after 'match' statement on line 1" to 2),
             "match x:\n    case 1:\n    pass\n" to ("expected an indented block after 'case' statement on line 2" to 3),
             "async def f():\n    async for x in y:\n    pass\n" to ("expected an indented block after 'for' statement on line 2" to 3),
+            "[i for i in (j := range(5))]\n" to ("assignment expression cannot be used in a comprehension iterable expression" to 1),
+            "[i for i in (lambda: (j := range(5)))()]\n" to ("assignment expression cannot be used in a comprehension iterable expression" to 1),
+            "[i for i in [k for k in (j := range(5))]]\n" to ("assignment expression cannot be used in a comprehension iterable expression" to 1),
+            "[i for i in range(5) for k in (j := range(5))]\n" to ("assignment expression cannot be used in a comprehension iterable expression" to 1),
+            "{i: i for i in (j := range(5))}\n" to ("assignment expression cannot be used in a comprehension iterable expression" to 1),
+            "def f():\n    [i for i in (y := [1])]\n" to ("assignment expression cannot be used in a comprehension iterable expression" to 2),
+            "[i for i in range(5) if (j := 0) for j in range(5)]\n" to ("comprehension inner loop cannot rebind assignment expression target 'j'" to 1),
+            "[i for i in range(5) if (j := 0) for k, j in [(1, 2)]]\n" to ("comprehension inner loop cannot rebind assignment expression target 'j'" to 1),
+            "{i for i in range(5) if (j := 0) for j in range(5)}\n" to ("comprehension inner loop cannot rebind assignment expression target 'j'" to 1),
         )
         for ((src, want) in cases) {
             val e = assertThrows<PySyntaxError>(src) { PyCompiler.compileModule(src) }
