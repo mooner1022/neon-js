@@ -936,6 +936,38 @@ stand-ins until the real `unittest` imports: from then on CPython's own).
   keeps CPython's names that other modules read (`COMPILER_FLAG_NAMES`). There is no `opcode` module.
 - **The sandbox's defaults come first:** no file system, an empty `os.environ`, `getcwd()` `/`, `random` seeded by
   the host, `time` from the agent's clock.
+- **The bundled library is CPython's own files, unchanged** (`neonpython/tools/port_cpython.py`, a rules file only
+  where one must differ, said in the INDEX): their lines, and so their tracebacks' line numbers, are CPython's, and
+  CPython's own `Lib/test` can check them. Where CPython has a C accelerator with a pure fallback (`_abc`,
+  `_functools`, `_heapq`, `_bisect`, `_operator`, `_warnings`), the fallback runs until the accelerator is worth it;
+  where it has none (`_collections`, `itertools`, `_sre`, `_contextvars`, `_thread`, `_weakref`), the module is Kotlin.
+- **`sys.implementation.name` is `'neonpy'` and its `cache_tag` None** (no bytecode is written); `sys.prefix` is
+  `/usr`, the library at `/usr/lib/python3.14`. Code asking whether it runs on CPython is told it does not.
+- **A builtin type's classes are each context's.** The builtin types are every context's objects, so
+  `object.__subclasses__()` lists only the asking context's classes (and the builtin types); descriptors the builtin
+  types show (`FunctionType.__code__`) take no attributes of their own.
+- **A bytearray stays resizable while memoryviews of it live** (CPython raises BufferError): no reference count tells
+  when a view is gone, and refusing would break the common `memoryview(buf)[...]` temporaries; a view the resize left
+  past the end raises where it is read.
+- **`re` runs on a port of CPython's SRE engine,** not on `java.util.regex`: CPython's parser and compiler (Python)
+  emit SRE code, which `_sre` runs as sre_lib.h does, so the semantics (backtracking order, groups in repeats, Unicode
+  classes, case folding) are CPython's. Its contexts are on an explicit stack.
+
+### 12.3 Progress (2026-11-06)
+
+Done on `neonpy-stdlib`: L1–L4; S1 (the bundled library, `sys` as it reads it); of S2 `_thread`, `itertools`,
+`_collections`, and bundled `abc`, `collections`, `contextvars`, `copy`, `copyreg`, `enum`, `functools`, `heapq`,
+`bisect`, `keyword`, `numbers`, `operator`, `reprlib`, `types`, `weakref`, `warnings`, `linecache`; of S3 `_sre` and
+`re`. With them the runtime gained what they stand on: subclasses of staticmethod, classmethod, property,
+GenericAlias and bytearray; metaclass `__instancecheck__`, `__subclasscheck__`, `__call__`, `__prepare__` (the
+namespace of a dict's subclass), `__iter__`/`__len__`/`__contains__`/`__repr__` of classes; `__subclasses__`,
+`__abstractmethods__`, `type.__new__`'s `__set_name__` and `__init_subclass__` always; mappingproxy; bytearray,
+memoryview and all of bytes' methods; range past 64 bits; the reduce protocol (`copy` of instances); the int-str
+digit limit; recursive reprs.
+
+Next: S2's `math`, `time`, `errno`, `_string` with CPython's `string` (the builtin `string` module gives way),
+`_random` with `random`, `_struct`, `_pydatetime`; S5's `_ast` and `ast`, which `annotationlib` and so 3.14's
+`typing` (S3) import; S4 (`os`, `io`, `open`) and `contextlib`, which imports `os`; S6.
 
 ## References (checked in this review)
 
