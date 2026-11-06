@@ -24,10 +24,10 @@ object PyEval {
 
     /** [source] (a str or UTF-8 bytes) compiled in [mode]; a compile error raised as SyntaxError. */
     @JvmStatic
-    fun compile(source: Any?, filename: String, mode: String, flags: Int = 0): PyCode {
+    fun compile(source: Any?, filename: String, mode: String, flags: Int = 0): Any? {
         if (mode != "exec" && mode != "eval" && mode != "single") throw PyException("ValueError", "compile() mode must be 'exec', 'eval' or 'single'")
-        if (flags and ONLY_AST != 0) throw PyException("NotImplementedError", "compile() to an AST is not supported")
         val src = text(source, "compile() arg 1 must be a string, bytes or AST object")
+        if (flags and ONLY_AST != 0) return PyAstObjects.parse(PyContext.current(), src, filename, mode)
         try {
             val cb = PyCompiler.withFilename(PyCompiler.compileSource(src, if (mode == "eval") "eval" else "exec", flags and FUTURE_ANNOTATIONS != 0), filename)
             return PyCode(cb, mode, filename).also { (cb.dialectData as PyCodeInfo).codeObject = it }
@@ -106,7 +106,7 @@ object PyEval {
         val src = a[0]
         if (src !is PyCode && src !is PyStr && src !is PyBytes) throw PyRt.typeError("exec() arg 1 must be a string, bytes or code object")
         val (g, l) = namespaces(f, a, "exec")
-        val code = src as? PyCode ?: compile(src, "<string>", "exec")
+        val code = src as? PyCode ?: compile(src, "<string>", "exec") as PyCode
         run(code, g, l, "exec")
         return PyNone
     }
@@ -118,7 +118,7 @@ object PyEval {
         val src = a[0]
         val text = if (src is PyCode) null else text(src, "eval() arg 1 must be a string, bytes or code object").trimStart(' ', '\t')
         val (g, l) = namespaces(f, a, "eval")
-        val code = src as? PyCode ?: compile(PyStr(text!!), "<string>", "eval")
+        val code = src as? PyCode ?: compile(PyStr(text!!), "<string>", "eval") as PyCode
         val r = run(code, g, l, "eval")
         return if (code.mode == "eval") r else PyNone
     }

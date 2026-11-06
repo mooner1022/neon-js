@@ -41,6 +41,11 @@ class Module(@JvmField val body: List<Stmt>) : Node() {
 }
 
 /** An expression to evaluate (eval's mode). */
+/** compile()'s 'single' mode's tree (ast.Interactive): what compile(..., PyCF_ONLY_AST) gives of it. */
+class Interactive(@JvmField val body: List<Stmt>) : Node() {
+    override fun fields() = listOf("body" to body)
+}
+
 class Expression(@JvmField val body: Expr) : Node() {
     override fun fields() = listOf("body" to body)
 }

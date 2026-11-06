@@ -99,7 +99,41 @@ class PyParser(private val src: String) {
         return next()
     }
 
-    private fun <T : Node> T.at(t: PyToken): T = also { it.line = t.line; it.col = t.col }
+    /** Where each line starts in the source (its end positions' lines and columns). */
+    private val lineStarts: IntArray by lazy {
+        val starts = ArrayList<Int>()
+        starts.add(0)
+        for (i in src.indices) if (src[i] == '\n') starts.add(i + 1)
+        starts.toIntArray()
+    }
+
+    /**
+     * A node made from [t] on: its start [t]'s, its end the last token taken for it (the one before the parser's
+     * position, newlines and indentation passed over), as CPython's end_lineno and end_col_offset.
+     */
+    private fun <T : Node> T.at(t: PyToken): T = also {
+        it.line = t.line
+        it.col = t.col
+        end(it)
+    }
+
+    /** [n]'s end: that of the last token taken (newlines and indentation passed over). */
+    private fun end(n: Node) {
+        val it = n
+        var q = p - 1
+        while (q >= 0 && toks[q].kind.let { k -> k == Kind.NEWLINE || k == Kind.INDENT || k == Kind.DEDENT || k == Kind.END }) q--
+        if (q >= 0 && toks[q].end > 0) {
+            val end = toks[q].end
+            var lo = 0
+            var hi = lineStarts.size - 1
+            while (lo < hi) {
+                val mid = (lo + hi + 1) / 2
+                if (lineStarts[mid] <= end) lo = mid else hi = mid - 1
+            }
+            it.endLine = lo + 1
+            it.endCol = end - lineStarts[lo]
+        }
+    }
 
     /** A NAME that is no hard keyword. */
     private fun atIdentifier() = tok.kind == Kind.NAME && tok.text !in KEYWORDS
@@ -887,8 +921,10 @@ class PyParser(private val src: String) {
     private fun namedExpression(argument: Boolean = false): Expr {
         if (atIdentifier() && peek().kind == Kind.OP && peek().text == ":=") {
             val t = next()
+            // (the target made before := is taken: its end is the name's)
+            val target = Name(t.text, Ctx.Store).at(t)
             next()
-            return NamedExpr(Name(t.text, Ctx.Store).at(t), expression()).at(t)
+            return NamedExpr(target, expression()).at(t)
         }
         val start = p
         val e = expression()
@@ -1124,7 +1160,11 @@ class PyParser(private val src: String) {
         }
     }
 
-    private fun <T : Node> T.at(line: Int, col: Int): T = also { it.line = line; it.col = col }
+    private fun <T : Node> T.at(line: Int, col: Int): T = also {
+        it.line = line
+        it.col = col
+        end(it)
+    }
 
     /** After a `*` where CPython's starred_expression is ('*' expression): none there is "Invalid star expression". */
     private fun starredOperand() {
@@ -1479,7 +1519,13 @@ class PyParser(private val src: String) {
                 if ((x.value as PyStr).s.isEmpty()) continue
                 val last = out.lastOrNull()
                 if (last is Constant && last.value is PyStr) {
-                    out[out.size - 1] = Constant(PyStr((last.value as PyStr).s + (x.value as PyStr).s)).at(last.line, last.col)
+                    // (from the first's start to the second's end, as CPython's merged literal)
+                    out[out.size - 1] = Constant(PyStr((last.value as PyStr).s + (x.value as PyStr).s)).also {
+                        it.line = last.line
+                        it.col = last.col
+                        it.endLine = x.endLine
+                        it.endCol = x.endCol
+                    }
                     continue
                 }
             }

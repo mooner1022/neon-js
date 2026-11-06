@@ -20,11 +20,13 @@ import sys
 VERSION = 'v3.14.6'
 PORTS = """
 __future__.py
+_ast_unparse.py
 _collections_abc.py
 _py_abc.py
 _py_warnings.py
 _weakrefset.py
 abc.py
+ast.py
 bisect.py
 collections/__init__.py
 contextvars.py
@@ -49,6 +51,11 @@ types.py
 warnings.py
 weakref.py
 """
+
+# The lib's files that are NeonPy's, not CPython's (made by another tool): their INDEX notes
+OWN = {
+    '_ast.py': "NeonPy's: generated from CPython's Parser/Python.asdl by neonpython/tools/gen_ast.py",
+}
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(TOOLS))
@@ -81,6 +88,8 @@ def main(names):
         if not names or rel in names:
             note = port(rel, rules)
         index.append(rel + (f'  # {note}' if note else ''))
+    for rel, note in OWN.items():
+        index.append(f'{rel}  # {note}')
     if not names:
         lic = open(os.path.join(os.path.dirname(SRC), 'LICENSE'), encoding='utf-8').read().replace('\r\n', '\n')
         open(os.path.join(LIB, 'LICENSE'), 'w', encoding='utf-8', newline='\n').write(lic)
