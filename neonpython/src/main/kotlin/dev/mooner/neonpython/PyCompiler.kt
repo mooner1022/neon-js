@@ -161,6 +161,44 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         private val ANNOTATE_ARGS = Arguments(listOf(Arg("format", null)), emptyList(), null, emptyList(), emptyList(), null, emptyList())
         private val LAZY_ARGS = Arguments(listOf(Arg(".format", null)), emptyList(), null, emptyList(), emptyList(), null, emptyList())
 
+        /**
+         * compile()'s code of [src] ([mode] exec, or eval: an expression's value returned): a module's in name mode
+         * (LOAD_NAME, STORE_NAME: exec()'s locals may not be its globals); [future] the caller's
+         * `from __future__ import annotations`.
+         */
+        @JvmStatic fun compileSource(src: String, mode: String, future: Boolean): CodeUnit {
+            val m = try {
+                if (mode == "eval") {
+                    val e = PyParser(src).parseExpression().body
+                    Module(listOf(ExprStmt(e).also { it.line = e.line; it.col = e.col })).also { it.line = 1 }
+                } else PyParser(src).parseModule()
+            } catch (e: PySyntaxError) {
+                e.stage = 2
+                throw e
+            }
+            val st = PySymtable.build(m, checkFutures(m) || future)
+            val c = PyCompiler(st, st.scopes[m]!!, "<module>")
+            c.nameMode = true
+            c.evalMode = mode == "eval"
+            try {
+                return c.compileBody(m.body, null)
+            } catch (e: PySyntaxError) {
+                e.stage = 1
+                throw e
+            }
+        }
+
+        /** A module's `from __future__` imports checked (at its start only); whether annotations is one of them. */
+        private fun checkFutures(m: Module): Boolean {
+            var start = true
+            for ((i, st) in m.body.withIndex()) {
+                val future = st is ImportFrom && st.module == "__future__" && st.level == 0
+                if (future && !start) throw PySyntaxError("from __future__ imports must occur at the beginning of the file", st.line, st.col)
+                if (!future && !(i == 0 && st is ExprStmt && st.value is Constant && (st.value as Constant).value is PyStr)) start = false
+            }
+            return m.body.any { it is ImportFrom && it.module == "__future__" && it.level == 0 && it.names.any { a -> a.name == "annotations" } }
+        }
+
         /** The code block of module [src]. */
         @JvmStatic fun compileModule(src: String, name: String = "<module>"): CodeUnit {
             val m = PyParser(src).parseModule()
@@ -176,6 +214,10 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             return PyCompiler(st, st.scopes[m]!!, name).compileBody(m.body, null)
         }
     }
+
+    /** A module's code compile() made: its names LOAD_NAME's ([nameMode]); an eval's, its expression's value returned. */
+    private var nameMode = false
+    private var evalMode = false
 
     /** Whether this is a generator expression's code, and the line of its def (or lambda, or comprehension). */
     private var generatorExpr = false
@@ -221,11 +263,11 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 annotateSlot = constants.size
                 constants.add(null)
                 emit(PyOp.MAKE_FUNCTION, annotateSlot)
-                emit(PyOp.STORE_GLOBAL, name("__annotate__"))
+                storeName("__annotate__")
             }
             if (scope.conditionalAnnotations) {
                 emit(PyOp.BUILD_SET, 0)
-                emit(PyOp.STORE_GLOBAL, name("__conditional_annotations__"))
+                storeName("__conditional_annotations__")
             }
             if (future && scope.annotationsUsed) emit(PyOp.SETUP_ANNOTATIONS)
         }
@@ -259,7 +301,12 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             }
             if (future && scope.annotationsUsed) emit(PyOp.SETUP_ANNOTATIONS)
         }
-        for (s in body) stmt(s)
+        if (evalMode) {
+            val e = (body[0] as ExprStmt).value
+            lineHere(e.line)
+            expr(e)
+            emit(PyOp.RETURN)
+        } else for (s in body) stmt(s)
         if (deferred.isNotEmpty()) {
             val ann = scope.annotationScope!!
             val cb = child(ann, "__annotate__").compileAnnotate(deferred, firstLineOf(body))
@@ -457,6 +504,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             return
         }
         val n = mangle(raw)
+        val isClass = isClass || nameMode
         if (scope.canSeeClass && n != "__classdict__" && n != "__conditional_annotations__") {
             when (scope.kind(n)) {
                 Scope.Kind.GLOBAL_IMPLICIT -> {
@@ -503,6 +551,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     private fun storeName(raw: String) {
         forbidden(raw)
         val n = mangle(raw)
+        val isClass = isClass || nameMode
         if (isClass) {
             when (scope.kind(n)) {
                 Scope.Kind.GLOBAL_EXPLICIT -> emit(PyOp.STORE_GLOBAL, name(n))
@@ -527,6 +576,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     private fun deleteName(raw: String) {
         forbidden(raw, del = true)
         val n = mangle(raw)
+        val isClass = isClass || nameMode
         if (isClass) {
             when (scope.kind(n)) {
                 Scope.Kind.GLOBAL_EXPLICIT -> emit(PyOp.DELETE_GLOBAL, name(n))
@@ -601,7 +651,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                         deferred.add(Deferred(mangle(t.id), s.annotation, index, s.line))
                         if (index >= 0) {
                             // (a module's global; a class's cell, which its annotation scope reads)
-                            if (module) emit(PyOp.LOAD_GLOBAL, name("__conditional_annotations__")) else {
+                            if (module) loadName("__conditional_annotations__") else {
                                 emit(PyOp.LOAD_FAST, locals["__conditional_annotations__"]!!)
                                 emit(PyOp.CELL_GET, name("__conditional_annotations__"), 0)
                             }
@@ -2101,6 +2151,11 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             scope.kind(fname) == Scope.Kind.GLOBAL_IMPLICIT) {
             localsDict()
             return
+        }
+        // (exec(), eval() and dir() in a function, the builtins: its locals' snapshot theirs where they are given none)
+        if ((fname == "exec" || fname == "eval" || fname == "dir" && e.args.isEmpty()) && !namespace && scope.kind(fname) == Scope.Kind.GLOBAL_IMPLICIT) {
+            localsDict()
+            emit(PyOp.SET_EVAL_LOCALS)
         }
         expr(e.func)
         callArgs(0, e.args, e.keywords)

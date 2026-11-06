@@ -287,6 +287,7 @@ object PyClasses {
     fun getAttr(obj: Any?, name: String): Any? {
         if (obj is PyModule) return moduleAttr(obj, name)
         if (obj is PyGenericAlias) return PyTyping.aliasAttr(obj, name)
+        if (obj is PyCode) return PyEval.codeAttr(obj, name)
         if (obj is PyUnion) return PyTyping.unionAttr(obj, name)
         if (obj is PyTypeParam) return PyTyping.typeParamAttr(obj, name)
         if (obj is PyParamSpecPart || obj is PyUnpacked) return PyTyping.partAttr(obj, name)
@@ -413,7 +414,7 @@ object PyClasses {
         }
     }
 
-    private fun instanceDict(obj: Any?): PyDict? = when (obj) {
+    @JvmStatic fun instanceDict(obj: Any?): PyDict? = when (obj) {
         is PyObject -> obj.dict
         is PyValue -> obj.sub?.dict
         is PyFunction -> obj.dict

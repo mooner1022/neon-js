@@ -24,6 +24,8 @@ class PySyntaxError(message: String, @JvmField val line: Int, @JvmField val col:
     RuntimeException("$message (line $line)", null, false, false) {
     /** The message without the line. */
     val msg: String = message
+    /** What raised it, for compile()'s SyntaxError: the symbol table (0), the compiler (1), the tokenizer or parser (2). */
+    @JvmField var stage = 0
 }
 
 /**

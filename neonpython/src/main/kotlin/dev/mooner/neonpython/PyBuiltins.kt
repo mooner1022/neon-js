@@ -244,6 +244,7 @@ object PyBuiltins {
         PyLiterals.define(d)
         PyLibrary.define(d)
         PyTyping.define()
+        PyEval.define(d)
         PyStrings.define()
         PyTypes.SLICE.newImpl = { _, _, a, kw ->
             if (kw != null && kw.size > 0) throw PyRt.typeError("slice() takes no keyword arguments")

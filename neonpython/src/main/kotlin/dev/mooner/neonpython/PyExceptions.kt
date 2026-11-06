@@ -77,6 +77,15 @@ object PyExceptions {
         when {
             t.isSubtype(type("StopIteration")) -> o.setField("value", if (a.isEmpty()) PyNone else a[0])
             t.isSubtype(type("SystemExit")) -> o.setField("code", when (a.size) { 0 -> PyNone; 1 -> a[0]; else -> o.args })
+            t.isSubtype(type("SyntaxError")) -> {
+                if (a.isNotEmpty()) o.setField("msg", a[0])
+                val info = (a.getOrNull(1) as? PyTuple)?.items
+                if (a.size == 2 && info != null) {
+                    for ((i, n) in listOf("filename", "lineno", "offset", "text", "end_lineno", "end_offset").withIndex()) {
+                        if (i < info.size) o.setField(n, info[i])
+                    }
+                }
+            }
             t.isSubtype(type("OSError")) -> if (a.size in 2..5) {
                 o.setField("errno", a[0])
                 o.setField("strerror", a[1])
@@ -464,6 +473,7 @@ object PyExceptions {
             type("StopIteration") to listOf("value"), type("StopAsyncIteration") to listOf("value"), type("SystemExit") to listOf("code"),
             type("OSError") to listOf("errno", "strerror", "filename"), type("NameError") to listOf("name"),
             type("AttributeError") to listOf("name", "obj"), type("ImportError") to listOf("name", "path"),
+            type("SyntaxError") to listOf("msg", "filename", "lineno", "offset", "text", "end_lineno", "end_offset", "print_file_and_line"),
         )) for (n in names) prop(t, n, { it.field(n) }) { o, v -> o.setField(n, v) }
         // exception groups
         val bg = BASE_GROUP
@@ -491,6 +501,19 @@ object PyExceptions {
         method(type("KeyError"), "__str__") { a ->
             val o = self(a, "__str__")
             PyStr(if (o.args.items.size == 1) PyRt.repr(o.args.items[0]) else baseStr(o))
+        }
+        // msg (file, line N): the file's last part, either where it has none
+        method(type("SyntaxError"), "__str__") { a ->
+            val o = self(a, "__str__")
+            val fn = (o.field("filename") as? PyStr)?.s?.substringAfterLast('/')
+            val ln = o.field("lineno") as? Long
+            val msg = PyRt.str(o.field("msg"))
+            PyStr(when {
+                fn != null && ln != null -> "$msg ($fn, line $ln)"
+                fn != null -> "$msg ($fn)"
+                ln != null -> "$msg (line $ln)"
+                else -> msg
+            })
         }
         method(type("OSError"), "__str__") { a ->
             val o = self(a, "__str__")

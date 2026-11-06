@@ -21,7 +21,13 @@ object PyCalls {
     @JvmStatic fun callKw(f: VmFrame, fn: Any?, all: Array<Any?>): Any? {
         val names = (all[all.size - 1] as PyTuple).items
         val np = all.size - 1 - names.size
-        return callWith((f as PyFrame).ctx, fn, all.copyOfRange(0, np), names, all.copyOfRange(np, np + names.size))
+        return callFrom(f, fn, all.copyOfRange(0, np), names, all.copyOfRange(np, np + names.size))
+    }
+
+    /** A call from code ([f]'s): a builtin of its caller's frame (exec(), globals()) given it, without keywords. */
+    @JvmStatic fun callFrom(f: VmFrame, fn: Any?, pos: Array<Any?>, kwNames: Array<Any?>, kwValues: Array<Any?>): Any? {
+        if (fn is PyBuiltin && kwNames.isEmpty()) fn.frameImpl?.let { return it(f, pos) }
+        return callWith((f as PyFrame).ctx, fn, pos, kwNames, kwValues)
     }
 
     /** A call's `*v` (WRAP_STAR), which [callEx] unpacks. */
@@ -56,7 +62,7 @@ object PyCalls {
             }
         }
         val pos = list.toTypedArray()
-        if (rest.size < 2) return callWith((f as PyFrame).ctx, fn, pos, NO_ARGS, NO_ARGS)
+        if (rest.size < 2) return callFrom(f, fn, pos, NO_ARGS, NO_ARGS)
         val names = ArrayList<Any?>()
         val values = ArrayList<Any?>()
         val seen = HashSet<String>()
@@ -69,7 +75,7 @@ object PyCalls {
                 values.add(v)
             }
         }
-        return callWith((f as PyFrame).ctx, fn, pos, names.toTypedArray(), values.toTypedArray())
+        return callFrom(f, fn, pos, names.toTypedArray(), values.toTypedArray())
     }
 
     /** [fn] called with [pos] and the keyword arguments [kwNames] (PyStrs) = [kwValues]. */

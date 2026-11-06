@@ -98,6 +98,8 @@ class PyFrame(@JvmField val code: CodeUnit, @JvmField val ctx: PyContext, @JvmFi
     /** A generator's: the value its YIELD hands over, and how it is resumed (MODE_NEXT, MODE_THROW, MODE_THROW_ALL). */
     @JvmField var suspendValue: Any? = null
     @JvmField var resumeMode = MODE_NEXT
+    /** A function's locals' snapshot, what exec() and eval() called from it take as their locals (SET_EVAL_LOCALS). */
+    @JvmField var evalLocals: PyDict? = null
 
     init {
         if (compiled == null) for (i in args.indices) slots[i] = args[i]
@@ -535,6 +537,7 @@ object PyInterpreter {
                 s[sp - 1] = PyTyping.setTypeParamDefault(s[sp - 1], fn)
             }
             PyOp.SUBSCRIPT_GENERIC -> s[sp - 1] = PyTyping.subscriptGeneric(s[sp - 1])
+            PyOp.SET_EVAL_LOCALS -> PyEval.setEvalLocals(f, pop())
             PyOp.MAKE_TYPEALIAS -> {
                 val fn = pop()
                 val params = pop()

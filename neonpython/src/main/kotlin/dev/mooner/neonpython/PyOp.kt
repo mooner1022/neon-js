@@ -271,6 +271,9 @@ object PyOp {
     /** (params -- base): Generic[*params], a generic class's base */
     const val SUBSCRIPT_GENERIC = 157
 
+    /** (locals -- ): a function's locals' snapshot, exec()'s and eval()'s where they are given none */
+    const val SET_EVAL_LOCALS = 158
+
     const val COUNT = 200
 
     @JvmField val operands = IntArray(COUNT).also { o ->
@@ -311,7 +314,7 @@ object PyOp {
         BUILD_STRING, BUILD_SET, BUILD_SLICE -> 1 - a
         SET_ADD, SET_UPDATE, BUILD_TEMPLATE, MATCH_KEYS, COPY_DICT_WITHOUT_KEYS -> -1
         MATCH_CLASS -> -2
-        IMPORT_NAME, IMPORT_STAR, END_ASYNC_FOR, ANNOTATE_CHECK, LOAD_FROM_DICT_OR_CELL, MAKE_TYPEVAR_BOUND, SET_TYPEPARAM_DEFAULT -> -1
+        IMPORT_NAME, IMPORT_STAR, END_ASYNC_FOR, ANNOTATE_CHECK, LOAD_FROM_DICT_OR_CELL, MAKE_TYPEVAR_BOUND, SET_TYPEPARAM_DEFAULT, SET_EVAL_LOCALS -> -1
         MAKE_TYPEALIAS -> -2
         LOAD_NAMESPACE -> 1
         BUILD_INTERPOLATION -> -3

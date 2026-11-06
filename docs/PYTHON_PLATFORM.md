@@ -815,6 +815,12 @@ Made with what was left (M9c):
   adds them).
 - **`__debug__` is the constant True**, and binding it anywhere (a name, a parameter, a keyword argument, an
   attribute, an import, a target) CPython's compile error.
+- **compile(), exec() and eval()** compile at run time (`PyEval`): a module's code in name mode (LOAD_NAME,
+  STORE_NAME, so that separate locals are a class body's), an eval's returning its expression; their default
+  namespaces the caller's, a function's locals a snapshot the call site takes (SET_EVAL_LOCALS, as `locals()`'s:
+  compiled code has no registers to read), dir()'s too. A compile error is CPython's SyntaxError object: the
+  parser's with its line's text, the compiler's without, the symbol table's with its message as its only argument.
+  'single' compiles as 'exec' (no display of expression values); no AST (PyCF_ONLY_AST).
 
 - **A statement gives its temporaries back** when it ends, so that the registers of one try or with serve the next:
   the tier's code keeps every register a handler may read in a home at the start of each block a handler covers

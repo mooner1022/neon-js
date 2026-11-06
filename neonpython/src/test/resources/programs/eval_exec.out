@@ -1,0 +1,36 @@
+SyntaxError 'invalid syntax' <test> 1 '1 +\n' 2 | invalid syntax (<test>, line 1)
+SyntaxError 'invalid syntax' <test> 2 '  2 +)\n' 2 | invalid syntax (<test>, line 2)
+IndentationError 'expected an indented block after function definition on line 1' <test> 2 'return 1\n' 2 | expected an indented block after function definition on line 1 (<test>, line 2)
+SyntaxError 'nonlocal declaration not allowed at module level' <test> 1 None 1 | nonlocal declaration not allowed at module level (<test>, line 1)
+SyntaxError 'invalid syntax' <test> 1 '1 2' 2 | invalid syntax (<test>, line 1)
+SyntaxError 'invalid syntax' <test> 1 'x = 1' 2 | invalid syntax (<test>, line 1)
+SyntaxError 'iterable argument unpacking follows keyword argument unpacking' <test> 1 'f(**x, *y)\n' 2 | iterable argument unpacking follows keyword argument unpacking (<test>, line 1)
+SyntaxError "duplicate argument 'a' in function definition" <test> 1 None 1 | duplicate argument 'a' in function definition (<test>, line 1)
+SyntaxError "'break' outside loop" <test> 1 None 2 | 'break' outside loop (<test>, line 1)
+'m' m None ('m',)
+'m (f.py, line 3)' m 3 4 txt None ('m', ('f.py', 3, 4, 'txt')) None
+'m (line 7)' 'm (f.py)' 'None'
+True True
+code f 3 12 None
+['__builtins__', 'a', 'b', 'f'] 1 dict
+['a', 'b', 'f'] name 'a' is not defined
+2 2 2 2
+None [0, 1, 4]
+(14, None, 7)
+4
+None
+ValueError: compile() mode must be 'exec', 'eval' or 'single'
+TypeError: compile() arg 1 must be a string, bytes or AST object
+TypeError: exec() arg 1 must be a string, bytes or code object
+TypeError: globals must be a real dict; try eval(expr, {}, mapping)
+ValueError: from exec
+NameError: name 'undefined_in_eval' is not defined
+2
+{'x': 'int', 'return': 'str'}
+['a', 'b', 'c']
+['__firstlineno__', '__module__', '__qualname__', 'x']
+['m', 'x', 'y', 'z'] ['m', 'x', 'y']
+['a', 'a', 'b']
+TypeError: dir expected at most 1 argument, got 2
+['D', 'K', 'L', 'f', 'o']
+['dirs', 'error', 'running', 'syntax_errors']

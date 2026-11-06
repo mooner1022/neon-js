@@ -170,6 +170,7 @@ object PyTypes {
         is PyAsyncGenerator -> ASYNC_GENERATOR
         is PyAwaitIter -> v.type
         is PyGenericAlias -> if (v.typing) PyTyping.TYPING_ALIAS else PyTyping.GENERIC_ALIAS
+        is PyCode -> PyEval.CODE
         is PyUnion -> PyTyping.UNION
         is PyTypeParam, is PyParamSpecPart, is PyUnpacked, is PyTypeAlias, PyNoDefault, PyUnpackForm -> PyTyping.typeOf(v)!!
         is PySet -> v.sub?.cls ?: if (v.frozen) FROZENSET else SET
