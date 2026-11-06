@@ -94,7 +94,7 @@ object PyHash {
         v is PyBytes -> fix(v.b.contentHashCode().toLong())
         v is PyByteArray -> throw PyRt.typeError("unhashable type: 'bytearray'")
         v is PyMemoryView -> PyByteSeqs.viewHash(v)
-        v is PyGenericAlias || v is PyUnion || v is PyParamSpecPart || v is PyUnpacked -> v.hashCode().toLong()
+        v is PyGenericAlias || v is PyUnion || v is PyParamSpecPart -> v.hashCode().toLong()
         else -> System.identityHashCode(v).toLong()
     }
 

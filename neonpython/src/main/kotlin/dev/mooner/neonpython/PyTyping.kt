@@ -2,12 +2,14 @@ package dev.mooner.neonpython
 
 /**
  * types.GenericAlias (PEP 585): a type subscripted, `list[int]`; [starred] the `*tuple[int, ...]` that iterating
- * one gives (PEP 646). CPython's Objects/genericaliasobject.c. [typing]: typing._GenericAlias instead, what a
- * Generic class subscripted gives (`K[int]`, `Generic[T]`), as typing.py's.
+ * one gives (PEP 646). CPython's Objects/genericaliasobject.c. (A Generic class subscripted is typing.py's
+ * _GenericAlias, as in CPython.)
  */
-class PyGenericAlias(@JvmField val origin: Any?, @JvmField val args: PyTuple, @JvmField val starred: Boolean = false,
-                     @JvmField val typing: Boolean = false) : PyValue() {
-    override fun equals(other: Any?) = other is PyGenericAlias && starred == other.starred && typing == other.typing &&
+class PyGenericAlias(@JvmField val origin: Any?, @JvmField val args: PyTuple, @JvmField val starred: Boolean = false) : PyValue() {
+    /** Its `__parameters__`, made the first time they are asked for. */
+    @JvmField var params: PyTuple? = null
+
+    override fun equals(other: Any?) = other is PyGenericAlias && starred == other.starred &&
         PyRt.eq(origin, other.origin) && PyRt.eq(args, other.args)
 
     override fun hashCode() = PyRt.hash(origin) xor PyRt.hash(args)
@@ -15,6 +17,9 @@ class PyGenericAlias(@JvmField val origin: Any?, @JvmField val args: PyTuple, @J
 
 /** typing.Union (3.14's `X | Y` of types): its [args] flattened, without duplicates, None as NoneType. */
 class PyUnion(@JvmField val args: PyTuple) {
+    /** Its `__parameters__`, made the first time they are asked for. */
+    @JvmField var params: PyTuple? = null
+
     override fun equals(other: Any?) = other is PyUnion && args.items.size == other.args.items.size &&
         args.items.all { a -> other.args.items.any { PyRt.eq(a, it) } }
 
@@ -53,17 +58,8 @@ class PyParamSpecPart(@JvmField val origin: PyTypeParam, @JvmField val kwargs: B
     override fun hashCode() = System.identityHashCode(origin) * 2 + if (kwargs) 1 else 0
 }
 
-/** typing.Unpack[Ts]: what iterating a TypeVarTuple gives (`*Ts`). */
-class PyUnpacked(@JvmField val arg: Any?) {
-    override fun equals(other: Any?) = other is PyUnpacked && PyRt.eq(arg, other.arg)
-    override fun hashCode() = PyRt.hash(arg) xor 0x55
-}
-
 /** typing.NoDefault: a type parameter's default where it has none. */
 object PyNoDefault
-
-/** typing.Unpack, the special form (only its repr and its subscription's results here). */
-object PyUnpackForm
 
 /**
  * A `type` statement's alias (typing.TypeAliasType): its value a function evaluated when first asked for; its
@@ -107,11 +103,8 @@ object PyTyping {
     @JvmField val PARAMSPEC = typing("ParamSpec")
     @JvmField val PARAMSPEC_ARGS = typing("ParamSpecArgs")
     @JvmField val PARAMSPEC_KWARGS = typing("ParamSpecKwargs")
-    @JvmField val UNPACK_ALIAS = typing("_UnpackGenericAlias")
     @JvmField val NODEFAULT = typing("NoDefaultType")
-    @JvmField val UNPACK_FORM = typing("_SpecialForm")
     @JvmField val TYPE_ALIAS = typing("TypeAliasType")
-    @JvmField val TYPING_ALIAS = typing("_GenericAlias")
     /** typing.Generic: a generic class's base, its subscriptions and its subclasses' parameters typing.py's. */
     @JvmField val GENERIC = PyTypes.newBuiltin("Generic").also { it.module = "typing" }
 
@@ -128,12 +121,9 @@ object PyTyping {
     fun define() {
         defineConstructors()
         if (!GENERIC.dict.containsKey(PyStr("__class_getitem__"))) {
-            GENERIC.def("__class_getitem__", PyClassMethod(PyBuiltin("__class_getitem__") { _, a ->
-                if (a.size != 2) throw PyRt.typeError("__class_getitem__() takes exactly one argument (${a.size - 1} given)")
-                genericClassGetItem(a[0] as PyType, a[1])
-            }))
-            GENERIC.def("__init_subclass__", PyClassMethod(PyBuiltin("__init_subclass__", { _, a -> genericInitSubclass(a[0] as PyType); PyNone },
-                { _, a, _ -> throw PyRt.typeError("${(a[0] as PyType).name}.__init_subclass__() takes no keyword arguments") })))
+            // (typing.py's, as typevarobject.c's generic_class_getitem and generic_init_subclass call them)
+            GENERIC.def("__class_getitem__", PyClassMethod(typingArgsKwargs("__class_getitem__", "_generic_class_getitem")))
+            GENERIC.def("__init_subclass__", PyClassMethod(typingArgsKwargs("__init_subclass__", "_generic_init_subclass")))
         }
         for (t in genericTypes()) {
             if (t.dict.containsKey(PyStr("__class_getitem__"))) continue
@@ -143,6 +133,48 @@ object PyTyping {
             }))
         }
     }
+
+    /** The typing module, imported where it is not yet (CPython's C calls into typing.py so). */
+    private fun typingModule(ctx: PyContext): Any? = PyImport.importModule(ctx, "typing")
+
+    /** typing.[name](*args) (call_typing_func_object). */
+    private fun callTyping(ctx: PyContext, name: String, vararg args: Any?): Any? =
+        PyCalls.callWith(ctx, PyRt.getAttr(typingModule(ctx), name), arrayOf(*args), NO_ARGS, NO_ARGS)
+
+    /** A classmethod's function that calls typing.[fn](cls, *args, **kwargs) (call_typing_args_kwargs). */
+    private fun typingArgsKwargs(name: String, fn: String): PyBuiltin = PyBuiltin(name,
+        { ctx, a -> PyCalls.callWith(ctx, PyRt.getAttr(typingModule(ctx), fn), a, NO_ARGS, NO_ARGS) },
+        { ctx, a, kw ->
+            val names = arrayOfNulls<Any?>(kw.size)
+            val values = arrayOfNulls<Any?>(kw.size)
+            var i = 0
+            for ((k, v) in kw.map) {
+                names[i] = k.v
+                values[i++] = v
+            }
+            PyCalls.callWith(ctx, PyRt.getAttr(typingModule(ctx), fn), a, names, values)
+        })
+
+    /** typing.Unpack[v] (typevarobject.c's unpack): `*Ts`, `*Alias`. */
+    private fun unpack(ctx: PyContext, v: Any?): Any? = PyRt.getItem(PyRt.getAttr(typingModule(ctx), "Unpack"), v)
+
+    /** [params] with each TypeVarTuple unpacked (unpack_typevartuples: Generic's and a type alias's parameters). */
+    private fun unpackTypeVarTuples(ctx: PyContext, params: PyTuple): PyTuple {
+        fun tvt(v: Any?) = v is PyTypeParam && v.kind == PyTypeParam.TYPEVARTUPLE
+        if (params.items.none { tvt(it) }) return params
+        return PyTuple(Array(params.items.size) { i -> params.items[i].let { if (tvt(it)) unpack(ctx, it) else it } })
+    }
+
+    /** getattr(v, name, None) where only an AttributeError is its absence (PyObject_GetOptionalAttr); null for none. */
+    private fun optionalAttr(v: Any?, name: String): Any? = try {
+        PyRt.getAttr(v, name)
+    } catch (e: PyException) {
+        if (e.matches(PyExceptions.type("AttributeError"))) null else throw e
+    }
+
+    /** Values that have none of the typing protocol's attributes (`__parameters__`, `__typing_subst__`, ...). */
+    private fun plain(v: Any?): Boolean = v == null || v === PyNone || v === PyEllipsis || v is Long || v is Double ||
+        v is Boolean || v is PyBool || v is PyStr && v.sub == null || v is java.math.BigInteger
 
     /** A subscription's key as a tuple of arguments (`list[int]` one, `dict[str, int]` two). */
     @JvmStatic fun argsOf(key: Any?): PyTuple = if (key is PyTuple && key.sub == null) key else PyTuple(arrayOf(key))
@@ -166,87 +198,149 @@ object PyTyping {
         throw PyRt.typeError("type '${t.name}' is not subscriptable")
     }
 
-    /** ga[key], a union[key]: its type variables replaced (M9b); none left is CPython's error. */
+    /**
+     * ga[key] (ga_getitem), union[key] (union_getitem): its parameters replaced by the arguments
+     * (_Py_subs_parameters), a GenericAlias of the same origin (starred as it is), a union of them.
+     */
     @JvmStatic
-    fun aliasGetItem(alias: Any?, key: Any?): Any? {
-        val params = parameters(alias)
-        if (params.items.isEmpty()) throw PyRt.typeError("${PyRt.repr(alias)} is not a generic class")
-        return substitute(alias, params, argsOf(key))
+    fun aliasGetItem(alias: Any?, key: Any?): Any? = when (alias) {
+        is PyGenericAlias -> PyGenericAlias(alias.origin, subsParameters(alias, alias.args, parameters(alias).items, key), alias.starred)
+        is PyUnion -> unionOf(subsParameters(alias, alias.args, parameters(alias).items, key).items.asList())
+        else -> throw IllegalStateException("not an alias: $alias")
     }
 
     /**
-     * What [alias]'s type variables become with [args] (_Py_subs_parameters): a missing one its default (a type
-     * variable's __typing_prepare_subst__), a TypeVarTuple the arguments between those before and after it.
+     * `__parameters__` of an alias or a union: the type variables of its arguments (_Py_make_parameters), each
+     * once, in order: an argument with `__typing_subst__` itself, else its `__parameters__` (a list's or a tuple's
+     * arguments' where it has none); a class none.
      */
-    private fun substitute(alias: Any?, params: PyTuple, args: PyTuple): Any? {
-        val ps = params.items
-        val items = ArrayList(args.items.asList())
-        val tvt = ps.indexOfFirst { it is PyTypeParam && it.kind == PyTypeParam.TYPEVARTUPLE }
-        val map = HashMap<Any?, Any?>()
-        if (tvt >= 0) {
-            val after = ps.size - tvt - 1
-            if (items.size < ps.size - 1) {
-                throw PyRt.typeError("Too few arguments for ${PyRt.str(alias)}; actual ${items.size}, expected at least ${ps.size - 1}")
-            }
-            for (i in 0 until tvt) map[ps[i]] = items[i]
-            map[ps[tvt]] = Spread(items.subList(tvt, items.size - after).toList())
-            for (i in 0 until after) map[ps[tvt + 1 + i]] = items[items.size - after + i]
-            return replace(alias, map)
+    @JvmStatic
+    fun parameters(alias: Any?): PyTuple = when (alias) {
+        is PyGenericAlias -> alias.params ?: makeParameters(alias.args.items).also { alias.params = it }
+        is PyUnion -> alias.params ?: makeParameters(alias.args.items).also { alias.params = it }
+        else -> PyTuple.EMPTY
+    }
+
+    private fun makeParameters(args: Array<Any?>): PyTuple {
+        val out = ArrayList<Any?>()
+        fun add(t: Any?) {
+            if (out.none { it === t }) out.add(t)
         }
-        for ((i, p) in ps.withIndex()) {
-            if (i < items.size) continue
-            if (i == items.size && p is PyTypeParam && hasDefault(p)) {
-                items.add(defaultOf(p))
+        for (t in args) {
+            if (t is PyType || plain(t)) continue
+            if (optionalAttr(t, "__typing_subst__") != null) {
+                add(t)
                 continue
             }
-            throw PyRt.typeError("Too few arguments for ${PyRt.str(alias)}; actual ${items.size}, expected at least ${i + 1}")
+            var sub = optionalAttr(t, "__parameters__")
+            if (sub == null && t is PyTuple) sub = makeParameters(t.items)
+            if (sub == null && t is PyList) sub = makeParameters(t.items.toTypedArray())
+            if (sub is PyTuple) for (x in sub.items) add(x)
         }
-        if (items.size != ps.size) {
-            throw PyRt.typeError("Too many arguments for ${PyRt.repr(alias)}; actual ${items.size}, expected ${ps.size}")
-        }
-        for (i in ps.indices) map[ps[i]] = items[i]
-        return replace(alias, map)
+        return PyTuple(out.toTypedArray())
     }
 
-    /** A TypeVarTuple's value: the arguments `*Ts` stands for, spread where it is. */
-    private class Spread(val items: List<Any?>)
-
-    private fun replace(v: Any?, map: Map<Any?, Any?>): Any? = when {
-        v is PyTypeParam && map.containsKey(v) -> map[v]
-        v is PyGenericAlias -> PyGenericAlias(v.origin, PyTuple(replaceAll(v.args.items.asList(), map).toTypedArray()), v.starred)
-        v is PyUnion -> unionOf(replaceAll(v.args.items.asList(), map))
-        v is PyList -> PyList(ArrayList(replaceAll(v.items, map)))
-        else -> v
-    }
-
-    private fun replaceAll(args: List<Any?>, map: Map<Any?, Any?>): List<Any?> {
-        val out = ArrayList<Any?>()
-        for (a in args) {
-            val r = if (a is PyUnpacked && map.containsKey(a.arg)) map[a.arg] else replace(a, map)
-            if (r is Spread) out.addAll(r.items) else out.add(r)
-        }
-        return out
-    }
-
-    /** `__parameters__`: the type variables in [alias]'s arguments, each once, in order (nested aliases' too). */
-    @JvmStatic
-    fun parameters(alias: Any?): PyTuple {
-        val args = when (alias) {
-            is PyGenericAlias -> alias.args.items
-            is PyUnion -> alias.args.items
-            else -> return PyTuple.EMPTY
-        }
-        val out = ArrayList<Any?>()
-        fun collect(a: Any?) {
-            when {
-                isTypeVar(a) -> if (out.none { it === a }) out.add(a)
-                a is PyGenericAlias || a is PyUnion -> for (p in parameters(a).items) if (out.none { it === p }) out.add(p)
-                a is PyUnpacked -> collect(a.arg)
-                a is PyList -> for (x in a.items) collect(x)
+    /**
+     * [args] with [params] replaced by [key]'s arguments (_Py_subs_parameters): the key's `*tuple[...]`s spread, each
+     * parameter's `__typing_prepare_subst__` (a missing one's default, a TypeVarTuple's arguments gathered), one
+     * argument for each; then each type variable's `__typing_subst__`, an alias's own subscription
+     * ([subsTvars]), a list's or a tuple's arguments the same way.
+     */
+    private fun subsParameters(self: Any?, args: Any?, params: Array<Any?>, key: Any?): PyTuple {
+        if (params.isEmpty()) throw PyRt.typeError("${PyRt.repr(self)} is not a generic class")
+        val ctx = PyContext.current()
+        var item: Any? = unpackArgs(key)
+        for (p in params) {
+            val prepare = if (plain(p)) null else optionalAttr(p, "__typing_prepare_subst__")
+            if (prepare != null && prepare !== PyNone) {
+                item = PyCalls.callWith(ctx, prepare, arrayOf(self, if (item is PyTuple) item else PyTuple(arrayOf(item))), NO_ARGS, NO_ARGS)
             }
         }
-        for (a in args) collect(a)
+        val argItems = if (item is PyTuple) item.items else arrayOf(item)
+        if (argItems.size != params.size) {
+            throw PyRt.typeError("Too ${if (argItems.size > params.size) "many" else "few"} arguments for ${PyRt.repr(self)}; actual ${argItems.size}, expected ${params.size}")
+        }
+        val src = if (args is PyList) args.items.toTypedArray() else (args as PyTuple).items
+        val out = ArrayList<Any?>()
+        for (arg in src) {
+            if (arg is PyType) {
+                out.add(arg)
+                continue
+            }
+            if (arg is PyTuple || arg is PyList) {
+                val sub = subsParameters(self, arg, params, item)
+                out.add(if (arg is PyList) PyList(ArrayList(sub.items.asList())) else sub)
+                continue
+            }
+            if (plain(arg)) {
+                out.add(arg)
+                continue
+            }
+            val unpack = isUnpackedTypeVarTuple(arg)
+            val subst = optionalAttr(arg, "__typing_subst__")
+            val i = params.indexOfFirst { it === arg }
+            val r = if (subst != null && i >= 0) PyCalls.callWith(ctx, subst, arrayOf(argItems[i]), NO_ARGS, NO_ARGS)
+                else subsTvars(arg, params, argItems)
+            if (unpack) {
+                if (r !is PyTuple) {
+                    throw PyRt.typeError("expected __typing_subst__ of ${fullName(PyTypes.typeOf(arg))} objects to return a tuple, not ${fullName(PyTypes.typeOf(r))}")
+                }
+                out.addAll(r.items)
+            } else out.add(r)
+        }
         return PyTuple(out.toTypedArray())
+    }
+
+    private fun fullName(t: PyType): String = if (t.module == "builtins") t.qualname else "${t.module}.${t.qualname}"
+
+    /**
+     * [obj] (an alias in an alias's arguments) subscripted with what its own parameters become (subs_tvars), a
+     * TypeVarTuple's arguments spread; as it is where it has none.
+     */
+    private fun subsTvars(obj: Any?, params: Array<Any?>, argItems: Array<Any?>): Any? {
+        val sub = optionalAttr(obj, "__parameters__")
+        if (sub !is PyTuple || sub.items.isEmpty()) return obj
+        val subargs = ArrayList<Any?>()
+        for (a in sub.items) {
+            val i = params.indexOfFirst { it === a }
+            if (i < 0) {
+                subargs.add(a)
+                continue
+            }
+            val p = params[i]
+            val v = argItems[i]
+            val iterable = p is PyTypeParam && p.kind == PyTypeParam.TYPEVARTUPLE || p is PyTypeAlias || PyTypes.typeOf(p).lookup("__iter__") != null
+            if (iterable && v is PyTuple) subargs.addAll(v.items) else subargs.add(v)
+        }
+        return PyRt.getItem(obj, PyTuple(subargs.toTypedArray()))
+    }
+
+    /** A key's arguments with each `*tuple[X, Y]` (not `*tuple[X, ...]`) spread (_unpack_args). */
+    private fun unpackArgs(key: Any?): PyTuple {
+        val items = if (key is PyTuple) key.items else arrayOf(key)
+        val out = ArrayList<Any?>()
+        for (x in items) {
+            if (x !is PyType) {
+                val sub = unpackedTupleArgs(x)
+                if (sub is PyTuple && !(sub.items.isNotEmpty() && sub.items.last() === PyEllipsis)) {
+                    out.addAll(sub.items)
+                    continue
+                }
+            }
+            out.add(x)
+        }
+        return PyTuple(out.toTypedArray())
+    }
+
+    private fun unpackedTupleArgs(v: Any?): Any? {
+        if (v is PyGenericAlias && v.starred && v.origin === PyTypes.TUPLE) return v.args
+        if (plain(v)) return null
+        return optionalAttr(v, "__typing_unpacked_tuple_args__")?.takeIf { it !== PyNone }
+    }
+
+    private fun isUnpackedTypeVarTuple(v: Any?): Boolean {
+        if (v is PyType || plain(v)) return false
+        return optionalAttr(v, "__typing_is_unpacked_typevartuple__")?.let { PyRt.truthy(it) } ?: false
     }
 
     /** Whether [v] is a type variable (TypeVar, ParamSpec, TypeVarTuple: M9b's type parameters). */
@@ -297,19 +391,10 @@ object PyTyping {
         return if (module == "builtins") qualname else "$module.$qualname"
     }
 
-    /** typing.py's _type_repr: a class by its qualified name, `...`, a function by its name, a tuple as a list. */
-    private fun typeRepr(p: Any?): String = when {
-        p is PyType -> if (p.module == "builtins") p.qualname else "${p.module}.${p.qualname}"
-        p === PyEllipsis -> "..."
-        p is PyFunction -> p.name
-        p is PyTuple && p.sub == null -> p.items.joinToString(", ", "[", "]") { typeRepr(it) }
-        else -> PyRt.repr(p)
-    }
 
     @JvmStatic
     fun repr(v: Any?): String = when (v) {
-        is PyGenericAlias -> if (v.typing) typeRepr(v.origin) + "[" + (if (v.args.items.isEmpty()) "()" else v.args.items.joinToString(", ") { typeRepr(it) }) + "]"
-            else gaRepr(v)
+        is PyGenericAlias -> gaRepr(v)
         // (a PEP 695 type variable's variance is inferred: no +, - or ~)
         is PyTypeParam -> when {
             v.kind == PyTypeParam.TYPEVARTUPLE || v.inferVariance -> v.name
@@ -318,10 +403,8 @@ object PyTyping {
             else -> "~" + v.name
         }
         is PyParamSpecPart -> v.origin.name + if (v.kwargs) ".kwargs" else ".args"
-        is PyUnpacked -> "typing.Unpack[${reprItem(v.arg)}]"
         is PyTypeAlias -> v.name
         PyNoDefault -> "typing.NoDefault"
-        PyUnpackForm -> "typing.Unpack"
         else -> throw IllegalStateException("not a type expression: $v")
     }
 
@@ -362,7 +445,6 @@ object PyTyping {
 
     @JvmStatic
     fun aliasAttr(ga: PyGenericAlias, name: String): Any? {
-        if (ga.typing) return typingAliasAttr(ga, name)
         if (name !in OWN) return PyRt.getAttr(ga.origin, name)
         return when (name) {
             "__class__" -> GENERIC_ALIAS
@@ -376,28 +458,6 @@ object PyTyping {
         }
     }
 
-    /** A typing alias's: its own, its origin's name, its origin's other attributes but dunders (typing.py's __getattr__). */
-    private fun typingAliasAttr(ga: PyGenericAlias, name: String): Any? = when (name) {
-        "__origin__" -> ga.origin
-        "__args__" -> ga.args
-        "__parameters__" -> parameters(ga)
-        "__class__" -> TYPING_ALIAS
-        "__name__", "__qualname__" -> PyRt.getAttr(ga.origin, name)
-        "__module__" -> PyRt.getAttr(ga.origin, "__module__")
-        "__mro_entries__" -> PyBuiltin("__mro_entries__") { _, a -> typingMroEntries(ga, (a[0] as PyTuple).items) }
-        else -> if (name.startsWith("__") && name.endsWith("__")) throw PyException("AttributeError", name) else PyRt.getAttr(ga.origin, name)
-    }
-
-    /** typing._GenericAlias.__mro_entries__: Generic[...]'s nothing where a later base is a generic alias, else the origin. */
-    private fun typingMroEntries(ga: PyGenericAlias, bases: Array<Any?>): PyTuple {
-        if (ga.origin === GENERIC) {
-            // (by equality: typing caches its subscriptions, so equal ones are one object there)
-            val i = bases.indexOfFirst { PyRt.eq(it, ga) }
-            for (b in bases.drop(i + 1)) if (b is PyGenericAlias && b.typing && !PyRt.eq(b, ga)) return PyTuple.EMPTY
-        }
-        return PyTuple(arrayOf(ga.origin))
-    }
-
     @JvmStatic
     fun unionAttr(u: PyUnion, name: String): Any? = when (name) {
         "__class__" -> UNION
@@ -409,114 +469,13 @@ object PyTyping {
         else -> throw PyException("AttributeError", "'typing.Union' object has no attribute '$name'")
     }
 
-    // ------------------------------------------------------------------ Generic (typing.py's, natively)
+    // ------------------------------------------------------------------ Generic (typing.py's)
 
-    /** SUBSCRIPT_GENERIC: a generic class's base, Generic[*its type parameters]. */
-    @JvmStatic fun subscriptGeneric(params: Any?): Any? = genericClassGetItem(GENERIC, params)
-
-    /**
-     * cls[args] of Generic or a generic class (typing._generic_class_getitem): Generic's only of unique type
-     * variables; a class's checked against its __parameters__ (each type variable's __typing_prepare_subst__: a
-     * missing one's default, a TypeVarTuple's arguments, a ParamSpec's list), a typing._GenericAlias.
-     */
+    /** SUBSCRIPT_GENERIC: a generic class's base, typing._GenericAlias(Generic, its type parameters, TypeVarTuples unpacked). */
     @JvmStatic
-    fun genericClassGetItem(cls: PyType, key: Any?): Any? {
-        var args = argsOf(key).items.map { if (it === PyNone) PyTypes.NONE else it }
-        if (cls === GENERIC) {
-            if (args.isEmpty()) throw PyRt.typeError("Parameter list to Generic[...] cannot be empty")
-            if (!args.all { it is PyTypeParam }) {
-                throw PyRt.typeError("Parameters to Generic[...] must all be type variables or parameter specification variables.")
-            }
-            if (args.distinct().size != args.size) throw PyRt.typeError("Parameters to Generic[...] must all be unique")
-            return PyGenericAlias(cls, PyTuple(args.toTypedArray()), typing = true)
-        }
-        val params = (PyClasses.typeAttr(cls, "__parameters__") as? PyTuple)?.items ?: emptyArray()
-        val name = PyRt.str(cls)
-        for (p in params) if (p is PyTypeParam) args = prepareSubst(p, name, params, args)
-        checkSpecialization(name, params, args)
-        val out = ArrayList<Any?>()
-        for ((i, p) in params.withIndex()) {
-            if (i >= args.size) break
-            val a = args[i]
-            if (p is PyTypeParam && p.kind == PyTypeParam.TYPEVARTUPLE && a is PyTuple) out.addAll(a.items) else out.add(a)
-        }
-        return PyGenericAlias(cls, PyTuple(out.toTypedArray()), typing = true)
-    }
-
-    private fun prepareSubst(p: PyTypeParam, alias: String, params: Array<Any?>, args0: List<Any?>): List<Any?> {
-        val i = params.indexOfFirst { it === p }
-        var args = args0
-        when (p.kind) {
-            PyTypeParam.TYPEVAR -> {
-                if (i < args.size) return args
-                if (i == args.size && hasDefault(p)) return args + defaultOf(p)
-                throw PyRt.typeError("Too few arguments for $alias; actual ${args.size}, expected at least ${i + 1}")
-            }
-            PyTypeParam.TYPEVARTUPLE -> {
-                val left = i
-                val right = params.size - i - 1
-                if (left + right > args.size) throw PyRt.typeError("Too few arguments for $alias; actual ${args.size}, expected at least ${params.size - 1}")
-                val replacement = if (left == args.size - right && hasDefault(p)) {
-                    val d = defaultOf(p)
-                    PyTuple((if (d is PyGenericAlias && d.starred) d.args.items else arrayOf(d)))
-                } else PyTuple(args.subList(left, args.size - right).toTypedArray())
-                return args.subList(0, left) + listOf(replacement) + args.subList(args.size - right, args.size)
-            }
-            else -> {
-                if (i == args.size && hasDefault(p)) args = args + defaultOf(p)
-                if (i >= args.size) throw PyRt.typeError("Too few arguments for $alias")
-                // (Z[int, str] is Z[[int, str]], PEP 612; a list kept as a tuple)
-                if (params.size == 1 && !isParamExpr(args[0])) return listOf(PyTuple(args.toTypedArray()))
-                val a = args[i]
-                if (a is PyList) return args.toMutableList().also { it[i] = PyTuple(a.items.toTypedArray()) }
-                return args
-            }
-        }
-    }
-
-    private fun isParamExpr(v: Any?): Boolean =
-        v === PyEllipsis || v is PyList || v is PyTuple || v is PyTypeParam && v.kind == PyTypeParam.PARAMSPEC
-
-    private fun checkSpecialization(name: String, params: Array<Any?>, args: List<Any?>) {
-        var expected = params.size
-        if (expected == 0) throw PyRt.typeError("$name is not a generic class")
-        val actual = args.size
-        if (actual == expected) return
-        val expect = if (actual < expected) {
-            if ((params[actual] as? PyTypeParam)?.let { hasDefault(it) } == true) return
-            expected -= params.count { it is PyTypeParam && hasDefault(it) }
-            "at least $expected"
-        } else "$expected"
-        throw PyRt.typeError("Too ${if (actual > expected) "many" else "few"} arguments for $name; actual $actual, expected $expect")
-    }
-
-    /**
-     * Generic.__init_subclass__ (typing._generic_init_subclass): its __parameters__, the type variables of its
-     * original bases, those of a Generic[...] among them where there is one; plain Generic, two Generic[...]s and
-     * type variables Generic[...] leaves out CPython's errors.
-     */
-    @JvmStatic
-    fun genericInitSubclass(cls: PyType) {
-        val orig = (cls.dict[PyStr("__orig_bases__")] as? PyTuple)?.items
-        val plain = if (orig != null) orig.any { it === GENERIC } else cls.bases.any { it === GENERIC } && cls.name != "Protocol"
-        if (plain) throw PyRt.typeError("Cannot inherit from plain Generic")
-        var tvars = emptyList<Any?>()
-        if (orig != null) {
-            tvars = parameters(PyGenericAlias(GENERIC, PyTuple(orig.filter { it !is PyType }.toTypedArray()))).items.toList()
-            var gvars: List<Any?>? = null
-            for (b in orig) if (b is PyGenericAlias && b.typing && b.origin === GENERIC) {
-                if (gvars != null) throw PyRt.typeError("Cannot inherit from Generic[...] multiple times.")
-                gvars = parameters(b).items.toList()
-            }
-            if (gvars != null) {
-                val missing = tvars.filter { t -> gvars.none { it === t } }
-                if (missing.isNotEmpty()) {
-                    throw PyRt.typeError("Some type variables (${missing.joinToString(", ") { PyRt.str(it) }}) are not listed in Generic[${gvars.joinToString(", ") { PyRt.str(it) }}]")
-                }
-                tvars = gvars
-            }
-        }
-        cls.dict[PyStr("__parameters__")] = PyTuple(tvars.toTypedArray())
+    fun subscriptGeneric(params: Any?): Any? {
+        val ctx = PyContext.current()
+        return callTyping(ctx, "_GenericAlias", GENERIC, unpackTypeVarTuples(ctx, argsOf(params)))
     }
 
     // ------------------------------------------------------------------ type parameters (PEP 695, 696)
@@ -529,8 +488,7 @@ object PyTyping {
     /** CPython's type_check: typing._type_check(arg, msg) (None its type). */
     private fun typeCheck(ctx: PyContext, v: Any?, msg: String): Any? {
         if (v === PyNone || v == null) return PyTypes.NONE
-        val typing = PyImport.importModule(ctx, "typing")
-        return PyCalls.callWith(ctx, PyRt.getAttr(typing, "_type_check"), arrayOf(v, PyStr(msg)), NO_ARGS, NO_ARGS)
+        return callTyping(ctx, "_type_check", v, PyStr(msg))
     }
 
     /** The module of the code calling a constructor (CPython's caller()). */
@@ -701,10 +659,8 @@ object PyTyping {
     fun typeOf(v: Any?): PyType? = when (v) {
         is PyTypeParam -> typeParamType(v)
         is PyParamSpecPart -> if (v.kwargs) PARAMSPEC_KWARGS else PARAMSPEC_ARGS
-        is PyUnpacked -> UNPACK_ALIAS
         is PyTypeAlias -> TYPE_ALIAS
         PyNoDefault -> NODEFAULT
-        PyUnpackForm -> UNPACK_FORM
         else -> null
     }
 
@@ -719,7 +675,24 @@ object PyTyping {
             "__default__" -> return defaultOf(t)
             "evaluate_default" -> return t.evaluateDefault ?: PyNone
             "has_default" -> return PyBuiltin("has_default") { _, _ -> PyBool.of(hasDefault(t)) }
-            "__typing_subst__" -> return PyBuiltin("__typing_subst__") { _, a -> a.getOrNull(0) }
+            // (typing.py's _typevar_subst and _paramspec_subst; a TypeVarTuple's is not substituted bare)
+            "__typing_subst__" -> return PyBuiltin("__typing_subst__") { ctx, a ->
+                if (a.size != 1) throw PyRt.typeError("__typing_subst__() takes exactly one argument (${a.size} given)")
+                when (t.kind) {
+                    PyTypeParam.TYPEVAR -> callTyping(ctx, "_typevar_subst", t, a[0])
+                    PyTypeParam.PARAMSPEC -> callTyping(ctx, "_paramspec_subst", t, a[0])
+                    else -> throw PyRt.typeError("Substitution of bare TypeVarTuple is not supported")
+                }
+            }
+            // (a TypeVar's here, as CPython's C has it; a ParamSpec's and a TypeVarTuple's typing.py's)
+            "__typing_prepare_subst__" -> return PyBuiltin("__typing_prepare_subst__") { ctx, a ->
+                if (a.size != 2) throw PyRt.typeError("__typing_prepare_subst__ expected 2 arguments, got ${a.size}")
+                when (t.kind) {
+                    PyTypeParam.TYPEVAR -> typeVarPrepareSubst(t, a[0], a[1])
+                    PyTypeParam.PARAMSPEC -> callTyping(ctx, "_paramspec_prepare_subst", t, a[0], a[1])
+                    else -> callTyping(ctx, "_typevartuple_prepare_subst", t, a[0], a[1])
+                }
+            }
         }
         if (t.kind != PyTypeParam.TYPEVARTUPLE) when (name) {
             "__covariant__" -> return PyBool.of(t.covariant)
@@ -749,12 +722,37 @@ object PyTyping {
         (t.dict ?: PyDict().also { t.dict = it })[PyStr(name)] = v
     }
 
+    /**
+     * A TypeVar's __typing_prepare_subst__(alias, args) (typevar_typing_prepare_subst): the arguments as they are where
+     * one is there for it, with its default where it is the first missing.
+     */
+    private fun typeVarPrepareSubst(t: PyTypeParam, alias: Any?, args: Any?): Any? {
+        val params = PyBuiltins.toList(PyRt.getAttr(alias, "__parameters__"))
+        val i = params.indexOfFirst { PyRt.eq(it, t) }
+        if (i < 0) throw PyException("ValueError", "sequence.index(x): x not in sequence")
+        val given = PyBuiltins.toList(args)
+        if (i < given.size) return args
+        if (i == given.size) {
+            val d = defaultOf(t)
+            if (d !== PyNoDefault) return PyTuple((given + d).toTypedArray())
+        }
+        throw PyRt.typeError("Too few arguments for ${PyRt.str(alias)}; actual ${given.size}, expected at least ${i + 1}")
+    }
+
     /** iter(Ts): its one unpacked form, typing.Unpack[Ts]; the other type parameters are not iterable. */
     @JvmStatic
     fun typeParamIter(t: PyTypeParam): PyIterator {
         if (t.kind != PyTypeParam.TYPEVARTUPLE) throw PyRt.typeError("'${typeParamType(t).tpName}' object is not iterable")
+        return unpackIter(t)
+    }
+
+    /** iter(alias) of a `type` alias: typing.Unpack[alias], as a TypeVarTuple's (unpack_iter). */
+    @JvmStatic fun typeAliasIter(a: PyTypeAlias): PyIterator = unpackIter(a)
+
+    private fun unpackIter(v: Any?): PyIterator {
+        val u = unpack(PyContext.current(), v)
         var done = false
-        return PyIterator { if (done) PyIterator.STOP else { done = true; PyUnpacked(t) } }
+        return PyIterator { if (done) PyIterator.STOP else { done = true; u } }
     }
 
     @JvmStatic
@@ -763,13 +761,6 @@ object PyTyping {
             "__origin__" -> v.origin
             "__class__" -> typeOf(v)
             else -> throw PyException("AttributeError", "'${typeOf(v)!!.tpName}' object has no attribute '$name'")
-        }
-        is PyUnpacked -> when (name) {
-            "__origin__" -> PyUnpackForm
-            "__args__" -> PyTuple(arrayOf(v.arg))
-            "__parameters__" -> if (v.arg is PyTypeParam) PyTuple(arrayOf(v.arg)) else parameters(v.arg)
-            "__class__" -> UNPACK_ALIAS
-            else -> throw PyException("AttributeError", "'_UnpackGenericAlias' object has no attribute '$name'")
         }
         else -> throw PyException("AttributeError", "'${PyTypes.name(v)}' object has no attribute '$name'")
     }
@@ -783,9 +774,7 @@ object PyTyping {
         "evaluate_value" -> a.evaluate
         "__type_params__" -> a.typeParams ?: PyTuple.EMPTY
         // (its TypeVarTuples unpacked)
-        "__parameters__" -> a.typeParams?.let { tp ->
-            PyTuple(Array(tp.items.size) { i -> tp.items[i].let { if (it is PyTypeParam && it.kind == PyTypeParam.TYPEVARTUPLE) PyUnpacked(it) else it } })
-        } ?: PyTuple.EMPTY
+        "__parameters__" -> a.typeParams?.let { unpackTypeVarTuples(PyContext.current(), it) } ?: PyTuple.EMPTY
         "__class__" -> TYPE_ALIAS
         else -> throw PyException("AttributeError", "'typing.TypeAliasType' object has no attribute '$name'")
     }
@@ -836,11 +825,7 @@ object PyTyping {
                 out?.add(b)
                 continue
             }
-            val me = if (b is PyGenericAlias && b.typing) {
-                out = out ?: ArrayList<Any?>().also { for (j in 0 until i) it.add(bases[j]) }
-                out.addAll(typingMroEntries(b, bases).items)
-                continue
-            } else if (b is PyGenericAlias) aliasAttr(b, "__mro_entries__") else try {
+            val me = if (b is PyGenericAlias) aliasAttr(b, "__mro_entries__") else try {
                 PyRt.getAttr(b, "__mro_entries__")
             } catch (e: PyException) {
                 if (e.matches(PyExceptions.type("AttributeError"))) null else throw e

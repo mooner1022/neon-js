@@ -1,0 +1,30 @@
+sub -> (__main__.Pair[str, int], __main__.Box[typing.List[int]], __main__.Box[typing.Dict[str, int]])
+ga nested -> (list[__main__.Box[int]], dict[str, __main__.Box[int]], (~T,), list[typing.List[int]])
+ga params -> ((~T,), (~T, ~S), dict[str, list[int]], 0)
+union -> ((~T,), int | __main__.Box[str], __main__.Box[int] | None, int | str)
+default -> (__main__.WithDefault[int, int], __main__.WithDefault[int, str], (~T, ~D), <class 'int'>)
+paramspec -> (__main__.Fn[[int, str], bool], __main__.Fn[..., bool], __main__.Fn[[int], str], (~P, ~T))
+tvt -> (__main__.Arr[int, str], __main__.Arr[()], __main__.Arr2[int, str, bytes], (Ts,), (~T, Ts), __main__.Arr[*tuple[int, ...]])
+unpack -> ([typing.Unpack[Ts]], [typing.Unpack[Ts]], typing.Unpack[Ts], tuple[typing.Unpack[Ts]], tuple[int, str], (Ts,))
+pep695 -> ((X, Ys, Q), (X, Ys, Q), __main__.New[int, str, bytes, [float]], __main__.NewD[int], (X,))
+pep695 orig -> ((typing.Generic[X, typing.Unpack[Ys], Q],), (<class '__main__.New'>, <class 'typing.Generic'>, <class 'object'>), 0)
+alias -> (Alias[int], (X,), (typing.Unpack[Xs],), TAlias[int, str], [typing.Unpack[Alias]])
+isinstance !! TypeError Subscripted generics cannot be used with class and instance checks
+issubclass !! TypeError Subscripted generics cannot be used with class and instance checks
+instance -> (__main__.Box[int], <class '__main__.Box'>)
+errors1 !! TypeError Too many arguments for <class '__main__.Box'>; actual 2, expected 1
+errors2 !! TypeError Too few arguments for <class '__main__.Pair'>; actual 1, expected at least 2
+errors3 !! TypeError Parameters to Generic[...] must all be type variables or parameter specification variables.
+errors4 !! TypeError Parameters to Generic[...] must all be unique
+errors5 !! TypeError list[int] is not a generic class
+errors6 !! TypeError __main__.Box[int] is not a generic class
+errors7 !! TypeError Parameter list to Generic[...] cannot be empty
+errors8 !! TypeError Cannot inherit from plain Generic
+errors9 !! TypeError 'typing.TypeVarTuple' object is not subscriptable
+subst -> (<class 'int'>, (<class 'int'>,), 1)
+subst2 !! TypeError Substitution of bare TypeVarTuple is not supported
+prepare -> ((<class 'int'>,), (<class 'int'>, <class 'int'>))
+generic mro -> ((<class '__main__.Box'>, <class 'typing.Generic'>, <class 'object'>), (typing.Generic[~K, ~T],), (<class '__main__.Box'>,))
+callable -> (typing.Callable[[int], str], typing.Callable[[int], str], typing.Callable[..., int])
+eq -> (True, True, True)
+sub classes -> ((__main__.Box[int],), (), (~T,), __main__.Sub2[str])

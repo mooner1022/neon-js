@@ -410,7 +410,7 @@ object PyRt {
             is PyMemoryView -> PyByteSeqs.viewEquals(a, b) === PyBool.TRUE
             is PyRange -> b is PyRange && PyRanges.eq(a, b)
             is PySlice -> b is PySlice && a == b
-            is PyGenericAlias, is PyUnion, is PyParamSpecPart, is PyUnpacked -> a == b
+            is PyGenericAlias, is PyUnion, is PyParamSpecPart -> a == b
             PyNone, null -> b === PyNone || b == null
             else -> false
         }
@@ -484,7 +484,7 @@ object PyRt {
         // (equal to an int or a float, a complex with no imaginary part hashes as it)
         is PyComplex -> if (v.imag == 0.0) hash(v.real) else java.lang.Long.hashCode(PyHash.hash(v))
         is PyObject, is PyNumSub -> PyDunder.hash(v)
-        is PyGenericAlias, is PyUnion, is PyParamSpecPart, is PyUnpacked -> v.hashCode()
+        is PyGenericAlias, is PyUnion, is PyParamSpecPart -> v.hashCode()
         else -> System.identityHashCode(v)
     }
 
@@ -589,7 +589,7 @@ object PyRt {
         is PyObject -> PyDunder.repr(v)
         is PyIterator -> (v as? PyIterTool)?.repr?.invoke() ?: PyDunder.defaultRepr(v)
         is PyUnion -> PyTyping.unionRepr(v)
-        is PyGenericAlias, is PyTypeParam, is PyParamSpecPart, is PyUnpacked, is PyTypeAlias, PyNoDefault, PyUnpackForm -> PyTyping.repr(v)
+        is PyGenericAlias, is PyTypeParam, is PyParamSpecPart, is PyTypeAlias, PyNoDefault -> PyTyping.repr(v)
         else -> v.toString()
     }
 
@@ -827,6 +827,7 @@ object PyRt {
         is PyTemplate -> PyLiterals.templateIter(v)
         is PyGenericAlias -> PyTyping.iter(v)
         is PyTypeParam -> PyTyping.typeParamIter(v)
+        is PyTypeAlias -> PyTyping.typeAliasIter(v)
         is PySet -> {
             // (in slot order; CPython's error where its size changes meanwhile)
             var j = 0

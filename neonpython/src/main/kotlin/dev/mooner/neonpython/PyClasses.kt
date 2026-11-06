@@ -421,7 +421,7 @@ object PyClasses {
         if (obj is PyTraceback) return PyFrames.tracebackAttr(obj, name)
         if (obj is PyUnion) return PyTyping.unionAttr(obj, name)
         if (obj is PyTypeParam) return PyTyping.typeParamAttr(obj, name)
-        if (obj is PyParamSpecPart || obj is PyUnpacked) return PyTyping.partAttr(obj, name)
+        if (obj is PyParamSpecPart) return PyTyping.partAttr(obj, name)
         if (obj is PyTypeAlias) return PyTyping.aliasTypeAttr(obj, name)
         val cls = classOf(obj)
         if (cls != null && cls.hooks and 1 != 0) {

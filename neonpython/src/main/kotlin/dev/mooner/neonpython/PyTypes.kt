@@ -200,10 +200,10 @@ object PyTypes {
         is PyCoroutine -> COROUTINE
         is PyAsyncGenerator -> ASYNC_GENERATOR
         is PyAwaitIter -> v.type
-        is PyGenericAlias -> v.sub?.cls ?: if (v.typing) PyTyping.TYPING_ALIAS else PyTyping.GENERIC_ALIAS
+        is PyGenericAlias -> v.sub?.cls ?: PyTyping.GENERIC_ALIAS
         is PyCode -> PyEval.CODE
         is PyUnion -> PyTyping.UNION
-        is PyTypeParam, is PyParamSpecPart, is PyUnpacked, is PyTypeAlias, PyNoDefault, PyUnpackForm -> PyTyping.typeOf(v)!!
+        is PyTypeParam, is PyParamSpecPart, is PyTypeAlias, PyNoDefault -> PyTyping.typeOf(v)!!
         is PySet -> v.sub?.cls ?: if (v.frozen) FROZENSET else SET
         is PySlice -> SLICE
         is PyTemplate -> TEMPLATE
@@ -265,7 +265,7 @@ object PyTypes {
         }
         is PyTuple -> cls.items.any { isInstance(v, it) }
         is PyUnion -> PyTyping.unionInstance(v, cls)
-        is PyGenericAlias -> throw PyRt.typeError(if (cls.typing) "Subscripted generics cannot be used with class and instance checks" else "isinstance() argument 2 cannot be a parameterized generic")
+        is PyGenericAlias -> throw PyRt.typeError("isinstance() argument 2 cannot be a parameterized generic")
         else -> {
             val check = PyClasses.classOf(cls)?.let { PyDunder.userMethod(it, "__instancecheck__") }
                 ?: throw PyRt.typeError("isinstance() arg 2 must be a type, a tuple of types, or a union")
@@ -291,7 +291,7 @@ object PyTypes {
             is PyType -> c.isSubtype(cls)
             is PyTuple -> cls.items.any { isSubclass(c, it) }
             is PyUnion -> PyTyping.unionSubclass(c, cls)
-            is PyGenericAlias -> throw PyRt.typeError(if (cls.typing) "Subscripted generics cannot be used with class and instance checks" else "issubclass() argument 2 cannot be a parameterized generic")
+            is PyGenericAlias -> throw PyRt.typeError("issubclass() argument 2 cannot be a parameterized generic")
             else -> throw PyRt.typeError("issubclass() arg 2 must be a class, a tuple of classes, or a union")
         }
     }
