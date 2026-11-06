@@ -306,7 +306,9 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
             val bits = profiled(pc)
             val int = bits == PyProfile.INT
             if (!int && bits != PyProfile.FLOAT) return false
-            val kind = when (op) {
+            // (augmented assignment of numbers is the binary operator's)
+            val o = if (op == PyOp.INPLACE) a else op
+            val kind = when (o) {
                 PyOp.ADD, PyOp.SUB, PyOp.MUL, PyOp.NEG -> if (int) PyIr.INT_OP else PyIr.FLOAT_OP
                 PyOp.FLOORDIV, PyOp.MOD, PyOp.BITAND, PyOp.BITOR, PyOp.BITXOR -> if (int) PyIr.INT_OP else return false
                 in PyOp.LT..PyOp.NE -> if (int) PyIr.INT_CMP else PyIr.FLOAT_CMP
@@ -314,15 +316,15 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
             }
             // (the state before the instruction, its operands on the stack: where the interpreter does it again)
             val state = state(pc)
-            val inputs = if (op == PyOp.NEG) arrayOf(number(pop(), int, state)) else {
+            val inputs = if (o == PyOp.NEG) arrayOf(number(pop(), int, state)) else {
                 val r = pop()
                 val l = pop()
                 arrayOf(number(l, int, state), number(r, int, state))
             }
-            val i = add(cur, Inst(kind, inputs, op, 0, 0, pc, stmt))
+            val i = add(cur, Inst(kind, inputs, o, 0, 0, pc, stmt))
             i.hasResult = true
             // (an int's arithmetic may leave 64 bits, a division divide by zero: exits; the rest cannot)
-            if (kind == PyIr.INT_OP && op != PyOp.BITAND && op != PyOp.BITOR && op != PyOp.BITXOR) i.state = state
+            if (kind == PyIr.INT_OP && o != PyOp.BITAND && o != PyOp.BITOR && o != PyOp.BITXOR) i.state = state
             stack.add(i)
             return true
         }
@@ -396,8 +398,13 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
                 }
                 PyOp.POP_JUMP_IF_FALSE, PyOp.POP_JUMP_IF_TRUE -> {
                     val v = pop()
-                    end()
                     val next = pc + len
+                    // (a test that goes on either way still asks for the value's truth: __bool__ may run, or raise)
+                    if (a == next && v !is Const) {
+                        inst(PyOp.NOT, arrayOf(v), result = true)
+                        pop()
+                    }
+                    end()
                     if (a == next) goto(cur, blockAt[next]!!)
                     else add(cur, Inst(Ir.BRANCH, arrayOf(v), op, 0, 0, pc, stmt)).targets = listOf(blockAt[a]!!, blockAt[next]!!)
                     return true

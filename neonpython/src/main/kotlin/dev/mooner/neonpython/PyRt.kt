@@ -50,6 +50,10 @@ object PyRt {
 
     private fun unsupported(op: String, a: Any?, b: Any?) = typeError("unsupported operand type(s) for $op: '${t(a)}' and '${t(b)}'")
 
+    /** a op b where no builtin path took them: an instance's special methods (PyDunder), else the TypeError. */
+    private fun other(op: Int, sym: String, a: Any?, b: Any?): Any? =
+        if (a is PyObject || b is PyObject) PyDunder.binary(a, b, op) else throw unsupported(sym, a, b)
+
     @JvmStatic fun add(a: Any?, b: Any?): Any? {
         val x = small(a)
         val y = small(b)
@@ -64,7 +68,7 @@ object PyRt {
         if (a is PyStr && b is PyStr) return PyStr(a.s + b.s)
         if (a is PyList && b is PyList) return PyList(ArrayList<Any?>(a.items.size + b.items.size).apply { addAll(a.items); addAll(b.items) })
         if (a is PyTuple && b is PyTuple) return PyTuple(a.items.copyOf(a.items.size + b.items.size).also { b.items.copyInto(it, a.items.size) })
-        throw unsupported("+", a, b)
+        return other(PyOp.ADD, "+", a, b)
     }
 
     @JvmStatic fun sub(a: Any?, b: Any?): Any? {
@@ -78,7 +82,7 @@ object PyRt {
             if (a is Double || b is Double) return toDouble(a) - toDouble(b)
             return norm(big(a).subtract(big(b)))
         }
-        throw unsupported("-", a, b)
+        return other(PyOp.SUB, "-", a, b)
     }
 
     @JvmStatic fun mul(a: Any?, b: Any?): Any? {
@@ -96,7 +100,7 @@ object PyRt {
         if (isInt(a) && b is PyStr) return PyStr(b.s.repeat(count(a)))
         if (a is PyList && isInt(b)) return PyList(ArrayList<Any?>().apply { repeat(count(b)) { addAll(a.items) } })
         if (a is PyTuple && isInt(b)) return PyTuple(ArrayList<Any?>().apply { repeat(count(b)) { addAll(a.items) } }.toTypedArray())
-        throw unsupported("*", a, b)
+        return other(PyOp.MUL, "*", a, b)
     }
 
     /** A repetition count: negative counts as none. */
@@ -107,14 +111,14 @@ object PyRt {
     }
 
     @JvmStatic fun truediv(a: Any?, b: Any?): Any? {
-        if (!isNumber(a) || !isNumber(b)) throw unsupported("/", a, b)
+        if (!isNumber(a) || !isNumber(b)) return other(PyOp.TRUEDIV, "/", a, b)
         val d = toDouble(b)
         if (d == 0.0) throw PyException("ZeroDivisionError", "division by zero")
         return toDouble(a) / d
     }
 
     @JvmStatic fun floordiv(a: Any?, b: Any?): Any? {
-        if (!isNumber(a) || !isNumber(b)) throw unsupported("//", a, b)
+        if (!isNumber(a) || !isNumber(b)) return other(PyOp.FLOORDIV, "//", a, b)
         if (a is Double || b is Double) {
             val y = toDouble(b)
             if (y == 0.0) throw PyException("ZeroDivisionError", "division by zero")
@@ -130,7 +134,7 @@ object PyRt {
 
     @JvmStatic fun mod(a: Any?, b: Any?): Any? {
         if (a is PyStr) throw typeError("str formatting with % is not supported yet")
-        if (!isNumber(a) || !isNumber(b)) throw unsupported("%", a, b)
+        if (!isNumber(a) || !isNumber(b)) return other(PyOp.MOD, "%", a, b)
         if (a is Double || b is Double) {
             val y = toDouble(b)
             if (y == 0.0) throw PyException("ZeroDivisionError", "division by zero")
@@ -149,7 +153,7 @@ object PyRt {
     }
 
     @JvmStatic fun pow(a: Any?, b: Any?): Any? {
-        if (!isNumber(a) || !isNumber(b)) throw unsupported("** or pow()", a, b)
+        if (!isNumber(a) || !isNumber(b)) return other(PyOp.POW, "** or pow()", a, b)
         if (isInt(a) && isInt(b)) {
             val e = big(b)
             if (e.signum() >= 0) {
@@ -167,24 +171,48 @@ object PyRt {
         return Math.pow(x, y)
     }
 
-    private fun bitwise(op: String, a: Any?, b: Any?, f: (Long, Long) -> Long, g: (BigInteger, BigInteger) -> BigInteger): Any? {
+    /**
+     * `a op= b` (INPLACE, binary opcode [op]): two ints, a float's arithmetic and strs joined as `a op b`, small enough
+     * to be inlined where [op] is a constant; instances, lists and the errors' messages in [PyDunder.inplace].
+     */
+    @JvmStatic fun inplace(a: Any?, b: Any?, op: Int): Any? {
+        if (a is Long && b is Long || op <= PyOp.POW && (a is Double || b is Double) && isNumber(a) && isNumber(b)) return when (op) {
+            PyOp.ADD -> add(a, b)
+            PyOp.SUB -> sub(a, b)
+            PyOp.MUL -> mul(a, b)
+            PyOp.TRUEDIV -> truediv(a, b)
+            PyOp.FLOORDIV -> floordiv(a, b)
+            PyOp.MOD -> mod(a, b)
+            PyOp.POW -> pow(a, b)
+            PyOp.LSHIFT -> lshift(a, b)
+            PyOp.RSHIFT -> rshift(a, b)
+            PyOp.BITAND -> bitAnd(a, b)
+            PyOp.BITOR -> bitOr(a, b)
+            PyOp.BITXOR -> bitXor(a, b)
+            else -> PyDunder.inplace(a, b, op)
+        }
+        if (op == PyOp.ADD && a is PyStr && b is PyStr) return PyStr(a.s + b.s)
+        return PyDunder.inplace(a, b, op)
+    }
+
+    private fun bitwise(op: String, code: Int, a: Any?, b: Any?, f: (Long, Long) -> Long, g: (BigInteger, BigInteger) -> BigInteger): Any? {
         if (a is PyBool && b is PyBool) {
             val r = f(if (a.value) 1 else 0, if (b.value) 1 else 0)
             return PyBool.of(r != 0L)
         }
-        if (!isInt(a) || !isInt(b)) throw unsupported(op, a, b)
+        if (!isInt(a) || !isInt(b)) return other(code, op, a, b)
         val x = small(a)
         val y = small(b)
         if (x != null && y != null) return f(x, y)
         return norm(g(big(a), big(b)))
     }
 
-    @JvmStatic fun bitAnd(a: Any?, b: Any?) = bitwise("&", a, b, { x, y -> x and y }, BigInteger::and)
-    @JvmStatic fun bitOr(a: Any?, b: Any?) = bitwise("|", a, b, { x, y -> x or y }, BigInteger::or)
-    @JvmStatic fun bitXor(a: Any?, b: Any?) = bitwise("^", a, b, { x, y -> x xor y }, BigInteger::xor)
+    @JvmStatic fun bitAnd(a: Any?, b: Any?) = bitwise("&", PyOp.BITAND, a, b, { x, y -> x and y }, BigInteger::and)
+    @JvmStatic fun bitOr(a: Any?, b: Any?) = bitwise("|", PyOp.BITOR, a, b, { x, y -> x or y }, BigInteger::or)
+    @JvmStatic fun bitXor(a: Any?, b: Any?) = bitwise("^", PyOp.BITXOR, a, b, { x, y -> x xor y }, BigInteger::xor)
 
     @JvmStatic fun lshift(a: Any?, b: Any?): Any? {
-        if (!isInt(a) || !isInt(b)) throw unsupported("<<", a, b)
+        if (!isInt(a) || !isInt(b)) return other(PyOp.LSHIFT, "<<", a, b)
         val n = big(b)
         if (n.signum() < 0) throw PyException("ValueError", "negative shift count")
         if (n.bitLength() > 31) throw PyException("OverflowError", "too many digits in integer")
@@ -192,7 +220,7 @@ object PyRt {
     }
 
     @JvmStatic fun rshift(a: Any?, b: Any?): Any? {
-        if (!isInt(a) || !isInt(b)) throw unsupported(">>", a, b)
+        if (!isInt(a) || !isInt(b)) return other(PyOp.RSHIFT, ">>", a, b)
         val n = big(b)
         if (n.signum() < 0) throw PyException("ValueError", "negative shift count")
         if (n.bitLength() > 31) return if (big(a).signum() < 0) -1L else 0L
@@ -203,19 +231,19 @@ object PyRt {
         a is Long -> if (a == Long.MIN_VALUE) BigInteger.valueOf(a).negate() else -a
         a is Double -> -a
         isInt(a) -> norm(big(a).negate())
-        else -> throw typeError("bad operand type for unary -: '${t(a)}'")
+        else -> PyDunder.unary(a, "__neg__", "-")
     }
 
     @JvmStatic fun pos(a: Any?): Any? = when {
         a is PyBool -> small(a)
         isNumber(a) -> a
-        else -> throw typeError("bad operand type for unary +: '${t(a)}'")
+        else -> PyDunder.unary(a, "__pos__", "+")
     }
 
     @JvmStatic fun invert(a: Any?): Any? = when {
         a is Long -> a.inv()
         isInt(a) -> norm(big(a).not())
-        else -> throw typeError("bad operand type for unary ~: '${t(a)}'")
+        else -> PyDunder.unary(a, "__invert__", "~")
     }
 
     // ------------------------------------------------------------------ comparisons, truth, hashing
@@ -231,6 +259,7 @@ object PyRt {
         is PyTuple -> v.items.isNotEmpty()
         is PyDict -> v.size > 0
         is PyRange -> v.length > 0
+        is PyObject -> PyDunder.truthy(v)
         else -> true
     }
 
@@ -251,21 +280,24 @@ object PyRt {
     }
 
     @JvmStatic fun eq(a: Any?, b: Any?): Boolean {
-        if (a === b) return a !is Double || !a.isNaN()
+        if (a === b) return if (a is PyObject) PyDunder.eq(a, b) else a !is Double || !a.isNaN()
         if (isNumber(a) && isNumber(b)) return numCompare(a, b) == 0
+        if (b is PyObject) return PyDunder.eq(a, b)
         return when (a) {
             is PyStr -> b is PyStr && a.s == b.s
             is PyList -> b is PyList && seqEquals(a.items, b.items)
             is PyTuple -> b is PyTuple && seqEquals(a.items.asList(), b.items.asList())
             is PyDict -> b is PyDict && a.size == b.size && a.map.all { (k, v) -> b.map.containsKey(k) && eq(v, b.map[k]) }
             PyNone, null -> b === PyNone || b == null
+            is PyObject -> PyDunder.eq(a, b)
             else -> false
         }
     }
 
+    /** Two sequences' items equal pairwise (an item is its own equal: containers compare by identity first). */
     @JvmStatic fun seqEquals(a: List<Any?>, b: List<Any?>): Boolean {
         if (a.size != b.size) return false
-        for (k in a.indices) if (!eq(a[k], b[k])) return false
+        for (k in a.indices) if (a[k] !== b[k] && !eq(a[k], b[k])) return false
         return true
     }
 
@@ -279,6 +311,7 @@ object PyRt {
             else -> null
         }
         if (c == null) {
+            if (a is PyObject || b is PyObject) return PyDunder.order(op, a, b)
             val sym = arrayOf("<", "<=", ">", ">=")[op]
             throw typeError("'$sym' not supported between instances of '${t(a)}' and '${t(b)}'")
         }
@@ -292,7 +325,7 @@ object PyRt {
 
     private fun seqCompare(op: Int, a: List<Any?>, b: List<Any?>): Int? {
         val n = minOf(a.size, b.size)
-        for (k in 0 until n) if (!eq(a[k], b[k])) return if (order(0, a[k], b[k])) -1 else 1
+        for (k in 0 until n) if (a[k] !== b[k] && !eq(a[k], b[k])) return if (order(0, a[k], b[k])) -1 else 1
         return a.size.compareTo(b.size)
     }
 
@@ -308,23 +341,32 @@ object PyRt {
         is PyStr -> v.s.hashCode()
         is PyTuple -> v.hashCode()
         is PyList, is PyDict -> throw typeError("unhashable type: '${t(v)}'")
+        is PyObject -> PyDunder.hash(v)
         else -> System.identityHashCode(v)
     }
 
+    /** A dict key's hash: a TypeError hashing it says what it was for (CPython 3.14's message). */
+    @JvmStatic fun keyHash(v: Any?): Int = try {
+        hash(v)
+    } catch (e: PyException) {
+        if (e.type == "TypeError") throw typeError("cannot use '${t(v)}' as a dict key (${e.message})") else throw e
+    }
+
     @JvmStatic fun contains(container: Any?, v: Any?): Boolean = when (container) {
-        is PyList -> container.items.any { eq(it, v) }
-        is PyTuple -> container.items.any { eq(it, v) }
+        is PyList -> container.items.any { it === v || eq(it, v) }
+        is PyTuple -> container.items.any { it === v || eq(it, v) }
         is PyDict -> container.containsKey(v)
         is PyStr -> if (v is PyStr) container.s.contains(v.s) else throw typeError("'in <string>' requires string as left operand, not ${t(v)}")
         is PyRange -> v is Long && (if (container.step > 0) v >= container.start && v < container.stop else v <= container.start && v > container.stop) &&
             (v - container.start) % container.step == 0L
+        is PyObject -> PyDunder.contains(container, v)
         else -> {
             val it = iter(container)
             var found = false
             while (true) {
                 val x = it.next()
                 if (x === PyIterator.STOP) break
-                if (eq(x, v)) { found = true; break }
+                if (x === v || eq(x, v)) { found = true; break }
             }
             found
         }
@@ -332,7 +374,7 @@ object PyRt {
 
     // ------------------------------------------------------------------ str and repr
 
-    @JvmStatic fun str(v: Any?): String = if (v is PyStr) v.s else repr(v)
+    @JvmStatic fun str(v: Any?): String = if (v is PyStr) v.s else if (v is PyObject) PyDunder.str(v) else repr(v)
 
     @JvmStatic fun repr(v: Any?): String = when (v) {
         null, PyNone -> "None"
@@ -345,7 +387,7 @@ object PyRt {
         is PyDict -> v.map.entries.joinToString(", ", "{", "}") { repr(it.key.v) + ": " + repr(it.value) }
         is PyRange -> if (v.step == 1L) "range(${v.start}, ${v.stop})" else "range(${v.start}, ${v.stop}, ${v.step})"
         is PyType -> v.repr()
-        is PyObject -> "<${v.type.module}.${v.type.qualname} object at 0x${Integer.toHexString(System.identityHashCode(v)).padStart(16, '0').uppercase()}>"
+        is PyObject -> PyDunder.repr(v)
         else -> v.toString()
     }
 
@@ -450,6 +492,7 @@ object PyRt {
             if (n > Int.MAX_VALUE) throw PyException("OverflowError", "range too large")
             obj.start + obj.step * index(key, n.toInt(), "range")
         }
+        is PyObject -> PyDunder.getItem(obj, key)
         else -> throw typeError("'${t(obj)}' object is not subscriptable")
     }
 
@@ -457,6 +500,7 @@ object PyRt {
         when (obj) {
             is PyList -> obj.items[index(key, obj.items.size, "list assignment")] = v
             is PyDict -> obj[key] = v
+            is PyObject -> PyDunder.setItem(obj, key, v)
             else -> throw typeError("'${t(obj)}' object does not support item assignment")
         }
     }
@@ -499,6 +543,7 @@ object PyRt {
             val it = ArrayList(v.map.keys).iterator()
             PyIterator { if (it.hasNext()) it.next().v else PyIterator.STOP }
         }
+        is PyObject -> PyDunder.iter(v)
         else -> throw typeError("'${t(v)}' object is not iterable")
     }
 
@@ -566,7 +611,7 @@ object PyRt {
         PyOp.GT -> order(2, a, b)
         PyOp.GE -> order(3, a, b)
         PyOp.EQ -> eq(a, b)
-        PyOp.NE -> !eq(a, b)
+        PyOp.NE -> ne(a, b)
         PyOp.IS -> same(a, b)
         PyOp.IS_NOT -> !same(a, b)
         PyOp.IN -> contains(b, a)
@@ -578,7 +623,7 @@ object PyRt {
     @JvmStatic fun le(a: Any?, b: Any?): Boolean = order(1, a, b)
     @JvmStatic fun gt(a: Any?, b: Any?): Boolean = order(2, a, b)
     @JvmStatic fun ge(a: Any?, b: Any?): Boolean = order(3, a, b)
-    @JvmStatic fun ne(a: Any?, b: Any?): Boolean = !eq(a, b)
+    @JvmStatic fun ne(a: Any?, b: Any?): Boolean = if (a is PyObject || b is PyObject) PyDunder.ne(a, b) else !eq(a, b)
     @JvmStatic fun isIn(a: Any?, b: Any?): Boolean = contains(b, a)
     @JvmStatic fun notIn(a: Any?, b: Any?): Boolean = !contains(b, a)
 

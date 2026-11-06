@@ -476,7 +476,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             is Name -> {
                 loadName(t.id)
                 expr(s.value)
-                emit(op)
+                emit(PyOp.INPLACE, op)
                 storeName(t.id)
             }
             is Subscript -> {
@@ -492,7 +492,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 emit(PyOp.LOAD_FAST, k)
                 emit(PyOp.SUBSCR)
                 expr(s.value)
-                emit(op)
+                emit(PyOp.INPLACE, op)
                 emit(PyOp.LOAD_FAST, o)
                 emit(PyOp.LOAD_FAST, k)
                 emit(PyOp.STORE_SUBSCR)
@@ -505,7 +505,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 emit(PyOp.LOAD_FAST, o)
                 emit(PyOp.LOAD_ATTR, name(t.attr))
                 expr(s.value)
-                emit(op)
+                emit(PyOp.INPLACE, op)
                 emit(PyOp.LOAD_FAST, o)
                 emit(PyOp.STORE_ATTR, name(t.attr))
             }
@@ -550,7 +550,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         OpKind.BitAnd -> PyOp.BITAND
         OpKind.BitOr -> PyOp.BITOR
         OpKind.BitXor -> PyOp.BITXOR
-        OpKind.MatMult -> unsupported("operator '@'", n)
+        OpKind.MatMult -> PyOp.MATMUL
     }
 
     private fun compareOp(op: CmpOpKind): Int = when (op) {

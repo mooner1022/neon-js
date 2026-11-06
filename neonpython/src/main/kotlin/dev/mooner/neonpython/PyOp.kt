@@ -47,6 +47,7 @@ object PyOp {
     const val BITAND = 19
     const val BITOR = 20
     const val BITXOR = 21
+    const val MATMUL = 22
     // comparisons (a b -- bool)
     const val LT = 30
     const val LE = 31
@@ -148,6 +149,8 @@ object PyOp {
     const val LOAD_FROM_DICT_OR_DEREF = 105
     /** k (v obj -- ) obj.name = v */
     const val STORE_ATTR = 106
+    /** op (a b -- a op= b): augmented assignment of binary operator op (__iadd__..., a list in place) */
+    const val INPLACE = 107
 
     const val COUNT = 200
 
@@ -155,7 +158,7 @@ object PyOp {
         for (op in intArrayOf(LOAD_CONST, LOAD_FAST, LOAD_FAST_CHECK, STORE_FAST, LOAD_GLOBAL, STORE_GLOBAL, JUMP, POP_JUMP_IF_FALSE,
             POP_JUMP_IF_TRUE, CALL, BUILD_LIST, BUILD_TUPLE, BUILD_MAP, LOAD_ATTR, UNPACK, MAKE_FUNCTION, CALL_KW, CALL_EX, LOAD_FREE,
             SET_FUNCTION_ATTRIBUTE, DELETE_FAST, DELETE_GLOBAL, DELETE_ATTR, ASSERT_FAIL, LOAD_NAME, STORE_NAME, DELETE_NAME,
-            LOAD_FROM_DICT_OR_DEREF, STORE_ATTR)) o[op] = 1
+            LOAD_FROM_DICT_OR_DEREF, STORE_ATTR, INPLACE)) o[op] = 1
         for (op in intArrayOf(CELL_GET, CELL_DELETE, UNPACK_EX)) o[op] = 2
         o[FOR_ITER] = 3
     }
@@ -183,7 +186,7 @@ object PyOp {
         ASSERT_FAIL -> -a
         LOAD_CONST, LOAD_FAST, LOAD_FAST_CHECK, LOAD_GLOBAL, DUP, MAKE_FUNCTION -> 1
         STORE_FAST, STORE_GLOBAL, POP, POP_JUMP_IF_FALSE, POP_JUMP_IF_TRUE, RETURN -> -1
-        in ADD..BITXOR, in LT..NOT_IN, SUBSCR -> -1
+        in ADD..MATMUL, in LT..NOT_IN, SUBSCR, INPLACE -> -1
         CALL -> -a
         BUILD_LIST, BUILD_TUPLE -> 1 - a
         BUILD_MAP -> 1 - 2 * a

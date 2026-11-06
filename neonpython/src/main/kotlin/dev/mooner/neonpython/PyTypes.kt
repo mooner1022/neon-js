@@ -14,6 +14,8 @@ class PyType(@JvmField var name: String, bases: Array<PyType>, @JvmField val dic
     @JvmField var mro: Array<PyType> = arrayOf(this)
     @JvmField var meta: PyType? = null
     @JvmField var subclassable = true
+    /** The attribute hooks its instances go through (PyClasses.hooksOf): __getattribute__ 1, __setattr__ 2, __delattr__ 4. */
+    @JvmField var hooks = 0
     /** Makes a value of this builtin type (or of a class deriving from it): (context, type, arguments, keywords). */
     @JvmField var newImpl: ((PyContext, PyType, Array<Any?>, PyDict?) -> Any?)? = null
 

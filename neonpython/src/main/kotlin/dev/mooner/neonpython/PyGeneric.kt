@@ -45,6 +45,7 @@ internal class Generic(
         const val RT = "dev/mooner/neonpython/PyRt"
         const val CALLS = "dev/mooner/neonpython/PyCalls"
         const val CLASSES = "dev/mooner/neonpython/PyClasses"
+        const val DUNDER = "dev/mooner/neonpython/PyDunder"
     }
 }
 
@@ -86,6 +87,9 @@ internal object PyGeneric {
         t[PyOp.DELETE_NAME] = Generic("deleteName", "fk", pops = 0, result = false, owner = k)
         t[PyOp.LOAD_FROM_DICT_OR_DEREF] = Generic("loadFromDictOrDeref", "fvk", pops = 1, result = true, owner = k)
         t[PyOp.STORE_ATTR] = Generic("storeAttr", "vvk", pops = 2, result = false, owner = k)
+        val d = Generic.DUNDER
+        t[PyOp.MATMUL] = Generic("matmul", "vv", pops = 2, result = true, owner = d)
+        t[PyOp.INPLACE] = Generic("inplace", "vva", pops = 2, result = true)
         t[PyOp.WRAP_STAR] = Generic("wrapStar", "v", pops = 1, result = true, throws = false, owner = c, flags = OpInfo.REMOVABLE or OpInfo.ALLOCATES)
     }
 

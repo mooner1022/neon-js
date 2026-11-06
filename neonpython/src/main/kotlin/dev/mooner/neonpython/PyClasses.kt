@@ -47,6 +47,7 @@ object PyClasses {
     init {
         PyTypes.OBJECT.def("__new__", OBJECT_NEW)
         PyTypes.OBJECT.def("__init__", OBJECT_INIT)
+        PyDunder.defineObjectMethods()
     }
 
     @JvmStatic fun ensure() {}
@@ -118,8 +119,21 @@ object PyClasses {
                 }
             }
         }
+        // (a class that defines __eq__ and not __hash__ is unhashable)
+        if (t.dict.containsKey(PyStr("__eq__")) && !t.dict.containsKey(PyStr("__hash__"))) t.dict[PyStr("__hash__")] = PyNone
+        t.hooks = hooksOf(t)
         cell?.value = t
         return t
+    }
+
+    /** Which of __getattribute__ (1), __setattr__ (2), __delattr__ (4) [t] overrides: what its instances' attributes go through. */
+    @JvmStatic
+    fun hooksOf(t: PyType): Int {
+        var h = 0
+        if (PyDunder.userMethod(t, "__getattribute__") != null) h = h or 1
+        if (PyDunder.userMethod(t, "__setattr__") != null) h = h or 2
+        if (PyDunder.userMethod(t, "__delattr__") != null) h = h or 4
+        return h
     }
 
     /** A class called: __new__, then __init__ where __new__ gave an instance of it. */
@@ -238,9 +252,28 @@ object PyClasses {
         else -> d
     }
 
-    /** obj.name for an instance of a class (or a builtin value): data descriptors, its dict, other attributes, __getattr__. */
+    /** obj.name for an instance of a class (or a builtin value): its class's __getattribute__, else [genericGetAttr]; __getattr__. */
     @JvmStatic
     fun getAttr(obj: Any?, name: String): Any? {
+        if (obj is PyObject && obj.type.hooks and 1 != 0) {
+            val type = obj.type
+            val gab = PyDunder.userMethod(type, "__getattribute__")!!
+            try {
+                return PyCalls.callWith(PyContext.current(), gab, arrayOf(obj, PyStr(name)), NO_ARGS, NO_ARGS)
+            } catch (e: PyException) {
+                val ga = type.lookup("__getattr__")
+                if (e.type != "AttributeError" || ga == null) throw e
+                return PyCalls.callWith(PyContext.current(), ga, arrayOf(obj, PyStr(name)), NO_ARGS, NO_ARGS)
+            }
+        }
+        return attr(obj, name, true)
+    }
+
+    /** object.__getattribute__: data descriptors, the instance's dict, other attributes. */
+    @JvmStatic
+    fun genericGetAttr(obj: Any?, name: String): Any? = attr(obj, name, false)
+
+    private fun attr(obj: Any?, name: String, hook: Boolean): Any? {
         val type = PyTypes.typeOf(obj)
         val d = type.lookup(name)
         if (d != null && isDataDescriptor(d)) return descrGet(null, d, obj, type)
@@ -248,7 +281,7 @@ object PyClasses {
         if (dict != null) dict[PyStr(name)]?.let { return it }
         if (d != null) return descrGet(null, d, obj, type)
         special(obj, name)?.let { return it }
-        val ga = type.lookup("__getattr__")
+        val ga = if (hook) type.lookup("__getattr__") else null
         if (ga != null) return PyCalls.callWith(PyContext.current(), ga, arrayOf(obj, PyStr(name)), NO_ARGS, NO_ARGS)
         throw PyException("AttributeError", "'${type.name}' object has no attribute '$name'")
     }
@@ -315,14 +348,25 @@ object PyClasses {
         }
     }
 
-    /** obj.name = v. */
+    /** obj.name = v: its class's __setattr__, else [genericSetAttr]. */
     @JvmStatic
     fun setAttr(obj: Any?, name: String, v: Any?) {
+        if (obj is PyObject && obj.type.hooks and 2 != 0) {
+            PyCalls.callWith(PyContext.current(), PyDunder.userMethod(obj.type, "__setattr__")!!, arrayOf(obj, PyStr(name), v), NO_ARGS, NO_ARGS)
+            return
+        }
+        genericSetAttr(obj, name, v)
+    }
+
+    /** object.__setattr__ (and type's): data descriptors, else the instance's dict. */
+    @JvmStatic
+    fun genericSetAttr(obj: Any?, name: String, v: Any?) {
         if (obj is PyType) {
             if (obj.module == "builtins") {
                 throw PyRt.typeError("cannot set '$name' attribute of immutable type '${obj.name}'")
             }
             obj.dict[PyStr(name)] = v
+            if (name == "__getattribute__" || name == "__setattr__" || name == "__delattr__") obj.hooks = hooksOf(obj)
             return
         }
         val type = PyTypes.typeOf(obj)
@@ -346,9 +390,19 @@ object PyClasses {
         }
     }
 
-    /** del obj.name. */
+    /** del obj.name: its class's __delattr__, else [genericDelAttr]. */
     @JvmStatic
     fun delAttr(obj: Any?, name: String) {
+        if (obj is PyObject && obj.type.hooks and 4 != 0) {
+            PyCalls.callWith(PyContext.current(), PyDunder.userMethod(obj.type, "__delattr__")!!, arrayOf(obj, PyStr(name)), NO_ARGS, NO_ARGS)
+            return
+        }
+        genericDelAttr(obj, name)
+    }
+
+    /** object.__delattr__: a property's deleter, else the instance's dict. */
+    @JvmStatic
+    fun genericDelAttr(obj: Any?, name: String) {
         if (obj is PyType) {
             if (obj.dict.map.remove(PyDict.Key(PyStr(name))) == null) throw PyException("AttributeError", "type object '${obj.name}' has no attribute '$name'")
             return

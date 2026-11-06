@@ -147,9 +147,9 @@ class PyDict {
 
     /** A key as Python hashes and compares it. */
     class Key(@JvmField val v: Any?) {
-        private val h = PyRt.hash(v)
+        private val h = PyRt.keyHash(v)
         override fun hashCode() = h
-        override fun equals(other: Any?) = other is Key && PyRt.eq(v, other.v)
+        override fun equals(other: Any?) = other is Key && (v === other.v || PyRt.eq(v, other.v))
     }
 
     operator fun get(k: Any?): Any? = map[Key(k)]

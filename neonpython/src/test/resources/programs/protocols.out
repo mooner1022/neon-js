@@ -1,0 +1,23 @@
+str of S str of S repr of S [repr of S] only repr only repr
+3 False True False True yes
+falsy
+2
+5 0 3 True False True
+del a
+item 3
+item 1
+item 2
+[3, 1, 2] 0 6 1 True False 3
+3 1 2 [3, 1, 2] (3, 1, 2)
+[0, 1, 4, 9] True False
+True 2 1 7 default
+1 2 end
+1 -2 1 1 -6 True
+42 True
+-6 8 14 6 16 4 3 2 27 1.5
+True True False True NotImplemented False
+set x 1
+1 hidden missing nothing True missing y
+del attr x
+missing x
+str True True

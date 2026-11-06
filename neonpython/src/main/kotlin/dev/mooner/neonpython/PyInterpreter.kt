@@ -150,7 +150,7 @@ object PyInterpreter {
                     opStart = pc
                     if (prof != null) {
                         val op = bc[pc]
-                        if (op in PyOp.ADD..PyOp.BITXOR || op in PyOp.LT..PyOp.NE) PyProfile.record(prof, pc, PyProfile.of(s[sp - 2], s[sp - 1]))
+                        if (op in PyOp.ADD..PyOp.BITXOR || op in PyOp.LT..PyOp.NE || op == PyOp.INPLACE) PyProfile.record(prof, pc, PyProfile.of(s[sp - 2], s[sp - 1]))
                         else if (op == PyOp.NEG) PyProfile.record(prof, pc, PyProfile.of(s[sp - 1]))
                     }
                     when (bc[pc]) {
@@ -181,6 +181,7 @@ object PyInterpreter {
                         PyOp.BITAND -> { sp--; s[sp - 1] = PyRt.bitAnd(s[sp - 1], s[sp]); s[sp] = null; pc++ }
                         PyOp.BITOR -> { sp--; s[sp - 1] = PyRt.bitOr(s[sp - 1], s[sp]); s[sp] = null; pc++ }
                         PyOp.BITXOR -> { sp--; s[sp - 1] = PyRt.bitXor(s[sp - 1], s[sp]); s[sp] = null; pc++ }
+                        PyOp.INPLACE -> { sp--; s[sp - 1] = PyRt.inplace(s[sp - 1], s[sp], bc[pc + 1]); s[sp] = null; pc += 2 }
                         PyOp.LT, PyOp.LE, PyOp.GT, PyOp.GE, PyOp.EQ, PyOp.NE, PyOp.IS, PyOp.IS_NOT, PyOp.IN, PyOp.NOT_IN -> {
                             sp--
                             s[sp - 1] = PyBool.of(PyRt.compare(bc[pc], s[sp - 1], s[sp]))
@@ -341,6 +342,10 @@ object PyInterpreter {
                 }
             }
             PyOp.LIST_TO_TUPLE -> s[sp - 1] = PyCalls.listToTuple(s[sp - 1])
+            PyOp.MATMUL -> {
+                val b = pop()
+                s[sp - 1] = PyDunder.matmul(s[sp - 1], b)
+            }
             PyOp.WRAP_STAR -> s[sp - 1] = PyCalls.wrapStar(s[sp - 1])
             PyOp.MAP_ADD -> {
                 val v = pop()

@@ -309,7 +309,8 @@ object PyCalls {
                 obj.items.removeAt(k.toInt())
             }
             is PyDict -> if (obj.map.remove(PyDict.Key(key)) == null) throw PyException("KeyError", PyRt.repr(key))
-            else -> throw PyRt.typeError("'${PyTypes.name(obj)}' object does not support item deletion")
+            is PyObject -> PyDunder.delItem(obj, key)
+            else -> throw PyRt.typeError("'${PyTypes.name(obj)}' object doesn't support item deletion")
         }
     }
 

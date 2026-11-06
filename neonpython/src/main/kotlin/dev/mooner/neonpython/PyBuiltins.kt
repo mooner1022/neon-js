@@ -49,7 +49,7 @@ object PyBuiltins {
                 is PyStr -> v.length.toLong()
                 is PyDict -> v.size.toLong()
                 is PyRange -> v.length
-                else -> throw PyRt.typeError("object of type '${PyTypes.name(v)}' has no len()")
+                else -> PyDunder.len(v)
             }
         }
         fun type(t: PyType, impl: (PyContext, Array<Any?>, PyDict?) -> Any?) {
@@ -127,7 +127,7 @@ object PyBuiltins {
             argc("abs", args, 1)
             when (val v = args[0]) {
                 is Double -> Math.abs(v)
-                else -> if (PyRt.isInt(v)) (if (PyRt.order(0, v, 0L)) PyRt.neg(v) else PyRt.pos(v)) else throw PyRt.typeError("bad operand type for abs(): '${PyTypes.name(v)}'")
+                else -> if (PyRt.isInt(v)) (if (PyRt.order(0, v, 0L)) PyRt.neg(v) else PyRt.pos(v)) else PyDunder.abs(v)
             }
         }
         def("min") { _, args -> extreme("min", args, 0) }
@@ -251,6 +251,37 @@ object PyBuiltins {
             val v = args[0]
             PyBool.of(v is PyFunction || v is PyBuiltin || v is PyBoundMethod || v is PyMethod || v is PyType || v is PyStaticMethod ||
                 v is PyObject && v.type.lookup("__call__") != null)
+        }
+        def("hash") { _, args ->
+            argc("hash", args, 1)
+            PyDunder.hashValue(args[0])
+        }
+        def("iter") { ctx, args ->
+            if (args.isEmpty()) throw PyRt.typeError("iter expected at least 1 argument, got 0")
+            if (args.size > 2) throw PyRt.typeError("iter expected at most 2 arguments, got ${args.size}")
+            if (args.size == 1) PyDunder.iterObject(args[0]) else {
+                // iter(callable, sentinel): its results until one equals sentinel
+                val fn = args[0]
+                val sentinel = args[1]
+                if (!(fn is PyFunction || fn is PyBuiltin || fn is PyBoundMethod || fn is PyMethod || fn is PyType ||
+                        fn is PyObject && fn.type.lookup("__call__") != null)) throw PyRt.typeError("iter(v, w): v must be callable")
+                var done = false
+                PyIterator {
+                    if (done) PyIterator.STOP else {
+                        val v = PyCalls.callWith(ctx, fn, arrayOfNulls(0), arrayOfNulls(0), arrayOfNulls(0))
+                        if (v === sentinel || PyRt.eq(v, sentinel)) {
+                            done = true
+                            PyIterator.STOP
+                        } else v
+                    }
+                }
+            }
+        }
+        def("next") { _, args ->
+            if (args.isEmpty()) throw PyRt.typeError("next expected at least 1 argument, got 0")
+            if (args.size > 2) throw PyRt.typeError("next expected at most 2 arguments, got ${args.size}")
+            val v = PyDunder.next(args[0])
+            if (v !== PyIterator.STOP) v else if (args.size == 2) args[1] else throw PyException("StopIteration", "")
         }
         d[PyStr("NotImplemented")] = PyNotImplemented
         d[PyStr("Ellipsis")] = PyEllipsis

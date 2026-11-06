@@ -661,6 +661,15 @@ Made with the object model (M2):
   `__classcell__`, as in CPython.
 - **`super()` without arguments** is compiled as `super(__class__, <first parameter>)` where `super` is the
   builtin's name in that function. A function without parameters, or outside a class, gets CPython's RuntimeError.
+- **Special methods are looked up on the type,** and only a class's own count: dispatch (`PyDunder`) skips the
+  builtins' methods (object's `__eq__`, `__repr__`…), which `PyRt`'s paths for builtin values stand for. `PyRt`
+  tries its fast paths first and calls `PyDunder` only where an operand is an instance. Containers compare items by
+  identity first, as CPython's do. Whether a class overrides `__getattribute__`, `__setattr__` or `__delattr__` is
+  a flag of its type (`PyType.hooks`), set when the class is made or given one; a base given one later does not
+  flag its existing subclasses.
+- **Augmented assignment is its own instruction,** `INPLACE op`: `__iadd__` and the rest, lists changed in place,
+  CPython's `+=` messages. `PyRt.inplace` keeps numbers and strs as cheap as `a op b`, and the speculating tier
+  builds it as the binary operator where the interpreter saw only ints or only floats.
 
 ### 11.3 How each milestone is checked
 
