@@ -1,0 +1,20 @@
+['first', 3, 1, 2, 4, 5, 6, 0, 'before last', 1, 'end'] 3 2 9 11
+end 3 [1, 2, 4, 5, 6, 0, 'before last', 1]
+[8, 5, 2, 1] None [8, 5, 2, 1]
+['a', 'bb', 'dd', 'ccc']
+['ccc', 'bb', 'dd', 'a']
+[8, 5, 2, 1] [8, 5, 2, 1, 0] False
+[] [1, 2, 1, 2] [[0, 0], [0, 0]]
+[1, 2, 3, 4, 1, 2, 3, 4]
+2 3 2
+dict_keys(['a', 'b']) dict_values([1, 2]) dict_items([('a', 1), ('b', 2)]) 2 True True True False
+dict_keys(['a', 'b', 'c']) [1, 2, 3] [('a', 1), ('b', 2), ('c', 3)]
+{'a'} ['a', 'b', 'c', 'z'] ['b', 'c'] {('b', 2)} True dict_keys dict_values dict_items
+None 0 1 missing {'b': 2, 'c': 3, 'new': []} 2 [] {'b': 2, 'c': 3, 'new': []}
+{'b': 2, 'c': 3, 'new': [], 'x': 1, 'y': 2} ('p', 0) {'b': 2, 'c': 3, 'new': [], 'x': 1, 'y': 2}
+{'k1': 0, 'k2': 0} {'k1': 5, 'k2': 0} {'a': None, 'b': None} ['y', 'x', 'new', 'c', 'b'] 0
+{} 2 ('k1', 5)
+one 1
+two 2
+[('a', 2), ('b', 1)] 5 ['x'] {'a': 1, 'b': 2}
+{'h': 1, 'e': 1, 'l': 2, 'o': 1} {'l': 2}

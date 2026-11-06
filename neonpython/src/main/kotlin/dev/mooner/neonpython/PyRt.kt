@@ -66,8 +66,9 @@ object PyRt {
         PyOp.MUL -> mulValues(a, b)
         PyOp.MOD -> if (a is PyStr) PyStr(PyFormat.percent(a.s, b)) else null
         // a dict | a dict: a copy, updated
-        PyOp.BITOR -> if (a is PyDict && b is PyDict) PyDict().also { d -> d.map.putAll(a.map); d.map.putAll(b.map) } else PySets.binary(op, a, b)
-        PyOp.BITAND, PyOp.SUB, PyOp.BITXOR -> PySets.binary(op, a, b)
+        PyOp.BITOR -> if (a is PyDict && b is PyDict) PyDict().also { d -> d.map.putAll(a.map); d.map.putAll(b.map) }
+            else PyContainers.setOp(op, a, b) ?: PySets.binary(op, a, b)
+        PyOp.BITAND, PyOp.SUB, PyOp.BITXOR -> PyContainers.setOp(op, a, b) ?: PySets.binary(op, a, b)
         else -> null
     }
 
@@ -307,6 +308,7 @@ object PyRt {
         is PyObject -> PyDunder.truthy(v)
         is PyComplex -> v.real != 0.0 || v.imag != 0.0
         is PyBytes -> v.b.isNotEmpty()
+        is PyDictView -> v.dict.size > 0
         else -> true
     }
 
@@ -330,6 +332,7 @@ object PyRt {
         is PyDict -> v.size.toLong()
         is PySet -> v.used.toLong()
         is PyBytes -> v.b.size.toLong()
+        is PyDictView -> v.dict.size.toLong()
         is PyRange -> v.length
         else -> throw typeError("object of type '${t(v)}' has no len()")
     }
@@ -361,6 +364,7 @@ object PyRt {
     @JvmStatic fun eqValues(a: Any?, b: Any?): Boolean {
         if (isNumber(a) && isNumber(b)) return numCompare(a, b) == 0
         if (a is PyComplex || b is PyComplex) return PyLiterals.complexEq(a, b)
+        PyContainers.viewEq(a, b)?.let { return it }
         return when (a) {
             is PyStr -> b is PyStr && a.s == b.s
             is PyList -> b is PyList && seqEquals(a.items, b.items)
@@ -465,6 +469,7 @@ object PyRt {
         is PyDict -> container.containsKey(v)
         is PySet -> container.contains(v)
         is PyBytes -> PyLiterals.bytesContains(container, v)
+        is PyDictView -> PyContainers.contains(container, v)
         is PyStr -> if (v is PyStr) container.s.contains(v.s) else throw typeError("'in <string>' requires string as left operand, not ${t(v)}")
         is PyRange -> v is Long && (if (container.step > 0) v >= container.start && v < container.stop else v <= container.start && v > container.stop) &&
             (v - container.start) % container.step == 0L
@@ -499,6 +504,7 @@ object PyRt {
         is PySet -> PySets.repr(v)
         is PySlice -> v.toString()
         is PyTemplate -> PyLiterals.templateRepr(v)
+        is PyDictView -> PyContainers.repr(v)
         is PyInterpolation -> PyLiterals.interpolationRepr(v)
         is PyRange -> if (v.step == 1L) "range(${v.start}, ${v.stop})" else "range(${v.start}, ${v.stop}, ${v.step})"
         is PyType -> v.repr()
@@ -726,10 +732,8 @@ object PyRt {
                 } else PyIterator.STOP
             }.also { it.type = if (s.all { c -> c.code < 0x80 }) PyLibrary.STR_ASCII_ITERATOR else PyLibrary.STR_ITERATOR }
         }
-        is PyDict -> {
-            val it = ArrayList(v.map.keys).iterator()
-            PyIterator { if (it.hasNext()) it.next().v else PyIterator.STOP }.also { i -> i.type = PyLibrary.DICT_KEYITERATOR }
-        }
+        is PyDict -> PyContainers.iter(v, PyDictView.KEYS)
+        is PyDictView -> PyContainers.iter(v.dict, v.kind)
         is PyObject -> PyDunder.iter(v)
         is PyGenerator -> PyIterator { v.next() }
         is PyBytes -> {

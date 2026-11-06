@@ -163,6 +163,7 @@ object PyTypes {
         is PySet -> v.sub?.cls ?: if (v.frozen) FROZENSET else SET
         is PySlice -> SLICE
         is PyTemplate -> TEMPLATE
+        is PyDictView -> PyContainers.typeOf(v)
         is PyInterpolation -> INTERPOLATION
         is PyComplex -> COMPLEX
         is PyBytes -> BYTES

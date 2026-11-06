@@ -244,6 +244,19 @@ object PyLibrary {
                 val r = PyRange(v.start + (n - 1) * v.step, v.start - v.step, -v.step)
                 return PyRt.iterValues(r)
             }
+            is PyDictView -> {
+                val items = ArrayList<Any?>()
+                val it = PyContainers.iter(v.dict, v.kind)
+                while (true) {
+                    val x = it.next()
+                    if (x === PyIterator.STOP) break
+                    items.add(x)
+                }
+                var k = items.size - 1
+                return iterator(type(arrayOf("dict_reversekeyiterator", "dict_reversevalueiterator", "dict_reverseitemiterator")[v.kind])) {
+                    if (k >= 0) items[k--] else PyIterator.STOP
+                }
+            }
             is PyDict -> {
                 val keys = ArrayList(v.map.keys).asReversed()
                 var k = 0

@@ -394,6 +394,17 @@ class PyProgramsTest {
             "'a'.partition('')\n" to Triple("ValueError", "empty separator", 1),
             "'abc'.join([1])\n" to Triple("TypeError", "sequence item 0: expected str instance, int found", 1),
             "'abc'.rindex('z')\n" to Triple("ValueError", "substring not found", 1),
+            "[].remove(1)\n" to Triple("ValueError", "list.remove(x): x not in list", 1),
+            "[1].index(2)\n" to Triple("ValueError", "list.index(x): x not in list", 1),
+            "(1,).index(2)\n" to Triple("ValueError", "tuple.index(x): x not in tuple", 1),
+            "{}.popitem()\n" to Triple("KeyError", "'popitem(): dictionary is empty'", 1),
+            "{}.pop('k')\n" to Triple("KeyError", "'k'", 1),
+            "d = {1: 2}\nfor k in d:\n    d[k + 1] = 0\n" to Triple("RuntimeError", "dictionary changed size during iteration", 2),
+            "[3, 'a'].sort()\n" to Triple("TypeError", "'<' not supported between instances of 'str' and 'int'", 1),
+            "[].sort(1)\n" to Triple("TypeError", "sort() takes no positional arguments", 1),
+            "{}.update(1)\n" to Triple("TypeError", "'int' object is not iterable", 1),
+            "{}.update([1])\n" to Triple("TypeError", "object is not iterable", 1),
+            "[].insert(1)\n" to Triple("TypeError", "insert expected 2 arguments, got 1", 1),
         )
         for (mode in Mode.entries) for ((src, want) in cases) {
             val e = try {
@@ -428,7 +439,7 @@ class PyProgramsTest {
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
             "speculation", "functions", "closures", "unpacking", "types", "classes", "descriptors",
-            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods",
+            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods", "containers",
         )
 
         /** The code blocks of [cb] and every function it defines. */

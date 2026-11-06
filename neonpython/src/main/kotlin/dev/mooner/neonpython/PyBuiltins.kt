@@ -327,6 +327,9 @@ object PyBuiltins {
         }
         PyTypes.STR.def("upper", STR_UPPER)
         PyTypes.STR.def("lower", STR_LOWER)
+        // lists', tuples' and dicts' methods, dicts' views (after these: their keys() are views)
+        PyContainers.define()
+        PyStrings.define()
         return d
     }
 
@@ -340,7 +343,7 @@ object PyBuiltins {
                 val pair = try {
                     toList(item)
                 } catch (e: PyException) {
-                    throw PyRt.typeError("cannot convert dictionary update sequence element #$i to a sequence")
+                    throw PyRt.typeError("object is not iterable")
                 }
                 if (pair.size != 2) throw PyException("ValueError", "dictionary update sequence element #$i has length ${pair.size}; 2 is required")
                 out[pair[0]] = pair[1]
