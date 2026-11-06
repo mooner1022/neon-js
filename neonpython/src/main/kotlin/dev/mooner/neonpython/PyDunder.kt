@@ -57,6 +57,14 @@ object PyDunder {
     /** a op b for binary opcode [op], where a builtin path found nothing; [sym] for the message. */
     @JvmStatic
     fun binary(a: Any?, b: Any?, op: Int, sym: String = NAMES[op]!!.third): Any? {
+        val r = binaryUser(a, b, op)
+        if (r !== PyNotImplemented) return r
+        // (a builtin value of a subclass: its base type's concatenation or repetition)
+        return PyRt.values(op, a, b) ?: throw unsupported(sym, a, b)
+    }
+
+    /** a op b by the operands' classes' methods: NotImplemented where none has one, or each said so. */
+    private fun binaryUser(a: Any?, b: Any?, op: Int): Any? {
         val (name, rname, _) = NAMES[op]!!
         val ta = PyTypes.typeOf(a)
         val tb = PyTypes.typeOf(b)
@@ -76,7 +84,7 @@ object PyDunder {
             val r = call(fb, b, a)
             if (r !== PyNotImplemented) return r
         }
-        throw unsupported(sym, a, b)
+        return PyNotImplemented
     }
 
     @JvmStatic fun matmul(a: Any?, b: Any?): Any? = binary(a, b, PyOp.MATMUL)
@@ -84,18 +92,17 @@ object PyDunder {
     /** `a op= b` (binary opcode [op]): `__iop__` where a's class has it, a list changed in place, else `a op b`. */
     @JvmStatic
     fun inplace(a: Any?, b: Any?, op: Int): Any? {
-        if (a is PyObject) {
-            val f = userMethod(a.type, "__i" + NAMES[op]!!.first.substring(2))
-            if (f != null) {
+        val sym = NAMES[op]!!.third
+        val classes = PyRt.special(a) || PyRt.special(b)
+        if (classes) {
+            if (PyRt.special(a)) userMethod(PyTypes.typeOf(a), "__i" + NAMES[op]!!.first.substring(2))?.let { f ->
                 val r = call(f, a, b)
                 if (r !== PyNotImplemented) return r
             }
-            return binary(a, b, op, NAMES[op]!!.third + "=")
+            val r = binaryUser(a, b, op)
+            if (r !== PyNotImplemented) return r
         }
-        if (b is PyObject) {
-            if (a is PyList && op == PyOp.ADD && userMethod(b.type, "__radd__") == null) return extend(a, b)
-            return binary(a, b, op, NAMES[op]!!.third + "=")
-        }
+        // (list.__iadd__ and __imul__: in place)
         if (a is PyList) {
             if (op == PyOp.ADD) return extend(a, b)
             if (op == PyOp.MUL && PyRt.isInt(b)) {
@@ -105,11 +112,11 @@ object PyDunder {
                 return a
             }
         }
+        if (classes) return PyRt.values(op, a, b) ?: throw unsupported("$sym=", a, b)
         try {
             return byCode(op, a, b)
         } catch (e: PyException) {
             // (the message names the augmented operator)
-            val sym = NAMES[op]!!.third
             if (e.type == "TypeError" && e.message == unsupported(sym, a, b).message) throw unsupported("$sym=", a, b)
             throw e
         }
@@ -117,7 +124,7 @@ object PyDunder {
 
     /** list += iterable. */
     private fun extend(a: PyList, b: Any?): PyList {
-        a.items.addAll(if (b is PyList) ArrayList(b.items) else PyBuiltins.toList(b))
+        a.items.addAll(if (b is PyList && b.sub == null) ArrayList(b.items) else PyBuiltins.toList(b))
         return a
     }
 
@@ -141,7 +148,7 @@ object PyDunder {
 
     /** a == b with a class among them: __eq__, reflected, then identity. */
     @JvmStatic
-    fun eq(a: Any?, b: Any?): Boolean = rich(a, b, "__eq__", "__eq__") ?: (a === b)
+    fun eq(a: Any?, b: Any?): Boolean = rich(a, b, "__eq__", "__eq__") ?: (a === b || PyRt.eqValues(a, b))
 
     @JvmStatic
     fun ne(a: Any?, b: Any?): Boolean {
@@ -157,7 +164,7 @@ object PyDunder {
     @JvmStatic
     fun order(op: Int, a: Any?, b: Any?): Boolean {
         val (n, r) = ORDER[op]
-        return rich(a, b, n, r) ?: throw PyRt.typeError("'${ORDER_SYM[op]}' not supported between instances of '${PyTypes.name(a)}' and '${PyTypes.name(b)}'")
+        return rich(a, b, n, r) ?: PyRt.orderValues(op, a, b) ?: throw PyRt.typeError("'${ORDER_SYM[op]}' not supported between instances of '${PyTypes.name(a)}' and '${PyTypes.name(b)}'")
     }
 
     /**
@@ -188,12 +195,13 @@ object PyDunder {
 
     // ------------------------------------------------------------------ hash, str, repr, truth, len
 
-    /** An instance's hash as dicts use it: its class's __hash__ (None: unhashable), else its identity. */
+    /** An instance's hash as dicts use it: its class's __hash__ (None: unhashable), else its base type's or its identity. */
     @JvmStatic
-    fun hash(v: PyObject): Int {
-        val h = v.type.lookup("__hash__")
-        if (h === PyNone) throw PyRt.typeError("unhashable type: '${v.type.name}'")
-        if (h == null || h is PyBuiltin) return System.identityHashCode(v)
+    fun hash(v: Any): Int {
+        val t = PyTypes.typeOf(v)
+        val h = t.lookup("__hash__")
+        if (h === PyNone) throw PyRt.typeError("unhashable type: '${t.name}'")
+        if (h == null || h is PyBuiltin) return if (v is PyValue) PyRt.hashValues(v) else System.identityHashCode(v)
         return when (val r = call(h, v)) {
             is Long -> java.lang.Long.hashCode(r)
             is BigInteger -> r.hashCode()
@@ -210,11 +218,13 @@ object PyDunder {
         is PyBool -> if (v.value) 1L else 0L
         is Long -> intHash(BigInteger.valueOf(v))
         is BigInteger -> intHash(v)
-        is PyObject -> {
-            val h = v.type.lookup("__hash__")
+        is PyObject, is PyValue -> {
+            val t = PyTypes.typeOf(v)
+            val h = t.lookup("__hash__")
             when {
-                h === PyNone -> throw PyRt.typeError("unhashable type: '${v.type.name}'")
-                h == null || h is PyBuiltin -> System.identityHashCode(v).toLong()
+                !PyRt.special(v) -> PyRt.hash(v).toLong()
+                h === PyNone -> throw PyRt.typeError("unhashable type: '${t.name}'")
+                h == null || h is PyBuiltin -> if (v is PyValue) PyRt.hashValues(v).toLong() else System.identityHashCode(v).toLong()
                 else -> when (val r = call(h, v)) {
                     is Long -> intHash(BigInteger.valueOf(r))
                     is BigInteger -> intHash(r)
@@ -233,15 +243,15 @@ object PyDunder {
     }
 
     @JvmStatic
-    fun str(v: PyObject): String {
-        val f = userMethod(v.type, "__str__") ?: return repr(v)
+    fun str(v: Any): String {
+        val f = userMethod(PyTypes.typeOf(v), "__str__") ?: return if (v is PyStr) v.s else repr(v)
         val r = call(f, v)
         return (r as? PyStr ?: throw PyRt.typeError("__str__ returned non-string (type ${PyTypes.name(r)})")).s
     }
 
     @JvmStatic
-    fun repr(v: PyObject): String {
-        val f = userMethod(v.type, "__repr__") ?: return defaultRepr(v)
+    fun repr(v: Any): String {
+        val f = userMethod(PyTypes.typeOf(v), "__repr__") ?: return if (v is PyValue) PyRt.reprValues(v) else defaultRepr(v)
         val r = call(f, v)
         return (r as? PyStr ?: throw PyRt.typeError("__repr__ returned non-string (type ${PyTypes.name(r)})")).s
     }
@@ -254,20 +264,21 @@ object PyDunder {
     }
 
     @JvmStatic
-    fun truthy(v: PyObject): Boolean {
-        userMethod(v.type, "__bool__")?.let { f ->
+    fun truthy(v: Any): Boolean {
+        val t = PyTypes.typeOf(v)
+        userMethod(t, "__bool__")?.let { f ->
             val r = call(f, v)
             return (r as? PyBool ?: throw PyRt.typeError("__bool__ should return bool, returned ${PyTypes.name(r)}")).value
         }
-        if (userMethod(v.type, "__len__") != null) return len(v) > 0
-        return true
+        if (userMethod(t, "__len__") != null) return len(v) > 0
+        return if (v is PyValue) PyRt.truthValues(v) else true
     }
 
     /** len(v) of an instance: its __len__, an int not below 0. */
     @JvmStatic
     fun len(v: Any?): Long {
-        val f = (if (v is PyObject) userMethod(v.type, "__len__") else null)
-            ?: throw PyRt.typeError("object of type '${PyTypes.name(v)}' has no len()")
+        val f = (if (PyRt.special(v)) userMethod(PyTypes.typeOf(v), "__len__") else null)
+            ?: return PyRt.lenValues(v)
         val n = when (val r = call(f, v)) {
             is Long -> r
             is PyBool -> if (r.value) 1L else 0L
@@ -281,22 +292,25 @@ object PyDunder {
     // ------------------------------------------------------------------ iteration, items, containment
 
     /** An instance's __iter__ called: an iterator (the runtime's, or an instance with __next__), else the TypeError. */
-    private fun callIter(v: PyObject, f: Any?): Any? {
-        if (f === PyNone) throw PyRt.typeError("'${v.type.name}' object is not iterable")
+    private fun callIter(v: Any, f: Any?): Any? {
+        if (f === PyNone) throw PyRt.typeError("'${PyTypes.name(v)}' object is not iterable")
         val it = call(f, v)
-        if (it is PyIterator || it is PyObject && userMethod(it.type, "__next__") != null) return it
+        if (it is PyIterator || PyRt.special(it) && userMethod(PyTypes.typeOf(it), "__next__") != null) return it
         throw PyRt.typeError("iter() returned non-iterator of type '${PyTypes.name(it)}'")
     }
 
     /** iter(v) as `for` uses it: __iter__'s iterator (stepped by its __next__), or the sequence protocol of __getitem__. */
     @JvmStatic
-    fun iter(v: PyObject): PyIterator {
-        val f = userMethod(v.type, "__iter__")
+    fun iter(v: Any): PyIterator {
+        val t = PyTypes.typeOf(v)
+        val f = userMethod(t, "__iter__")
         if (f != null) {
             val it = callIter(v, f)
-            return it as? PyIterator ?: wrap(it as PyObject)
+            return it as? PyIterator ?: wrap(it!!)
         }
-        val gi = userMethod(v.type, "__getitem__") ?: throw PyRt.typeError("'${v.type.name}' object is not iterable")
+        // (a builtin value of a subclass iterates as its base type's, whatever its __getitem__)
+        if (v is PyValue) return PyRt.iterValues(v)
+        val gi = userMethod(t, "__getitem__") ?: throw PyRt.typeError("'${t.name}' object is not iterable")
         var i = 0L
         var done = false
         return PyIterator {
@@ -314,17 +328,17 @@ object PyDunder {
     /** iter(v), the builtin: the iterator __iter__ gave as it is (an instance stays one). */
     @JvmStatic
     fun iterObject(v: Any?): Any? {
-        if (v is PyObject) {
-            val f = userMethod(v.type, "__iter__")
-            if (f != null) return callIter(v, f)
+        if (PyRt.special(v)) {
+            val f = userMethod(PyTypes.typeOf(v), "__iter__")
+            if (f != null) return callIter(v!!, f)
         }
         return PyRt.iter(v)
     }
 
     /** An iterator of a class's: its __next__ until StopIteration. */
     @JvmStatic
-    fun wrap(it: PyObject): PyIterator {
-        val next = userMethod(it.type, "__next__")!!
+    fun wrap(it: Any): PyIterator {
+        val next = userMethod(PyTypes.typeOf(it), "__next__")!!
         return PyIterator {
             try {
                 call(next, it)
@@ -338,41 +352,58 @@ object PyDunder {
     @JvmStatic
     fun next(it: Any?): Any? = when (it) {
         is PyIterator -> it.next()
-        is PyObject -> {
-            val f = userMethod(it.type, "__next__") ?: throw PyRt.typeError("'${it.type.name}' object is not an iterator")
+        else -> {
+            val f = (if (PyRt.special(it)) userMethod(PyTypes.typeOf(it), "__next__") else null)
+                ?: throw PyRt.typeError("'${PyTypes.name(it)}' object is not an iterator")
             try {
                 call(f, it)
             } catch (e: PyException) {
                 if (e.type == "StopIteration") PyIterator.STOP else throw e
             }
         }
-        else -> throw PyRt.typeError("'${PyTypes.name(it)}' object is not an iterator")
     }
 
     @JvmStatic
-    fun getItem(obj: PyObject, key: Any?): Any? {
-        val f = userMethod(obj.type, "__getitem__") ?: throw PyRt.typeError("'${obj.type.name}' object is not subscriptable")
-        return call(f, obj, key)
+    fun getItem(obj: Any, key: Any?): Any? {
+        val t = PyTypes.typeOf(obj)
+        userMethod(t, "__getitem__")?.let { return call(it, obj, key) }
+        // (a dict's subclass: __missing__ for a key it has not)
+        if (obj is PyDict && !obj.containsKey(key)) userMethod(t, "__missing__")?.let { return call(it, obj, key) }
+        if (obj is PyValue) return PyRt.getItemValues(obj, key)
+        throw PyRt.typeError("'${t.name}' object is not subscriptable")
     }
 
     @JvmStatic
-    fun setItem(obj: PyObject, key: Any?, v: Any?) {
-        val f = userMethod(obj.type, "__setitem__") ?: throw PyRt.typeError("'${obj.type.name}' object does not support item assignment")
+    fun setItem(obj: Any, key: Any?, v: Any?) {
+        val t = PyTypes.typeOf(obj)
+        val f = userMethod(t, "__setitem__")
+        if (f == null) {
+            if (obj is PyValue) return PyRt.setItemValues(obj, key, v)
+            throw PyRt.typeError("'${t.name}' object does not support item assignment")
+        }
         call(f, obj, key, v)
     }
 
     @JvmStatic
-    fun delItem(obj: PyObject, key: Any?) {
-        val f = userMethod(obj.type, "__delitem__") ?: throw PyRt.typeError("'${obj.type.name}' object doesn't support item deletion")
+    fun delItem(obj: Any, key: Any?) {
+        val t = PyTypes.typeOf(obj)
+        val f = userMethod(t, "__delitem__")
+        if (f == null) {
+            if (obj is PyValue) return PyCalls.deleteValues(obj, key)
+            throw PyRt.typeError("'${t.name}' object doesn't support item deletion")
+        }
         call(f, obj, key)
     }
 
     /** `v in container`: __contains__, else iteration (__iter__ or __getitem__). */
     @JvmStatic
-    fun contains(container: PyObject, v: Any?): Boolean {
-        userMethod(container.type, "__contains__")?.let { return PyRt.truthy(call(it, container, v)) }
-        if (userMethod(container.type, "__iter__") == null && userMethod(container.type, "__getitem__") == null) {
-            throw PyRt.typeError("argument of type '${container.type.name}' is not a container or iterable")
+    fun contains(container: Any, v: Any?): Boolean {
+        val t = PyTypes.typeOf(container)
+        userMethod(t, "__contains__")?.let { return PyRt.truthy(call(it, container, v)) }
+        // (a builtin value of a subclass: its base type's containment, whatever its __iter__)
+        if (container is PyValue) return PyRt.containsValues(container, v)
+        if (userMethod(t, "__iter__") == null && userMethod(t, "__getitem__") == null) {
+            throw PyRt.typeError("argument of type '${t.name}' is not a container or iterable")
         }
         val it = iter(container)
         while (true) {
@@ -387,13 +418,13 @@ object PyDunder {
     /** -v, +v, ~v ([name] __neg__, __pos__, __invert__; [sym] for the message) of an instance. */
     @JvmStatic
     fun unary(v: Any?, name: String, sym: String): Any? {
-        val f = (if (v is PyObject) userMethod(v.type, name) else null) ?: throw PyRt.typeError("bad operand type for unary $sym: '${PyTypes.name(v)}'")
+        val f = (if (PyRt.special(v)) userMethod(PyTypes.typeOf(v), name) else null) ?: throw PyRt.typeError("bad operand type for unary $sym: '${PyTypes.name(v)}'")
         return call(f, v)
     }
 
     @JvmStatic
     fun abs(v: Any?): Any? {
-        val f = (if (v is PyObject) userMethod(v.type, "__abs__") else null) ?: throw PyRt.typeError("bad operand type for abs(): '${PyTypes.name(v)}'")
+        val f = (if (PyRt.special(v)) userMethod(PyTypes.typeOf(v), "__abs__") else null) ?: throw PyRt.typeError("bad operand type for abs(): '${PyTypes.name(v)}'")
         return call(f, v)
     }
 

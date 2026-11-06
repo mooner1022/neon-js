@@ -38,9 +38,9 @@ object PyCalls {
         for (x in (rest[0] as PyList).items) {
             if (x !is Star) { list.add(x); continue }
             val v = x.v
-            when (v) {
-                is PyTuple -> list.addAll(v.items)
-                is PyList -> list.addAll(v.items)
+            when {
+                v is PyTuple && v.sub == null -> list.addAll(v.items)
+                v is PyList && v.sub == null -> list.addAll(v.items)
                 else -> {
                     val it = try {
                         PyRt.iter(v)
@@ -97,7 +97,7 @@ object PyCalls {
         is PyStaticMethod -> callWith(ctx, fn.fn, pos, kwNames, kwValues)
         else -> {
             // an instance whose class has __call__
-            val call = (if (fn is PyObject) fn.type.lookup("__call__") else null)
+            val call = PyClasses.classOf(fn)?.lookup("__call__")
                 ?: throw PyRt.typeError("'${PyTypes.name(fn)}' object is not callable")
             val all = arrayOfNulls<Any?>(pos.size + 1)
             all[0] = fn
@@ -230,9 +230,9 @@ object PyCalls {
     /** `*it` in a display or a call's arguments. */
     @JvmStatic fun listExtend(list: Any?, it: Any?): Any? {
         val l = (list as PyList).items
-        when (it) {
-            is PyList -> l.addAll(it.items)
-            is PyTuple -> l.addAll(it.items)
+        when {
+            it is PyList && it.sub == null -> l.addAll(it.items)
+            it is PyTuple && it.sub == null -> l.addAll(it.items)
             else -> {
                 val i = try {
                     PyRt.iter(it)
@@ -267,9 +267,9 @@ object PyCalls {
     /** `a, *b, c = seq`: [before] items, a list of the middle ones, [after] items, the first on top. */
     @JvmStatic fun unpackEx(seq: Any?, before: Int, after: Int): Array<Any?> {
         val items = ArrayList<Any?>()
-        when (seq) {
-            is PyList -> items.addAll(seq.items)
-            is PyTuple -> items.addAll(seq.items)
+        when {
+            seq is PyList && seq.sub == null -> items.addAll(seq.items)
+            seq is PyTuple && seq.sub == null -> items.addAll(seq.items)
             else -> {
                 val it = try {
                     PyRt.iter(seq)
@@ -300,6 +300,11 @@ object PyCalls {
     }
 
     @JvmStatic fun deleteSubscr(obj: Any?, key: Any?) {
+        if (PyRt.special(obj)) PyDunder.delItem(obj!!, key) else deleteValues(obj, key)
+    }
+
+    /** del obj[key] of builtin values (a subclass's instance as its base type's value). */
+    @JvmStatic fun deleteValues(obj: Any?, key: Any?) {
         when (obj) {
             is PyList -> {
                 val n = obj.items.size
@@ -309,7 +314,6 @@ object PyCalls {
                 obj.items.removeAt(k.toInt())
             }
             is PyDict -> if (obj.map.remove(PyDict.Key(key)) == null) throw PyException("KeyError", PyRt.repr(key))
-            is PyObject -> PyDunder.delItem(obj, key)
             else -> throw PyRt.typeError("'${PyTypes.name(obj)}' object doesn't support item deletion")
         }
     }

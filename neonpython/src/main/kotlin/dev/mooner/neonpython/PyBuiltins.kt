@@ -43,14 +43,7 @@ object PyBuiltins {
         d[PyStr("print")] = PyBuiltin("print", { ctx, args -> print(ctx, args, null) }, { ctx, args, kw -> print(ctx, args, kw) })
         def("len") { _, args ->
             argc("len", args, 1)
-            when (val v = args[0]) {
-                is PyList -> v.items.size.toLong()
-                is PyTuple -> v.items.size.toLong()
-                is PyStr -> v.length.toLong()
-                is PyDict -> v.size.toLong()
-                is PyRange -> v.length
-                else -> PyDunder.len(v)
-            }
+            PyRt.len(args[0])
         }
         fun type(t: PyType, impl: (PyContext, Array<Any?>, PyDict?) -> Any?) {
             t.newImpl = { ctx, _, args, kw -> impl(ctx, args, kw) }
@@ -153,25 +146,9 @@ object PyBuiltins {
             argc("tuple", args, 0, 1)
             if (args.isEmpty()) PyTuple.EMPTY else PyTuple(toList(args[0]).toTypedArray())
         }
-        type(PyTypes.DICT) { _, args, kw ->
-            argc("dict", args, 0, 1)
-            val out = PyDict()
-            if (args.isNotEmpty()) {
-                val src = args[0]
-                if (src is PyDict) for ((k, v) in src.map) out.map[k] = v
-                else for ((i, item) in toList(src).withIndex()) {
-                    val pair = try {
-                        toList(item)
-                    } catch (e: PyException) {
-                        throw PyRt.typeError("cannot convert dictionary update sequence element #$i to a sequence")
-                    }
-                    if (pair.size != 2) throw PyException("ValueError", "dictionary update sequence element #$i has length ${pair.size}; 2 is required")
-                    out[pair[0]] = pair[1]
-                }
-            }
-            if (kw != null) for ((k, v) in kw.map) out.map[k] = v
-            out
-        }
+        type(PyTypes.DICT) { _, args, kw -> dictFill(PyDict(), args, kw) }
+        // (their __new__ and __init__, for subclasses; their special methods, for super() and explicit calls)
+        defineValueMethods()
         type(PyTypes.OBJECT) { _, args, kw ->
             if (args.isNotEmpty() || kw != null && kw.size > 0) throw PyRt.typeError("object() takes no arguments")
             PyObject(PyTypes.OBJECT)
@@ -250,7 +227,7 @@ object PyBuiltins {
             argc("callable", args, 1)
             val v = args[0]
             PyBool.of(v is PyFunction || v is PyBuiltin || v is PyBoundMethod || v is PyMethod || v is PyType || v is PyStaticMethod ||
-                v is PyObject && v.type.lookup("__call__") != null)
+                PyClasses.classOf(v)?.lookup("__call__") != null)
         }
         def("hash") { _, args ->
             argc("hash", args, 1)
@@ -296,6 +273,108 @@ object PyBuiltins {
         PyTypes.STR.def("upper", STR_UPPER)
         PyTypes.STR.def("lower", STR_LOWER)
         return d
+    }
+
+    /** dict(src, **kw) and dict.__init__: the pairs of a mapping or an iterable of pairs, then the keywords. */
+    private fun dictFill(out: PyDict, args: Array<Any?>, kw: PyDict?): PyDict {
+        if (args.size > 1) throw PyRt.typeError("dict expected at most 1 argument, got ${args.size}")
+        if (args.isNotEmpty()) {
+            val src = args[0]
+            if (src is PyDict) for ((k, v) in src.map) out.map[k] = v
+            else for ((i, item) in toList(src).withIndex()) {
+                val pair = try {
+                    toList(item)
+                } catch (e: PyException) {
+                    throw PyRt.typeError("cannot convert dictionary update sequence element #$i to a sequence")
+                }
+                if (pair.size != 2) throw PyException("ValueError", "dictionary update sequence element #$i has length ${pair.size}; 2 is required")
+                out[pair[0]] = pair[1]
+            }
+        }
+        if (kw != null) for ((k, v) in kw.map) out.map[k] = v
+        return out
+    }
+
+    /**
+     * str, list, tuple and dict as bases (docs/PYTHON_PLATFORM.md §11.2): their __new__ makes a value of the subclass
+     * (its [PySub]), list's and dict's __init__ fill it; their special methods as builtins, which dispatch skips (they
+     * are what the runtime's paths do) but super().__getitem__(k), list.__init__(self, xs) and the like call.
+     */
+    private fun defineValueMethods() {
+        val noArgs = arrayOfNulls<Any?>(0)
+        fun new(t: PyType, make: (Array<Any?>, PyDict?) -> PyValue) {
+            fun impl(a: Array<Any?>, kw: PyDict?): Any? {
+                val cls = a.getOrNull(0) as? PyType ?: throw PyRt.typeError("${t.name}.__new__(X): X is not a type object (${PyTypes.name(a.getOrNull(0))})")
+                if (!cls.isSubtype(t)) throw PyRt.typeError("${t.name}.__new__(${cls.name}): ${cls.name} is not a subtype of ${t.name}")
+                val v = make(if (a.size > 1) a.copyOfRange(1, a.size) else noArgs, kw?.takeIf { it.size > 0 })
+                if (cls !== t) v.sub = PySub(cls)
+                return v
+            }
+            t.def("__new__", PyBuiltin("__new__", { _, a -> impl(a, null) }, { _, a, kw -> impl(a, kw) }))
+        }
+        fun init(t: PyType, fill: (PyValue, Array<Any?>, PyDict?) -> Unit) {
+            fun impl(a: Array<Any?>, kw: PyDict?): Any? {
+                val self = a.getOrNull(0) as? PyValue ?: throw PyRt.typeError("descriptor '__init__' requires a '${t.name}' object")
+                fill(self, if (a.size > 1) a.copyOfRange(1, a.size) else noArgs, kw?.takeIf { it.size > 0 })
+                return PyNone
+            }
+            t.def("__init__", PyBuiltin("__init__", { _, a -> impl(a, null) }, { _, a, kw -> impl(a, kw) }))
+        }
+        fun noKw(name: String, kw: PyDict?) {
+            if (kw != null) throw PyRt.typeError("$name() takes no keyword arguments")
+        }
+        fun atMostOne(name: String, args: Array<Any?>) {
+            if (args.size > 1) throw PyRt.typeError("$name expected at most 1 argument, got ${args.size}")
+        }
+        new(PyTypes.LIST) { _, _ -> PyList() }
+        init(PyTypes.LIST) { self, args, kw ->
+            noKw("list", kw)
+            atMostOne("list", args)
+            val items = if (args.isEmpty()) ArrayList() else toList(args[0])
+            (self as PyList).items.clear()
+            self.items.addAll(items)
+        }
+        new(PyTypes.DICT) { _, _ -> PyDict() }
+        init(PyTypes.DICT) { self, args, kw -> dictFill(self as PyDict, args, kw) }
+        new(PyTypes.TUPLE) { args, kw ->
+            noKw("tuple", kw)
+            atMostOne("tuple", args)
+            PyTuple(if (args.isEmpty()) arrayOfNulls(0) else toList(args[0]).toTypedArray())
+        }
+        new(PyTypes.STR) { args, kw ->
+            if (kw != null) throw PyRt.typeError("str() got an unexpected keyword argument '${kw.map.keys.first().v}'")
+            if (args.size > 3) throw PyRt.typeError("str() takes at most 3 arguments (${args.size} given)")
+            if (args.size > 1) throw PyRt.typeError("decoding str is not supported")
+            PyStr(if (args.isEmpty()) "" else PyRt.str(args[0]))
+        }
+        fun dunder(t: PyType, name: String, n: Int, impl: (Array<Any?>) -> Any?) {
+            t.def(name, PyBuiltin(name) { _, a ->
+                if (a.size != n + 1) throw PyRt.typeError("expected $n argument${if (n == 1) "" else "s"}, got ${a.size - 1}")
+                impl(a)
+            })
+        }
+        fun sameKind(a: Any?, b: Any?) = a is PyStr && b is PyStr || a is PyList && b is PyList || a is PyTuple && b is PyTuple || a is PyDict && b is PyDict
+        for (t in arrayOf(PyTypes.STR, PyTypes.LIST, PyTypes.TUPLE, PyTypes.DICT)) {
+            dunder(t, "__getitem__", 1) { a -> PyRt.getItemValues(a[0], a[1]) }
+            dunder(t, "__len__", 0) { a -> PyRt.lenValues(a[0]) }
+            dunder(t, "__contains__", 1) { a -> PyBool.of(PyRt.containsValues(a[0], a[1])) }
+            dunder(t, "__iter__", 0) { a -> PyRt.iterValues(a[0]) }
+            dunder(t, "__repr__", 0) { a -> PyStr(PyRt.reprValues(a[0])) }
+            dunder(t, "__eq__", 1) { a -> if (sameKind(a[0], a[1])) PyBool.of(PyRt.eqValues(a[0], a[1])) else PyNotImplemented }
+        }
+        for (t in arrayOf(PyTypes.LIST, PyTypes.DICT)) {
+            dunder(t, "__setitem__", 2) { a -> PyRt.setItemValues(a[0], a[1], a[2]); PyNone }
+            dunder(t, "__delitem__", 1) { a -> PyCalls.deleteValues(a[0], a[1]); PyNone }
+            // (unhashable: a subclass's instances too)
+            t.def("__hash__", PyNone)
+        }
+        for (t in arrayOf(PyTypes.STR, PyTypes.LIST, PyTypes.TUPLE)) {
+            dunder(t, "__add__", 1) { a -> PyRt.addValues(a[0], a[1]) ?: PyNotImplemented }
+            dunder(t, "__mul__", 1) { a -> if (PyRt.isInt(a[1])) PyRt.mulValues(a[0], a[1]) else PyNotImplemented }
+            dunder(t, "__rmul__", 1) { a -> if (PyRt.isInt(a[1])) PyRt.mulValues(a[0], a[1]) else PyNotImplemented }
+        }
+        for (t in arrayOf(PyTypes.STR, PyTypes.TUPLE)) dunder(t, "__hash__", 0) { a -> PyRt.hashValues(a[0]).toLong() }
+        dunder(PyTypes.STR, "__str__", 0) { a -> PyStr((a[0] as PyStr).s) }
     }
 
     /** int(s, base): Python's int literal syntax (sign, underscores between digits, a prefix where base is 0 or matches). */

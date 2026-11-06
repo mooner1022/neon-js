@@ -124,10 +124,10 @@ object PyTypes {
         is PyBool -> BOOL
         is Long, is BigInteger -> INT
         is Double -> FLOAT
-        is PyStr -> STR
-        is PyList -> LIST
-        is PyTuple -> TUPLE
-        is PyDict -> DICT
+        is PyStr -> v.sub?.cls ?: STR
+        is PyList -> v.sub?.cls ?: LIST
+        is PyTuple -> v.sub?.cls ?: TUPLE
+        is PyDict -> v.sub?.cls ?: DICT
         is PyObject -> v.type
         is PyType -> v.meta ?: TYPE
         is PyFunction -> FUNCTION

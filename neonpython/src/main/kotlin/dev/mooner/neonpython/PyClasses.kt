@@ -93,9 +93,13 @@ object PyClasses {
             .items.map { it as? PyType ?: throw PyRt.typeError("type.__new__() argument 2 must be a tuple of types") }
         val ns = nsArg as? PyDict ?: throw PyRt.typeError("type.__new__() argument 3 must be dict, not ${PyTypes.name(nsArg)}")
         for (b in bases) if (!b.subclassable) throw PyRt.typeError("type '${b.name}' is not an acceptable base type")
-        // (a class whose instances are values of a builtin type: list, dict, str... comes with M2's subclasses)
-        for (b in bases) for (x in b.mro) if (x.newImpl != null && x !== PyTypes.OBJECT && x !== PyTypes.TYPE) {
+        // (str, list, tuple and dict as bases: their instances are such values; int and float come later)
+        for (b in bases) for (x in b.mro) if (x.newImpl != null && x !== PyTypes.OBJECT && x !== PyTypes.TYPE && x !in VALUE_BASES) {
             throw PyRt.typeError("subclassing '${x.name}' is not supported yet")
+        }
+        // (an instance is one kind of value: two of them among the bases cannot be)
+        if (bases.mapNotNull { b -> b.mro.firstOrNull { it in VALUE_BASES } }.distinct().size > 1) {
+            throw PyRt.typeError("multiple bases have instance lay-out conflict")
         }
         val t = PyType(name.s, if (bases.isEmpty()) arrayOf(PyTypes.OBJECT) else bases.toTypedArray())
         t.mro = PyTypes.c3(t, t.bases)
@@ -124,6 +128,17 @@ object PyClasses {
         t.hooks = hooksOf(t)
         cell?.value = t
         return t
+    }
+
+    /** The builtin types whose values a class may derive from: their instances are such values (PyValue.sub). */
+    private val VALUE_BASES = setOf(PyTypes.STR, PyTypes.LIST, PyTypes.TUPLE, PyTypes.DICT)
+
+    /** The class of an instance of one (an object, or a builtin value of a subclass); null for a builtin value. */
+    @JvmStatic
+    fun classOf(obj: Any?): PyType? = when (obj) {
+        is PyObject -> obj.type
+        is PyValue -> obj.sub?.cls
+        else -> null
     }
 
     /** Which of __getattribute__ (1), __setattr__ (2), __delattr__ (4) [t] overrides: what its instances' attributes go through. */
@@ -255,8 +270,9 @@ object PyClasses {
     /** obj.name for an instance of a class (or a builtin value): its class's __getattribute__, else [genericGetAttr]; __getattr__. */
     @JvmStatic
     fun getAttr(obj: Any?, name: String): Any? {
-        if (obj is PyObject && obj.type.hooks and 1 != 0) {
-            val type = obj.type
+        val cls = classOf(obj)
+        if (cls != null && cls.hooks and 1 != 0) {
+            val type = cls
             val gab = PyDunder.userMethod(type, "__getattribute__")!!
             try {
                 return PyCalls.callWith(PyContext.current(), gab, arrayOf(obj, PyStr(name)), NO_ARGS, NO_ARGS)
@@ -291,6 +307,10 @@ object PyClasses {
         if (name == "__class__") return PyTypes.typeOf(obj)
         return when (obj) {
             is PyObject -> if (name == "__dict__") obj.dict ?: PyDict().also { obj.dict = it } else null
+            is PyValue -> {
+                val s = obj.sub
+                if (name == "__dict__" && s != null) s.dict ?: PyDict().also { s.dict = it } else null
+            }
             is PyFunction -> when (name) {
                 "__name__" -> PyStr(obj.name)
                 "__qualname__" -> PyStr(obj.qualname)
@@ -323,6 +343,7 @@ object PyClasses {
 
     private fun instanceDict(obj: Any?): PyDict? = when (obj) {
         is PyObject -> obj.dict
+        is PyValue -> obj.sub?.dict
         is PyFunction -> obj.dict
         else -> null
     }
@@ -351,8 +372,9 @@ object PyClasses {
     /** obj.name = v: its class's __setattr__, else [genericSetAttr]. */
     @JvmStatic
     fun setAttr(obj: Any?, name: String, v: Any?) {
-        if (obj is PyObject && obj.type.hooks and 2 != 0) {
-            PyCalls.callWith(PyContext.current(), PyDunder.userMethod(obj.type, "__setattr__")!!, arrayOf(obj, PyStr(name), v), NO_ARGS, NO_ARGS)
+        val cls = classOf(obj)
+        if (cls != null && cls.hooks and 2 != 0) {
+            PyCalls.callWith(PyContext.current(), PyDunder.userMethod(cls, "__setattr__")!!, arrayOf(obj, PyStr(name), v), NO_ARGS, NO_ARGS)
             return
         }
         genericSetAttr(obj, name, v)
@@ -386,6 +408,10 @@ object PyClasses {
         when (obj) {
             is PyObject -> (obj.dict ?: PyDict().also { obj.dict = it })[PyStr(name)] = v
             is PyFunction -> (obj.dict ?: PyDict().also { obj.dict = it })[PyStr(name)] = v
+            is PyValue -> {
+                val s = obj.sub ?: throw PyException("AttributeError", "'${type.name}' object has no attribute '$name' and no __dict__ for setting new attributes")
+                (s.dict ?: PyDict().also { s.dict = it })[PyStr(name)] = v
+            }
             else -> throw PyException("AttributeError", "'${type.name}' object has no attribute '$name' and no __dict__ for setting new attributes")
         }
     }
@@ -393,8 +419,9 @@ object PyClasses {
     /** del obj.name: its class's __delattr__, else [genericDelAttr]. */
     @JvmStatic
     fun delAttr(obj: Any?, name: String) {
-        if (obj is PyObject && obj.type.hooks and 4 != 0) {
-            PyCalls.callWith(PyContext.current(), PyDunder.userMethod(obj.type, "__delattr__")!!, arrayOf(obj, PyStr(name)), NO_ARGS, NO_ARGS)
+        val cls = classOf(obj)
+        if (cls != null && cls.hooks and 4 != 0) {
+            PyCalls.callWith(PyContext.current(), PyDunder.userMethod(cls, "__delattr__")!!, arrayOf(obj, PyStr(name)), NO_ARGS, NO_ARGS)
             return
         }
         genericDelAttr(obj, name)
@@ -405,6 +432,7 @@ object PyClasses {
     fun genericDelAttr(obj: Any?, name: String) {
         if (obj is PyType) {
             if (obj.dict.map.remove(PyDict.Key(PyStr(name))) == null) throw PyException("AttributeError", "type object '${obj.name}' has no attribute '$name'")
+            if (name == "__getattribute__" || name == "__setattr__" || name == "__delattr__") obj.hooks = hooksOf(obj)
             return
         }
         val type = PyTypes.typeOf(obj)

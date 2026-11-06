@@ -217,6 +217,35 @@ class PyProgramsTest {
             "next(iter([]))\n" to Triple("StopIteration", "", 1),
             "next()\n" to Triple("TypeError", "next expected at least 1 argument, got 0", 1),
             "iter(1, 2)\n" to Triple("TypeError", "iter(v, w): v must be callable", 1),
+            "class C(list, dict): pass\n" to Triple("TypeError", "multiple bases have instance lay-out conflict", 1),
+            "class A(list): pass\nclass B(dict): pass\nclass C(A, B): pass\n" to Triple("TypeError", "multiple bases have instance lay-out conflict", 3),
+            "class C(bool): pass\n" to Triple("TypeError", "type 'bool' is not an acceptable base type", 1),
+            "class L(list): pass\nL(1, 2)\n" to Triple("TypeError", "list expected at most 1 argument, got 2", 2),
+            "class L(list): pass\nL(1)\n" to Triple("TypeError", "'int' object is not iterable", 2),
+            "class L(list): pass\nL(x=1)\n" to Triple("TypeError", "list() takes no keyword arguments", 2),
+            "class D(dict): pass\nD(1, 2)\n" to Triple("TypeError", "dict expected at most 1 argument, got 2", 2),
+            "dict(1, 2)\n" to Triple("TypeError", "dict expected at most 1 argument, got 2", 1),
+            "class T(tuple): pass\nT(1, 2)\n" to Triple("TypeError", "tuple expected at most 1 argument, got 2", 2),
+            "class T(tuple): pass\nT(x=1)\n" to Triple("TypeError", "tuple() takes no keyword arguments", 2),
+            "class S(str): pass\nS(1, 2, 3, 4)\n" to Triple("TypeError", "str() takes at most 3 arguments (4 given)", 2),
+            "class S(str): pass\nS(x=1)\n" to Triple("TypeError", "str() got an unexpected keyword argument 'x'", 2),
+            "[].x = 1\n" to Triple("AttributeError", "'list' object has no attribute 'x' and no __dict__ for setting new attributes", 1),
+            "class L(list): pass\nL().nope\n" to Triple("AttributeError", "'L' object has no attribute 'nope'", 2),
+            "class L(list): pass\nL()[5]\n" to Triple("IndexError", "list index out of range", 2),
+            "class L(list): pass\nhash(L())\n" to Triple("TypeError", "unhashable type: 'L'", 2),
+            "class L(list): pass\nL() + 1\n" to Triple("TypeError", "can only concatenate list (not \"int\") to list", 2),
+            "class L(list): pass\nx = L()\nx += 1\n" to Triple("TypeError", "'int' object is not iterable", 3),
+            "class S(str): pass\nS() < 1\n" to Triple("TypeError", "'<' not supported between instances of 'S' and 'int'", 2),
+            "class D(dict): pass\nD()['k']\n" to Triple("KeyError", "'k'", 2),
+            "class L(list):\n    def __init__(self, a, b):\n        super().__init__(a, b)\nL(1, 2)\n" to Triple("TypeError", "list expected at most 1 argument, got 2", 3),
+            "tuple.__new__(1)\n" to Triple("TypeError", "tuple.__new__(X): X is not a type object (int)", 1),
+            "list.__new__(int)\n" to Triple("TypeError", "list.__new__(int): int is not a subtype of list", 1),
+            "[] + 1\n" to Triple("TypeError", "can only concatenate list (not \"int\") to list", 1),
+            "() + 1\n" to Triple("TypeError", "can only concatenate tuple (not \"int\") to tuple", 1),
+            "'a' + 1\n" to Triple("TypeError", "can only concatenate str (not \"int\") to str", 1),
+            "[] * 'a'\n" to Triple("TypeError", "can't multiply sequence by non-int of type 'str'", 1),
+            "1.5 * 'a'\n" to Triple("TypeError", "can't multiply sequence by non-int of type 'float'", 1),
+            "x = ()\nx += 1\n" to Triple("TypeError", "can only concatenate tuple (not \"int\") to tuple", 2),
         )
         for (mode in Mode.entries) for ((src, want) in cases) {
             val e = try {
@@ -251,7 +280,7 @@ class PyProgramsTest {
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
             "speculation", "functions", "closures", "unpacking", "types", "classes", "descriptors",
-            "dunders", "protocols",
+            "dunders", "protocols", "subclasses",
         )
 
         /** The code blocks of [cb] and every function it defines. */

@@ -14,6 +14,21 @@ object PyNone {
     override fun toString() = "None"
 }
 
+/**
+ * A builtin value that may be an instance of a class deriving from its type (str, list, tuple, dict): [sub] holds that
+ * class and the instance's attributes, null for the type's own values (docs/PYTHON_PLATFORM.md §11.2). The runtime's
+ * paths for builtin values take only those; an instance of a subclass goes through its class's special methods first
+ * (PyRt.special).
+ */
+abstract class PyValue {
+    @JvmField var sub: PySub? = null
+}
+
+/** What makes a builtin value an instance of a subclass: the class, and the instance's attributes. */
+class PySub(@JvmField val cls: PyType) {
+    @JvmField var dict: PyDict? = null
+}
+
 /** True and False: a subclass of int (`True + 1 == 2`). */
 class PyBool private constructor(@JvmField val value: Boolean) {
     override fun toString() = if (value) "True" else "False"
@@ -30,7 +45,7 @@ class PyBool private constructor(@JvmField val value: Boolean) {
  * A str: its text and whether every character is in the Basic Multilingual Plane, where a code point is a UTF-16
  * unit and indexing by code point is indexing the String.
  */
-class PyStr(@JvmField val s: String) : Comparable<PyStr> {
+class PyStr(@JvmField val s: String) : PyValue(), Comparable<PyStr> {
     @JvmField val bmp: Boolean = s.none { Character.isSurrogate(it) }
 
     /** The number of code points. */
@@ -119,13 +134,13 @@ class PyComplex(@JvmField val real: Double, @JvmField val imag: Double) {
 }
 
 /** A list. */
-class PyList(@JvmField val items: ArrayList<Any?> = ArrayList()) {
+class PyList(@JvmField val items: ArrayList<Any?> = ArrayList()) : PyValue() {
     override fun equals(other: Any?) = this === other
     override fun hashCode() = System.identityHashCode(this)
 }
 
 /** A tuple. */
-class PyTuple(@JvmField val items: Array<Any?>) {
+class PyTuple(@JvmField val items: Array<Any?>) : PyValue() {
     override fun equals(other: Any?) = other is PyTuple && PyRt.seqEquals(items.asList(), other.items.asList())
     override fun hashCode(): Int {
         var h = 0x345678
@@ -142,7 +157,7 @@ class PyTuple(@JvmField val items: Array<Any?>) {
  * A dict: insertion-ordered, its keys compared as Python compares them (`1`, `1.0` and `True` are one key), by
  * wrapping each key in a [Key].
  */
-class PyDict {
+class PyDict : PyValue() {
     @JvmField val map = LinkedHashMap<Key, Any?>()
 
     /** A key as Python hashes and compares it. */

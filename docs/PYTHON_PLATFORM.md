@@ -655,7 +655,12 @@ Made with the object model (M2):
   `__eq__` or `__lt__` that returns something else than a bool gives its truth value. CPython would give the object
   itself; that is seen only where a comparison's result is a value (`print(a == b)`), as with numpy's arrays.
 - **No subclasses of int and float yet.** Their values are Longs and Doubles, which hold no class. A subclass of
-  list, dict, set, tuple or str is that value with its class set.
+  list, dict, tuple or str (set when sets come, M5) is that value with its class set: `PyValue.sub`, the class and
+  the instance's dict, null for the type's own values. `PyRt` checks it once per operation (`special`): an instance
+  of a subclass goes through its class's special methods, then its base type's paths (the `...Values` functions);
+  the type's own values never pay more than that check. The four types' `__new__` and `__init__` make and fill a
+  subclass's instances (`list(x)` itself keeps its direct path), and their special methods are in their dicts as
+  builtins for `super()` and explicit calls.
 - **A class body is a code unit,** run with the class's namespace (a dict) as its locals: LOAD_NAME, STORE_NAME and
   LOAD_FROM_DICT_OR_DEREF read and write that dict, and its `__class__` cell goes to `type.__new__` as
   `__classcell__`, as in CPython.
