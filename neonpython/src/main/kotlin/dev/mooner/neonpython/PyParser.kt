@@ -72,12 +72,15 @@ class PyParser(private val src: String) {
         return out
     }
 
-    /** `:` and a block: indented statements, or simple statements on the same line. */
-    private fun block(): List<Stmt> {
+    /**
+     * `:` and a block: indented statements, or simple statements on the same line; [what] the statement it is
+     * ("'if' statement", "function definition") at [line], which CPython's IndentationError names.
+     */
+    private fun block(what: String, line: Int): List<Stmt> {
         expectOp(":")
         if (!at(Kind.NEWLINE)) return simpleStatements()
         next()
-        if (!at(Kind.INDENT)) error("expected an indented block", "IndentationError")
+        if (!at(Kind.INDENT)) error("expected an indented block after $what on line $line", "IndentationError")
         next()
         val out = ArrayList<Stmt>()
         while (!at(Kind.DEDENT) && !at(Kind.END)) {
@@ -99,7 +102,7 @@ class PyParser(private val src: String) {
             "while" -> {
                 next()
                 val test = namedExpression()
-                val body = block()
+                val body = block("'while' statement", t.line)
                 While(test, body, elseBlock()).at(t)
             }
             "for" -> forStmt(false, t)
@@ -120,7 +123,7 @@ class PyParser(private val src: String) {
         }
     }
 
-    private fun elseBlock(): List<Stmt> = if (atName("else")) { next(); block() } else emptyList()
+    private fun elseBlock(): List<Stmt> = if (atName("else")) block("'else' statement", next().line) else emptyList()
 
     private fun decorated(): Stmt {
         val decorators = ArrayList<Expr>()
@@ -147,7 +150,7 @@ class PyParser(private val src: String) {
         val args = parameters(")", annotations = true)
         expectOp(")")
         val returns = if (atOp("->")) { next(); expression() } else null
-        val body = block()
+        val body = block("function definition", start.line)
         return FunctionDef(name, args, body, decorators, returns, tps, async).at(start)
     }
 
@@ -163,7 +166,7 @@ class PyParser(private val src: String) {
             bases = a
             keywords = k
         }
-        return ClassDef(name, bases, keywords, block(), decorators, tps).at(start)
+        return ClassDef(name, bases, keywords, block("class definition", start.line), decorators, tps).at(start)
     }
 
     private fun typeParams(): List<TypeParam> {
@@ -266,10 +269,10 @@ class PyParser(private val src: String) {
     private fun ifStmt(): Stmt {
         val t = next() // if / elif
         val test = namedExpression()
-        val body = block()
+        val body = block("'${t.text}' statement", t.line)
         val orelse = when {
             atName("elif") -> listOf(ifStmt())
-            atName("else") -> { next(); block() }
+            atName("else") -> block("'else' statement", next().line)
             else -> emptyList()
         }
         return If(test, body, orelse).at(t)
@@ -281,7 +284,7 @@ class PyParser(private val src: String) {
         if (!atName("in")) error("expected 'in'")
         next()
         val iter = starExpressions()
-        val body = block()
+        val body = block("'for' statement", start.line)
         return For(target, iter, body, elseBlock(), async).at(start)
     }
 
@@ -298,13 +301,13 @@ class PyParser(private val src: String) {
                     if (!atOp(")")) expectOp(",")
                 }
                 next()
-                if (atOp(":") && items.isNotEmpty()) return With(items, block(), async).at(start)
+                if (atOp(":") && items.isNotEmpty()) return With(items, block("'with' statement", start.line), async).at(start)
             } catch (_: PySyntaxError) {}
             p = save
         }
         val items = arrayListOf(withItem())
         while (atOp(",")) { next(); items.add(withItem()) }
-        return With(items, block(), async).at(start)
+        return With(items, block("'with' statement", start.line), async).at(start)
     }
 
     private fun withItem(): WithItem {
@@ -320,7 +323,7 @@ class PyParser(private val src: String) {
 
     private fun tryStmt(): Stmt {
         val t = next() // try
-        val body = block()
+        val body = block("'try' statement", t.line)
         val handlers = ArrayList<ExceptHandler>()
         var star: Boolean? = null
         while (atName("except")) {
@@ -330,7 +333,7 @@ class PyParser(private val src: String) {
             star = isStar
             if (atOp(":")) {
                 if (isStar) error("expected one or more exception types")
-                handlers.add(ExceptHandler(null, null, block()).at(et))
+                handlers.add(ExceptHandler(null, null, block("'except' statement", et.line)).at(et))
                 continue
             }
             var type = expression()
@@ -345,10 +348,10 @@ class PyParser(private val src: String) {
                 type = TupleExpr(elts).at(et)
             }
             val name = if (atName("as")) { next(); expectName().text } else null
-            handlers.add(ExceptHandler(type, name, block()).at(et))
+            handlers.add(ExceptHandler(type, name, block(if (isStar) "'except*' statement" else "'except' statement", et.line)).at(et))
         }
         val orelse = if (handlers.isNotEmpty()) elseBlock() else emptyList()
-        val finalbody = if (atName("finally")) { next(); block() } else emptyList()
+        val finalbody = if (atName("finally")) block("'finally' statement", next().line) else emptyList()
         if (handlers.isEmpty() && finalbody.isEmpty()) error("expected 'except' or 'finally' block")
         return Try(body, handlers, orelse, finalbody, star == true).at(t)
     }
@@ -1187,7 +1190,7 @@ class PyParser(private val src: String) {
         }
         next()
         next() // NEWLINE
-        if (!at(Kind.INDENT)) error("expected an indented block", "IndentationError")
+        if (!at(Kind.INDENT)) error("expected an indented block after 'match' statement on line ${t.line}", "IndentationError")
         next()
         val cases = ArrayList<MatchCase>()
         while (!at(Kind.DEDENT) && !at(Kind.END)) {
@@ -1196,7 +1199,7 @@ class PyParser(private val src: String) {
             val ct = next()
             val pattern = patterns()
             val guard = if (atName("if")) { next(); namedExpression() } else null
-            cases.add(MatchCase(pattern, guard, block()).at(ct))
+            cases.add(MatchCase(pattern, guard, block("'case' statement", ct.line)).at(ct))
         }
         if (at(Kind.DEDENT)) next()
         return Match(subject, cases).at(t)

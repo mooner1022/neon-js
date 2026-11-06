@@ -157,6 +157,20 @@ class PyFrontTest {
             "match x:\n    case __debug__: pass\n" to ("cannot assign to __debug__" to 2),
             "from m import x as __debug__\n" to ("cannot assign to __debug__" to 1),
             "del x.__debug__\n" to ("cannot delete __debug__" to 1),
+            "def f():\nreturn 1\n" to ("expected an indented block after function definition on line 1" to 2),
+            "class C:\nx = 1\n" to ("expected an indented block after class definition on line 1" to 2),
+            "if x:\npass\n" to ("expected an indented block after 'if' statement on line 1" to 2),
+            "if x:\n    pass\nelif y:\npass\n" to ("expected an indented block after 'elif' statement on line 3" to 4),
+            "for x in y:\n    pass\nelse:\npass\n" to ("expected an indented block after 'else' statement on line 3" to 4),
+            "while x:\npass\n" to ("expected an indented block after 'while' statement on line 1" to 2),
+            "with x:\npass\n" to ("expected an indented block after 'with' statement on line 1" to 2),
+            "try:\npass\n" to ("expected an indented block after 'try' statement on line 1" to 2),
+            "try:\n    pass\nexcept E:\npass\n" to ("expected an indented block after 'except' statement on line 3" to 4),
+            "try:\n    pass\nexcept* E:\npass\n" to ("expected an indented block after 'except*' statement on line 3" to 4),
+            "try:\n    pass\nfinally:\npass\n" to ("expected an indented block after 'finally' statement on line 3" to 4),
+            "match x:\ncase 1: pass\n" to ("expected an indented block after 'match' statement on line 1" to 2),
+            "match x:\n    case 1:\n    pass\n" to ("expected an indented block after 'case' statement on line 2" to 3),
+            "async def f():\n    async for x in y:\n    pass\n" to ("expected an indented block after 'for' statement on line 2" to 3),
         )
         for ((src, want) in cases) {
             val e = assertThrows<PySyntaxError>(src) { PyCompiler.compileModule(src) }
