@@ -576,12 +576,17 @@ object PyBuiltins {
         PyTypes.BYTEARRAY.def("__reduce__", PyTypes.BYTEARRAY.dict[PyStr("__reduce_ex__")])
         PyTypes.INT.def("__index__", PyBuiltin("__index__") { _, a -> plainInt(a[0]) })
         PyTypes.INT.def("__int__", PyBuiltin("__int__") { _, a -> plainInt(a[0]) })
-        PyTypes.FLOAT.def("__int__", PyBuiltin("__int__") { _, a ->
-            val x = plainReal(a[0]) as Double
+        fun floatInt(x: Double): Any {
             if (x.isNaN()) throw PyException("ValueError", "cannot convert float NaN to integer")
             if (x.isInfinite()) throw PyException("OverflowError", "cannot convert float infinity to integer")
-            PyRt.norm(java.math.BigDecimal(x).toBigInteger())
-        })
+            return PyRt.norm(java.math.BigDecimal(x).toBigInteger())
+        }
+        PyTypes.FLOAT.def("__int__", PyBuiltin("__int__") { _, a -> floatInt(plainReal(a[0]) as Double) })
+        // (int's and float's __floor__, __ceil__ and __trunc__: what math.floor, ceil and trunc call, super() reaches)
+        for (n in listOf("__floor__", "__ceil__", "__trunc__")) PyTypes.INT.def(n, PyBuiltin(n) { _, a -> plainInt(a[0]) })
+        PyTypes.FLOAT.def("__floor__", PyBuiltin("__floor__") { _, a -> floatInt(Math.floor(PyRt.toDouble(plainReal(a[0])))) })
+        PyTypes.FLOAT.def("__ceil__", PyBuiltin("__ceil__") { _, a -> floatInt(Math.ceil(PyRt.toDouble(plainReal(a[0])))) })
+        PyTypes.FLOAT.def("__trunc__", PyBuiltin("__trunc__") { _, a -> floatInt(PyRt.toDouble(plainReal(a[0]))) })
         new(PyTypes.LIST) { _, _ -> PyList() }
         init(PyTypes.LIST) { self, args, kw ->
             noKw("list", kw)

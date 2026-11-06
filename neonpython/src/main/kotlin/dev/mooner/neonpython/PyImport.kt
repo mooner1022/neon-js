@@ -250,12 +250,16 @@ object PyImport {
                 PyTyping.fillTyping(ctx, d)
                 return mod()
             }
+            "math" -> {
+                PyMath.fill(ctx, d)
+                return mod().also { d[PyStr("__doc__")] = PyStr(PyMath.DOC) }
+            }
             else -> return null
         }
     }
 
     /** The modules NeonPy makes itself (sys.builtin_module_names). */
-    @JvmField val BUILTIN_NAMES = listOf("sys", "builtins", "_thread", "_weakref", "gc", "_collections", "itertools", "_contextvars", "_sre", "_string", "_typing")
+    @JvmField val BUILTIN_NAMES = listOf("sys", "builtins", "_thread", "_weakref", "gc", "_collections", "itertools", "_contextvars", "_sre", "_string", "_typing", "math")
 
     /** The features `from __future__ import` knows (CPython 3.14's). */
     @JvmField val FUTURES = listOf("nested_scopes", "generators", "division", "absolute_import", "with_statement", "print_function",
