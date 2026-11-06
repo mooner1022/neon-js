@@ -238,6 +238,7 @@ object PyBuiltins {
         PySets.define(d)
         PyLiterals.define(d)
         PyLibrary.define(d)
+        PyStrings.define()
         PyTypes.SLICE.newImpl = { _, _, a, kw ->
             if (kw != null && kw.size > 0) throw PyRt.typeError("slice() takes no keyword arguments")
             when (a.size) {
@@ -505,8 +506,8 @@ object PyBuiltins {
     }
     private val STR_JOIN = PyBuiltin("join") { _, a ->
         argc("join", a, 2)
-        PyStr(toList(a[1]).joinToString((a[0] as PyStr).s) { v ->
-            if (v is PyStr) v.s else throw PyRt.typeError("sequence item: expected str instance, ${PyTypes.name(v)} found")
+        PyStr(toList(a[1]).withIndex().joinToString((a[0] as PyStr).s) { (i, v) ->
+            if (v is PyStr) v.s else throw PyRt.typeError("sequence item $i: expected str instance, ${PyTypes.name(v)} found")
         })
     }
     private val STR_UPPER = PyBuiltin("upper") { _, a -> PyStr((a[0] as PyStr).s.uppercase()) }

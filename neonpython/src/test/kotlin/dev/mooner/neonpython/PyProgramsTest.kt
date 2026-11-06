@@ -385,6 +385,15 @@ class PyProgramsTest {
             "map(len)\n" to Triple("TypeError", "map() must have at least two arguments.", 1),
             "next(map(len, [1]))\n" to Triple("TypeError", "object of type 'int' has no len()", 1),
             "sorted([1, 'a'])\n" to Triple("TypeError", "'<' not supported between instances of 'str' and 'int'", 1),
+            "'a'.split('')\n" to Triple("ValueError", "empty separator", 1),
+            "'abc'.index('z')\n" to Triple("ValueError", "substring not found", 1),
+            "'a'.center(5, 'xy')\n" to Triple("TypeError", "The fill character must be exactly one character long", 1),
+            "'a'.startswith(1)\n" to Triple("TypeError", "startswith first arg must be str or a tuple of str, not int", 1),
+            "'a'.replace(1, 'b')\n" to Triple("TypeError", "replace() argument 1 must be str, not int", 1),
+            "str.maketrans('ab', 'c')\n" to Triple("ValueError", "the first two maketrans arguments must have equal length", 1),
+            "'a'.partition('')\n" to Triple("ValueError", "empty separator", 1),
+            "'abc'.join([1])\n" to Triple("TypeError", "sequence item 0: expected str instance, int found", 1),
+            "'abc'.rindex('z')\n" to Triple("ValueError", "substring not found", 1),
         )
         for (mode in Mode.entries) for ((src, want) in cases) {
             val e = try {
@@ -419,7 +428,7 @@ class PyProgramsTest {
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
             "speculation", "functions", "closures", "unpacking", "types", "classes", "descriptors",
-            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins",
+            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods",
         )
 
         /** The code blocks of [cb] and every function it defines. */
