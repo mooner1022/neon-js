@@ -103,7 +103,7 @@ object PyClasses {
         val ns = nsArg as? PyDict ?: throw PyRt.typeError("type.__new__() argument 3 must be dict, not ${PyTypes.name(nsArg)}")
         for (b in bases) if (!b.subclassable) throw PyRt.typeError("type '${b.name}' is not an acceptable base type")
         for ((i, b) in bases.withIndex()) if (bases.subList(0, i).any { it === b }) throw PyRt.typeError("duplicate base class ${b.name}")
-        // (str, list, tuple and dict as bases: their instances are such values; int and float come later)
+        // (str, list, tuple, dict, int and float as bases: their instances are such values (an int's, a float's a PyNumSub))
         for (b in bases) for (x in b.mro) if (x.newImpl != null && x !== PyTypes.OBJECT && x !== PyTypes.TYPE && x !in VALUE_BASES) {
             throw PyRt.typeError("subclassing '${x.name}' is not supported yet")
         }
@@ -146,7 +146,7 @@ object PyClasses {
     }
 
     /** The builtin types whose values a class may derive from: their instances are such values (PyValue.sub). */
-    private val VALUE_BASES = setOf(PyTypes.STR, PyTypes.LIST, PyTypes.TUPLE, PyTypes.DICT, PyTypes.SET, PyTypes.FROZENSET)
+    private val VALUE_BASES = setOf(PyTypes.STR, PyTypes.LIST, PyTypes.TUPLE, PyTypes.DICT, PyTypes.SET, PyTypes.FROZENSET, PyTypes.INT, PyTypes.FLOAT, PyTypes.COMPLEX, PyTypes.BYTES)
 
     /** The class of an instance of one (an object, or a builtin value of a subclass); null for a builtin value. */
     @JvmStatic
@@ -273,7 +273,7 @@ object PyClasses {
         is PyClassMethod -> if (d.fn is PyBuiltin) PyBoundMethod(type, d.fn) else PyMethod(d.fn, type)
         is PyProperty -> if (obj == null) d else {
             val g = d.fget ?: throw PyException("AttributeError", "property ${d.nameFor()}of '${type.name}' object has no getter")
-            PyCalls.callWith(ctx ?: PyContext.current(), g, arrayOf(obj), NO_ARGS, NO_ARGS)
+            PyCalls.callWith(ctx ?: PyContext.current(), g, arrayOf(if (obj is PyNumSub && g is PyBuiltin && g.numSelf) obj.num else obj), NO_ARGS, NO_ARGS)
         }
         is PyObject -> {
             val get = d.type.lookup("__get__")

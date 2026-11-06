@@ -81,7 +81,63 @@ object PyLibrary {
         items.addAll(sorted)
     }
 
-    private fun index(v: Any?, what: String = ""): Long = when (v) {
+    /** float.hex(): CPython's form, 13 hex digits of the fraction and the exponent's sign (`0x1.8000000000000p+0`). */
+    private fun floatHex(x: Double): String {
+        if (x.isNaN()) return "nan"
+        if (x.isInfinite()) return if (x > 0) "inf" else "-inf"
+        val bits = java.lang.Double.doubleToRawLongBits(x)
+        val sign = if (bits < 0) "-" else ""
+        val e = ((bits ushr 52) and 0x7ff).toInt()
+        val frac = bits and 0xfffffffffffffL
+        if (e == 0 && frac == 0L) return sign + "0x0.0p+0"
+        val digits = java.lang.Long.toHexString(frac).padStart(13, '0')
+        if (e == 0) return sign + "0x0." + digits + "p-1022"
+        val exp = e - 1023
+        return sign + "0x1." + digits + "p" + (if (exp >= 0) "+" else "") + exp
+    }
+
+    /** float.fromhex(s): [sign] [0x] digits [. digits] [p [sign] digits], or inf and nan; CPython's errors. */
+    private fun fromHex(s0: String): Double {
+        val s = s0.trim().lowercase()
+        fun bad(): Nothing = throw PyException("ValueError", "invalid hexadecimal floating-point string")
+        var i = 0
+        var neg = false
+        if (i < s.length && (s[i] == '+' || s[i] == '-')) { neg = s[i] == '-'; i++ }
+        val rest = s.substring(i)
+        if (rest == "inf" || rest == "infinity") return if (neg) Double.NEGATIVE_INFINITY else Double.POSITIVE_INFINITY
+        if (rest == "nan") return Double.NaN
+        if (s.startsWith("0x", i)) i += 2
+        var mant = BigInteger.ZERO
+        var digits = 0
+        var fracDigits = 0
+        while (i < s.length && Character.digit(s[i], 16) >= 0) { mant = mant.shiftLeft(4).add(BigInteger.valueOf(Character.digit(s[i], 16).toLong())); i++; digits++ }
+        if (i < s.length && s[i] == '.') {
+            i++
+            while (i < s.length && Character.digit(s[i], 16) >= 0) { mant = mant.shiftLeft(4).add(BigInteger.valueOf(Character.digit(s[i], 16).toLong())); i++; digits++; fracDigits++ }
+        }
+        if (digits == 0) bad()
+        var exp = 0L
+        if (i < s.length && s[i] == 'p') {
+            i++
+            var eneg = false
+            if (i < s.length && (s[i] == '+' || s[i] == '-')) { eneg = s[i] == '-'; i++ }
+            val st = i
+            while (i < s.length && s[i].isDigit()) i++
+            if (i == st) bad()
+            exp = s.substring(st, i).toBigInteger().min(BigInteger.valueOf(100000)).toLong().let { if (eneg) -it else it }
+        }
+        if (i != s.length) bad()
+        // the value mant * 2**(exp - 4 * fracDigits), exactly rounded (BigDecimal of the power of two is exact)
+        val e2 = exp - 4L * fracDigits
+        if (mant.signum() == 0) return if (neg) -0.0 else 0.0
+        if (mant.bitLength() + e2 > 1025) throw PyException("OverflowError", "hexadecimal value too large to represent as a float")
+        val v = if (e2 >= 0) BigDecimal(mant.shiftLeft(e2.toInt())) else BigDecimal(mant).divide(BigDecimal(BigInteger.ONE.shiftLeft((-e2).toInt().coerceAtMost(2000))))
+        val d = v.toDouble()
+        if (d.isInfinite()) throw PyException("OverflowError", "hexadecimal value too large to represent as a float")
+        return if (neg) -d else d
+    }
+
+    private fun index(v0: Any?, what: String = ""): Long = when (val v = PyRt.indexValue(v0) ?: v0) {
         is Long -> v
         is PyBool -> if (v.value) 1L else 0L
         is BigInteger -> throw PyException("OverflowError", "Python int too large to convert to C ssize_t")
@@ -99,7 +155,10 @@ object PyLibrary {
     @JvmStatic
     fun round(x: Any?, nd: Any?): Any? {
         if (PyRt.special(x)) {
-            val f = PyDunder.userMethod(PyTypes.typeOf(x), "__round__") ?: throw PyRt.typeError("type ${PyTypes.name(x)} doesn't define __round__ method")
+            val f = PyDunder.userMethod(PyTypes.typeOf(x), "__round__")
+            // (an int's or a float's subclass: its number rounded)
+            if (f == null && x is PyNumSub) return round(x.num, nd)
+            f ?: throw PyRt.typeError("type ${PyTypes.name(x)} doesn't define __round__ method")
             return if (nd == null) call(PyClasses.descrGet(null, f, x, PyTypes.typeOf(x))) else call(PyClasses.descrGet(null, f, x, PyTypes.typeOf(x)), nd)
         }
         when (x) {
@@ -399,7 +458,7 @@ object PyLibrary {
         fun radix(name: String, r: Int, prefix: String) = def(name) { a, kw ->
             noKw(name, kw)
             argc("$name()", a, 1)
-            val n = big(a[0].let { if (PyRt.isInt(it)) it else throw PyRt.typeError("'${PyTypes.name(it)}' object cannot be interpreted as an integer") })
+            val n = big(PyRt.indexValue(a[0]) ?: throw PyRt.typeError("'${PyTypes.name(a[0])}' object cannot be interpreted as an integer"))
             PyStr((if (n.signum() < 0) "-" else "") + prefix + n.abs().toString(r))
         }
         radix("hex", 16, "0x")
@@ -541,6 +600,12 @@ object PyLibrary {
         }
         PyTypes.INT.def("from_bytes", PyClassMethod(PyBuiltin("from_bytes", { _, a -> fromBytes(a, null) }, { _, a, kw -> fromBytes(a, kw) })))
         m(PyTypes.FLOAT, "is_integer") { a, _ -> val x = a[0] as Double; PyBool.of(!x.isInfinite() && x == Math.floor(x)) }
+        m(PyTypes.FLOAT, "hex") { a, _ -> PyStr(floatHex(a[0] as Double)) }
+        PyTypes.FLOAT.def("fromhex", PyClassMethod(PyBuiltin("fromhex") { ctx, a ->
+            val v = fromHex((a.getOrNull(1) as? PyStr ?: throw PyRt.typeError("fromhex() argument must be str, not ${PyTypes.name(a.getOrNull(1))}")).s)
+            val cls = a[0] as PyType
+            if (cls === PyTypes.FLOAT) v else PyCalls.callWith(ctx, cls, arrayOf(v), arrayOfNulls(0), arrayOfNulls(0))
+        }))
         m(PyTypes.FLOAT, "as_integer_ratio") { a, _ ->
             val x = a[0] as Double
             if (x.isInfinite()) throw PyException("OverflowError", "cannot convert Infinity to integer ratio")

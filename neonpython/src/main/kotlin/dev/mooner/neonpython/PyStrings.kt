@@ -141,7 +141,7 @@ object PyStrings {
 
     /** [s]'s code points from [start] to [end] (slice-adjusted, None allowed), as code point indices. */
     private fun range(len: Int, start: Any?, end: Any?): IntArray {
-        fun idx(v: Any?, dflt: Int): Int = when (v) {
+        fun idx(v0: Any?, dflt: Int): Int = when (val v = PyRt.indexValue(v0) ?: v0) {
             null, PyNone -> dflt
             is Long -> {
                 var x = v

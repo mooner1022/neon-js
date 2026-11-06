@@ -85,6 +85,8 @@ object PyFormat {
                 val r = PyCalls.callWith(PyContext.current(), PyClasses.descrGet(null, f, v, t), arrayOf(PyStr(spec)), NO_ARGS, NO_ARGS)
                 return (r as? PyStr ?: throw PyRt.typeError("__format__ must return a str, not ${PyTypes.name(r)}")).s
             }
+            // (an int's or a float's subclass: its number's format; empty, its str)
+            if (v is PyNumSub) return if (spec.isEmpty()) PyRt.str(v) else builtinFormat(v.num, spec)
         }
         return builtinFormat(v, spec)
     }
@@ -530,7 +532,7 @@ object PyFormat {
                     formatStr(s, Spec(' '.code, if (left) '<' else '>', 0.toChar(), false, false, width, 0.toChar(), precision, 's'), value)
                 }
                 'd', 'i', 'u' -> {
-                    val n = when (value) {
+                    val n = when (val value = PyRt.indexValue(value) ?: PyRt.num(value)) {
                         is Long -> BigInteger.valueOf(value)
                         is BigInteger -> value
                         is PyBool -> BigInteger.valueOf(if (value.value) 1L else 0L)
@@ -540,7 +542,7 @@ object PyFormat {
                     formatInt(n, spec('d', -1), value)
                 }
                 'x', 'X', 'o' -> {
-                    val n = when (value) {
+                    val n = when (val value = PyRt.indexValue(value) ?: value) {
                         is Long -> BigInteger.valueOf(value)
                         is BigInteger -> value
                         is PyBool -> BigInteger.valueOf(if (value.value) 1L else 0L)

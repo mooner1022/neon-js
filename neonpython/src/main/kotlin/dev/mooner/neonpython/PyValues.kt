@@ -24,6 +24,15 @@ abstract class PyValue {
     @JvmField var sub: PySub? = null
 }
 
+/**
+ * An instance of a subclass of int, float, complex or bytes: its value ([num], a Long, a BigInteger, a Double, a
+ * PyComplex or a PyBytes, which have no class of their own to hold) and its class ([sub], always there). Its class's
+ * methods come first (it is [PyRt.special]); the builtin paths then take its value.
+ */
+class PyNumSub(@JvmField val num: Any) : PyValue() {
+    override fun toString() = num.toString()
+}
+
 /** What makes a builtin value an instance of a subclass: the class, and the instance's attributes. */
 class PySub(@JvmField val cls: PyType) {
     @JvmField var dict: PyDict? = null
@@ -215,6 +224,8 @@ class PyFunction(@JvmField val code: CodeUnit, @JvmField val globals: PyDict, @J
  */
 class PyBuiltin(@JvmField val name: String, @JvmField val impl: (PyContext, Array<Any?>) -> Any?) {
     @JvmField var kwImpl: ((PyContext, Array<Any?>, PyDict) -> Any?)? = null
+    /** An int's or a float's method: a subclass's instance passed to it as its number (PyNumSub.num). */
+    @JvmField var numSelf = false
     /** A builtin of its caller's frame (globals()): what a call from code calls, with the frame. */
     @JvmField var frameImpl: ((dev.mooner.neonjs.vm.VmFrame, Array<Any?>) -> Any?)? = null
 

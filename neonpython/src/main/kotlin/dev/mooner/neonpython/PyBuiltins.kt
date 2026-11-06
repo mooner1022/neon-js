@@ -11,11 +11,26 @@ object PyBuiltins {
         }
     }
 
-    private fun longOf(v: Any?, what: String): Long = when (v) {
+    private fun longOf(v0: Any?, what: String): Long = when (val v = PyRt.indexValue(v0) ?: v0) {
         is Long -> v
         is PyBool -> if (v.value) 1 else 0
         is BigInteger -> throw PyException("OverflowError", "Python int too large to convert to C long")
         else -> throw PyRt.typeError("'${PyTypes.name(v)}' object cannot be interpreted as an integer ($what)")
+    }
+
+    /** int()'s argument: a subclass's instance's number, what a class's __int__ (else __index__) returns. */
+    private fun intArg(v: Any?): Any? {
+        if (v is PyNumSub) return v.num
+        if (!PyRt.special(v)) return v
+        val t = PyTypes.typeOf(v)
+        PyDunder.userMethod(t, "__int__")?.let { f ->
+            return when (val r = PyCalls.callWith(PyContext.current(), f, arrayOf(v), arrayOfNulls(0), arrayOfNulls(0))) {
+                is Long, is BigInteger, is PyBool -> r
+                is PyNumSub -> r.num.takeIf { it !is Double } ?: throw PyRt.typeError("__int__ returned non-int (type ${PyTypes.name(r)})")
+                else -> throw PyRt.typeError("__int__ returned non-int (type ${PyTypes.name(r)})")
+            }
+        }
+        return PyRt.indexValue(v) ?: v
     }
 
     /** A dict of the builtins. */
@@ -93,7 +108,7 @@ object PyBuiltins {
                 if (b != 0L && (b < 2 || b > 36)) throw PyException("ValueError", "int() base must be >= 2 and <= 36, or 0")
                 return@type parseInt(v, b.toInt())
             }
-            if (args.isEmpty()) 0L else when (val v = args[0]) {
+            if (args.isEmpty()) 0L else when (val v = intArg(args[0])) {
                 is Long, is BigInteger -> v
                 is PyBool -> if (v.value) 1L else 0L
                 is Double -> {
@@ -102,7 +117,7 @@ object PyBuiltins {
                     PyRt.norm(java.math.BigDecimal(v).toBigInteger())
                 }
                 is PyStr -> parseInt(v, 10)
-                else -> throw PyRt.typeError("int() argument must be a string or a real number, not '${PyTypes.name(v)}'")
+                else -> throw PyRt.typeError("int() argument must be a string, a bytes-like object or a real number, not '${PyTypes.name(v)}'")
             }
         }
         type(PyTypes.FLOAT) { _, args, kw ->
@@ -115,7 +130,17 @@ object PyBuiltins {
                     "nan", "+nan", "-nan" -> Double.NaN
                     else -> t.toDoubleOrNull() ?: throw PyException("ValueError", "could not convert string to float: ${PyRt.repr(v)}")
                 }
-                else -> PyRt.toDouble(v)
+                is Long, is BigInteger, is PyBool, is Double, is PyNumSub -> PyRt.toDouble(v)
+                else -> {
+                    // (a class's __float__, else its __index__)
+                    val t = PyTypes.typeOf(v)
+                    val f = if (PyRt.special(v)) PyDunder.userMethod(t, "__float__") else null
+                    if (f != null) when (val r = PyCalls.callWith(PyContext.current(), f, arrayOf(v), arrayOfNulls(0), arrayOfNulls(0))) {
+                        is Double -> r
+                        is PyNumSub -> if (r.num is Double) r.num else throw PyRt.typeError("${t.name}.__float__ returned non-float (type ${PyTypes.name(r)})")
+                        else -> throw PyRt.typeError("${t.name}.__float__ returned non-float (type ${PyTypes.name(r)})")
+                    } else PyRt.toDouble(PyRt.indexValue(v) ?: throw PyRt.typeError("float() argument must be a string or a real number, not '${t.name}'"))
+                }
             }
         }
         type(PyTypes.BOOL) { _, args, kw ->
@@ -344,6 +369,11 @@ object PyBuiltins {
         PyContainers.define()
         PyStrings.define()
         PyImport.define(d)
+        // (an int's and a float's methods take a subclass's instance as its number)
+        for (t in arrayOf(PyTypes.INT, PyTypes.BOOL, PyTypes.FLOAT, PyTypes.COMPLEX, PyTypes.BYTES)) for (v in t.dict.map.values) when (v) {
+            is PyBuiltin -> if (v.name != "__new__") v.numSelf = true
+            is PyProperty -> (v.fget as? PyBuiltin)?.numSelf = true
+        }
         return d
     }
 
@@ -398,6 +428,63 @@ object PyBuiltins {
         fun atMostOne(name: String, args: Array<Any?>) {
             if (args.size > 1) throw PyRt.typeError("$name expected at most 1 argument, got ${args.size}")
         }
+        // int and float as bases: __new__ makes the number, held with the subclass (PyNumSub); their special methods
+        // (super().__add__(x), int.__eq__(a, b)): dispatch skips them, the runtime's paths being what they do
+        fun numNew(t: PyType) {
+            fun impl(ctx: PyContext, a: Array<Any?>, kw: PyDict?): Any? {
+                val cls = a.getOrNull(0) as? PyType ?: throw PyRt.typeError("${t.name}.__new__(X): X is not a type object (${PyTypes.name(a.getOrNull(0))})")
+                if (!cls.isSubtype(t)) throw PyRt.typeError("${t.name}.__new__(${cls.name}): ${cls.name} is not a subtype of ${t.name}")
+                val v = t.newImpl!!(ctx, t, if (a.size > 1) a.copyOfRange(1, a.size) else noArgs, kw?.takeIf { it.size > 0 })
+                return if (cls === t) v else PyNumSub(v!!).also { it.sub = PySub(cls) }
+            }
+            t.def("__new__", PyBuiltin("__new__", { ctx, a -> impl(ctx, a, null) }, { ctx, a, kw -> impl(ctx, a, kw) }))
+        }
+        numNew(PyTypes.INT)
+        numNew(PyTypes.FLOAT)
+        // (complex and bytes as bases: their values held with the subclass too)
+        numNew(PyTypes.COMPLEX)
+        numNew(PyTypes.BYTES)
+        fun plainInt(v: Any?): Any? = when (v) {
+            is Long, is BigInteger -> v
+            is PyBool -> if (v.value) 1L else 0L
+            is PyNumSub -> v.num.takeIf { it !is Double }
+            else -> null
+        }
+        fun plainReal(v: Any?): Any? = plainInt(v) ?: (v as? Double) ?: ((v as? PyNumSub)?.num as? Double)
+        val arith = listOf("add" to PyOp.ADD, "sub" to PyOp.SUB, "mul" to PyOp.MUL, "truediv" to PyOp.TRUEDIV,
+            "floordiv" to PyOp.FLOORDIV, "mod" to PyOp.MOD, "pow" to PyOp.POW)
+        val bits = listOf("lshift" to PyOp.LSHIFT, "rshift" to PyOp.RSHIFT, "and" to PyOp.BITAND, "or" to PyOp.BITOR, "xor" to PyOp.BITXOR)
+        val cmps = listOf("lt" to PyOp.LT, "le" to PyOp.LE, "gt" to PyOp.GT, "ge" to PyOp.GE, "eq" to PyOp.EQ, "ne" to PyOp.NE)
+        for (t in arrayOf(PyTypes.INT, PyTypes.FLOAT)) {
+            val plain: (Any?) -> Any? = if (t === PyTypes.INT) ::plainInt else ::plainReal
+            fun def(n: String, impl: (Array<Any?>) -> Any?) = t.def(n, PyBuiltin(n) { _, a -> impl(a) })
+            for ((n, op) in if (t === PyTypes.INT) arith + bits else arith) {
+                def("__${n}__") { a -> val x = plain(a[0]); val y = plain(a.getOrNull(1)); if (x == null || y == null) PyNotImplemented else PyDunder.byCode(op, x, y) }
+                def("__r${n}__") { a -> val x = plain(a[0]); val y = plain(a.getOrNull(1)); if (x == null || y == null) PyNotImplemented else PyDunder.byCode(op, y, x) }
+            }
+            for ((n, op) in cmps) def("__${n}__") { a ->
+                val x = plain(a[0])
+                val y = plain(a.getOrNull(1))
+                if (x == null || y == null) PyNotImplemented else PyBool.of(PyRt.compare(op, x, y))
+            }
+            def("__neg__") { a -> PyRt.neg(plain(a[0])) }
+            def("__pos__") { a -> PyRt.pos(plain(a[0])) }
+            def("__abs__") { a -> val x = plain(a[0]); if (x is Double) Math.abs(x) else if (PyRt.order(0, x, 0L)) PyRt.neg(x) else x }
+            def("__bool__") { a -> PyBool.of(PyRt.truthy(plain(a[0]))) }
+            def("__float__") { a -> PyRt.toDouble(plain(a[0])) }
+            def("__hash__") { a -> PyRt.hashValues(plain(a[0])).toLong() }
+            def("__repr__") { a -> PyStr(PyRt.reprValues(plain(a[0]))) }
+            def("__format__") { a -> PyStr(PyFormat.builtinFormat(plain(a[0]), (a.getOrNull(1) as? PyStr)?.s ?: "")) }
+        }
+        PyTypes.INT.def("__invert__", PyBuiltin("__invert__") { _, a -> PyRt.invert(plainInt(a[0])) })
+        PyTypes.INT.def("__index__", PyBuiltin("__index__") { _, a -> plainInt(a[0]) })
+        PyTypes.INT.def("__int__", PyBuiltin("__int__") { _, a -> plainInt(a[0]) })
+        PyTypes.FLOAT.def("__int__", PyBuiltin("__int__") { _, a ->
+            val x = plainReal(a[0]) as Double
+            if (x.isNaN()) throw PyException("ValueError", "cannot convert float NaN to integer")
+            if (x.isInfinite()) throw PyException("OverflowError", "cannot convert float infinity to integer")
+            PyRt.norm(java.math.BigDecimal(x).toBigInteger())
+        })
         new(PyTypes.LIST) { _, _ -> PyList() }
         init(PyTypes.LIST) { self, args, kw ->
             noKw("list", kw)

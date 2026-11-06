@@ -150,6 +150,7 @@ object PyTypes {
         is PyBool -> BOOL
         is Long, is BigInteger -> INT
         is Double -> FLOAT
+        is PyNumSub -> v.sub!!.cls
         is PyStr -> v.sub?.cls ?: STR
         is PyList -> v.sub?.cls ?: LIST
         is PyTuple -> v.sub?.cls ?: TUPLE

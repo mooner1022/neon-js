@@ -40,8 +40,24 @@ object PyRt {
         else -> null
     }
 
+    /** A subclass's instance of int or float as its number; anything else as it is. */
+    @JvmStatic fun num(v: Any?): Any? = if (v is PyNumSub) v.num else v
+
+    /**
+     * [v] as an index (CPython's PyNumber_Index): an int (a bool's 0 or 1, a subclass's instance's number), what a
+     * class's __index__ returns; null for anything else.
+     */
+    @JvmStatic fun indexValue(v: Any?): Any? = when (v) {
+        is Long, is BigInteger -> v
+        is PyBool -> if (v.value) 1L else 0L
+        is PyNumSub -> v.num.takeIf { it !is Double }
+        is PyObject, is PyValue -> if (special(v)) PyDunder.index(v) else null
+        else -> null
+    }
+
     @JvmStatic fun toDouble(v: Any?): Double = when (v) {
         is Double -> v
+        is PyNumSub -> toDouble(v.num)
         is Long -> v.toDouble()
         is PyBool -> if (v.value) 1.0 else 0.0
         is BigInteger -> v.toDouble().also { if (it.isInfinite()) throw PyException("OverflowError", "int too large to convert to float") }
@@ -138,9 +154,9 @@ object PyRt {
     @JvmStatic fun mulValues(a: Any?, b: Any?): Any? {
         PyLiterals.bytesMul(a, b)?.let { return it }
         val seq: Any?
-        val n: Any?
-        if (a is PyStr || a is PyList || a is PyTuple) { seq = a; n = b } else if (b is PyStr || b is PyList || b is PyTuple) { seq = b; n = a } else return null
-        if (!isInt(n)) throw typeError("can't multiply sequence by non-int of type '${t(n)}'")
+        val n0: Any?
+        if (a is PyStr || a is PyList || a is PyTuple) { seq = a; n0 = b } else if (b is PyStr || b is PyList || b is PyTuple) { seq = b; n0 = a } else return null
+        val n = indexValue(n0) ?: throw typeError("can't multiply sequence by non-int of type '${t(n0)}'")
         return when (seq) {
             is PyStr -> PyStr(seq.s.repeat(count(n)))
             is PyList -> PyList(ArrayList<Any?>().apply { repeat(count(n)) { addAll(seq.items) } })
@@ -314,6 +330,7 @@ object PyRt {
 
     /** A str's, list's, tuple's or dict's truth: not empty. */
     @JvmStatic fun truthValues(v: Any?): Boolean = when (v) {
+        is PyNumSub -> truthy(v.num)
         is PyStr -> v.s.isNotEmpty()
         is PyList -> v.items.isNotEmpty()
         is PyTuple -> v.items.isNotEmpty()
@@ -361,7 +378,9 @@ object PyRt {
     }
 
     /** a == b of builtin values (a subclass's instance as its base type's value); false for other kinds. */
-    @JvmStatic fun eqValues(a: Any?, b: Any?): Boolean {
+    @JvmStatic fun eqValues(a0: Any?, b0: Any?): Boolean {
+        val a = num(a0)
+        val b = num(b0)
         if (isNumber(a) && isNumber(b)) return numCompare(a, b) == 0
         if (a is PyComplex || b is PyComplex) return PyLiterals.complexEq(a, b)
         PyContainers.viewEq(a, b)?.let { return it }
@@ -393,7 +412,9 @@ object PyRt {
     }
 
     /** a < b (op 0)... of builtin values (a subclass's instance as its base type's value); null where they have no order. */
-    @JvmStatic fun orderValues(op: Int, a: Any?, b: Any?): Boolean? {
+    @JvmStatic fun orderValues(op: Int, a0: Any?, b0: Any?): Boolean? {
+        val a = num(a0)
+        val b = num(b0)
         // (sets: subsets and supersets)
         if (a is PySet && b is PySet) return when (op) {
             0 -> a.used < b.used && PySets.isSubset(a, b)
@@ -440,13 +461,14 @@ object PyRt {
         is PyBytes -> v.hashCode()
         // (equal to an int or a float, a complex with no imaginary part hashes as it)
         is PyComplex -> if (v.imag == 0.0) hash(v.real) else java.lang.Long.hashCode(PyHash.hash(v))
-        is PyObject -> PyDunder.hash(v)
+        is PyObject, is PyNumSub -> PyDunder.hash(v)
         is PyGenericAlias, is PyUnion, is PyParamSpecPart, is PyUnpacked -> v.hashCode()
         else -> System.identityHashCode(v)
     }
 
     /** A str's or tuple's hash (a subclass's instance as its base type's value); lists and dicts have none. */
     @JvmStatic fun hashValues(v: Any?): Int = when (v) {
+        is PyNumSub -> hash(v.num)
         is PyStr -> v.s.hashCode()
         is PyTuple -> v.hashCode()
         is PyList, is PyDict -> throw typeError("unhashable type: '${t(v)}'")
@@ -495,6 +517,7 @@ object PyRt {
 
     /** repr of a builtin value (a subclass's instance as its base type's value), an object's through its class. */
     @JvmStatic fun reprValues(v: Any?): String = when (v) {
+        is PyNumSub -> reprValues(v.num)
         null, PyNone -> "None"
         is PyBool -> v.toString()
         is Long, is BigInteger -> v.toString()
@@ -601,7 +624,8 @@ object PyRt {
 
     // ------------------------------------------------------------------ items, attributes, iteration
 
-    private fun index(i: Any?, size: Int, what: String): Int {
+    private fun index(i0: Any?, size: Int, what: String): Int {
+        val i = indexValue(i0) ?: i0
         val n = small(i) ?: if (i is BigInteger) throw PyException("IndexError", "cannot fit 'int' into an index-sized integer")
             else throw typeError("$what indices must be integers, not ${t(i)}")
         val k = if (n < 0) n + size else n
@@ -935,10 +959,11 @@ object PyRt {
         val ctx = (f as PyFrame).ctx
         return when (fn) {
             is PyFunction -> PyInterpreter.call(ctx, fn, args)
-            is PyBuiltin -> fn.frameImpl.let { fi -> if (fi != null) fi(f, args) else fn.impl(ctx, args) }
+            is PyBuiltin -> fn.frameImpl.let { fi -> if (fi != null) fi(f, args) else fn.impl(ctx, if (fn.numSelf) PyCalls.numSelf(args) else args) }
             is PyBoundMethod -> {
                 val all = arrayOfNulls<Any?>(args.size + 1)
-                all[0] = fn.self
+                val self = fn.self
+                all[0] = if (self is PyNumSub && fn.fn.numSelf) self.num else self
                 args.copyInto(all, 1)
                 fn.fn.impl(ctx, all)
             }

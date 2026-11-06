@@ -104,6 +104,8 @@ object PyHash {
             is PyStr -> fix(v.s.hashCode().toLong())
             is PyTuple -> tuple(v.items)
             is PySet -> if (v.frozen) v.frozenHash() else throw PyRt.typeError("unhashable type: '${t.name}'")
+            // (an int's or a float's subclass: its number's)
+            is PyNumSub -> hash(v.num)
             is PyValue -> throw PyRt.typeError("unhashable type: '${t.name}'")
             else -> System.identityHashCode(v).toLong()
         }
@@ -649,7 +651,7 @@ class PySlice(@JvmField val start: Any?, @JvmField val stop: Any?, @JvmField val
      * how many items it takes.
      */
     fun indices(length: Long): LongArray {
-        fun index(v: Any?): Long = when (v) {
+        fun index(v0: Any?): Long = when (val v = PyRt.indexValue(v0) ?: v0) {
             is Long -> v
             is PyBool -> if (v.value) 1L else 0L
             is BigInteger -> if (v.signum() < 0) Long.MIN_VALUE + 1 else Long.MAX_VALUE

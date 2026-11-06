@@ -78,14 +78,25 @@ object PyCalls {
         return callFrom(f, fn, pos, names.toTypedArray(), values.toTypedArray())
     }
 
+    /** An int's or a float's method's arguments: an instance of a subclass first as its number. */
+    @JvmStatic fun numSelf(args: Array<Any?>): Array<Any?> {
+        val s = args.getOrNull(0) as? PyNumSub ?: return args
+        val out = args.copyOf()
+        out[0] = s.num
+        return out
+    }
+
     /** [fn] called with [pos] and the keyword arguments [kwNames] (PyStrs) = [kwValues]. */
     @JvmStatic fun callWith(ctx: PyContext, fn: Any?, pos: Array<Any?>, kwNames: Array<Any?>, kwValues: Array<Any?>): Any? = when (fn) {
         is PyFunction -> if (kwNames.isEmpty()) PyInterpreter.call(ctx, fn, pos) else PyInterpreter.callBound(ctx, fn, bind(fn, pos, kwNames, kwValues))
-        is PyBuiltin -> if (kwNames.isEmpty()) fn.impl(ctx, pos) else {
-            val kw = fn.kwImpl ?: throw PyRt.typeError("${fn.name}() takes no keyword arguments")
-            val d = PyDict()
-            for (i in kwNames.indices) d[kwNames[i]] = kwValues[i]
-            kw(ctx, pos, d)
+        is PyBuiltin -> {
+            val args = if (fn.numSelf) numSelf(pos) else pos
+            if (kwNames.isEmpty()) fn.impl(ctx, args) else {
+                val kw = fn.kwImpl ?: throw PyRt.typeError("${fn.name}() takes no keyword arguments")
+                val d = PyDict()
+                for (i in kwNames.indices) d[kwNames[i]] = kwValues[i]
+                kw(ctx, args, d)
+            }
         }
         is PyBoundMethod -> {
             val all = arrayOfNulls<Any?>(pos.size + 1)
