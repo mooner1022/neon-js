@@ -85,6 +85,7 @@ object PyTypes {
     @JvmField val NOT_IMPLEMENTED = builtin("NotImplementedType", subclassable = false)
     @JvmField val SUPER = builtin("super")
     @JvmField val PROPERTY = builtin("property")
+    @JvmField val GENERATOR = builtin("generator", subclassable = false)
     @JvmField val STATICMETHOD = builtin("staticmethod")
     @JvmField val CLASSMETHOD = builtin("classmethod")
 
@@ -150,6 +151,7 @@ object PyTypes {
         is PyClassMethod -> CLASSMETHOD
         is PyRange -> RANGE
         is PyIterator -> ITERATOR
+        is PyGenerator -> GENERATOR
         is PyComplex -> COMPLEX
         is PyBytes -> BYTES
         is PyCell -> CELL

@@ -465,6 +465,7 @@ object PyRt {
         is PyRange -> if (v.step == 1L) "range(${v.start}, ${v.stop})" else "range(${v.start}, ${v.stop}, ${v.step})"
         is PyType -> v.repr()
         is PyObject -> PyDunder.repr(v)
+        is PyGenerator -> "<generator object ${v.qualname} at 0x${Integer.toHexString(System.identityHashCode(v)).padStart(16, '0').uppercase()}>"
         else -> v.toString()
     }
 
@@ -633,6 +634,7 @@ object PyRt {
             PyIterator { if (it.hasNext()) it.next().v else PyIterator.STOP }
         }
         is PyObject -> PyDunder.iter(v)
+        is PyGenerator -> PyIterator { v.next() }
         else -> throw typeError("'${t(v)}' object is not iterable")
     }
 

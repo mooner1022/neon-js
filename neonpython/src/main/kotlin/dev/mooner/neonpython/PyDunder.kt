@@ -305,7 +305,7 @@ object PyDunder {
     private fun callIter(v: Any, f: Any?): Any? {
         if (f === PyNone) throw PyRt.typeError("'${PyTypes.name(v)}' object is not iterable")
         val it = call(f, v)
-        if (it is PyIterator || PyRt.special(it) && userMethod(PyTypes.typeOf(it), "__next__") != null) return it
+        if (it is PyIterator || it is PyGenerator || PyRt.special(it) && userMethod(PyTypes.typeOf(it), "__next__") != null) return it
         throw PyRt.typeError("iter() returned non-iterator of type '${PyTypes.name(it)}'")
     }
 
@@ -315,8 +315,11 @@ object PyDunder {
         val t = PyTypes.typeOf(v)
         val f = userMethod(t, "__iter__")
         if (f != null) {
-            val it = callIter(v, f)
-            return it as? PyIterator ?: wrap(it!!)
+            return when (val it = callIter(v, f)) {
+                is PyIterator -> it
+                is PyGenerator -> PyRt.iter(it)
+                else -> wrap(it!!)
+            }
         }
         // (a builtin value of a subclass iterates as its base type's, whatever its __getitem__)
         if (v is PyValue) return PyRt.iterValues(v)
@@ -338,6 +341,8 @@ object PyDunder {
     /** iter(v), the builtin: the iterator __iter__ gave as it is (an instance stays one). */
     @JvmStatic
     fun iterObject(v: Any?): Any? {
+        // (a generator is its own iterator)
+        if (v is PyGenerator) return v
         if (PyRt.special(v)) {
             val f = userMethod(PyTypes.typeOf(v), "__iter__")
             if (f != null) return callIter(v!!, f)
@@ -362,6 +367,7 @@ object PyDunder {
     @JvmStatic
     fun next(it: Any?): Any? = when (it) {
         is PyIterator -> it.next()
+        is PyGenerator -> it.next()
         else -> {
             val f = (if (PyRt.special(it)) userMethod(PyTypes.typeOf(it), "__next__") else null)
                 ?: throw PyRt.typeError("'${PyTypes.name(it)}' object is not an iterator")

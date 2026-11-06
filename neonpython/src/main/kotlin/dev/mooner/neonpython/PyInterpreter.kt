@@ -18,6 +18,15 @@ class PyContext(@JvmField val out: Appendable = StringBuilder(), config: VmConfi
     @JvmField val builtins: PyDict = PyBuiltins.module()
     /** The exception being handled (PyExceptions: PUSH_EXC_INFO sets it, POP_EXCEPT puts the one before back), or null. */
     @JvmField var handled: PyBaseException? = null
+    /** The callers' exceptions handled, under the generators running (each its own [handled]: PyGenerator.resume). */
+    @JvmField val handledStack = ArrayList<PyBaseException?>()
+
+    /** The exception handled here: the running code's, else the nearest caller's (a generator with none of its own). */
+    fun currentHandled(): PyBaseException? {
+        handled?.let { return it }
+        for (i in handledStack.indices.reversed()) handledStack[i]?.let { return it }
+        return null
+    }
 
     /** Runs the module [src]; returns its globals. */
     fun exec(src: String, name: String = "<module>"): PyDict = exec(PyCompiler.compileModule(src, name), name)
@@ -66,8 +75,17 @@ class PyFrame(@JvmField val code: CodeUnit, @JvmField val ctx: PyContext, @JvmFi
     override val unit: CodeUnit get() = code
     override val agent: VmAgent get() = ctx.agent
 
+    /** A generator's: the value its YIELD hands over, and how it is resumed (MODE_NEXT, MODE_THROW). */
+    @JvmField var suspendValue: Any? = null
+    @JvmField var resumeMode = MODE_NEXT
+
     init {
         if (compiled == null) for (i in args.indices) slots[i] = args[i]
+    }
+
+    companion object {
+        const val MODE_NEXT = 0
+        const val MODE_THROW = 1
     }
 }
 
@@ -88,11 +106,20 @@ object PyInterpreter {
     @JvmStatic
     fun callBound(ctx: PyContext, fn: PyFunction, args: Array<Any?>): Any? {
         val code = fn.code
+        // a generator function: its generator, its frame (interpreted, M4) not run yet
+        if (fn.info.generator) return PyGenerator(PyFrame(code, ctx, fn.globals, args, null, fn.closure), fn)
         val c = Jit.prepare(code, ctx.agent)
         return runFrame(PyFrame(code, ctx, fn.globals, args, c, fn.closure), c)
     }
 
     private val NO_ARGS = arrayOfNulls<Any?>(0)
+
+    /** What [run] returns where a generator's frame suspended (its YIELD). */
+    @JvmField val SUSPENDED = Any()
+
+    /** Runs a generator's frame on from where it is, as [runFrame] runs a function's: [SUSPENDED] at a yield. */
+    @JvmStatic
+    fun runGenerator(f: PyFrame): Any? = runFrame(f, null)
 
     /** Runs a class body, function [fn] without arguments, on namespace [ns]. */
     @JvmStatic
@@ -189,6 +216,24 @@ object PyInterpreter {
                         PyOp.BITAND -> { sp--; s[sp - 1] = PyRt.bitAnd(s[sp - 1], s[sp]); s[sp] = null; pc++ }
                         PyOp.BITOR -> { sp--; s[sp - 1] = PyRt.bitOr(s[sp - 1], s[sp]); s[sp] = null; pc++ }
                         PyOp.BITXOR -> { sp--; s[sp - 1] = PyRt.bitXor(s[sp - 1], s[sp]); s[sp] = null; pc++ }
+                        PyOp.YIELD -> {
+                            f.suspendValue = s[--sp]
+                            s[sp] = null
+                            f.pc = pc + 1
+                            f.sp = sp
+                            return SUSPENDED
+                        }
+                        PyOp.SEND -> {
+                            f.pc = opStart
+                            val r = PyGenerators.send(f, s[bc[pc + 1]], s[sp - 1])
+                            if (r is PyGenerators.Done) {
+                                s[sp - 1] = r.value
+                                pc = bc[pc + 2]
+                            } else {
+                                s[sp - 1] = r
+                                pc += 3
+                            }
+                        }
                         PyOp.INPLACE -> { sp--; s[sp - 1] = PyRt.inplace(s[sp - 1], s[sp], bc[pc + 1]); s[sp] = null; pc += 2 }
                         PyOp.LT, PyOp.LE, PyOp.GT, PyOp.GE, PyOp.EQ, PyOp.NE, PyOp.IS, PyOp.IS_NOT, PyOp.IN, PyOp.NOT_IN -> {
                             sp--
@@ -387,6 +432,8 @@ object PyInterpreter {
                 s[sp - 1] = PyExceptions.checkExcMatch(s[sp - 1], t)
             }
             PyOp.LOAD_SPECIAL -> s[sp - 1] = PyExceptions.loadSpecial(s[sp - 1], a)
+            PyOp.RESUME -> s[sp - 1] = PyGenerators.resumeCheck(f, s[sp - 1])
+            PyOp.GET_YIELD_FROM_ITER -> s[sp - 1] = PyGenerators.yieldFromIter(s[sp - 1])
             PyOp.EXC_STAR_BEGIN -> s[sp - 1] = PyExceptions.excStarBegin(s[sp - 1])
             PyOp.EXC_STAR_MATCH -> {
                 val t = pop()
@@ -441,6 +488,8 @@ object PyInterpreter {
         val agent = f.ctx.agent
         agent.checkInterrupt()
         val cb = f.code
+        // (a generator's frame stays interpreted: the tier's suspensions come later, M4)
+        if (cb.flags and dev.mooner.neonjs.compiler.CodeUnit.GENERATOR != 0) return false
         return Jit.loop(cb, agent) && sp == cb.numRegs
     }
 }

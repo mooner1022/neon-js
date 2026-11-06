@@ -80,6 +80,10 @@ class PyFrontTest {
             "try:\n    pass\nexcept*:\n    pass\n" to ("expected one or more exception types" to 3),
             "try:\n    pass\nexcept:\n    pass\nexcept ValueError:\n    pass\n" to ("default 'except:' must be last" to 3),
             "try:\n    pass\nexcept ValueError:\n    pass\nexcept* TypeError:\n    pass\n" to ("cannot have both 'except' and 'except*' on the same 'try'" to 5),
+            "[(yield) for x in []]\n" to ("'yield' inside list comprehension" to 1),
+            "{(yield): 1 for x in []}\n" to ("'yield' inside dict comprehension" to 1),
+            "class C:\n    [z := 1 for x in range(1)]\n" to ("assignment expression within a comprehension cannot be used in a class body" to 2),
+            "[x := 1 for x in range(1)]\n" to ("assignment expression cannot rebind comprehension iteration variable 'x'" to 1),
         )
         for ((src, want) in cases) {
             val e = assertThrows<PySyntaxError>(src) { PyCompiler.compileModule(src) }

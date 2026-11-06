@@ -83,7 +83,8 @@ class PyProgramsTest {
     @Test
     fun noBlockFallsBackToTheInterpreter() {
         // every block a program ran, compiled mode: the tier's code, none failing to compile (which would run it
-        // interpreted, its output the same)
+        // interpreted, its output the same); a generator's code is interpreted until the tier suspends (M4b), never
+        // handed to the JIT: neither compiled nor failed
         val reasonsBefore = T2.baselineReasons.keys.toSet()
         for (name in programs()) {
             val cb = PyCompiler.compileModule(resource("$name.py"))
@@ -287,6 +288,19 @@ class PyProgramsTest {
             "try:\n    raise ExceptionGroup('g', [ValueError(1), KeyError(2)])\nexcept* ValueError:\n    pass\n" to Triple("ExceptionGroup", "g (1 sub-exception)", 2),
             "try:\n    raise ValueError(1)\nexcept* TypeError:\n    pass\n" to Triple("ValueError", "1", 2),
             "eg = ExceptionGroup('g', [ValueError(1)])\neg.split(1)\n" to Triple("TypeError", "expected an exception type, a tuple of exception types, or a callable (other than a class)", 2),
+            "g = (x for x in 1)\n" to Triple("TypeError", "'int' object is not iterable", 1),
+            "def g():\n    yield 1\nit = g()\nnext(it)\nnext(it)\n" to Triple("StopIteration", "", 5),
+            "def g():\n    yield 1\ng().send(1)\n" to Triple("TypeError", "can't send non-None value to a just-started generator", 3),
+            "def g():\n    next(me)\n    yield\nme = g()\nnext(me)\n" to Triple("ValueError", "generator already executing", 2),
+            "def g():\n    raise StopIteration(1)\n    yield\nnext(g())\n" to Triple("RuntimeError", "generator raised StopIteration", 4),
+            "def g():\n    try:\n        yield 1\n    except GeneratorExit:\n        yield 2\nit = g()\nnext(it)\nit.close()\n" to Triple("RuntimeError", "generator ignored GeneratorExit", 8),
+            "def g():\n    yield 1\nit = g()\nnext(it)\nit.throw(1)\n" to Triple("TypeError", "exceptions must be classes or instances deriving from BaseException, not int", 5),
+            "def g():\n    yield from 1\nnext(g())\n" to Triple("TypeError", "'int' object is not iterable", 2),
+            "[v for v in 5]\n" to Triple("TypeError", "'int' object is not iterable", 1),
+            "def g():\n    print('never')\n    yield 1\ng().throw(KeyError('k'))\n" to Triple("KeyError", "'k'", 1),
+            "def g():\n    yield 1\nit = g()\nlist(it)\nit.throw(KeyError('k'))\n" to Triple("KeyError", "'k'", 5),
+            "def g():\n    yield 1\n    raise ValueError('after')\nlist(g())\n" to Triple("ValueError", "after", 3),
+            "d = {k: 1 for k in [[]]}\n" to Triple("TypeError", "cannot use 'list' as a dict key (unhashable type: 'list')", 1),
         )
         for (mode in Mode.entries) for ((src, want) in cases) {
             val e = try {
@@ -321,7 +335,7 @@ class PyProgramsTest {
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
             "speculation", "functions", "closures", "unpacking", "types", "classes", "descriptors",
-            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups",
+            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions",
         )
 
         /** The code blocks of [cb] and every function it defines. */

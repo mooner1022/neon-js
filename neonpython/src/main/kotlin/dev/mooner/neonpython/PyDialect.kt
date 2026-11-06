@@ -234,7 +234,8 @@ object PyOps : OpTable {
  */
 class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
     GraphBuilder(cb, Graph(cb, PyOps, PyKinds, null, PyDialect), stressExits = false, speculate = speculate) {
-    override fun unbuildable(): String? = null
+    override fun unbuildable(): String? =
+        if (cb.flags and CodeUnit.GENERATOR != 0) "python: a generator's code (suspensions: M4b)" else null
     override fun root(): Body = PyBody(cb)
 
     override fun entry(start: Block): Array<Value> = Array(cb.numRegs) { r ->
@@ -251,6 +252,7 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
                 PyOp.JUMP -> intArrayOf(bc[pc + 1])
                 PyOp.POP_JUMP_IF_FALSE, PyOp.POP_JUMP_IF_TRUE -> if (bc[pc + 1] == next) intArrayOf(next) else intArrayOf(bc[pc + 1], next)
                 PyOp.FOR_ITER -> intArrayOf(bc[pc + 3], next)
+                PyOp.SEND -> intArrayOf(bc[pc + 2], next)
                 PyOp.RETURN, PyOp.RAISE, PyOp.RERAISE -> IntArray(0)
                 else -> null
             }

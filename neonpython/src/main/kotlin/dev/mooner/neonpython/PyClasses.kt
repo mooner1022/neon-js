@@ -337,6 +337,14 @@ object PyClasses {
                 "__name__", "__qualname__" -> PyStr(obj.name)
                 else -> null
             }
+            is PyGenerator -> when (name) {
+                "__name__" -> PyStr(obj.name)
+                "__qualname__" -> PyStr(obj.qualname)
+                "gi_running" -> PyBool.of(obj.state == PyGenerator.RUNNING)
+                "gi_suspended" -> PyBool.of(obj.state == PyGenerator.SUSPENDED)
+                "gi_frame", "gi_yieldfrom" -> PyNone
+                else -> null
+            }
             is PyBoundMethod -> when (name) {
                 "__name__", "__qualname__" -> PyStr(obj.fn.name)
                 "__self__" -> obj.self

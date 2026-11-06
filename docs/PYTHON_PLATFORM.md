@@ -698,6 +698,20 @@ Made with exceptions (M3):
   exception that matches goes into a group of its own); at the end what was raised anew comes first, then what is
   left and what was raised again, rebuilt in the raised group's shape by the leaves' identity, as CPython's
   `_PyExc_PrepReraiseStar` does; one exception alone is raised as it is.
+Made with generators (M4):
+
+- **A generator's frame is interpreted for now** (`PyGenerator`, its code flagged `CodeUnit.GENERATOR`, never handed to
+  the JIT; the tier's suspensions are the next step). It keeps JavaScript's conventions, so that the tier's resume
+  entries read it as the interpreter leaves it: YIELD writes the value to the frame (`suspendValue`), its pc the
+  instruction after and its sp after the pop, and returns SUSPENDED; resuming pushes the value sent at sp and sets
+  the frame's mode, which the instruction after reads (RESUME raises a thrown exception there, inside the yield's
+  try; SEND, in `yield from`, passes it on to the iterator's throw, or closes it for GeneratorExit).
+- **A generator has its own exception handled** across its yields (PyGenerator.handled); the callers' are on a stack
+  under it (`PyContext.handledStack`), and the nearest is what a bare `raise` raises again and what an exception gets
+  as its context while the generator has none (`currentHandled`).
+- **Comprehensions are functions** taking their first iterable's iterator (`.0`), made where they are; list and dict
+  comprehensions append to a register, a generator expression is a generator. Set comprehensions come with sets (M5).
+
 - **A statement gives its temporaries back** when it ends, so that the registers of one try or with serve the next:
   the tier's code keeps every register a handler may read in a home at the start of each block a handler covers
   (GraphBuilder), so a function's size grows with its handlers times those registers. (The core could keep only the

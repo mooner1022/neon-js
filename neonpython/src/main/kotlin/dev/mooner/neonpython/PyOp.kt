@@ -177,6 +177,16 @@ object PyOp {
     /** (state -- exc): what to raise, or None */
     const val EXC_STAR_END = 118
 
+    // generators (M4): a generator's frame suspends at YIELD and is resumed with a value pushed (PyGenerator)
+    /** (v -- sent): v handed over, the frame suspended; resumed, the value sent on the stack (RESUME reads the mode) */
+    const val YIELD = 119
+    /** (sent -- sent): after a YIELD, an exception thrown in raised here */
+    const val RESUME = 120
+    /** (v -- iterator): what `yield from v` steps (a generator itself) */
+    const val GET_YIELD_FROM_ITER = 121
+    /** r t (sent -- yielded), or (sent -- result) to t: a step of `yield from` over the iterator in register r */
+    const val SEND = 122
+
     const val COUNT = 200
 
     @JvmField val operands = IntArray(COUNT).also { o ->
@@ -184,7 +194,7 @@ object PyOp {
             POP_JUMP_IF_TRUE, CALL, BUILD_LIST, BUILD_TUPLE, BUILD_MAP, LOAD_ATTR, UNPACK, MAKE_FUNCTION, CALL_KW, CALL_EX, LOAD_FREE,
             SET_FUNCTION_ATTRIBUTE, DELETE_FAST, DELETE_GLOBAL, DELETE_ATTR, ASSERT_FAIL, LOAD_NAME, STORE_NAME, DELETE_NAME,
             LOAD_FROM_DICT_OR_DEREF, STORE_ATTR, INPLACE, RAISE, LOAD_SPECIAL)) o[op] = 1
-        for (op in intArrayOf(CELL_GET, CELL_DELETE, UNPACK_EX)) o[op] = 2
+        for (op in intArrayOf(CELL_GET, CELL_DELETE, UNPACK_EX, SEND)) o[op] = 2
         o[FOR_ITER] = 3
     }
 

@@ -19,6 +19,9 @@ class PyCodeInfo(@JvmField val name: String, @JvmField val localNames: Array<Str
     @JvmField var paramNames: List<String> = emptyList()
     /** Its docstring. */
     @JvmField var doc: String? = null
+    /** Whether it is a generator's (calling it makes a generator), and its def's line. */
+    @JvmField var generator = false
+    @JvmField var firstLine = -1
 
     /**
      * The operand types the interpreter saw at each arithmetic and comparison instruction, by pc ([PyProfile]): made
@@ -154,9 +157,17 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         }
     }
 
-    /** The code of [body]; [args], a function's parameters. */
-    private fun compileBody(body: List<Stmt>, args: Arguments?): CodeUnit {
+    /** Whether this is a generator expression's code, and the line of its def (or lambda, or comprehension). */
+    private var generatorExpr = false
+    private var firstLine = -1
+
+    /** The code of [body] ([comprehension]'s instead, for one); [args], a function's parameters. */
+    private fun compileBody(body: List<Stmt>, args: Arguments?, comprehension: Expr? = null): CodeUnit {
         prologue()
+        if (comprehension != null) {
+            comprehensionBody(comprehension)
+            return unit(null, null)
+        }
         val doc = docstring(body)
         if (isClass) {
             // a class's __module__, __qualname__ and __doc__, first in its namespace
@@ -175,7 +186,11 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             emit(PyOp.LOAD_FAST, locals["__class__"]!!)
             emit(PyOp.STORE_NAME, name("__classcell__"))
         }
-        // the end of the code: return None
+        return unit(doc, args)
+    }
+
+    /** The code unit of what was emitted: return None at its end, its registers, constants, handlers, lines. */
+    private fun unit(doc: String?, args: Arguments?): CodeUnit {
         loadConst(PyNone)
         emit(PyOp.RETURN)
         val cb = CodeUnit(name)
@@ -202,6 +217,11 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             info.varkw = args.kwarg != null
             info.paramNames = scope.params.toList()
         }
+        if (scope.isGenerator || generatorExpr) {
+            cb.flags = cb.flags or CodeUnit.GENERATOR
+            info.generator = true
+        }
+        info.firstLine = firstLine
         cb.dialectData = info
         return cb
     }
@@ -577,6 +597,101 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         patch(toEnd, code.size)
     }
 
+    /**
+     * A comprehension, a function of its own (as before Python 3.12): its first iterable's iterator made here, its
+     * code called with it ([comprehensionBody]); a generator expression's code is a generator's.
+     */
+    private fun comprehension(e: Expr) {
+        val child = st.scopes[e]!!
+        val gens = generatorsOf(e)
+        var flags = 0
+        if (child.frees.isNotEmpty()) {
+            for (n in child.frees) emit(PyOp.LOAD_FAST, locals[n] ?: throw IllegalStateException("no cell for $n in $name"))
+            emit(PyOp.BUILD_TUPLE, child.frees.size)
+            flags = 8
+        }
+        val c = PyCompiler(st, child, child.name)
+        c.generatorExpr = e is GeneratorExp
+        c.firstLine = e.line
+        val cb = c.compileBody(emptyList(), null, e)
+        emit(PyOp.MAKE_FUNCTION, const(cb))
+        if (flags != 0) emit(PyOp.SET_FUNCTION_ATTRIBUTE, flags)
+        expr(gens[0].iter)
+        emit(PyOp.GET_ITER)
+        emit(PyOp.CALL, 1)
+    }
+
+    private fun generatorsOf(e: Expr): List<Comprehension> = when (e) {
+        is ListComp -> e.generators
+        is DictComp -> e.generators
+        is GeneratorExp -> e.generators
+        else -> throw IllegalStateException("not a comprehension: $e")
+    }
+
+    /**
+     * A comprehension's code: its loops, one in another (the first over its argument `.0`, the iterator), their
+     * conditions, and at the innermost the element appended (a list's), the key and value added (a dict's) or yielded
+     * (a generator expression's); then the list or dict returned.
+     */
+    private fun comprehensionBody(e: Expr) {
+        lineHere(e.line)
+        val gens = generatorsOf(e)
+        val acc = if (e is GeneratorExp) -1 else temp().also {
+            emit(if (e is ListComp) PyOp.BUILD_LIST else PyOp.BUILD_MAP, 0)
+            emit(PyOp.STORE_FAST, it)
+        }
+        fun level(k: Int) {
+            val g = gens[k]
+            if (g.isAsync == 1) unsupported("asynchronous comprehensions", e)
+            val it = if (k == 0) locals[".0"]!! else {
+                expr(g.iter)
+                emit(PyOp.GET_ITER)
+                temp().also { emit(PyOp.STORE_FAST, it) }
+            }
+            val value = temp()
+            val top = code.size
+            val exit = emit(PyOp.FOR_ITER, it, value, 0)
+            emit(PyOp.LOAD_FAST, value)
+            store(g.target)
+            val skips = ArrayList<Int>()
+            for (c in g.ifs) {
+                expr(c)
+                skips.add(emit(PyOp.POP_JUMP_IF_FALSE, 0))
+            }
+            if (k + 1 < gens.size) level(k + 1) else when (e) {
+                is ListComp -> {
+                    emit(PyOp.LOAD_FAST, acc)
+                    expr(e.elt)
+                    emit(PyOp.LIST_APPEND)
+                    emit(PyOp.POP)
+                }
+                is DictComp -> {
+                    emit(PyOp.LOAD_FAST, acc)
+                    expr(e.key)
+                    expr(e.value)
+                    emit(PyOp.MAP_ADD)
+                    emit(PyOp.POP)
+                }
+                is GeneratorExp -> {
+                    expr(e.elt)
+                    emit(PyOp.YIELD)
+                    emit(PyOp.RESUME)
+                    emit(PyOp.POP)
+                }
+                else -> {}
+            }
+            // (a condition that fails goes on to the next value: through the loop's jump back, its checks)
+            for (s in skips) patch(s, code.size)
+            emit(PyOp.JUMP, top)
+            patch(exit, code.size)
+        }
+        level(0)
+        if (acc >= 0) {
+            emit(PyOp.LOAD_FAST, acc)
+            emit(PyOp.RETURN)
+        }
+    }
+
     /** A with's __exit__ (bound, in register [exit]) called with three Nones, its result dropped. */
     private fun exitWith(exit: Int) {
         emit(PyOp.LOAD_FAST, exit)
@@ -824,7 +939,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             emit(PyOp.BUILD_TUPLE, child.frees.size)
             flags = flags or 8
         }
-        val cb = PyCompiler(st, child, fname).compileBody(body, args)
+        val cb = PyCompiler(st, child, fname).also { it.firstLine = node.line }.compileBody(body, args)
         emit(PyOp.MAKE_FUNCTION, const(cb))
         for (flag in intArrayOf(8, 2, 1)) if (flags and flag != 0) emit(PyOp.SET_FUNCTION_ATTRIBUTE, flag)
     }
@@ -1089,8 +1204,25 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             }
             is Starred -> throw PySyntaxError("can't use starred expression here", e.line, e.col)
             is SetExpr, is SetComp -> unsupported("sets", e)
-            is ListComp, is DictComp, is GeneratorExp -> unsupported("comprehensions", e)
-            is Yield, is YieldFrom -> unsupported("yield", e)
+            is ListComp, is DictComp, is GeneratorExp -> comprehension(e)
+            is Yield -> {
+                if (e.value == null) loadConst(PyNone) else expr(e.value)
+                emit(PyOp.YIELD)
+                emit(PyOp.RESUME)
+            }
+            is YieldFrom -> {
+                // its iterator stepped with what the frame is resumed with (SEND), each value yielded on
+                expr(e.value)
+                emit(PyOp.GET_YIELD_FROM_ITER)
+                val it = temp()
+                emit(PyOp.STORE_FAST, it)
+                loadConst(PyNone)
+                val top = code.size
+                val send = emit(PyOp.SEND, it, 0)
+                emit(PyOp.YIELD)
+                emit(PyOp.JUMP, top)
+                patch(send, code.size)
+            }
             is Await -> unsupported("await", e)
             is JoinedStr, is FormattedValue -> unsupported("f-strings", e)
             is TemplateStr, is Interpolation -> unsupported("t-strings", e)
@@ -1197,6 +1329,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             PyOp.JUMP -> intArrayOf(bc[pc + 1])
             PyOp.POP_JUMP_IF_FALSE, PyOp.POP_JUMP_IF_TRUE -> intArrayOf(bc[pc + 1], next)
             PyOp.FOR_ITER -> intArrayOf(bc[pc + 3], next)
+            PyOp.SEND -> intArrayOf(bc[pc + 2], next)
             PyOp.RETURN, PyOp.RAISE, PyOp.RERAISE -> IntArray(0)
             else -> intArrayOf(next)
         }

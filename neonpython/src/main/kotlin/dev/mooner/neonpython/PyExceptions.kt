@@ -65,7 +65,7 @@ object PyExceptions {
         o.thrown = e
         e.exc = o
         // (raised while another was handled: that one is its context, as CPython sets it raising)
-        val h = ctx?.handled
+        val h = ctx?.currentHandled()
         if (h != null && h !== o) setContext(o, h)
         return o
     }
@@ -159,7 +159,7 @@ object PyExceptions {
     fun raise(f: VmFrame, args: Array<Any?>): Any? {
         val ctx = (f as PyFrame).ctx
         if (args.isEmpty()) {
-            val h = ctx.handled ?: return PyException("RuntimeError", "No active exception to reraise")
+            val h = ctx.currentHandled() ?: return PyException("RuntimeError", "No active exception to reraise")
             return thrown(h)
         }
         val exc = try {
@@ -176,7 +176,7 @@ object PyExceptions {
             }
             exc.suppressContext = true
         }
-        val h = ctx.handled
+        val h = ctx.currentHandled()
         if (h != null && h !== exc) setContext(exc, h)
         // (raised anew: from here)
         return PyException(exc).also { exc.thrown = it }
