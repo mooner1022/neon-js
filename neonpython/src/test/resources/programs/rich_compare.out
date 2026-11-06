@@ -1,0 +1,19 @@
+Vec(True, False, False) Vec(True, False, True) Vec(False, True, False) Vec(False, True, True) Vec(False, False, True)
+Vec(True, False, False) Vec(True, False, False) Vec(False, True, True)
+!=: ValueError the truth value of a Vec is ambiguous
+[Vec(True, False, False), Vec(False, False, True)]
+ValueError the truth value of a Vec is ambiguous
+chained: ValueError the truth value of a Vec is ambiguous
+not: ValueError the truth value of a Vec is ambiguous
+eq(x, y) False eq(x, 1) eq(x, 1)
+gt(y, x) gt(y, x)
+sub gt(s, x)
+eq(x, x) True True True
+TypeError '<=' not supported between instances of 'Tag' and 'Tag'
+True False False True
+False True
+ne! False
+True True True True True False
+[1, 2, 3] 9 True True True
+sorted: ValueError the truth value of a Vec is ambiguous
+501

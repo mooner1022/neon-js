@@ -275,7 +275,13 @@ object PyInterpreter {
                             }
                         }
                         PyOp.INPLACE -> { sp--; s[sp - 1] = PyRt.inplace(s[sp - 1], s[sp], bc[pc + 1]); s[sp] = null; pc += 2 }
-                        PyOp.LT, PyOp.LE, PyOp.GT, PyOp.GE, PyOp.EQ, PyOp.NE, PyOp.IS, PyOp.IS_NOT, PyOp.IN, PyOp.NOT_IN -> {
+                        PyOp.LT, PyOp.LE, PyOp.GT, PyOp.GE, PyOp.EQ, PyOp.NE -> {
+                            sp--
+                            s[sp - 1] = PyRt.compareValue(bc[pc], s[sp - 1], s[sp])
+                            s[sp] = null
+                            pc++
+                        }
+                        PyOp.IS, PyOp.IS_NOT, PyOp.IN, PyOp.NOT_IN -> {
                             sp--
                             s[sp - 1] = PyBool.of(PyRt.compare(bc[pc], s[sp - 1], s[sp]))
                             s[sp] = null

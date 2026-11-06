@@ -176,11 +176,15 @@ object PyDunder {
         return rich(a, b, n, r) ?: PyRt.orderValues(op, a, b) ?: throw PyRt.typeError("'${ORDER_SYM[op]}' not supported between instances of '${PyTypes.name(a)}' and '${PyTypes.name(b)}'")
     }
 
+    /** A rich comparison's truth, or null where no side has it (or each said NotImplemented) ([richValue]). */
+    private fun rich(a: Any?, b: Any?, name: String, rname: String): Boolean? = richValue(a, b, name, rname)?.let { PyRt.truthy(it) }
+
     /**
-     * A rich comparison's truth, or null where no side has it (or each said NotImplemented): b's reflected method
-     * first where b's type derives from a's, then a's, then b's reflected one (also where the types are the same).
+     * A rich comparison's value, what the method returned (any object), or null where no side has it (or each said
+     * NotImplemented): b's reflected method first where b's type derives from a's, then a's, then b's reflected one
+     * (also where the types are the same).
      */
-    private fun rich(a: Any?, b: Any?, name: String, rname: String): Boolean? {
+    private fun richValue(a: Any?, b: Any?, name: String, rname: String): Any? {
         val ta = PyTypes.typeOf(a)
         val tb = PyTypes.typeOf(b)
         var checkedReverse = false
@@ -188,18 +192,33 @@ object PyDunder {
             checkedReverse = true
             userMethod(tb, rname)?.let { f ->
                 val r = call(f, b, a)
-                if (r !== PyNotImplemented) return PyRt.truthy(r)
+                if (r !== PyNotImplemented) return r
             }
         }
         userMethod(ta, name)?.let { f ->
             val r = call(f, a, b)
-            if (r !== PyNotImplemented) return PyRt.truthy(r)
+            if (r !== PyNotImplemented) return r
         }
         if (!checkedReverse) userMethod(tb, rname)?.let { f ->
             val r = call(f, b, a)
-            if (r !== PyNotImplemented) return PyRt.truthy(r)
+            if (r !== PyNotImplemented) return r
         }
         return null
+    }
+
+    /**
+     * a < b and the others (bytecode [op], LT..NE) with a class among them, as the instruction gives it: what the
+     * method returns (any object); for none, the builtin values' order, `==` and `!=` by identity; `!=` without its
+     * own method object's, which inverts `==`'s truth.
+     */
+    @JvmStatic
+    fun compareValue(op: Int, a: Any?, b: Any?): Any? {
+        val k = op - PyOp.LT
+        if (op == PyOp.EQ) return richValue(a, b, "__eq__", "__eq__") ?: PyBool.of(a === b || PyRt.eqValues(a, b))
+        if (op == PyOp.NE) return richValue(a, b, "__ne__", "__ne__") ?: PyBool.of(!eq(a, b))
+        val (n, r) = ORDER[k]
+        return richValue(a, b, n, r) ?: PyBool.of(PyRt.orderValues(k, a, b)
+            ?: throw PyRt.typeError("'${ORDER_SYM[k]}' not supported between instances of '${PyTypes.name(a)}' and '${PyTypes.name(b)}'"))
     }
 
     // ------------------------------------------------------------------ hash, str, repr, truth, len

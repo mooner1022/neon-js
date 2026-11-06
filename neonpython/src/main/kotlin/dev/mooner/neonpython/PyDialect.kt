@@ -114,6 +114,8 @@ object PyIr {
     const val SEND_STEP = 511
     /** (step) the value on the stack after SEND: what the step yields, or its result where it is done. */
     const val SEND_VALUE = 512
+    /** (a b) comparison a (LT..NE) as a value: what a class's method returns (PyRt.compareValue); one a branch tests is the bytecode's, a bool. */
+    const val COMPARE_VALUE = 513
 }
 
 /**
@@ -192,7 +194,7 @@ object PyKinds : KindSystem {
 
 /** What the passes know of Python's operations: most may run code and throw; a few only compute or allocate. */
 object PyOps : OpTable {
-    private val infos = arrayOfNulls<OpInfo>(PyIr.SEND_VALUE + 1).also { t ->
+    private val infos = arrayOfNulls<OpInfo>(PyIr.COMPARE_VALUE + 1).also { t ->
         for (op in 0 until PyOp.COUNT) if (PyOp.names[op] != null) t[op] = OpInfo(PyOp.name(op), PyGeneric.of(op)?.flags ?: OpInfo.ANYTHING)
         t[PyOp.IS] = OpInfo("IS", OpInfo.REMOVABLE)
         t[PyOp.IS_NOT] = OpInfo("IS_NOT", OpInfo.REMOVABLE)
@@ -205,6 +207,7 @@ object PyOps : OpTable {
         t[PyIr.UNPACK_EX_ARRAY] = OpInfo("UnpackExArray", OpInfo.ANYTHING)
         t[PyIr.SEND_STEP] = OpInfo("SendStep", OpInfo.ANYTHING)
         t[PyIr.SEND_VALUE] = OpInfo("SendValue", OpInfo.REMOVABLE)
+        t[PyIr.COMPARE_VALUE] = OpInfo("CompareValue", OpInfo.ANYTHING)
         // a check's result is its input unboxed; arithmetic of numbers only computes (an exit goes with it)
         t[PyIr.CHECK_INT] = OpInfo("CheckInt", OpInfo.REMOVABLE or OpInfo.UNBOXES, OpInfo.HOIST_ALWAYS)
         t[PyIr.CHECK_FLOAT] = OpInfo("CheckFloat", OpInfo.REMOVABLE or OpInfo.UNBOXES, OpInfo.HOIST_ALWAYS)
@@ -400,7 +403,11 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
                 in PyOp.ADD..PyOp.BITXOR, in PyOp.LT..PyOp.NOT_IN, PyOp.SUBSCR -> {
                     val r = pop()
                     val l = pop()
-                    inst(op, arrayOf(l, r), result = true)
+                    // (a comparison a branch tests is its truth, a bool; another's value is what a class's method returns)
+                    val next = if (pc + len < bc.size) bc[pc + len] else -1
+                    if (op in PyOp.LT..PyOp.NE && next != PyOp.POP_JUMP_IF_FALSE && next != PyOp.POP_JUMP_IF_TRUE) {
+                        stack.add(add(cur, Inst(PyIr.COMPARE_VALUE, arrayOf(l, r), op, 0, 0, pc, stmt)).also { it.hasResult = true })
+                    } else inst(op, arrayOf(l, r), result = true)
                 }
                 PyOp.NEG, PyOp.POS, PyOp.NOT, PyOp.INVERT, PyOp.GET_ITER -> inst(op, arrayOf(pop()), result = true)
                 PyOp.CALL -> {
@@ -555,6 +562,14 @@ class PyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, clas
                 load(i.inputs[0], ANY_KIND)
                 load(i.inputs[1], ANY_KIND)
                 mv.visitMethodInsn(INVOKESTATIC, PY_GEN, "send", "($FRAME_D$OBJ$OBJ)$OBJ", false)
+                done(i, ANY_KIND)
+            }
+            PyIr.COMPARE_VALUE -> {
+                storePc(i)
+                iconst(i.a)
+                load(i.inputs[0], ANY_KIND)
+                load(i.inputs[1], ANY_KIND)
+                py("compareValue", "(I$OBJ$OBJ)$OBJ")
                 done(i, ANY_KIND)
             }
             PyIr.SEND_VALUE -> {

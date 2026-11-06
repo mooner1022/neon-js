@@ -851,6 +851,14 @@ object PyRt {
         else -> throw IllegalStateException("not a comparison: $op")
     }
 
+    /**
+     * The value of comparison [op] (LT..NE) as the instruction gives it: a bool of builtin values; with a class among
+     * them, what its method returns (PyDunder.compareValue). Containers, sorting and the like take its truth
+     * ([compare]), as CPython's PyObject_RichCompareBool does.
+     */
+    @JvmStatic fun compareValue(op: Int, a: Any?, b: Any?): Any? =
+        if (special(a) || special(b)) PyDunder.compareValue(op, a, b) else PyBool.of(compare(op, a, b))
+
     @JvmStatic fun lt(a: Any?, b: Any?): Boolean = order(0, a, b)
     @JvmStatic fun le(a: Any?, b: Any?): Boolean = order(1, a, b)
     @JvmStatic fun gt(a: Any?, b: Any?): Boolean = order(2, a, b)
