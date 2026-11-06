@@ -149,6 +149,7 @@ internal object PyGeneric {
         t[PyOp.MAKE_TYPEVAR] = Generic("makeTypeVar", "va", pops = 1, result = true, throws = false, owner = ty)
         t[PyOp.MAKE_TYPEVAR_BOUND] = Generic("makeTypeVarBound", "vva", pops = 2, result = true, throws = false, owner = ty)
         t[PyOp.SET_TYPEPARAM_DEFAULT] = Generic("setTypeParamDefault", "vv", pops = 2, result = true, throws = false, owner = ty)
+        t[PyOp.SUBSCRIPT_GENERIC] = Generic("subscriptGeneric", "v", pops = 1, result = true, owner = ty)
         t[PyOp.MAKE_TYPEALIAS] = Generic("makeTypeAlias", "fvvv", pops = 3, result = true, throws = false, owner = ty)
         t[PyOp.WRAP_STAR] = Generic("wrapStar", "v", pops = 1, result = true, throws = false, owner = c, flags = OpInfo.REMOVABLE or OpInfo.ALLOCATES)
     }

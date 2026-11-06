@@ -220,6 +220,11 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             emit(PyOp.STORE_NAME, name("__module__"))
             loadConst(PyStr(scope.qualname))
             emit(PyOp.STORE_NAME, name("__qualname__"))
+            // (a generic class's type parameters)
+            if (".type_params" in scope.frees) {
+                loadName(".type_params")
+                emit(PyOp.STORE_NAME, name("__type_params__"))
+            }
             // (the namespace its annotation scopes read, a cell; the record of its conditional annotations)
             if (scope.classDict) {
                 emit(PyOp.LOAD_NAMESPACE)
@@ -1630,6 +1635,15 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 emit(PyOp.SWAP)
                 emit(PyOp.SET_FUNCTION_ATTRIBUTE, 32)
             }
+            is ClassDef -> {
+                val params = typeParams(node.typeParams)
+                emit(PyOp.LOAD_FAST, params)
+                storeName(".type_params")
+                emit(PyOp.LOAD_FAST, params)
+                emit(PyOp.SUBSCRIPT_GENERIC)
+                storeName(".generic_base")
+                buildClass(node, true)
+            }
             is TypeAlias -> {
                 loadConst(PyStr(node.name.id))
                 emit(PyOp.LOAD_FAST, typeParams(node.typeParams))
@@ -1794,8 +1808,14 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
      * class stored under its name.
      */
     private fun classDef(s: ClassDef) {
-        if (s.typeParams.isNotEmpty()) unsupported("type parameters", s)
         for (d in s.decoratorList) expr(d)
+        if (s.typeParams.isNotEmpty()) generic(s, s.name) else buildClass(s, false)
+        repeat(s.decoratorList.size) { emit(PyOp.CALL, 1) }
+        storeName(s.name)
+    }
+
+    /** __build_class__(the body as a function, its name, *bases, **keywords); a generic class's Generic[...] base last. */
+    private fun buildClass(s: ClassDef, genericBase: Boolean) {
         emit(PyOp.LOAD_BUILD_CLASS)
         val child = st.scopes[s]!!
         if (child.frees.isNotEmpty()) {
@@ -1806,9 +1826,8 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         emit(PyOp.MAKE_FUNCTION, const(cb))
         if (child.frees.isNotEmpty()) emit(PyOp.SET_FUNCTION_ATTRIBUTE, 8)
         loadConst(PyStr(s.name))
-        callArgs(2, s.bases, s.keywords)
-        repeat(s.decoratorList.size) { emit(PyOp.CALL, 1) }
-        storeName(s.name)
+        val bases = if (!genericBase) s.bases else s.bases + Name(".generic_base").also { it.line = s.line; it.col = s.col }
+        callArgs(2, bases, s.keywords)
     }
 
     // ------------------------------------------------------------------ expressions

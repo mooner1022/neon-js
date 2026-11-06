@@ -620,7 +620,7 @@ milestones. Each milestone is commits gated by the quick check and pushed when i
 | M6 | `match` (every pattern; or-patterns binding the same names, checked when compiling) | M2 |
 | M7 | `import`: module objects, a host-given loader (no file system unless the host gives one), a minimal `sys` | M2 |
 | M8 | `async def`, `await`, `async for`/`async with`, async generators and comprehensions (driven with `send` in tests: no asyncio; done: their frames interpreted as generators' are, M4b after) | M4 |
-| M9 | deferred annotations (PEP 649/749: `__annotate__`; done, M9a), type parameters and `type` aliases (PEP 695) with `list[int]`'s GenericAlias (M9b), what is left: private names' mangling, `__static_attributes__` and `__firstlineno__` (M9c) | M2 |
+| M9 | deferred annotations (PEP 649/749: `__annotate__`; done, M9a), type parameters and `type` aliases (PEP 695) with `list[int]`'s GenericAlias (done, M9b), what is left: private names' mangling, `__static_attributes__` and `__firstlineno__` (M9c) | M2 |
 
 ### 11.2 Decisions (the expensive ones to change later)
 
@@ -782,6 +782,24 @@ Made with annotations (M9a):
   compiler writes it back (`PyUnparse`, Python/ast_unparse.c's precedences, constants and f-string rebuilding); a
   module's and a class's go into their `__annotations__` dict as they run (SETUP_ANNOTATIONS), a function's
   `__annotate__` gives them.
+
+Made with type expressions and type parameters (M9b):
+
+- **What CPython does in C, and the typing.py code the syntax calls**: types.GenericAlias (`list[int]`),
+  typing.Union (`int | str`), TypeVar, TypeVarTuple, ParamSpec, TypeAliasType and typing.Generic with its
+  subscription and `__init_subclass__` (typing._GenericAlias, `K[int]`), natively (`PyTyping`). Not the rest of the
+  typing module (Optional, Callable, Protocol, Literal, TypedDict, ForwardRef: `K['fwd']` keeps the str, `T | 'x'`
+  makes no ForwardRef) and no `typing` module to import; messages name these types by their C `tp_name`
+  (`PyType.tpName`: 'typing.TypeVar' object is not callable).
+- **A generic's `<generic parameters of X>` is a function** made and called where the def, class or alias is (a
+  def's defaults evaluated outside, its arguments): it makes the type parameters (their bounds, constraints and
+  defaults, like a `type` alias's value, lazily evaluated `(.format=1, /)` functions), then the function, class
+  (its bases evaluated inside, Generic[...] after them; its body stores `__type_params__`) or alias. It and the
+  scopes in it are function-like and, in a class, read the class's names as annotation scopes do; qualnames skip
+  it. The tier compiles it as any function (its instructions are runtime calls).
+- **Class statements resolve their bases by `__mro_entries__`** (PEP 560) and keep `__orig_bases__`; substitution of
+  type variables in aliases and unions follows `_Py_subs_parameters` (defaults, a TypeVarTuple's arguments),
+  Generic's typing's `_generic_class_getitem` (a ParamSpec's list).
 
 - **A statement gives its temporaries back** when it ends, so that the registers of one try or with serve the next:
   the tier's code keeps every register a handler may read in a home at the start of each block a handler covers

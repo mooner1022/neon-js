@@ -102,6 +102,7 @@ object PyClasses {
             .items.map { it as? PyType ?: throw PyRt.typeError("type.__new__() argument 2 must be a tuple of types") }
         val ns = nsArg as? PyDict ?: throw PyRt.typeError("type.__new__() argument 3 must be dict, not ${PyTypes.name(nsArg)}")
         for (b in bases) if (!b.subclassable) throw PyRt.typeError("type '${b.name}' is not an acceptable base type")
+        for ((i, b) in bases.withIndex()) if (bases.subList(0, i).any { it === b }) throw PyRt.typeError("duplicate base class ${b.name}")
         // (str, list, tuple and dict as bases: their instances are such values; int and float come later)
         for (b in bases) for (x in b.mro) if (x.newImpl != null && x !== PyTypes.OBJECT && x !== PyTypes.TYPE && x !in VALUE_BASES) {
             throw PyRt.typeError("subclassing '${x.name}' is not supported yet")
@@ -426,6 +427,8 @@ object PyClasses {
         val md = if (meta !== PyTypes.TYPE) meta.lookup(name) else null
         if (md != null && isDataDescriptor(md)) return descrGet(null, md, t, meta)
         if (PyAnnotations.isName(name)) return PyAnnotations.typeGet(t, name)
+        // (a class's own type parameters, not a base's)
+        if (name == "__type_params__") return t.dict[PyStr(name)] ?: PyTuple.EMPTY
         t.lookup(name)?.let { return descrGet(null, it, null, t) }
         if (md != null) return descrGet(null, md, t, meta)
         return when (name) {
@@ -436,6 +439,7 @@ object PyClasses {
             "__bases__" -> PyTuple(arrayOf(*t.bases))
             "__dict__" -> t.dict
             "__doc__" -> PyNone
+            "__type_params__" -> PyTuple.EMPTY
             "__class__" -> meta
             else -> throw PyException("AttributeError", "type object '${t.name}' has no attribute '$name'")
         }

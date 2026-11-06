@@ -268,6 +268,8 @@ object PyOp {
     const val SET_TYPEPARAM_DEFAULT = 155
     /** (name params fn -- alias): a `type` statement's alias (params None where not generic) */
     const val MAKE_TYPEALIAS = 156
+    /** (params -- base): Generic[*params], a generic class's base */
+    const val SUBSCRIPT_GENERIC = 157
 
     const val COUNT = 200
 

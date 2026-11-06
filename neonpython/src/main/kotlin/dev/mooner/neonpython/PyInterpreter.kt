@@ -534,6 +534,7 @@ object PyInterpreter {
                 val fn = pop()
                 s[sp - 1] = PyTyping.setTypeParamDefault(s[sp - 1], fn)
             }
+            PyOp.SUBSCRIPT_GENERIC -> s[sp - 1] = PyTyping.subscriptGeneric(s[sp - 1])
             PyOp.MAKE_TYPEALIAS -> {
                 val fn = pop()
                 val params = pop()

@@ -463,6 +463,12 @@ class PyProgramsTest {
             "def f[T: undefined](): pass\nf.__type_params__[0].__bound__\n" to Triple("NameError", "name 'undefined' is not defined", 1),
             "type A = undefined\nA.__value__\n" to Triple("NameError", "name 'undefined' is not defined", 1),
             "def f(): pass\nf.__type_params__ = 1\n" to Triple("TypeError", "__type_params__ must be set to a tuple", 2),
+            "class A: pass\nclass B(A, A): pass\n" to Triple("TypeError", "duplicate base class A", 2),
+            "class K[T]: pass\nK[int, str]\n" to Triple("TypeError", "Too many arguments for <class '__main__.K'>; actual 2, expected 1", 2),
+            "class K[T]: pass\nclass L(K[int]): pass\nL[int]\n" to Triple("TypeError", "<class '__main__.L'> is not a generic class", 3),
+            "from_k = 1\nclass K[T]: pass\nisinstance(K(), K[int])\n" to Triple("TypeError", "Subscripted generics cannot be used with class and instance checks", 3),
+            "class K[T]: pass\nG = K.__mro__[1]\nG[int]\n" to Triple("TypeError", "Parameters to Generic[...] must all be type variables or parameter specification variables.", 3),
+            "class K[T]: pass\nG = K.__mro__[1]\nclass X(G): pass\n" to Triple("TypeError", "Cannot inherit from plain Generic", 3),
         )
         for (mode in Mode.entries) for ((src, want) in cases) {
             val e = try {
@@ -497,7 +503,7 @@ class PyProgramsTest {
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
             "speculation", "functions", "closures", "unpacking", "types", "classes", "descriptors",
-            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods", "containers", "match", "imports", "coroutines", "async_generators", "annotations", "future_annotations", "generic_aliases", "type_params",
+            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods", "containers", "match", "imports", "coroutines", "async_generators", "annotations", "future_annotations", "generic_aliases", "type_params", "generic_classes",
         )
 
         /** The code blocks of [cb] and every function it defines. */

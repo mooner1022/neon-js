@@ -297,12 +297,21 @@ class PySymtable private constructor() {
             }
             is ClassDef -> {
                 s.decoratorList.forEach { expr(it) }
+                bind(s.name, s)
+                // (a generic class: its bases evaluated in its type parameters' scope, with Generic[...] after them)
+                val generic = s.typeParams.isNotEmpty()
+                if (generic) {
+                    pushTypeParams(s, s.name, s.typeParams, false, false)
+                    cur.add(".type_params", Scope.DEF_LOCAL or Scope.USE)
+                    cur.add(".generic_base", Scope.DEF_LOCAL or Scope.USE)
+                }
                 s.bases.forEach { expr(it) }
                 s.keywords.forEach { expr(it.value) }
-                bind(s.name, s)
-                push(Scope.Type.CLASS, s.name, s)
+                val c = push(Scope.Type.CLASS, s.name, s)
+                if (generic) c.add(".type_params", Scope.USE)
                 stmts(s.body)
                 pop()
+                if (generic) pop()
             }
             is Return -> s.value?.let { expr(it) }
             is Delete -> s.targets.forEach { target(it) }

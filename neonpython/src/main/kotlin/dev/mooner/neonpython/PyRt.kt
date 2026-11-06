@@ -513,7 +513,8 @@ object PyRt {
         is PyRange -> if (v.step == 1L) "range(${v.start}, ${v.stop})" else "range(${v.start}, ${v.stop}, ${v.step})"
         is PyType -> v.repr()
         is PyObject -> PyDunder.repr(v)
-        is PyGenericAlias, is PyUnion, is PyTypeParam, is PyParamSpecPart, is PyUnpacked, is PyTypeAlias, PyNoDefault, PyUnpackForm -> PyTyping.repr(v)
+        is PyUnion -> PyTyping.unionRepr(v)
+        is PyGenericAlias, is PyTypeParam, is PyParamSpecPart, is PyUnpacked, is PyTypeAlias, PyNoDefault, PyUnpackForm -> PyTyping.repr(v)
         else -> v.toString()
     }
 

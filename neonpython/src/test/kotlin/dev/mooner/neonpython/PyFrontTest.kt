@@ -56,8 +56,6 @@ class PyFrontTest {
         assertThrows<PySyntaxError> { PyParser("if x:\npass\n").parseModule() }
         assertThrows<PySyntaxError> { PyCompiler.compileModule("break\n") }
         assertThrows<PySyntaxError> { PyCompiler.compileModule("return 1\n") }
-        val e = assertThrows<PySyntaxError> { PyCompiler.compileModule("class C[T]: pass\n") }
-        assertTrue(e.message!!.contains("not supported"), e.message)
     }
 
     @Test
@@ -140,6 +138,10 @@ class PyFrontTest {
             "def f[T = int, U](): pass\n" to ("non-default type parameter 'U' follows default type parameter" to 1),
             "def f[__classdict__](): pass\n" to ("reserved name '__classdict__' cannot be used for type parameter" to 1),
             "type A[T, T] = int\n" to ("duplicate type parameter 'T'" to 1),
+            "class C[T, T]: pass\n" to ("duplicate type parameter 'T'" to 1),
+            "class C[T]((yield)): pass\n" to ("yield expression cannot be used within the definition of a generic" to 1),
+            "class C[T: (yield)]: pass\n" to ("yield expression cannot be used within a TypeVar bound" to 1),
+            "class C[T]:\n    nonlocal T\n" to ("nonlocal binding not allowed for type parameter 'T'" to 2),
         )
         for ((src, want) in cases) {
             val e = assertThrows<PySyntaxError>(src) { PyCompiler.compileModule(src) }

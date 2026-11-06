@@ -1,0 +1,35 @@
+(T,) (<class '__main__.K'>, <class 'typing.Generic'>, <class 'object'>) (<class 'typing.Generic'>,) (typing.Generic[T],) (T,)
+['__orig_bases__', '__parameters__', '__type_params__']
+(<class '__main__.K'>,) (__main__.K[str],) () () False
+(<class '__main__.K'>, <class 'typing.Generic'>) (__main__.K[U], typing.Generic[U]) (U,) (U,) (<class '__main__.M'>, <class '__main__.K'>, <class 'typing.Generic'>, <class 'object'>)
+{'return': T} K 3 True True
+()
+Inner (T,) (<class 'list'>, <class 'typing.Generic'>, <class 'object'>) {'y': T} [1]
+(T,) type
+classes.<locals>.Outer.Nested <class 'int'>
+(__main__.K[T], typing.Generic[T]) (T,)
+<class 'typing.Generic'> typing Generic <class 'type'> (<class 'typing.Generic'>, <class 'object'>)
+typing.Generic[T] _GenericAlias <class 'typing.Generic'> (T,) (T,)
+Generic
+TypeError: Parameters to Generic[...] must all be type variables or parameter specification variables.
+TypeError: Parameters to Generic[...] must all be unique
+TypeError: Parameter list to Generic[...] cannot be empty
+TypeError: Cannot inherit from plain Generic
+TypeError: duplicate base class Generic
+TypeError: Some type variables (B) are not listed in Generic[A]
+__main__.K[int] _GenericAlias typing <class '__main__.K'> (<class 'int'>,) ()
+True True False K K True
+5 __main__.K[int] (<class 'NoneType'>,)
+__main__.K[int] __main__.K[int] | None Union
+__main__.K[T] (T,) __main__.K[int] __main__.K[list[str]]
+TypeError: Too many arguments for <class '__main__.K'>; actual 2, expected 1
+TypeError: Too few arguments for <class '__main__.K'>; actual 0, expected at least 1
+TypeError: <class '__main__.L'> is not a generic class
+TypeError: Subscripted generics cannot be used with class and instance checks
+TypeError: Subscripted generics cannot be used with class and instance checks
+(<class '__main__.K'>,)
+__main__.subscriptions.<locals>.D[str, int] __main__.subscriptions.<locals>.D[str, bytes]
+TypeError: Too few arguments for <class '__main__.subscriptions.<locals>.D'>; actual 0, expected at least 1
+__main__.subscriptions.<locals>.G[int, str] __main__.subscriptions.<locals>.G[()] (Ts,)
+__main__.subscriptions.<locals>.P[[int, str]] __main__.subscriptions.<locals>.P[[int, str]] __main__.subscriptions.<locals>.P[...]
+__main__.subscriptions.<locals>.TwoT[int] __main__.subscriptions.<locals>.TwoT[int, str, bytes]
