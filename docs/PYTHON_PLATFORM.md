@@ -952,22 +952,35 @@ stand-ins until the real `unittest` imports: from then on CPython's own).
 - **`re` runs on a port of CPython's SRE engine,** not on `java.util.regex`: CPython's parser and compiler (Python)
   emit SRE code, which `_sre` runs as sre_lib.h does, so the semantics (backtracking order, groups in repeats, Unicode
   classes, case folding) are CPython's. Its contexts are on an explicit stack.
+- **`typing` is CPython's typing.py over a Kotlin `_typing`,** and what CPython's C hands to typing.py NeonPy hands
+  to it too: `Generic`'s subscription and `__init_subclass__`, a class statement's type parameters
+  (`typing._GenericAlias(Generic, ...)`), `__typing_subst__`, `*Ts` (`typing.Unpack`). So `class A[T]: ...` imports
+  `typing`, as in CPython, and its errors are raised in typing.py, at typing.py's lines. `types.GenericAlias` and
+  unions substitute as genericaliasobject.c does, through the attributes of any argument.
+- **`math` takes what CPython takes from libm from `java.lang.Math`;** what Java lacks (erf, erfc, acosh, asinh,
+  atanh, log2) is fdlibm's and FreeBSD's C, ported, and the rest of mathmodule.c is ported as CPython writes it. The
+  last digit of a libm function's result is the platform's (CPython's is its C runtime's: they differ from each other
+  too). A C `long` is 64 bits, as on Linux and Android (`factorial`'s limit, `sumprod`'s and `prod`'s fast paths).
 
-### 12.3 Progress (2026-11-06)
+### 12.3 Progress (2026-11-07)
 
 Done on `neonpy-stdlib`: L1–L4; S1 (the bundled library, `sys` as it reads it); of S2 `_thread`, `itertools`,
 `_collections`, and bundled `abc`, `collections`, `contextvars`, `copy`, `copyreg`, `enum`, `functools`, `heapq`,
-`bisect`, `keyword`, `numbers`, `operator`, `reprlib`, `types`, `weakref`, `warnings`, `linecache`; of S3 `_sre` and
-`re`. With them the runtime gained what they stand on: subclasses of staticmethod, classmethod, property,
+`bisect`, `keyword`, `numbers`, `operator`, `reprlib`, `types`, `weakref`, `warnings`, `linecache`, `math`, `_string`
+with CPython's `string`; of S3 `_sre` and `re`, `_typing` with `typing` and `annotationlib`; of S5 `_ast` (generated
+from CPython's ASDL) with `ast` (its `unparse` waits on `contextlib`). With them the runtime gained what they stand on: subclasses of staticmethod, classmethod, property,
 GenericAlias and bytearray; metaclass `__instancecheck__`, `__subclasscheck__`, `__call__`, `__prepare__` (the
 namespace of a dict's subclass), `__iter__`/`__len__`/`__contains__`/`__repr__` of classes; `__subclasses__`,
 `__abstractmethods__`, `type.__new__`'s `__set_name__` and `__init_subclass__` always; mappingproxy; bytearray,
 memoryview and all of bytes' methods; range past 64 bits; the reduce protocol (`copy` of instances); the int-str
 digit limit; recursive reprs.
 
-Next: S2's `math`, `time`, `errno`, `_string` with CPython's `string` (the builtin `string` module gives way),
-`_random` with `random`, `_struct`, `_pydatetime`; S5's `_ast` and `ast`, which `annotationlib` and so 3.14's
-`typing` (S3) import; S4 (`os`, `io`, `open`) and `contextlib`, which imports `os`; S6.
+Then for typing: type's own descriptors in `type.__dict__`, `types.FunctionType` and `CellType`, globals of a
+dict's subclass, a module's builtins as functions (not methods) in a class, `eval`'s and `exec`'s keywords.
+
+Next: S4 (`os` and `posix` over the host's file system, `io`, `open`) and `contextlib`, which imports `os`; S5's
+`inspect` (typing's runtime-checkable protocols use it), `dataclasses`, `tokenize`, `dis`; S2's `time`, `errno`,
+`_random` with `random`, `_struct`, `_pydatetime`; S3's `json`; S6.
 
 ## References (checked in this review)
 
