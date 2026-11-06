@@ -84,7 +84,15 @@ object PyClasses {
         val typeBases = bases.map { it as? PyType ?: throw PyRt.typeError("bases must be types") }
         if (meta == null) meta = if (typeBases.isEmpty()) PyTypes.TYPE else PyTypes.typeOf(typeBases[0])
         if (meta is PyType) meta = winner(meta, typeBases)
-        val ns = PyDict()
+        // (the namespace the metaclass's __prepare__ gives, with the class's keywords: enum's _EnumDict)
+        val ns = if (meta === PyTypes.TYPE) PyDict() else {
+            val prepare = attrOrNull(meta, "__prepare__")
+            val made = if (prepare == null) PyDict() else PyCalls.callWith(ctx, prepare, arrayOf(name, PyTuple(bases)),
+                kwds.map.keys.map { it.v }.toTypedArray(), kwds.map.values.toTypedArray())
+            made as? PyDict ?: throw PyRt.typeError(
+                if (made is PyObject && made.type.lookup("__getitem__") != null) "${(meta as? PyType)?.name ?: PyTypes.name(meta)}.__prepare__() must return a dict or a dict's subclass here (a class body's namespace)"
+                else "${(meta as? PyType)?.name ?: PyTypes.name(meta)}.__prepare__() must return a mapping, not ${PyTypes.name(made)}")
+        }
         PyInterpreter.callWithLocals(ctx, body, ns)
         if (resolved != null) ns[PyStr("__orig_bases__")] = PyTuple(origBases)
         val cls = PyCalls.callWith(ctx, meta, arrayOf(name, PyTuple(bases), ns),
@@ -221,9 +229,7 @@ object PyClasses {
         val new = meta.lookup("__new__")
         if (new == null || new === TYPE_NEW) {
             if (pos.size != 3) throw PyRt.typeError("type() takes 1 or 3 arguments")
-            val cls = newClass(meta, pos[0] as? PyStr ?: throw PyRt.typeError("type.__new__() argument 1 must be str, not ${PyTypes.name(pos[0])}"), pos[1], pos[2])
-            initSubclass(ctx, cls, kwNames, kwValues)
-            return cls
+            return typeNew(ctx, meta, pos, kwNames, kwValues)
         }
         val withMeta = arrayOfNulls<Any?>(pos.size + 1)
         withMeta[0] = meta
@@ -239,14 +245,39 @@ object PyClasses {
         return cls
     }
 
+    /**
+     * type.__new__'s work, as CPython's type_new does it: the most derived metaclass of [meta] and the bases' types
+     * makes the class, its own __new__ where it has one (`type(name, (Enum,), ns, boundary=b)` is EnumType's), else
+     * the class made, its descriptors' __set_name__ and its parent's __init_subclass__ called (with the keywords).
+     */
+    private fun typeNew(ctx: PyContext, meta: PyType, pos: Array<Any?>, kwNames: Array<Any?>, kwValues: Array<Any?>): Any? {
+        val name = pos[0] as? PyStr ?: throw PyRt.typeError("type.__new__() argument 1 must be str, not ${PyTypes.name(pos[0])}")
+        val bases = pos[1] as? PyTuple ?: throw PyRt.typeError("type.__new__() argument 2 must be tuple, not ${PyTypes.name(pos[1])}")
+        val w = winner(meta, bases.items.map { it as? PyType ?: throw PyRt.typeError("type.__new__() argument 2 must be a tuple of types") })
+        if (w !== meta) {
+            val wn = w.lookup("__new__")
+            if (wn != null && wn !== TYPE_NEW) {
+                val withMeta = arrayOfNulls<Any?>(pos.size + 1)
+                withMeta[0] = w
+                pos.copyInto(withMeta, 1)
+                return PyCalls.callWith(ctx, wn, withMeta, kwNames, kwValues)
+            }
+        }
+        val cls = newClass(w, name, bases, pos[2])
+        initSubclass(ctx, cls, kwNames, kwValues)
+        return cls
+    }
+
     /** type.__new__(meta, name, bases, ns, **kw), as a metaclass's __new__ calls it through super(). */
-    @JvmField val TYPE_NEW = PyBuiltin("__new__", { _, a ->
+    @JvmField val TYPE_NEW = PyBuiltin("__new__", { ctx, a ->
         if (a.size != 4) throw PyRt.typeError("type.__new__() takes exactly 3 arguments (${a.size - 1} given)")
-        newClass(a[0] as PyType, a[1] as PyStr, a[2], a[3])
+        // (its descriptors' __set_name__ and its parent's __init_subclass__ whether keywords came or not: enum's members)
+        typeNew(ctx, a[0] as? PyType ?: throw PyRt.typeError("type.__new__(X): X is not a type object (${PyTypes.name(a[0])})"),
+            a.copyOfRange(1, 4), NO_ARGS, NO_ARGS)
     }, { ctx, a, kw ->
-        val cls = newClass(a[0] as PyType, a[1] as PyStr, a[2], a[3])
-        initSubclass(ctx, cls, kw.map.keys.map { it.v }.toTypedArray(), kw.map.values.toTypedArray())
-        cls
+        if (a.size != 4) throw PyRt.typeError("type.__new__() takes exactly 3 arguments (${a.size - 1} given)")
+        typeNew(ctx, a[0] as? PyType ?: throw PyRt.typeError("type.__new__(X): X is not a type object (${PyTypes.name(a[0])})"),
+            a.copyOfRange(1, 4), kw.map.keys.map { it.v }.toTypedArray(), kw.map.values.toTypedArray())
     })
 
     init {
@@ -582,7 +613,7 @@ object PyClasses {
             "__module__" -> PyStr(t.module)
             "__mro__" -> PyTuple(arrayOf(*t.mro))
             "__bases__" -> PyTuple(arrayOf(*t.bases))
-            "__dict__" -> t.dict
+            "__dict__" -> PyMappingProxies.of(t.dict)
             "__doc__" -> PyNone
             "__type_params__" -> PyTuple.EMPTY
             "__class__" -> meta
@@ -790,20 +821,46 @@ object PyClasses {
     /** LOAD_NAME in a class body: its namespace, the module's globals, the builtins. */
     @JvmStatic fun loadName(f: VmFrame, name: Any?): Any? {
         val pf = f as PyFrame
-        return pf.locals?.get(name) ?: pf.globals[name] ?: pf.ctx.builtins[name] ?: throw PyException.nameError(name)
+        return namespaceGet(pf.locals, name) ?: pf.globals[name] ?: pf.ctx.builtins[name] ?: throw PyException.nameError(name)
+    }
+
+    /**
+     * [name] in a class body's namespace, or null: a dict's subclass (a metaclass's __prepare__'s) through its own
+     * __getitem__, a KeyError none.
+     */
+    @JvmStatic
+    fun namespaceGet(ns: PyDict?, name: Any?): Any? {
+        if (ns == null) return null
+        val s = ns.sub ?: return ns[name]
+        if (PyDunder.userMethod(s.cls, "__getitem__") == null && PyDunder.userMethod(s.cls, "__missing__") == null) return ns[name]
+        return try {
+            PyRt.getItem(ns, name)
+        } catch (e: PyException) {
+            if (e.matches(PyExceptions.type("KeyError"))) null else throw e
+        }
     }
 
     @JvmStatic fun storeName(f: VmFrame, name: Any?, v: Any?) {
-        (f as PyFrame).locals!![name] = v
+        val ns = (f as PyFrame).locals!!
+        if (ns.sub == null) ns[name] = v else PyRt.setItem(ns, name, v)
     }
 
     @JvmStatic fun deleteName(f: VmFrame, name: Any?) {
-        if ((f as PyFrame).locals!!.map.remove(PyDict.Key(name)) == null) throw PyException.nameError(name)
+        val ns = (f as PyFrame).locals!!
+        if (ns.sub != null) {
+            try {
+                PyCalls.deleteSubscr(ns, name)
+            } catch (e: PyException) {
+                if (e.matches(PyExceptions.type("KeyError"))) throw PyException.nameError(name) else throw e
+            }
+            return
+        }
+        if (ns.map.remove(PyDict.Key(name)) == null) throw PyException.nameError(name)
     }
 
     /** A class body's free variable: its namespace's where it has one, else the cell's. */
     @JvmStatic fun loadFromDictOrDeref(f: VmFrame, cell: Any?, name: Any?): Any? =
-        (f as PyFrame).locals?.get(name) ?: PyCalls.cellGet(cell, name, 1)
+        namespaceGet((f as PyFrame).locals, name) ?: PyCalls.cellGet(cell, name, 1)
 
     /** LOAD_BUILD_CLASS: the builtin __build_class__. */
     @JvmStatic fun loadBuildClass(f: VmFrame): Any? = (f as PyFrame).ctx.builtins[PyStr("__build_class__")]

@@ -292,7 +292,7 @@ object PyLibrary {
 
     /** reversed(seq): its __reversed__, a list's, else by length and index. */
     private fun reversed(v: Any?): Any? {
-        if (PyRt.special(v)) PyDunder.userMethod(PyTypes.typeOf(v), "__reversed__")?.let { return call(PyClasses.descrGet(null, it, v, PyTypes.typeOf(v))) }
+        if (PyRt.special(v) || PyRt.metaSpecial(v)) PyDunder.userMethod(PyTypes.typeOf(v), "__reversed__")?.let { return call(PyClasses.descrGet(null, it, v, PyTypes.typeOf(v))) }
         when (v) {
             is PyList -> {
                 var k = v.items.size - 1

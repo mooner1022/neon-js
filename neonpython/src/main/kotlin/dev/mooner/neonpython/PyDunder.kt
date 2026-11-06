@@ -48,8 +48,14 @@ object PyDunder {
     /** A class's own special method [n] (not object's default, nor a builtin type's): what dispatch calls. */
     @JvmStatic
     fun userMethod(t: PyType, n: String): Any? {
-        val m = t.lookup(n) ?: return null
-        return if (m is PyBuiltin && !t.dispatchBuiltins) null else m
+        val k = PyDict.Key(PyStr(n))
+        for (c in t.mro) {
+            val m = c.dict.map[k] ?: continue
+            // (a builtin type's builtin is what the runtime's paths do: skipped; one a class put in its own dict, enum's
+            // `__str__ = int.__repr__`, is the class's)
+            return if (m is PyBuiltin && !c.heap && !t.dispatchBuiltins) null else m
+        }
+        return null
     }
 
     /** The special method of binary opcode [op] (`__add__`), and its reflected one (`__radd__`). */
@@ -298,6 +304,7 @@ object PyDunder {
         val t = PyTypes.typeOf(v)
         val f = userMethod(t, "__repr__") ?: return when (v) {
             is PyValue -> PyRt.reprValues(v)
+            is PyType -> v.repr()
             is PyBaseException -> (call(t.lookup("__repr__"), v) as PyStr).s
             else -> defaultRepr(v)
         }
@@ -326,7 +333,7 @@ object PyDunder {
     /** len(v) of an instance: its __len__, an int not below 0. */
     @JvmStatic
     fun len(v: Any?): Long {
-        val f = (if (PyRt.special(v)) userMethod(PyTypes.typeOf(v), "__len__") else null)
+        val f = (if (PyRt.special(v) || PyRt.metaSpecial(v)) userMethod(PyTypes.typeOf(v), "__len__") else null)
             ?: return PyRt.lenValues(PyRt.num(v))
         val n = when (val r = call(f, v)) {
             is Long -> r

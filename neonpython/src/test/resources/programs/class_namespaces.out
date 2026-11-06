@@ -1,0 +1,23 @@
+prepare C {'flag': 1}
+set __module__
+set __qualname__
+set __firstlineno__
+set x
+set y
+set f
+set __static_attributes__
+set __classdictcell__
+new NS ['f', 'x', 'y']
+42
+A
+B
+  set __classdictcell__
+C
+D
+  set __classdictcell__
+  set __classcell__
+E
+  set __classdictcell__
+init_subclass Sub {}
+set_name W d
+init_subclass Sub2 {'flag': 1}

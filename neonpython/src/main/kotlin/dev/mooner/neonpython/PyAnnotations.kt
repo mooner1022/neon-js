@@ -43,7 +43,7 @@ object PyAnnotations {
     fun loadFromDictOrCell(dict: Any?, cell: Any?, name: Any?): Any? = lookup(dict, name) ?: PyCalls.cellGet(cell, name, 1)
 
     private fun lookup(dict: Any?, name: Any?): Any? {
-        if (dict is PyDict) return dict[name]
+        if (dict is PyDict) return PyClasses.namespaceGet(dict, name)
         return try {
             PyRt.getItem(dict, name)
         } catch (e: PyException) {

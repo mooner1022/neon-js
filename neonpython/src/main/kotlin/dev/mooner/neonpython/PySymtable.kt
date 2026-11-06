@@ -37,6 +37,8 @@ class Scope(@JvmField val type: Type, @JvmField val name: String, @JvmField val 
     @JvmField var canSeeClass = false
     /** A class whose annotation scopes read its namespace: it makes the `__classdict__` cell. */
     @JvmField var classDict = false
+    /** A class with a def in its body: CPython 3.14 gives each one an annotation scope that sees the class, so the cell is made. */
+    @JvmField var hasMethods = false
     /**
      * Comprehension iterables being visited, a scope made in one counting them too (CPython's ste_comp_iter_expr,
      * bpo-37757): no assignment expression there.
@@ -238,6 +240,7 @@ class PySymtable private constructor() {
      */
     private fun functionAnnotations(s: FunctionDef) {
         val a = s.args
+        if (cur.type == Scope.Type.CLASS && !futureAnnotations) cur.hasMethods = true
         if (a.all().none { it.annotation != null } && s.returns == null) return
         val ann = pushAnnotations(s, qualnameOf(s.name) + ".__annotate__")
         ann.annotationsUsed = true
@@ -726,6 +729,7 @@ class PySymtable private constructor() {
                 s.kinds.filter { it.value == Scope.Kind.LOCAL || it.value == Scope.Kind.FREE || it.value == Scope.Kind.CELL }.keys
         }
         for (c in s.children) analyze(c, inner)
+        if (s.hasMethods) s.classDict = true
         for (c in s.children) for (n in c.frees) {
             val k = s.kinds[n]
             when {

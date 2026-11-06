@@ -341,13 +341,14 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             loadConst(PyTuple(staticAttributes.map { PyStr(it) }.toTypedArray()))
             emit(PyOp.STORE_NAME, name("__static_attributes__"))
         }
-        if (isClass && scope.classCell) {
-            emit(PyOp.LOAD_FAST, locals["__class__"]!!)
-            emit(PyOp.STORE_NAME, name("__classcell__"))
-        }
+        // (CPython's order: the __classdict__ cell's, then the __class__ cell's)
         if (isClass && scope.classDict) {
             emit(PyOp.LOAD_FAST, locals["__classdict__"]!!)
             emit(PyOp.STORE_NAME, name("__classdictcell__"))
+        }
+        if (isClass && scope.classCell) {
+            emit(PyOp.LOAD_FAST, locals["__class__"]!!)
+            emit(PyOp.STORE_NAME, name("__classcell__"))
         }
         return unit(doc, args)
     }

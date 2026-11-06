@@ -28,6 +28,7 @@ bisect.py
 collections/__init__.py
 copy.py
 copyreg.py
+enum.py
 functools.py
 heapq.py
 keyword.py

@@ -1,0 +1,11 @@
+mappingproxy({'a': 1, 'b': 2}) {'a': 1, 'b': 2} 1 0 2 ['a', 'b'] True dict_keys(['a', 'b']) {'a': 1, 'b': 2} dict True True {'a': 1, 'b': 2, 'c': 3} {'z': 0, 'a': 1, 'b': 2} ['b', 'a']
+AttributeError 'mappingproxy' object has no attribute '__setitem__'
+AttributeError 'mappingproxy' object has no attribute '__delitem__'
+TypeError mappingproxy() argument must be a mapping, not list
+TypeError unhashable type: 'dict'
+KeyError 'zz'
+AttributeError 'mappingproxy' object has no attribute 'x' and no __dict__ for setting new attributes
+TypeError type 'mappingproxy' is not an acceptable base type
+mappingproxy False 1 1 mappingproxy mappingproxy mappingproxy[int]
+'mappingproxy' object does not support item assignment
+['x'] 1 True

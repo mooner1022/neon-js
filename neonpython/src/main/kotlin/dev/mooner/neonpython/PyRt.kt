@@ -72,6 +72,9 @@ object PyRt {
      */
     @JvmStatic fun special(v: Any?): Boolean = v is PyObject || v is PyValue && v.sub != null
 
+    /** A class of a metaclass of its own (enum's EnumType): iterating it, its len, `in` and its repr are the metaclass's. */
+    @JvmStatic fun metaSpecial(v: Any?): Boolean = v is PyType && v.meta != null
+
     /** a op b where no builtin path took them: an instance's special methods (PyDunder), else the TypeError. */
     private fun other(op: Int, sym: String, a: Any?, b: Any?): Any? =
         if (special(a) || special(b)) PyDunder.binary(a, b, op) else PyLiterals.complexOp(op, a, b) ?: values(op, a, b) ?: throw unsupported(sym, a, b)
@@ -323,6 +326,7 @@ object PyRt {
     @JvmStatic fun truthy(v: Any?): Boolean = when (v) {
         null, PyNone -> false
         is PyBool -> v.value
+        is PyType -> if (v.meta != null) PyDunder.truthy(v) else true
         is Long -> v != 0L
         is Double -> v != 0.0
         is BigInteger -> v.signum() != 0
@@ -349,7 +353,7 @@ object PyRt {
     }
 
     /** len(v): a builtin value's length, or its class's __len__. */
-    @JvmStatic fun len(v: Any?): Long = if (special(v)) PyDunder.len(v) else lenValues(v)
+    @JvmStatic fun len(v: Any?): Long = if (special(v) || metaSpecial(v)) PyDunder.len(v!!) else lenValues(v)
 
     @JvmStatic fun lenValues(v: Any?): Long = when (v) {
         is PyList -> v.items.size.toLong()
@@ -502,7 +506,7 @@ object PyRt {
     }
 
     @JvmStatic fun contains(container: Any?, v: Any?): Boolean =
-        if (special(container)) PyDunder.contains(container!!, v) else containsValues(container, v)
+        if (special(container) || metaSpecial(container)) PyDunder.contains(container!!, v) else containsValues(container, v)
 
     /** `v in container` of builtin values (a subclass's instance as its base type's value), else by iteration. */
     @JvmStatic fun containsValues(container: Any?, v: Any?): Boolean = when (container) {
@@ -581,7 +585,7 @@ object PyRt {
         is PyRange -> PyRanges.repr(v)
         is PyByteArray -> PyByteSeqs.repr(v)
         is PyMemoryView -> PyByteSeqs.viewRepr(v)
-        is PyType -> v.repr()
+        is PyType -> if (v.meta != null) PyDunder.repr(v) else v.repr()
         is PyObject -> PyDunder.repr(v)
         is PyIterator -> (v as? PyIterTool)?.repr?.invoke() ?: PyDunder.defaultRepr(v)
         is PyUnion -> PyTyping.unionRepr(v)
@@ -834,6 +838,7 @@ object PyRt {
                 if (j < ks.size) ks[j++] else PyIterator.STOP
             }.also { it.type = PyLibrary.SET_ITERATOR }
         }
+        is PyType -> if (v.meta != null) PyDunder.iter(v) else throw typeError("'type' object is not iterable")
         else -> throw typeError("'${t(v)}' object is not iterable")
     }
 

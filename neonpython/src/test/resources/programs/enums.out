@@ -1,0 +1,21 @@
+basic -> (<Color.RED: 1>, '<Color.GREEN: 2>', <Color.BLUE: 3>, <Color.BLUE: 3>, 'RED', 1, [<Color.RED: 1>, <Color.GREEN: 2>, <Color.BLUE: 3>], 3)
+identity -> (True, True, True, True, 'Color')
+bad value !! ValueError 9 is not a valid Color
+bad name !! KeyError 'PINK'
+members -> (['RED', 'GREEN', 'BLUE'], 'mappingproxy', True, True)
+intenum -> (2, 4, <Num.TWO: 2>, True, 2, '1', '2', '<Num.ONE: 1>')
+flag -> (<Perm.R|W: 3>, 3, True, [<Perm.R: 1>, <Perm.X: 4>], '<Perm: 0>', <Perm.R|W|X: 7>)
+strenum -> (<Mode.A: 'a'>, True, 'BEE', 'bee', "<Mode.A: 'a'>")
+auto -> [1, 2, 4]
+unique -> U.X
+unique dup !! ValueError duplicate values found in <enum 'D'>: B -> A
+functional -> ([<Animal.ANT: 1>, <Animal.BEE: 2>, <Animal.CAT: 3>], 10)
+alias -> (True, [<E.A: 1>], ['A', 'B'])
+dup name !! TypeError 'A' already defined as 1
+methods -> (5.97, 0.937, (5.97, 6.37))
+cls methods -> (<Shape.SQUARE: 2>, 'SQUARE=2', True)
+subclass err !! AttributeError 'dict' object has no attribute '_member_names'
+pickle-ish -> ((<enum 'Color'>, (1,)), True)
+match -> ['r', 'g', '?']
+dir -> ['name', 'value']
+missing -> None

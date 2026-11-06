@@ -93,7 +93,8 @@ internal object PyGeneric {
         val k = Generic.CLASSES
         t[PyOp.LOAD_BUILD_CLASS] = Generic("loadBuildClass", "f", pops = 0, result = true, owner = k)
         t[PyOp.LOAD_NAME] = Generic("loadName", "fk", pops = 0, result = true, owner = k)
-        t[PyOp.STORE_NAME] = Generic("storeName", "fkv", pops = 1, result = false, throws = false, owner = k)
+        // (a namespace of a dict's subclass calls its own __setitem__, which may raise: enum's)
+        t[PyOp.STORE_NAME] = Generic("storeName", "fkv", pops = 1, result = false, owner = k)
         t[PyOp.DELETE_NAME] = Generic("deleteName", "fk", pops = 0, result = false, owner = k)
         t[PyOp.LOAD_FROM_DICT_OR_DEREF] = Generic("loadFromDictOrDeref", "fvk", pops = 1, result = true, owner = k)
         t[PyOp.STORE_ATTR] = Generic("storeAttr", "vvk", pops = 2, result = false, owner = k)
