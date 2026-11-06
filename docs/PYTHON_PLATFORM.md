@@ -843,6 +843,47 @@ Made with what was left (M9c):
 - **Size.** The interpreter's dispatch stays under HotSpot's 8,000-byte limit on methods it compiles; a test checks
   it.
 
+### 11.4 CPython's own tests (the sweep after M9, 2026-11-06)
+
+CPython 3.14's `Lib/test` files for the syntax were run on NeonPy with small stand-ins for what they import
+(unittest, test.support, warnings, textwrap, typing, math, weakref, collections…), and on CPython with the same
+stand-ins, so that only NeonPy's differences count. test_syntax's doctests ran through a small doctest that
+compares each example's output, or its exception's last line. A corpus of 239 malformed sources compares the
+SyntaxError's type, message and line.
+
+| test | NeonPy | CPython (same stand-ins) | what is left |
+|---|---|---|---|
+| test_grammar | 70/75 | 70/75 | (the stand-ins' warnings) |
+| test_syntax (doctests) | 482/510 | 483/510 | one needs the ast module |
+| test_named_expressions | 74/74 | 74/74 | |
+| test_keywordonlyarg, test_decorators, test_augassign | 11/11, 16/16, 7/7 | the same | |
+| test_except_star | 60/60 | 60/60 | |
+| test_positional_only_arg, test_dictcomps | 26/28, 9/10 | the same | |
+| test_scope | 36/41 | 37/41 | `__del__` run as objects die |
+| test_raise | 32/37 | 33/37 | traceback objects (`tb_next`) |
+| test_exception_group | 28/52 | 33/52 | tracebacks, RecursionError on deep groups, split copying notes, a repr check's order |
+| test_opcodes | 6/8 | 7/8 | open() |
+| test_type_aliases | not run | | needs typing's constructors (`TypeVar('T')`, `TypeAliasType(...)`) |
+| the error corpus | 239/239 | | |
+
+How the errors are made, so that later syntax keeps them:
+
+- **The tokenizer's errors are CPython's lexer's** (brackets on a stack, string prefixes, numbers'
+  verify_end_of_number, tabs measured twice for TabError, escapes' positions as the decoder counts them). It
+  tokenizes the whole source first, which gives CPython's rule that a later tokenizer error wins over a parser's.
+  A bracket left open is the parser's to report: "'(' was never closed" when the parse reaches the end (an error
+  no speculation takes back, `PySyntaxError.fatal`), or fails having looked past the bracket's line.
+- **Where the parse fails without one of CPython's invalid_ rules, the message is "invalid syntax";** "expected
+  'X'" only at the grammar's forced tokens (`&&':'` after def, else, try, finally; `&&'('` after a def's name),
+  "expected ':'" at a header's line end (the invalid_*_stmt rules).
+- **CPython's invalid_ rules are checks at the points the parser fails or ends an expression,** each trying what
+  the rule matches with `speculate` (the tokens put back after; the checks off inside, as CPython's
+  expression_without_invalid has them off): two expressions in brackets "Perhaps you forgot a comma?" (by token
+  levels), `=` where a named expression is expected, the first target's last element for "cannot assign to X
+  here", arguments, parameters, imports, patterns, displays. A rule that only CPython's second pass would try (the
+  first one failed) is tried only where the parse has failed: an assignment's targets after one does not parse,
+  a match subject's error only where the line is no statement either.
+
 ## References (checked in this review)
 
 - Chicory: [docs](https://docsearch.algolia.com/mcp/docs/repo/dylibso/chicory), [porting the Chicory compiler to Android (2025-07)](https://hn.jakechampion.name/reader/https://blog.evacchi.dev/posts/2025/07/11/wasm-the-hard-way-porting-the-chicory-compiler-to-android), [mcpx4j Android support](https://docs.mcp.run/blog/2025/07/11/android-support-mcpx4j), [Endive](https://bytecodealliance.org/articles/endive-and-the-next-chapter-of-webassembly-on-the-jvm)
