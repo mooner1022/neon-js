@@ -312,6 +312,7 @@ object PyEval {
         "co_kwonlyargcount" -> (c.code.dialectData as PyCodeInfo).kwonlyCount.toLong()
         "co_freevars" -> PyTuple((c.code.dialectData as PyCodeInfo).freeNames.map { PyStr(it) }.toTypedArray())
         "__class__" -> CODE
-        else -> throw PyException("AttributeError", "'code' object has no attribute '$name'")
+        // (the rest: NeonPy's bytecode as Python sees it)
+        else -> PyDis.codeAttr(c, name)
     }
 }

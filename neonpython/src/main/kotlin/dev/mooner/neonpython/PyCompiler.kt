@@ -25,8 +25,9 @@ class PyCodeInfo(@JvmField val name: String, @JvmField val localNames: Array<Str
     /** Its code object's co_varnames (parameters, then locals that are no cells) and co_flags. */
     @JvmField var varnames: List<String> = emptyList()
     @JvmField var coFlags = 0
-    /** The names its closure gives it (co_freevars). */
+    /** The names its closure gives it (co_freevars), and its locals its inner functions' closures take (co_cellvars). */
     @JvmField var freeNames: List<String> = emptyList()
+    @JvmField var cellNames: List<String> = emptyList()
     /** Its function's `__code__`, made once. */
     @JvmField var codeObject: Any? = null
     /** The file it was compiled from (co_filename): an imported module's path, compile()'s filename, `<string>`. */
@@ -40,6 +41,25 @@ class PyCodeInfo(@JvmField val name: String, @JvmField val localNames: Array<Str
     @Volatile @JvmField var profile: ByteArray? = null
 
     fun profile(size: Int): ByteArray = profile ?: ByteArray(size).also { profile = it }
+
+    /** A copy named [name] ([qualname]), of [filename] from [firstLine] on: code.replace()'s. */
+    fun copyWith(name: String, qualname: String, filename: String, firstLine: Int): PyCodeInfo = PyCodeInfo(name, localNames, module).also { c ->
+        c.qualname = qualname
+        c.argcount = argcount
+        c.posonlyCount = posonlyCount
+        c.kwonlyCount = kwonlyCount
+        c.varargs = varargs
+        c.varkw = varkw
+        c.paramNames = paramNames
+        c.doc = doc
+        c.kind = kind
+        c.firstLine = firstLine
+        c.varnames = varnames
+        c.coFlags = coFlags
+        c.freeNames = freeNames
+        c.cellNames = cellNames
+        c.filename = filename
+    }
 
     /** The line of the statement at or before [pc] of [cb]. */
     fun lineAt(cb: CodeUnit, pc: Int): Int {
@@ -444,12 +464,15 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         info.freeNames = scope.frees.toList()
         if (!namespace) {
             info.varnames = scope.params + locals.keys.filter { it !in scope.params && scope.kind(it) == Scope.Kind.LOCAL && !it.startsWith(".") }
+            info.cellNames = locals.keys.filter { scope.kind(it) == Scope.Kind.CELL && !it.startsWith(".") }
             var fl = 3 // CO_OPTIMIZED, CO_NEWLOCALS
             if (args?.vararg != null) fl = fl or 4
             if (args?.kwarg != null) fl = fl or 8
             var p = scope.parent
             while (p != null && p.type == Scope.Type.TYPE_PARAMS) p = p.parent
             if (p != null && p.isFunction) fl = fl or 16 // CO_NESTED
+            if (p != null && p.type == Scope.Type.CLASS) fl = fl or 0x8000000 // CO_METHOD
+            if (doc != null) fl = fl or 0x4000000 // CO_HAS_DOCSTRING
             fl = fl or when (info.kind) { PyCodeInfo.GENERATOR -> 32; PyCodeInfo.COROUTINE -> 128; PyCodeInfo.ASYNC_GENERATOR -> 512; else -> 0 }
             info.coFlags = fl
         }

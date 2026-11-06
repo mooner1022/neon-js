@@ -336,6 +336,10 @@ object PyImport {
                 }
                 return mod()
             }
+            "_dis" -> {
+                PyDis.fill(d)
+                return mod()
+            }
             "_operator" -> {
                 PyOperator.fill(d)
                 return mod()
@@ -349,7 +353,7 @@ object PyImport {
     }
 
     /** The modules NeonPy makes itself (sys.builtin_module_names). */
-    @JvmField val BUILTIN_NAMES = listOf("sys", "builtins", "_thread", "_weakref", "gc", "_collections", "itertools", "_contextvars", "_sre", "_string", "_typing", "math", "errno", "posix", "_random", "_sha2", "_md5", "_sha1", "_operator", "_imp")
+    @JvmField val BUILTIN_NAMES = listOf("sys", "builtins", "_thread", "_weakref", "gc", "_collections", "itertools", "_contextvars", "_sre", "_string", "_typing", "math", "errno", "posix", "_random", "_sha2", "_md5", "_sha1", "_operator", "_imp", "_dis")
 
     /** The features `from __future__ import` knows (CPython 3.14's). */
     @JvmField val FUTURES = listOf("nested_scopes", "generators", "division", "absolute_import", "with_statement", "print_function",

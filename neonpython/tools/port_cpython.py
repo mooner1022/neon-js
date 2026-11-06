@@ -67,6 +67,7 @@ weakref.py
 # The lib's files that are NeonPy's, not CPython's (made by another tool): their INDEX notes
 OWN = {
     '_ast.py': "NeonPy's: generated from CPython's Parser/Python.asdl by neonpython/tools/gen_ast.py",
+    'dis.py': "NeonPy's: NeonPy's bytecode listed (_dis), CPython's names other modules read",
     'importlib/__init__.py': "NeonPy's: importlib's API over NeonPy's import (_imp), CPython's checks and messages",
     'importlib/machinery.py': "NeonPy's: importlib.machinery over NeonPy's import, CPython's ModuleSpec",
     'importlib/util.py': "NeonPy's: CPython's importlib.util over NeonPy's import, a spec made where a module has none",

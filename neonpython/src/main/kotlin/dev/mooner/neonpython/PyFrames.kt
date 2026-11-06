@@ -94,7 +94,8 @@ object PyFrames {
         return when (name) {
             "f_code" -> PyEval.codeOf(f.code)
             "f_lineno" -> line(f).toLong()
-            "f_lasti" -> f.pc.toLong()
+            // (an instruction's offset is twice its pc: PyDis)
+            "f_lasti" -> f.pc * 2L
             "f_globals" -> f.globals
             "f_builtins" -> f.ctx.builtins
             "f_locals" -> locals(f)
@@ -112,7 +113,7 @@ object PyFrames {
     fun tracebackAttr(t: PyTraceback, name: String): Any? = when (name) {
         "tb_frame" -> t.frame
         "tb_lineno" -> t.lineno.toLong()
-        "tb_lasti" -> t.lasti.toLong()
+        "tb_lasti" -> t.lasti * 2L
         "tb_next" -> t.next ?: PyNone
         "__class__" -> TRACEBACK
         else -> PyClasses.genericGetAttr(t, name)
@@ -188,7 +189,7 @@ object PyFrames {
             if (frame !is PyFrameObj) throw PyRt.typeError("TracebackType() argument 'tb_frame' must be frame, not ${PyTypes.name(frame)}")
             val lasti = PyRt.indexValue(arg(2, "tb_lasti")) as? Long ?: throw PyRt.typeError("an integer is required")
             val lineno = PyRt.indexValue(arg(3, "tb_lineno")) as? Long ?: throw PyRt.typeError("an integer is required")
-            PyTraceback(next, frame.f, lasti.toInt(), lineno.toInt())
+            PyTraceback(next, frame.f, (lasti / 2).toInt(), lineno.toInt())
         }
     }
 }

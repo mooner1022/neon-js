@@ -1,0 +1,16 @@
+names -> ('f', ('a', 'b', 'c', 'args', 'kw', 'g'), ('c', 'x'), (), ('c', 'x'), 6)
+names2 -> (['attr', 'len'], 'doc', 'bytes', True)
+flags -> ('OPTIMIZED, NEWLOCALS, VARARGS, VARKEYWORDS, HAS_DOCSTRING', 'GENERATOR')
+positions -> (None, None)
+instructions -> ('Instruction', True, ['attr', 'len'])
+replace -> ('h', 'f', 'x.py', 'f')
+code_info -> Name:              f
+lasti -> (0, 0, 24, 24)
+dis names -> (('lineno', 'end_lineno', 'col_offset', 'end_col_offset'), ('opname', 'opcode', 'arg', 'argval', 'argrepr', 'offset'), True, True)
+m OPTIMIZED, NEWLOCALS, HAS_DOCSTRING, METHOD
+n OPTIMIZED, NEWLOCALS, METHOD
+s OPTIMIZED, NEWLOCALS, METHOD
+<lambda> OPTIMIZED, NEWLOCALS, METHOD
+top OPTIMIZED, NEWLOCALS
+0x0
+OPTIMIZED, NEWLOCALS, GENERATOR
