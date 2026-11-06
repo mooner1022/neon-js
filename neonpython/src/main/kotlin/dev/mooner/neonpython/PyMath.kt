@@ -114,7 +114,8 @@ object PyMath {
      * by position only, the first [maxPos] by position, the first [minPos] required; its messages, 3.14's suggestion
      * of a keyword too.
      */
-    private fun clinic(fn: String, a: Array<Any?>, kw: PyDict?, names: List<String>, posOnly: Int, minPos: Int, maxPos: Int): Array<Any?> {
+    @JvmStatic
+    internal fun clinic(fn: String, a: Array<Any?>, kw: PyDict?, names: List<String>, posOnly: Int, minPos: Int, maxPos: Int): Array<Any?> {
         val given = LinkedHashMap<String, Any?>()
         if (kw != null) for ((k, v) in kw.map) given[(k.v as PyStr).s] = v
         val nargs = a.size

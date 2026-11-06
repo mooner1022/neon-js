@@ -66,7 +66,10 @@ pathlike -> ('c.txt', 2, b'x', 'a/b')
 fspath bad !! TypeError expected P.__fspath__() to return str or bytes, not int
 fspath int !! TypeError expected str, bytes or os.PathLike object, not int
 stat pathlike bad !! TypeError expected P.__fspath__() to return str or bytes, not int
+fsencode -> (b'a\xff', 'a\udcff', b'x')
 environ -> (None, 'd')
+environ set -> ('v1', b'v1', 'v1', True)
+environ del -> (False, None)
 environ bad !! TypeError str expected, not int
 putenv bad !! ValueError illegal environment variable name
 path -> ('/c/d', ('/a/b', 'c'), 'a/c/d', ('x.tar', '.gz'), 'b', '/a', True, 'b/c', '/a/b', 'ab', ('', '//', 'a/b'))

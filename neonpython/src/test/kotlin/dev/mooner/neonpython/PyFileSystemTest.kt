@@ -174,6 +174,15 @@ class PyFileSystemTest {
     }
 
     @Test
+    fun theEnvironmentIsTheHosts() {
+        val out = StringBuilder()
+        PyContext(out, dev.mooner.neonjs.runtime.VmConfig(), null, out, PyFileSystem.NONE, mapOf("HOME" to "/home/u", "NAME" to "é")).exec(
+            "import os\nprint(os.environ['HOME'], os.environ.get('NAME'), os.getenv('NOPE', '-'), os.environb[b'NAME'], sorted(os.environ))\n" +
+                "os.environ['X'] = '1'\nprint(os.environ['X'], 'X' in os.environ)\ndel os.environ['HOME']\nprint('HOME' in os.environ)\n")
+        assertEquals("/home/u é - b'\\xc3\\xa9' ['HOME', 'NAME']\n1 True\nFalse\n", out.toString())
+    }
+
+    @Test
     fun standardDescriptorsAreTheContextsOutput() {
         val out = StringBuilder()
         val err = StringBuilder()

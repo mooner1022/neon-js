@@ -133,7 +133,12 @@ def part4():
     t("fspath bad", lambda: os.fspath(P(1)))
     t("fspath int", lambda: os.fspath(1))
     t("stat pathlike bad", lambda: os.stat(P(1)))
+    t("fsencode", lambda: (os.fsencode('a\udcff'), os.fsdecode(b'a\xff'), os.fsencode(P('x'))))
     t("environ", lambda: (os.environ.get('NEON_PROBE'), os.getenv('NEON_PROBE', 'd')))
+    os.environ['NEON_PROBE'] = 'v1'
+    t("environ set", lambda: (os.environ['NEON_PROBE'], os.environb[b'NEON_PROBE'], os.getenv('NEON_PROBE'), 'NEON_PROBE' in os.environ))
+    del os.environ['NEON_PROBE']
+    t("environ del", lambda: ('NEON_PROBE' in os.environ, os.environ.get('NEON_PROBE')))
     t("environ bad", lambda: os.environ.__setitem__('A', 1))
     t("putenv bad", lambda: os.putenv('A=B', 'x'))
     t("path", lambda: (os.path.join('a', 'b', '/c', 'd'), os.path.split('/a/b/c'), os.path.normpath('a//b/../c/./d'), os.path.splitext('x.tar.gz'),

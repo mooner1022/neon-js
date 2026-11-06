@@ -59,6 +59,8 @@ class PyContext(
     @JvmField var currentCtx: PyCtx? = null
     /** The classes of this context deriving from each builtin type (`object.__subclasses__()`): a context's are its own. */
     @JvmField val subclassRefs = java.util.IdentityHashMap<PyType, ArrayList<java.lang.ref.WeakReference<PyType>>>()
+    /** The codec registry (PyCodecs): search functions, their results, error handlers; made when first used. */
+    @JvmField var codecs: PyCodecs.State? = null
     /** The containers whose repr is being made ([PyRt.reprGuarded]: `[...]` where one holds itself). */
     @JvmField val reprActive = java.util.IdentityHashMap<Any, Boolean>()
 

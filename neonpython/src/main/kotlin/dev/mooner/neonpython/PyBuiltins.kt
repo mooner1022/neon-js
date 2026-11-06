@@ -689,8 +689,8 @@ object PyBuiltins {
         if (x[1] == null && x[2] == null) return PyStr(PyRt.str(o))
         if (o is PyStr) throw PyRt.typeError("decoding str is not supported")
         val b = PyByteSeqs.content(o) ?: throw PyRt.typeError("decoding to str: need a bytes-like object, ${PyTypes.name(o)} found")
-        fun s(v: Any?, n: String) = v?.let { it as? PyStr ?: throw PyRt.typeError("str() argument '$n' must be str, not ${PyTypes.name(it)}") }?.s
-        return PyStr(PyLiterals.decode(b, s(x[1], "encoding") ?: "utf-8", s(x[2], "errors") ?: "strict"))
+        val r = PyCodecs.decodeText(PyContext.current(), b, x[1]?.let { PyCodecs.cstr(it, "str() argument 'encoding'", false) }, x[2]?.let { PyCodecs.cstr(it, "str() argument 'errors'", false) })
+        return if (r.sub == null) r else PyStr(r.s)
     }
 
     /** The text of bytes or a bytearray as int() reads it (Latin-1: its ASCII digits), or null for anything else. */

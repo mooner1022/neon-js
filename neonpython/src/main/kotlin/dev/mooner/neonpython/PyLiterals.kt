@@ -206,47 +206,6 @@ object PyLiterals {
         return a.b.size.compareTo(b.b.size)
     }
 
-    private fun charset(enc: String): java.nio.charset.Charset = when (enc.lowercase().replace('_', '-')) {
-        "utf-8", "utf8" -> Charsets.UTF_8
-        "ascii", "us-ascii" -> Charsets.US_ASCII
-        "latin-1", "latin1", "iso-8859-1", "iso8859-1" -> Charsets.ISO_8859_1
-        "utf-16" -> Charsets.UTF_16
-        else -> throw PyException("LookupError", "unknown encoding: $enc")
-    }
-
-    /** str.encode: utf-8, ascii and latin-1, strictly (CPython's UnicodeEncodeError). */
-    @JvmStatic
-    fun encode(s: String, enc: String): PyBytes {
-        val cs = charset(enc)
-        val e = cs.newEncoder()
-        for ((i, c) in s.withIndex()) if (!e.canEncode(c)) {
-            val name = if (cs == Charsets.US_ASCII) "ascii" else if (cs == Charsets.ISO_8859_1) "latin-1" else "utf-8"
-            val esc = if (c.code < 0x100) "\\x" + Integer.toHexString(c.code).padStart(2, '0') else "\\u" + Integer.toHexString(c.code).padStart(4, '0')
-            throw PyException("UnicodeEncodeError", "'$name' codec can't encode character '$esc' in position $i: ordinal not in range(${if (name == "ascii") 128 else 256})")
-        }
-        return PyBytes(s.toByteArray(cs))
-    }
-
-    /** bytes.decode: strictly (CPython's UnicodeDecodeError at the first bad byte), or bad bytes left out ('ignore') or replaced ('replace'). */
-    @JvmStatic
-    fun decode(b: ByteArray, enc: String, errors: String = "strict"): String {
-        val cs = charset(enc)
-        val d = cs.newDecoder()
-        if (errors == "ignore" || errors == "replace") {
-            val action = if (errors == "ignore") java.nio.charset.CodingErrorAction.IGNORE else java.nio.charset.CodingErrorAction.REPLACE
-            return d.onMalformedInput(action).onUnmappableCharacter(action).decode(java.nio.ByteBuffer.wrap(b)).toString()
-        }
-        if (errors != "strict") throw PyException("LookupError", "unknown error handler name '$errors'")
-        return try {
-            d.decode(java.nio.ByteBuffer.wrap(b)).toString()
-        } catch (e: java.nio.charset.CharacterCodingException) {
-            val pos = (0 until b.size).firstOrNull { i -> runCatching { cs.newDecoder().decode(java.nio.ByteBuffer.wrap(b, 0, i + 1)) }.isFailure && u(b[i]) >= 0x80 } ?: 0
-            val name = if (cs == Charsets.US_ASCII) "ascii" else "utf-8"
-            val why = if (name == "ascii") "ordinal not in range(128)" else "invalid start byte"
-            throw PyException("UnicodeDecodeError", "'$name' codec can't decode byte 0x${Integer.toHexString(u(b[pos])).padStart(2, '0')} in position $pos: $why")
-        }
-    }
-
     /** bytes(source=b'', encoding, errors), as CPython takes them (PyByteSeqs.bytesOf). */
     @JvmStatic
     fun newBytes(args: Array<Any?>, kw: PyDict? = null): PyBytes {
@@ -356,6 +315,6 @@ object PyLiterals {
         val bt = PyTypes.BYTES
         bt.newImpl = { _, _, a, kw -> newBytes(a, kw?.takeIf { it.size > 0 }) }
         d[PyStr("bytes")] = bt
-        PyTypes.STR.def("encode", PyBuiltin("encode") { _, a -> encode((a[0] as PyStr).s, (a.getOrNull(1) as? PyStr)?.s ?: "utf-8") })
+        PyTypes.STR.def("encode", PyBuiltin("encode", { _, a -> PyCodecs.strEncode(a, null) }, { _, a, kw -> PyCodecs.strEncode(a, kw) }))
     }
 }

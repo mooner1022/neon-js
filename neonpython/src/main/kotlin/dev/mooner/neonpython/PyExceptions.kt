@@ -96,6 +96,14 @@ object PyExceptions {
         }
     }
 
+    /** [o] raised by the runtime (PyErr_SetObject): the exception handled its context, the JVM exception that raises it. */
+    @JvmStatic
+    fun raiseObject(o: PyBaseException, ctx: PyContext?): PyException {
+        val h = ctx?.currentHandled()
+        if (h != null && h !== o) setContext(o, h)
+        return PyException(o).also { o.thrown = it }
+    }
+
     /** exc.__context__ = ctx, breaking a cycle it would close (as CPython's _PyErr_SetObject). */
     private fun setContext(exc: PyBaseException, ctx: PyBaseException) {
         var o: PyBaseException = ctx
@@ -563,5 +571,6 @@ object PyExceptions {
                     if (fn !== PyNone && fn2 !== PyNone) ": ${PyRt.repr(fn)} -> ${PyRt.repr(fn2)}" else if (fn !== PyNone) ": ${PyRt.repr(fn)}" else ""
             } else baseStr(o))
         }
+        PyCodecs.defineExceptions()
     }
 }

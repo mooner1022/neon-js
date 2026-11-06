@@ -561,12 +561,7 @@ object PyByteSeqs {
             val x = args("translate", a, kw, listOf("table", "delete"), 1, posOnly = 1)
             wrap(a[0], translate(self(a[0]), x[0], x[1]))
         }
-        mk("decode") { a, kw ->
-            val x = args("decode", a, kw, listOf("encoding", "errors"))
-            val enc = (x[0] as? PyStr)?.s ?: "utf-8"
-            val errors = (x[1] as? PyStr)?.s ?: "strict"
-            PyStr(PyLiterals.decode(self(a[0]), enc, errors))
-        }
+        mk("decode") { a, kw -> PyCodecs.bytesDecode(self(a[0]), a.copyOfRange(1, a.size), kw) }
         t.def("maketrans", PyStaticMethod(PyBuiltin("maketrans") { _, a ->
             if (a.size != 2) throw PyRt.typeError("maketrans expected 2 arguments, got ${a.size}")
             val f = need(a[0])
@@ -668,9 +663,13 @@ object PyByteSeqs {
      */
     @JvmStatic
     fun bytesOf(v: Any?, encoding: Any?, errors: Any?, rangeMsg: String, bytesHook: Boolean): ByteArray {
+        // (encoding and errors C strings, as Argument Clinic takes them first)
+        val fn = if (bytesHook) "bytes" else "bytearray"
+        val enc = encoding?.let { PyCodecs.cstr(it, "$fn() argument 'encoding'") }
+        val err = errors?.let { PyCodecs.cstr(it, "$fn() argument 'errors'") }
         if (v is PyStr) {
-            val enc = encoding ?: throw PyRt.typeError("string argument without an encoding")
-            return PyLiterals.encode(v.s, (enc as? PyStr ?: throw PyRt.typeError("bytes() argument 'encoding' must be str, not ${PyTypes.name(enc)}")).s).b
+            if (enc == null) throw PyRt.typeError("string argument without an encoding")
+            return content(PyCodecs.encodeText(PyContext.current(), v, enc, err))!!.copyOf()
         }
         if (encoding != null) throw PyRt.typeError("encoding without a string argument")
         if (errors != null) throw PyRt.typeError("errors without a string argument")

@@ -1,0 +1,325 @@
+utf-8 ["UnicodeEncodeError: 'utf-8' codec can't encode character '\\udc80' in position 5: surrogates not allowed", "b'h\\xc3\\xa9 \\xe2\\x82\\xac\\xf0\\x9f\\x98\\x80?'", "b'h\\xc3\\xa9 \\xe2\\x82\\xac\\xf0\\x9f\\x98\\x80'", "b'h\\xc3\\xa9 \\xe2\\x82\\xac\\xf0\\x9f\\x98\\x80\\\\udc80'", "b'h\\xc3\\xa9 \\xe2\\x82\\xac\\xf0\\x9f\\x98\\x80&#56448;'", "b'h\\xc3\\xa9 \\xe2\\x82\\xac\\xf0\\x9f\\x98\\x80\\\\udc80'", "b'h\\xc3\\xa9 \\xe2\\x82\\xac\\xf0\\x9f\\x98\\x80\\x80'", "b'h\\xc3\\xa9 \\xe2\\x82\\xac\\xf0\\x9f\\x98\\x80\\xed\\xb2\\x80'"]
+UTF8 ["UnicodeEncodeError: 'utf-8' codec can't encode character '\\udc80' in position 5: surrogates not allowed", "b'h\\xc3\\xa9 \\xe2\\x82\\xac\\xf0\\x9f\\x98\\x80?'", "b'h\\xc3\\xa9 \\xe2\\x82\\xac\\xf0\\x9f\\x98\\x80'", "b'h\\xc3\\xa9 \\xe2\\x82\\xac\\xf0\\x9f\\x98\\x80\\\\udc80'", "b'h\\xc3\\xa9 \\xe2\\x82\\xac\\xf0\\x9f\\x98\\x80&#56448;'", "b'h\\xc3\\xa9 \\xe2\\x82\\xac\\xf0\\x9f\\x98\\x80\\\\udc80'", "b'h\\xc3\\xa9 \\xe2\\x82\\xac\\xf0\\x9f\\x98\\x80\\x80'", "b'h\\xc3\\xa9 \\xe2\\x82\\xac\\xf0\\x9f\\x98\\x80\\xed\\xb2\\x80'"]
+utf_16 ["UnicodeEncodeError: 'utf-16' codec can't encode character '\\udc80' in position 5: surrogates not allowed", "b'\\xff\\xfeh\\x00\\xe9\\x00 \\x00\\xac =\\xd8\\x00\\xde?\\x00'", "b'\\xff\\xfeh\\x00\\xe9\\x00 \\x00\\xac =\\xd8\\x00\\xde'", "b'\\xff\\xfeh\\x00\\xe9\\x00 \\x00\\xac =\\xd8\\x00\\xde\\\\\\x00u\\x00d\\x00c\\x008\\x000\\x00'", "b'\\xff\\xfeh\\x00\\xe9\\x00 \\x00\\xac =\\xd8\\x00\\xde&\\x00#\\x005\\x006\\x004\\x004\\x008\\x00;\\x00'", "b'\\xff\\xfeh\\x00\\xe9\\x00 \\x00\\xac =\\xd8\\x00\\xde\\\\\\x00u\\x00d\\x00c\\x008\\x000\\x00'", "UnicodeEncodeError: 'utf-16' codec can't encode character '\\udc80' in position 5: surrogates not allowed", "b'\\xff\\xfeh\\x00\\xe9\\x00 \\x00\\xac =\\xd8\\x00\\xde\\x80\\xdc'"]
+utf-16-le ['UnicodeEncodeError: \'utf-16-le\' codec can\'t encode character \'\\udc80\' in position 5: surrogates not allowed ["encoding with \'utf-16-le\' codec failed"]', "b'h\\x00\\xe9\\x00 \\x00\\xac =\\xd8\\x00\\xde?\\x00'", "b'h\\x00\\xe9\\x00 \\x00\\xac =\\xd8\\x00\\xde'", "b'h\\x00\\xe9\\x00 \\x00\\xac =\\xd8\\x00\\xde\\\\\\x00u\\x00d\\x00c\\x008\\x000\\x00'", "b'h\\x00\\xe9\\x00 \\x00\\xac =\\xd8\\x00\\xde&\\x00#\\x005\\x006\\x004\\x004\\x008\\x00;\\x00'", "b'h\\x00\\xe9\\x00 \\x00\\xac =\\xd8\\x00\\xde\\\\\\x00u\\x00d\\x00c\\x008\\x000\\x00'", 'UnicodeEncodeError: \'utf-16-le\' codec can\'t encode character \'\\udc80\' in position 5: surrogates not allowed ["encoding with \'utf-16-le\' codec failed"]', "b'h\\x00\\xe9\\x00 \\x00\\xac =\\xd8\\x00\\xde\\x80\\xdc'"]
+UTF-16BE ['UnicodeEncodeError: \'utf-16-be\' codec can\'t encode character \'\\udc80\' in position 5: surrogates not allowed ["encoding with \'UTF-16BE\' codec failed"]', "b'\\x00h\\x00\\xe9\\x00  \\xac\\xd8=\\xde\\x00\\x00?'", "b'\\x00h\\x00\\xe9\\x00  \\xac\\xd8=\\xde\\x00'", "b'\\x00h\\x00\\xe9\\x00  \\xac\\xd8=\\xde\\x00\\x00\\\\\\x00u\\x00d\\x00c\\x008\\x000'", "b'\\x00h\\x00\\xe9\\x00  \\xac\\xd8=\\xde\\x00\\x00&\\x00#\\x005\\x006\\x004\\x004\\x008\\x00;'", "b'\\x00h\\x00\\xe9\\x00  \\xac\\xd8=\\xde\\x00\\x00\\\\\\x00u\\x00d\\x00c\\x008\\x000'", 'UnicodeEncodeError: \'utf-16-be\' codec can\'t encode character \'\\udc80\' in position 5: surrogates not allowed ["encoding with \'UTF-16BE\' codec failed"]', "b'\\x00h\\x00\\xe9\\x00  \\xac\\xd8=\\xde\\x00\\xdc\\x80'"]
+utf-32 ["UnicodeEncodeError: 'utf-32' codec can't encode character '\\udc80' in position 5: surrogates not allowed", "b'\\xff\\xfe\\x00\\x00h\\x00\\x00\\x00\\xe9\\x00\\x00\\x00 \\x00\\x00\\x00\\xac \\x00\\x00\\x00\\xf6\\x01\\x00?\\x00\\x00\\x00'", "b'\\xff\\xfe\\x00\\x00h\\x00\\x00\\x00\\xe9\\x00\\x00\\x00 \\x00\\x00\\x00\\xac \\x00\\x00\\x00\\xf6\\x01\\x00'", "b'\\xff\\xfe\\x00\\x00h\\x00\\x00\\x00\\xe9\\x00\\x00\\x00 \\x00\\x00\\x00\\xac \\x00\\x00\\x00\\xf6\\x01\\x00\\\\\\x00\\x00\\x00u\\x00\\x00\\x00d\\x00\\x00\\x00c\\x00\\x00\\x008\\x00\\x00\\x000\\x00\\x00\\x00'", "b'\\xff\\xfe\\x00\\x00h\\x00\\x00\\x00\\xe9\\x00\\x00\\x00 \\x00\\x00\\x00\\xac \\x00\\x00\\x00\\xf6\\x01\\x00&\\x00\\x00\\x00#\\x00\\x00\\x005\\x00\\x00\\x006\\x00\\x00\\x004\\x00\\x00\\x004\\x00\\x00\\x008\\x00\\x00\\x00;\\x00\\x00\\x00'", "b'\\xff\\xfe\\x00\\x00h\\x00\\x00\\x00\\xe9\\x00\\x00\\x00 \\x00\\x00\\x00\\xac \\x00\\x00\\x00\\xf6\\x01\\x00\\\\\\x00\\x00\\x00u\\x00\\x00\\x00d\\x00\\x00\\x00c\\x00\\x00\\x008\\x00\\x00\\x000\\x00\\x00\\x00'", "UnicodeEncodeError: 'utf-32' codec can't encode character '\\udc80' in position 5: surrogates not allowed", "b'\\xff\\xfe\\x00\\x00h\\x00\\x00\\x00\\xe9\\x00\\x00\\x00 \\x00\\x00\\x00\\xac \\x00\\x00\\x00\\xf6\\x01\\x00\\x80\\xdc\\x00\\x00'"]
+utf_32_le ['UnicodeEncodeError: \'utf-32-le\' codec can\'t encode character \'\\udc80\' in position 5: surrogates not allowed ["encoding with \'utf_32_le\' codec failed"]', "b'h\\x00\\x00\\x00\\xe9\\x00\\x00\\x00 \\x00\\x00\\x00\\xac \\x00\\x00\\x00\\xf6\\x01\\x00?\\x00\\x00\\x00'", "b'h\\x00\\x00\\x00\\xe9\\x00\\x00\\x00 \\x00\\x00\\x00\\xac \\x00\\x00\\x00\\xf6\\x01\\x00'", "b'h\\x00\\x00\\x00\\xe9\\x00\\x00\\x00 \\x00\\x00\\x00\\xac \\x00\\x00\\x00\\xf6\\x01\\x00\\\\\\x00\\x00\\x00u\\x00\\x00\\x00d\\x00\\x00\\x00c\\x00\\x00\\x008\\x00\\x00\\x000\\x00\\x00\\x00'", "b'h\\x00\\x00\\x00\\xe9\\x00\\x00\\x00 \\x00\\x00\\x00\\xac \\x00\\x00\\x00\\xf6\\x01\\x00&\\x00\\x00\\x00#\\x00\\x00\\x005\\x00\\x00\\x006\\x00\\x00\\x004\\x00\\x00\\x004\\x00\\x00\\x008\\x00\\x00\\x00;\\x00\\x00\\x00'", "b'h\\x00\\x00\\x00\\xe9\\x00\\x00\\x00 \\x00\\x00\\x00\\xac \\x00\\x00\\x00\\xf6\\x01\\x00\\\\\\x00\\x00\\x00u\\x00\\x00\\x00d\\x00\\x00\\x00c\\x00\\x00\\x008\\x00\\x00\\x000\\x00\\x00\\x00'", 'UnicodeEncodeError: \'utf-32-le\' codec can\'t encode character \'\\udc80\' in position 5: surrogates not allowed ["encoding with \'utf_32_le\' codec failed"]', "b'h\\x00\\x00\\x00\\xe9\\x00\\x00\\x00 \\x00\\x00\\x00\\xac \\x00\\x00\\x00\\xf6\\x01\\x00\\x80\\xdc\\x00\\x00'"]
+utf-32-be ['UnicodeEncodeError: \'utf-32-be\' codec can\'t encode character \'\\udc80\' in position 5: surrogates not allowed ["encoding with \'utf-32-be\' codec failed"]', "b'\\x00\\x00\\x00h\\x00\\x00\\x00\\xe9\\x00\\x00\\x00 \\x00\\x00 \\xac\\x00\\x01\\xf6\\x00\\x00\\x00\\x00?'", "b'\\x00\\x00\\x00h\\x00\\x00\\x00\\xe9\\x00\\x00\\x00 \\x00\\x00 \\xac\\x00\\x01\\xf6\\x00'", "b'\\x00\\x00\\x00h\\x00\\x00\\x00\\xe9\\x00\\x00\\x00 \\x00\\x00 \\xac\\x00\\x01\\xf6\\x00\\x00\\x00\\x00\\\\\\x00\\x00\\x00u\\x00\\x00\\x00d\\x00\\x00\\x00c\\x00\\x00\\x008\\x00\\x00\\x000'", "b'\\x00\\x00\\x00h\\x00\\x00\\x00\\xe9\\x00\\x00\\x00 \\x00\\x00 \\xac\\x00\\x01\\xf6\\x00\\x00\\x00\\x00&\\x00\\x00\\x00#\\x00\\x00\\x005\\x00\\x00\\x006\\x00\\x00\\x004\\x00\\x00\\x004\\x00\\x00\\x008\\x00\\x00\\x00;'", "b'\\x00\\x00\\x00h\\x00\\x00\\x00\\xe9\\x00\\x00\\x00 \\x00\\x00 \\xac\\x00\\x01\\xf6\\x00\\x00\\x00\\x00\\\\\\x00\\x00\\x00u\\x00\\x00\\x00d\\x00\\x00\\x00c\\x00\\x00\\x008\\x00\\x00\\x000'", 'UnicodeEncodeError: \'utf-32-be\' codec can\'t encode character \'\\udc80\' in position 5: surrogates not allowed ["encoding with \'utf-32-be\' codec failed"]', "b'\\x00\\x00\\x00h\\x00\\x00\\x00\\xe9\\x00\\x00\\x00 \\x00\\x00 \\xac\\x00\\x01\\xf6\\x00\\x00\\x00\\xdc\\x80'"]
+ascii ["UnicodeEncodeError: 'ascii' codec can't encode character '\\xe9' in position 1: ordinal not in range(128)", "b'h? ???'", "b'h '", "b'h\\\\xe9 \\\\u20ac\\\\U0001f600\\\\udc80'", "b'h&#233; &#8364;&#128512;&#56448;'", "b'h\\\\N{LATIN SMALL LETTER E WITH ACUTE} \\\\N{EURO SIGN}\\\\N{GRINNING FACE}\\\\udc80'", "UnicodeEncodeError: 'ascii' codec can't encode character '\\xe9' in position 1: ordinal not in range(128)", "UnicodeEncodeError: 'ascii' codec can't encode character '\\xe9' in position 1: ordinal not in range(128)"]
+us-ascii ["UnicodeEncodeError: 'ascii' codec can't encode character '\\xe9' in position 1: ordinal not in range(128)", "b'h? ???'", "b'h '", "b'h\\\\xe9 \\\\u20ac\\\\U0001f600\\\\udc80'", "b'h&#233; &#8364;&#128512;&#56448;'", "b'h\\\\N{LATIN SMALL LETTER E WITH ACUTE} \\\\N{EURO SIGN}\\\\N{GRINNING FACE}\\\\udc80'", "UnicodeEncodeError: 'ascii' codec can't encode character '\\xe9' in position 1: ordinal not in range(128)", "UnicodeEncodeError: 'ascii' codec can't encode character '\\xe9' in position 1: ordinal not in range(128)"]
+latin-1 ["UnicodeEncodeError: 'latin-1' codec can't encode characters in position 3-5: ordinal not in range(256)", "b'h\\xe9 ???'", "b'h\\xe9 '", "b'h\\xe9 \\\\u20ac\\\\U0001f600\\\\udc80'", "b'h\\xe9 &#8364;&#128512;&#56448;'", "b'h\\xe9 \\\\N{EURO SIGN}\\\\N{GRINNING FACE}\\\\udc80'", "UnicodeEncodeError: 'latin-1' codec can't encode characters in position 3-5: ordinal not in range(256)", "UnicodeEncodeError: 'latin-1' codec can't encode characters in position 3-5: ordinal not in range(256)"]
+L1 ['UnicodeEncodeError: \'latin-1\' codec can\'t encode characters in position 3-5: ordinal not in range(256) ["encoding with \'L1\' codec failed"]', "b'h\\xe9 ???'", "b'h\\xe9 '", "b'h\\xe9 \\\\u20ac\\\\U0001f600\\\\udc80'", "b'h\\xe9 &#8364;&#128512;&#56448;'", "b'h\\xe9 \\\\N{EURO SIGN}\\\\N{GRINNING FACE}\\\\udc80'", 'UnicodeEncodeError: \'latin-1\' codec can\'t encode characters in position 3-5: ordinal not in range(256) ["encoding with \'L1\' codec failed"]', 'UnicodeEncodeError: \'latin-1\' codec can\'t encode characters in position 3-5: ordinal not in range(256) ["encoding with \'L1\' codec failed"]']
+iso8859-1 ["UnicodeEncodeError: 'latin-1' codec can't encode characters in position 3-5: ordinal not in range(256)", "b'h\\xe9 ???'", "b'h\\xe9 '", "b'h\\xe9 \\\\u20ac\\\\U0001f600\\\\udc80'", "b'h\\xe9 &#8364;&#128512;&#56448;'", "b'h\\xe9 \\\\N{EURO SIGN}\\\\N{GRINNING FACE}\\\\udc80'", "UnicodeEncodeError: 'latin-1' codec can't encode characters in position 3-5: ordinal not in range(256)", "UnicodeEncodeError: 'latin-1' codec can't encode characters in position 3-5: ordinal not in range(256)"]
+cp1252 ['UnicodeEncodeError: \'charmap\' codec can\'t encode characters in position 4-5: character maps to <undefined> ["encoding with \'cp1252\' codec failed"]', "b'h\\xe9 \\x80??'", "b'h\\xe9 \\x80'", "b'h\\xe9 \\x80\\\\U0001f600\\\\udc80'", "b'h\\xe9 \\x80&#128512;&#56448;'", "b'h\\xe9 \\x80\\\\N{GRINNING FACE}\\\\udc80'", 'UnicodeEncodeError: \'charmap\' codec can\'t encode characters in position 4-5: character maps to <undefined> ["encoding with \'cp1252\' codec failed"]', 'UnicodeEncodeError: \'charmap\' codec can\'t encode characters in position 4-5: character maps to <undefined> ["encoding with \'cp1252\' codec failed"]']
+utf-7 ["b'h+AOk +IKzYPd4A3IA-'", "b'h+AOk +IKzYPd4A3IA-'", "b'h+AOk +IKzYPd4A3IA-'", "b'h+AOk +IKzYPd4A3IA-'", "b'h+AOk +IKzYPd4A3IA-'", "b'h+AOk +IKzYPd4A3IA-'", "b'h+AOk +IKzYPd4A3IA-'", "b'h+AOk +IKzYPd4A3IA-'"]
+utf-8 ["UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 12: invalid start byte", "'hé €😀 �����'", "'hé €😀 '", "'hé €😀 \\\\xff\\\\xed\\\\xa0\\\\x80\\\\xe2\\\\x82'", "'hé €😀 \\udcff\\udced\\udca0\\udc80\\udce2\\udc82'", "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 12: invalid start byte"]
+utf8 ["UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 12: invalid start byte", "'hé €😀 �����'", "'hé €😀 '", "'hé €😀 \\\\xff\\\\xed\\\\xa0\\\\x80\\\\xe2\\\\x82'", "'hé €😀 \\udcff\\udced\\udca0\\udc80\\udce2\\udc82'", "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 12: invalid start byte"]
+ascii ["UnicodeDecodeError: 'ascii' codec can't decode byte 0xc3 in position 1: ordinal not in range(128)", "'h�� ������� ������'", "'h  '", "'h\\\\xc3\\\\xa9 \\\\xe2\\\\x82\\\\xac\\\\xf0\\\\x9f\\\\x98\\\\x80 \\\\xff\\\\xed\\\\xa0\\\\x80\\\\xe2\\\\x82'", "'h\\udcc3\\udca9 \\udce2\\udc82\\udcac\\udcf0\\udc9f\\udc98\\udc80 \\udcff\\udced\\udca0\\udc80\\udce2\\udc82'", "UnicodeDecodeError: 'ascii' codec can't decode byte 0xc3 in position 1: ordinal not in range(128)"]
+latin-1 ["'hÃ© â\\x82¬ð\\x9f\\x98\\x80 ÿí\\xa0\\x80â\\x82'", "'hÃ© â\\x82¬ð\\x9f\\x98\\x80 ÿí\\xa0\\x80â\\x82'", "'hÃ© â\\x82¬ð\\x9f\\x98\\x80 ÿí\\xa0\\x80â\\x82'", "'hÃ© â\\x82¬ð\\x9f\\x98\\x80 ÿí\\xa0\\x80â\\x82'", "'hÃ© â\\x82¬ð\\x9f\\x98\\x80 ÿí\\xa0\\x80â\\x82'", "'hÃ© â\\x82¬ð\\x9f\\x98\\x80 ÿí\\xa0\\x80â\\x82'"]
+cp1252 ["'hÃ© â‚¬ðŸ˜€ ÿí\\xa0€â‚'", "'hÃ© â‚¬ðŸ˜€ ÿí\\xa0€â‚'", "'hÃ© â‚¬ðŸ˜€ ÿí\\xa0€â‚'", "'hÃ© â‚¬ðŸ˜€ ÿí\\xa0€â‚'", "'hÃ© â‚¬ðŸ˜€ ÿí\\xa0€â‚'", "'hÃ© â‚¬ðŸ˜€ ÿí\\xa0€â‚'"]
+utf-16 ["'써₩苢\\uf0ac颟₀\\uedff肠苢'", "'써₩苢\\uf0ac颟₀\\uedff肠苢'", "'써₩苢\\uf0ac颟₀\\uedff肠苢'", "'써₩苢\\uf0ac颟₀\\uedff肠苢'", "'써₩苢\\uf0ac颟₀\\uedff肠苢'", "'써₩苢\\uf0ac颟₀\\uedff肠苢'"]
+utf-16-be ["'棃ꤠ\\ue282곰龘耠￭ꂀ\\ue282'", "'棃ꤠ\\ue282곰龘耠￭ꂀ\\ue282'", "'棃ꤠ\\ue282곰龘耠￭ꂀ\\ue282'", "'棃ꤠ\\ue282곰龘耠￭ꂀ\\ue282'", "'棃ꤠ\\ue282곰龘耠￭ꂀ\\ue282'", "'棃ꤠ\\ue282곰龘耠￭ꂀ\\ue282'"]
+utf-32-le ['UnicodeDecodeError: \'utf-32-le\' codec can\'t decode bytes in position 0-3: code point not in range(0x110000) ["decoding with \'utf-32-le\' codec failed"]', "'�����'", "''", "'\\\\x68\\\\xc3\\\\xa9\\\\x20\\\\xe2\\\\x82\\\\xac\\\\xf0\\\\x9f\\\\x98\\\\x80\\\\x20\\\\xff\\\\xed\\\\xa0\\\\x80\\\\xe2\\\\x82'", 'UnicodeDecodeError: \'utf-32-le\' codec can\'t decode bytes in position 0-3: code point not in range(0x110000) ["decoding with \'utf-32-le\' codec failed"]', 'UnicodeDecodeError: \'utf-32-le\' codec can\'t decode bytes in position 0-3: code point not in range(0x110000) ["decoding with \'utf-32-le\' codec failed"]']
+utf-7 ['UnicodeDecodeError: \'utf7\' codec can\'t decode byte 0xc3 in position 1: unexpected special character ["decoding with \'utf-7\' codec failed"]', "'h�� ������� ������'", "'h  '", "'h\\\\xc3\\\\xa9 \\\\xe2\\\\x82\\\\xac\\\\xf0\\\\x9f\\\\x98\\\\x80 \\\\xff\\\\xed\\\\xa0\\\\x80\\\\xe2\\\\x82'", "'h\\udcc3\\udca9 \\udce2\\udc82\\udcac\\udcf0\\udc9f\\udc98\\udc80 \\udcff\\udced\\udca0\\udc80\\udce2\\udc82'", 'UnicodeDecodeError: \'utf7\' codec can\'t decode byte 0xc3 in position 1: unexpected special character ["decoding with \'utf-7\' codec failed"]']
+b'x' b'x' TypeError: encode() argument 'encoding' must be str, not int TypeError: encode() argument 'errors' must be str, not int TypeError: encode() takes at most 2 arguments (3 given) TypeError: encode() got an unexpected keyword argument 'foo' ValueError: embedded null character LookupError: unknown encoding: nope LookupError: unknown encoding: nope
+TypeError: decode() argument 'encoding' must be str, not int TypeError: decode() argument 'errors' must be str, not int 'xé' '' LookupError: unknown encoding: nope b'abc' LookupError: unknown error handler name 'nope' LookupError: unknown error handler name 'nope'
+'hé' '�' '' TypeError: decoding str is not supported TypeError: decoding to str: need a bytes-like object, int found 'hé' '€' TypeError: str() argument 'encoding' must be str, not int
+b'h\xe9' b'?' TypeError: bytes() argument 'encoding' must be str, not int TypeError: bytes() argument 'errors' must be str, not int TypeError: string argument without an encoding bytearray(b'&#233;&#8364;') TypeError: bytearray() argument 'encoding' must be str, not int LookupError: 'rot13' is not a text encoding; use codecs.encode() to handle arbitrary codecs
+LookupError: 'rot13' is not a text encoding; use codecs.encode() to handle arbitrary codecs LookupError: 'rot13' is not a text encoding; use codecs.decode() to handle arbitrary codecs 'nop' 'Hello' b'abc' 'abc' TypeError: utf_8_encode() argument 1 must be str, not bytes ["encoding with 'utf-8' codec failed"] TypeError: a bytes-like object is required, not 'str' ["decoding with 'utf-8' codec failed"] b'x' TypeError: encode() missing required argument 'obj' (pos 1)
+b'\xe2\x82' ["('', 0)", "UnicodeDecodeError: 'utf-8' codec can't decode bytes in position 0-1: unexpected end of data", "('', 0)", "('�', 2)", "('', 0)", "('\\udce2\\udc82', 2)", "('', 0)", "('\\\\xe2\\\\x82', 2)"]
+b'\xe2\x82A' ["UnicodeDecodeError: 'utf-8' codec can't decode bytes in position 0-1: invalid continuation byte", "UnicodeDecodeError: 'utf-8' codec can't decode bytes in position 0-1: invalid continuation byte", "('�A', 3)", "('�A', 3)", "('\\udce2\\udc82A', 3)", "('\\udce2\\udc82A', 3)", "('\\\\xe2\\\\x82A', 3)", "('\\\\xe2\\\\x82A', 3)"]
+b'\xff\xfe' ["UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte", "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte", "('��', 2)", "('��', 2)", "('\\udcff\\udcfe', 2)", "('\\udcff\\udcfe', 2)", "('\\\\xff\\\\xfe', 2)", "('\\\\xff\\\\xfe', 2)"]
+b'\xe0\x80' ["UnicodeDecodeError: 'utf-8' codec can't decode byte 0xe0 in position 0: invalid continuation byte", "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xe0 in position 0: invalid continuation byte", "('��', 2)", "('��', 2)", "('\\udce0\\udc80', 2)", "('\\udce0\\udc80', 2)", "('\\\\xe0\\\\x80', 2)", "('\\\\xe0\\\\x80', 2)"]
+b'\xed\xa0' ["('', 0)", "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xed in position 0: invalid continuation byte", "('', 0)", "('��', 2)", "('', 0)", "('\\udced\\udca0', 2)", "('', 0)", "('\\\\xed\\\\xa0', 2)"]
+b'\xed\xa0\x80' ["UnicodeDecodeError: 'utf-8' codec can't decode byte 0xed in position 0: invalid continuation byte", "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xed in position 0: invalid continuation byte", "('���', 3)", "('���', 3)", "('\\udced\\udca0\\udc80', 3)", "('\\udced\\udca0\\udc80', 3)", "('\\\\xed\\\\xa0\\\\x80', 3)", "('\\\\xed\\\\xa0\\\\x80', 3)"]
+b'\xf0\x90\x80' ["('', 0)", "UnicodeDecodeError: 'utf-8' codec can't decode bytes in position 0-2: unexpected end of data", "('', 0)", "('�', 3)", "('', 0)", "('\\udcf0\\udc90\\udc80', 3)", "('', 0)", "('\\\\xf0\\\\x90\\\\x80', 3)"]
+b'\xf0\x90\x80A' ["UnicodeDecodeError: 'utf-8' codec can't decode bytes in position 0-2: invalid continuation byte", "UnicodeDecodeError: 'utf-8' codec can't decode bytes in position 0-2: invalid continuation byte", "('�A', 4)", "('�A', 4)", "('\\udcf0\\udc90\\udc80A', 4)", "('\\udcf0\\udc90\\udc80A', 4)", "('\\\\xf0\\\\x90\\\\x80A', 4)", "('\\\\xf0\\\\x90\\\\x80A', 4)"]
+b'\xf4\x90' ["UnicodeDecodeError: 'utf-8' codec can't decode byte 0xf4 in position 0: invalid continuation byte", "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xf4 in position 0: invalid continuation byte", "('��', 2)", "('��', 2)", "('\\udcf4\\udc90', 2)", "('\\udcf4\\udc90', 2)", "('\\\\xf4\\\\x90', 2)", "('\\\\xf4\\\\x90', 2)"]
+b'\xc0\xaf' ["UnicodeDecodeError: 'utf-8' codec can't decode byte 0xc0 in position 0: invalid start byte", "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xc0 in position 0: invalid start byte", "('��', 2)", "('��', 2)", "('\\udcc0\\udcaf', 2)", "('\\udcc0\\udcaf', 2)", "('\\\\xc0\\\\xaf', 2)", "('\\\\xc0\\\\xaf', 2)"]
+b'a\x80b' ["UnicodeDecodeError: 'utf-8' codec can't decode byte 0x80 in position 1: invalid start byte", "UnicodeDecodeError: 'utf-8' codec can't decode byte 0x80 in position 1: invalid start byte", "('a�b', 3)", "('a�b', 3)", "('a\\udc80b', 3)", "('a\\udc80b', 3)", "('a\\\\x80b', 3)", "('a\\\\x80b', 3)"]
+b'\xf0\x9f\x98\x80' ["('😀', 4)", "('😀', 4)", "('😀', 4)", "('😀', 4)", "('😀', 4)", "('😀', 4)", "('😀', 4)", "('😀', 4)"]
+b'' ["('', 0)", "('', 0)", "('', 0)", "('', 0)", "('', 0)", "('', 0)"] ('', 0, 0) ('', 0, 1) ''
+b'\xff' ["('', 0)", "('�', 1)", "('', 0)", "('�', 1)", "('', 0)", "('�', 1)"] ('', 0, 0) UnicodeDecodeError: 'utf-16-be' codec can't decode byte 0xff in position 0: truncated data UnicodeDecodeError: 'utf-16-le' codec can't decode byte 0xff in position 0: truncated data
+b'\xff\xfe' ["('', 2)", "('', 2)", "('\\ufeff', 2)", "('\\ufeff', 2)", "('\\ufffe', 2)", "('\\ufffe', 2)"] ('', 2, -1) ('\ufffe', 2, 1) ''
+b'\xfe\xff\x00a' ["('a', 4)", "('a', 4)", "('\\ufffe愀', 4)", "('\\ufffe愀', 4)", "('\\ufeffa', 4)", "('\\ufeffa', 4)"] ('a', 4, 1) ('\ufeffa', 4, 1) 'a'
+b'a\x00\x00\xd8' ["('a', 2)", "('a�', 4)", "('a', 2)", "('a�', 4)", "('愀Ø', 4)", "('愀Ø', 4)"] ('a', 2, 0) ('愀Ø', 4, 1) 'a\ud800'
+b'a\x00\x00\xd8b\x00' ["('a�b', 6)", "('a�b', 6)", "('a�b', 6)", "('a�b', 6)", "('愀Ø戀', 6)", "('愀Ø戀', 6)"] UnicodeDecodeError: 'utf-16-le' codec can't decode bytes in position 2-3: illegal UTF-16 surrogate ('愀Ø戀', 6, 1) 'a\ud800b'
+b'a\x00\x00\xdcb\x00' ["('a�b', 6)", "('a�b', 6)", "('a�b', 6)", "('a�b', 6)", "('愀Ü戀', 6)", "('愀Ü戀', 6)"] UnicodeDecodeError: 'utf-16-le' codec can't decode bytes in position 2-3: illegal encoding ('愀Ü戀', 6, 1) 'a\udc00b'
+b'=\xd8\x00\xdeA' ["('😀', 4)", "('😀�', 5)", "('😀', 4)", "('😀�', 5)", "('㷘Þ', 4)", "('㷘Þ�', 5)"] ('😀', 4, 0) UnicodeDecodeError: 'utf-16-be' codec can't decode byte 0x41 in position 4: truncated data UnicodeDecodeError: 'utf-16-le' codec can't decode byte 0x41 in position 4: truncated data
+b'\xff\xfe\x00\x00' ["('', 4)", "('', 4)", "('\\ufeff', 4)", "('\\ufeff', 4)", "('�', 4)", "('�', 4)"] ('', 4, -1) ''
+b'\x00\x00\xfe\xffa' ["('', 4)", "('�', 5)", "('�', 4)", "('��', 5)", "('\\ufeff', 4)", "('\\ufeff�', 5)"] ('', 4, 1) UnicodeDecodeError: 'utf-32-be' codec can't decode byte 0x61 in position 4: truncated data
+b'a\x00\x00\x00\x00\xd8\x00\x00' ["('a�', 8)", "('a�', 8)", "('a�', 8)", "('a�', 8)", "('��', 8)", "('��', 8)"] UnicodeDecodeError: 'utf-32-le' codec can't decode bytes in position 4-7: code point in surrogate code point range(0xd800, 0xe000) 'a\ud800'
+b'a\x00\x00\x00\x00\x00\x11\x00' ["('a�', 8)", "('a�', 8)", "('a�', 8)", "('a�', 8)", "('�ᄀ', 8)", "('�ᄀ', 8)"] UnicodeDecodeError: 'utf-32-le' codec can't decode bytes in position 4-7: code point not in range(0x110000) UnicodeDecodeError: 'utf-32-le' codec can't decode bytes in position 4-7: code point not in range(0x110000)
+b'a\x00\x00\x00\x00' ["('a', 4)", "('a�', 5)", "('a', 4)", "('a�', 5)", "('�', 4)", "('��', 5)"] ('a', 4, 0) UnicodeDecodeError: 'utf-32-le' codec can't decode byte 0x00 in position 4: truncated data
+b'\x00\xf6\x01\x00' ["('😀', 4)", "('😀', 4)", "('😀', 4)", "('😀', 4)", "('�', 4)", "('�', 4)"] ('😀', 4, 0) '😀'
+'a' ["b'\\xff\\xfea\\x00'", "b'\\xff\\xfea\\x00'", "b'\\xff\\xfea\\x00'", "b'\\xff\\xfea\\x00'", "b'\\x00a'", "b'\\x00a'", "b'\\x00a'", "b'\\x00a'", "b'a\\x00\\x00\\x00'", "b'a\\x00\\x00\\x00'", "b'a\\x00\\x00\\x00'", "b'a\\x00\\x00\\x00'"]
+'😀' ["b'\\xff\\xfe=\\xd8\\x00\\xde'", "b'\\xff\\xfe=\\xd8\\x00\\xde'", "b'\\xff\\xfe=\\xd8\\x00\\xde'", "b'\\xff\\xfe=\\xd8\\x00\\xde'", "b'\\xd8=\\xde\\x00'", "b'\\xd8=\\xde\\x00'", "b'\\xd8=\\xde\\x00'", "b'\\xd8=\\xde\\x00'", "b'\\x00\\xf6\\x01\\x00'", "b'\\x00\\xf6\\x01\\x00'", "b'\\x00\\xf6\\x01\\x00'", "b'\\x00\\xf6\\x01\\x00'"]
+'a\udc80b' ["UnicodeEncodeError: 'utf-16' codec can't encode character '\\udc80' in position 1: surrogates not allowed", "b'\\xff\\xfea\\x00?\\x00b\\x00'", "b'\\xff\\xfea\\x00\\x80\\xdcb\\x00'", "b'\\xff\\xfea\\x00\\\\\\x00u\\x00d\\x00c\\x008\\x000\\x00b\\x00'", 'UnicodeEncodeError: \'utf-16-be\' codec can\'t encode character \'\\udc80\' in position 1: surrogates not allowed ["encoding with \'utf-16-be\' codec failed"]', "b'\\x00a\\x00?\\x00b'", "b'\\x00a\\xdc\\x80\\x00b'", "b'\\x00a\\x00\\\\\\x00u\\x00d\\x00c\\x008\\x000\\x00b'", 'UnicodeEncodeError: \'utf-32-le\' codec can\'t encode character \'\\udc80\' in position 1: surrogates not allowed ["encoding with \'utf-32-le\' codec failed"]', "b'a\\x00\\x00\\x00?\\x00\\x00\\x00b\\x00\\x00\\x00'", "b'a\\x00\\x00\\x00\\x80\\xdc\\x00\\x00b\\x00\\x00\\x00'", "b'a\\x00\\x00\\x00\\\\\\x00\\x00\\x00u\\x00\\x00\\x00d\\x00\\x00\\x00c\\x00\\x00\\x008\\x00\\x00\\x000\\x00\\x00\\x00b\\x00\\x00\\x00'"]
+'\ud800' ["UnicodeEncodeError: 'utf-16' codec can't encode character '\\ud800' in position 0: surrogates not allowed", "b'\\xff\\xfe?\\x00'", "b'\\xff\\xfe\\x00\\xd8'", "b'\\xff\\xfe\\\\\\x00u\\x00d\\x008\\x000\\x000\\x00'", 'UnicodeEncodeError: \'utf-16-be\' codec can\'t encode character \'\\ud800\' in position 0: surrogates not allowed ["encoding with \'utf-16-be\' codec failed"]', "b'\\x00?'", "b'\\xd8\\x00'", "b'\\x00\\\\\\x00u\\x00d\\x008\\x000\\x000'", 'UnicodeEncodeError: \'utf-32-le\' codec can\'t encode character \'\\ud800\' in position 0: surrogates not allowed ["encoding with \'utf-32-le\' codec failed"]', "b'?\\x00\\x00\\x00'", "b'\\x00\\xd8\\x00\\x00'", "b'\\\\\\x00\\x00\\x00u\\x00\\x00\\x00d\\x00\\x00\\x008\\x00\\x00\\x000\\x00\\x00\\x000\\x00\\x00\\x00'"]
+(b'Hi Mom -+Jjo--!A+-B+AH4AXNg93gA-', 17) ('Hi Mom -☺-!A+B', 19) ('a😀b', 10)
+b'a+2D3e' ["('a', 1)", "UnicodeDecodeError: 'utf7' codec can't decode bytes in position 1-5: unterminated shift sequence", "('a', 1)", "('a�', 6)"]
+b'a+Jjo' ["('a', 1)", "('a☺', 5)", "('a', 1)", "('a☺', 5)"]
+b'a+Jj' ["('a', 1)", "UnicodeDecodeError: 'utf7' codec can't decode bytes in position 1-3: unterminated shift sequence", "('a', 1)", "('a�', 4)"]
+b'a+!b' ["UnicodeDecodeError: 'utf7' codec can't decode bytes in position 1-2: ill-formed sequence", "UnicodeDecodeError: 'utf7' codec can't decode bytes in position 1-2: ill-formed sequence", "('a�b', 4)", "('a�b', 4)"]
+b'a\x80b\\c~' ["UnicodeDecodeError: 'utf7' codec can't decode byte 0x80 in position 1: unexpected special character", "UnicodeDecodeError: 'utf7' codec can't decode byte 0x80 in position 1: unexpected special character", "('a�b\\\\c~', 6)", "('a�b\\\\c~', 6)"]
+b'+AGEAYgBj' ["('', 0)", "('abc', 9)", "('', 0)", "('abc', 9)"]
+b'+AOkA6QDp' ["('', 0)", "('ééé', 9)", "('', 0)", "('ééé', 9)"]
+b'+ZeVnLIqe-' ["('日本語', 10)", "('日本語', 10)", "('日本語', 10)", "('日本語', 10)"]
+(b'a\\\\\\t\\n\\r\\x00\\x7f\\xe9\\u20ac\\U0001f600"\'', 12) (b'a\\\xe9\\u20ac\\U0001f600', 5)
+b'a\\t\\x41\\u20ac\\U0001F600\\N{EURO SIGN}\\101\\\n\\"' ['(\'a\\tA€😀€A"\', 44)', '(\'a\\tA€😀€A"\', 44)', '(\'a\\tA€😀€A"\', 44)', '(\'a\\tA€😀€A"\', 44)', '(\'a\\tA€😀€A"\', 44)', '(\'a\\tA€😀€A"\', 44)']
+'é\\u20ac' ["('Ã©€', 8)", "('Ã©€', 8)", "('Ã©€', 8)", "('Ã©€', 8)", "('Ã©€', 8)", "('Ã©€', 8)"]
+b'\\x4' ["('', 0)", "UnicodeDecodeError: 'unicodeescape' codec can't decode bytes in position 0-2: truncated \\xXX escape", "('', 0)", "('�', 3)", "('', 0)", "('\\\\x5c\\\\x78\\\\x34', 3)"]
+b'\\x4g' ["UnicodeDecodeError: 'unicodeescape' codec can't decode bytes in position 0-2: truncated \\xXX escape", "UnicodeDecodeError: 'unicodeescape' codec can't decode bytes in position 0-2: truncated \\xXX escape", "('�g', 4)", "('�g', 4)", "('\\\\x5c\\\\x78\\\\x34g', 4)", "('\\\\x5c\\\\x78\\\\x34g', 4)"]
+b'ab\\' ["('ab', 2)", "UnicodeDecodeError: 'unicodeescape' codec can't decode byte 0x5c in position 2: \\ at end of string", "('ab', 2)", "('ab�', 3)", "('ab', 2)", "('ab\\\\x5c', 3)"]
+b'\\U00110000' ["UnicodeDecodeError: 'unicodeescape' codec can't decode bytes in position 0-9: illegal Unicode character", "UnicodeDecodeError: 'unicodeescape' codec can't decode bytes in position 0-9: illegal Unicode character", "('�', 10)", "('�', 10)", "('\\\\x5c\\\\x55\\\\x30\\\\x30\\\\x31\\\\x31\\\\x30\\\\x30\\\\x30\\\\x30', 10)", "('\\\\x5c\\\\x55\\\\x30\\\\x30\\\\x31\\\\x31\\\\x30\\\\x30\\\\x30\\\\x30', 10)"]
+b'\\N{NOPE}' ["UnicodeDecodeError: 'unicodeescape' codec can't decode bytes in position 0-7: unknown Unicode character name", "UnicodeDecodeError: 'unicodeescape' codec can't decode bytes in position 0-7: unknown Unicode character name", "('�', 8)", "('�', 8)", "('\\\\x5c\\\\x4e\\\\x7b\\\\x4e\\\\x4f\\\\x50\\\\x45\\\\x7d', 8)", "('\\\\x5c\\\\x4e\\\\x7b\\\\x4e\\\\x4f\\\\x50\\\\x45\\\\x7d', 8)"]
+b'\\N{EURO' ["('', 0)", "UnicodeDecodeError: 'unicodeescape' codec can't decode bytes in position 0-6: malformed \\N character escape", "('', 0)", "('�', 7)", "('', 0)", "('\\\\x5c\\\\x4e\\\\x7b\\\\x45\\\\x55\\\\x52\\\\x4f', 7)"]
+b'\\N' ["('', 0)", "UnicodeDecodeError: 'unicodeescape' codec can't decode bytes in position 0-1: malformed \\N character escape", "('', 0)", "('�', 2)", "('', 0)", "('\\\\x5c\\\\x4e', 2)"]
+b'\\N{}' ["UnicodeDecodeError: 'unicodeescape' codec can't decode bytes in position 0-2: malformed \\N character escape", "UnicodeDecodeError: 'unicodeescape' codec can't decode bytes in position 0-2: malformed \\N character escape", "('�}', 4)", "('�}', 4)", "('\\\\x5c\\\\x4e\\\\x7b}', 4)", "('\\\\x5c\\\\x4e\\\\x7b}', 4)"]
+b'\\N{euro sign}' ["('€', 13)", "('€', 13)", "('€', 13)", "('€', 13)", "('€', 13)", "('€', 13)"]
+b'\\N{CJK UNIFIED IDEOGRAPH-4E00}' ["('一', 30)", "('一', 30)", "('一', 30)", "('一', 30)", "('一', 30)", "('一', 30)"]
+b'\\N{HANGUL SYLLABLE GAG}' ["('각', 23)", "('각', 23)", "('각', 23)", "('각', 23)", "('각', 23)", "('각', 23)"]
+b'a\\u20ac\\U0001F600\\x41\\' ["('a€😀\\\\x41', 21)", "('a€😀\\\\x41\\\\', 22)", "('a€😀\\\\x41', 21)", "('a€😀\\\\x41\\\\', 22)"]
+b'a\\' ["('a', 1)", "('a\\\\', 2)", "('a', 1)", "('a\\\\', 2)"]
+b'a\\u20' ["('a', 1)", "UnicodeDecodeError: 'rawunicodeescape' codec can't decode bytes in position 1-4: truncated \\uXXXX escape", "('a', 1)", "('a�', 5)"]
+b'a\\U00110000' ["UnicodeDecodeError: 'rawunicodeescape' codec can't decode bytes in position 1-10: \\Uxxxxxxxx out of range", "UnicodeDecodeError: 'rawunicodeescape' codec can't decode bytes in position 1-10: \\Uxxxxxxxx out of range", "('a�', 11)", "('a�', 11)"]
+b'\xe9' ["('é', 1)", "('é', 1)", "('é', 1)", "('é', 1)"]
+'é\\u20ac' ["('Ã©€', 8)", "('Ã©€', 8)", "('Ã©€', 8)", "('Ã©€', 8)"]
+(b'\\x00\\\'"\\\\\\t\\n\\r\\x7f\\x80 a', 11) TypeError: escape_encode() argument 1 must be bytes, not str TypeError: escape_encode() argument 1 must be bytes, not bytearray
+["(b'abA', 6)", "(b'abA', 6)", "(b'abA', 6)", "(b'abA', 6)", "(b'abA', 6)", "(b'abA', 6)", "(b'abA', 6)", "(b'abA', 6)", 'ValueError: invalid \\x escape at position 2', "(b'ab?', 5)", "(b'ab', 5)", 'ValueError: decoding error; unknown error handling code: bogus', 'ValueError: invalid \\x escape at position 2', "(b'ab?g', 6)", "(b'abg', 6)", 'ValueError: decoding error; unknown error handling code: bogus', 'ValueError: Trailing \\ in string', 'ValueError: Trailing \\ in string', 'ValueError: Trailing \\ in string', 'ValueError: Trailing \\ in string', "(b'A\\n', 8)", "(b'A\\n', 8)", "(b'A\\n', 8)", "(b'A\\n', 8)"]
+'\\qǿ' [('DeprecationWarning', '"\\q" is an invalid escape sequence. Such sequences will not work in the future. ')]
+(b'\xff\\q', 6) [('DeprecationWarning', 'b"\\777" is an invalid octal escape sequence. Such sequences will not work in the future. ')]
+'\\8' [('DeprecationWarning', '"\\8" is an invalid escape sequence. Such sequences will not work in the future. ')]
+(b'h\xc3\xa9', 3) (b'x', 1) TypeError: a bytes-like object is required, not 'int'
+EncodingMap 207 {97: 0, 98: 1, 99: 2} TypeError: bad argument type for built-in operation TypeError: charmap_build() argument must be str, not bytes {0: 2, 97: 1}
+(b'\x01\x02\x03', 3) (b'\x01\x02\x04', 3) UnicodeEncodeError: 'charmap' codec can't encode character '\x64' in position 2: character maps to <undefined> (b'\x01\x02\x04', 3) (b'abd\\xe9', 4)
+TypeError: character mapping must be in range(256) TypeError: character mapping must return integer, bytes or None, not str UnicodeEncodeError: 'charmap' codec can't encode character '\x62' in position 1: character maps to <undefined> (b'ab', 2) UnicodeEncodeError: 'latin-1' codec can't encode character '\u20ac' in position 1: ordinal not in range(256)
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x61 in position 0: character maps to <undefined> UnicodeDecodeError: 'charmap' codec can't decode byte 0x61 in position 0: character maps to <undefined> ('���', 3) ('x€yz', 3) ('', 3) TypeError: character mapping must be in range(0x110000) TypeError: character mapping must return integer, None or str ('���', 3) ('é', 1)
+cp037 cp037 256:1013959350769632242 256:1013959350769632242 517:1650401085990009293 2676:969106183183543075 2859:138868116832182724 86:1314807831114584603
+cp1006 cp1006 256:1716089256488577157 256:1716089256488577157 517:2301712360536153320 2772:364265609382361957 3019:2133607621153588186 54:808208123940777261
+cp1026 cp1026 256:1660052639266925009 256:1660052639266925009 517:768425143938046441 2677:328987954123779032 2864:559893387579671506 85:1967227539612686226
+cp1125 cp1125 256:1655987437745425527 256:1655987437745425527 517:801694166078319658 2692:1740408625167610959 2937:1384057217872262643 66:376477265687876222
+cp1140 cp1140 256:1411404709014583866 256:1411404709014583866 517:527516250727234849 2671:2115289823800028734 2853:987536984364833793 87:1644940355946342246
+cp1250 cp1250 256:396319704270032097 271:1159214604313544610 517:1330066411275948593 2653:2006207283429791954 2892:1132995943598843080 79:1514448988665634383
+cp1251 cp1251 256:1700575005237355623 259:297520439812551680 517:1402580300753747188 2628:679532243158872286 2856:1361293517400030108 80:1789324491332633026
+cp1252 cp1252 256:1253120651781151521 271:616694216768868676 517:1206063215081992752 2679:1966427191130313052 2882:647326655854932678 81:1867303939709755460
+cp1253 cp1253 256:1222634067414157212 307:1029476535627710700 517:780116899693136237 2659:1043093690968545915 2912:2239657705605806419 75:1819223694814640846
+cp1254 cp1254 256:476250063380216003 277:292488044391651997 517:1591072543262520094 2685:471942650689743529 2892:707324473409917631 79:1912048169528129278
+cp1255 cp1255 256:1211869967341124825 325:1732122935890146021 517:264176839156379329 2673:1337611113751148122 2905:2171940392736508128 73:1784005751338614467
+cp1256 cp1256 256:136619745507345854 256:136619745507345854 517:870572435349132135 2746:1014121127119703644 2987:2273648683910136517 60:825027017053424
+cp1257 cp1257 256:276797551499269799 292:1378884743829564204 517:1353057431173337892 2677:1549913727109854369 2912:442077935827218255 75:2033856622516669302
+cp1258 cp1258 256:1172652286927313756 283:571667258694793840 517:663656071235697845 2667:254112236416212022 2882:141677161093089989 81:373134471701220145
+cp273 cp273 256:2246908004470220998 256:2246908004470220998 517:898273015817122012 2676:721249406012179394 2859:1992147694384636286 86:2247396127669904739
+cp424 cp424 256:1085096628723957227 370:2017741034527281774 517:2123283333336884407 2700:754514725239348349 2920:94644974586440108 72:1607552014887494747
+cp437 cp437 256:1395634103124558771 256:1395634103124558771 517:1397708509821125863 2713:376451014209299331 2944:1431183704579868714 69:1323303904364318831
+cp500 cp500 256:999426020734631326 256:999426020734631326 517:1410607371742472472 2676:178873958879159342 2859:1039301618301224611 86:968359745372097412
+cp720 cp720 256:514059198481847412 256:514059198481847412 517:1131810182151065366 2778:1908299482282529252 3029:1032319816174709375 52:113609263294268503
+cp737 cp737 256:2018416467982846633 256:2018416467982846633 517:321329333057706740 2699:586813338207972223 2964:1583181954281317507 65:1551131895693254106
+cp775 cp775 256:1618885480884777017 256:1618885480884777017 517:27402184261979659 2703:987977832284112501 2944:2065118160852755285 69:349599362449865019
+cp850 cp850 256:1475939948822302626 256:1475939948822302626 517:1030100164815869706 2704:440143600867338112 2909:1349094492162620924 76:446304086776196003
+cp852 cp852 256:1293718026640667347 256:1293718026640667347 517:1918580837684318817 2672:398762749901702385 2919:1380958738021019361 74:119301032096939185
+cp855 cp855 256:1649156022215881687 256:1649156022215881687 517:1741442147794581166 2647:207318091169891641 2883:1754919048898946342 75:1605637420875585979
+cp856 cp856 256:689654502363705206 379:244831046487957868 517:1819535154843353363 2733:1783953488796916090 2975:416778026704021770 61:1793728815870884742
+cp857 cp857 256:2082637436165170346 265:521389074637440673 517:1473925000953515677 2710:1128843178815533241 2919:441530207798907341 74:1585930565398548187
+cp858 cp858 256:129319239070300404 256:129319239070300404 517:979849568440240495 2699:990629837301369389 2903:2227453939071848207 77:287883109012596444
+cp860 cp860 256:39694581282413290 256:39694581282413290 517:556314105978682435 2718:1162269703889755880 2949:1991516032483743326 68:262379828832888199
+cp861 cp861 256:2099482086049104259 256:2099482086049104259 517:1218608313525662954 2719:773403764511878401 2954:930490531765109016 67:1389456614617731118
+cp862 cp862 256:2048900860336135904 256:2048900860336135904 517:1757107541684233605 2695:2148286943060733559 2935:149457373054637186 69:1262942888964596603
+cp863 cp863 256:1494910480162513073 256:1494910480162513073 517:2234213973599901475 2722:101608613688383206 2959:1754546937720918557 66:1434945458973006041
+cp864 cp864 256:2122410594301650676 274:1799737306525211891 517:2005740312636658659 2785:996317098942069846 3044:482063566037815746 49:1776071179649329994
+cp865 cp865 256:99332487406421829 256:99332487406421829 517:919402129811135627 2716:1818986780059986242 2949:1553793051946749623 68:694225739672935884
+cp866 cp866 256:1110318986805832073 256:1110318986805832073 517:699957233672173863 2692:686849607683795132 2937:1830713624711469172 66:1278001618505177252
+cp869 cp869 256:1330517190407867515 283:102080523258139005 517:1984470558411562620 2680:1866569681859116151 2939:888806767242589675 70:2068193559992392911
+cp874 cp874 256:455180325107196167 349:716286940151638199 517:820933622453856807 2800:899909180362109753 3068:1506013294708465147 44:1752745727213240404
+cp875 cp875 256:1095168253750292211 256:1095168253750292211 517:669677415289303537 2647:2055499119253813113 2884:1436308603616429498 81:1641745766859577075
+hp_roman8 hp-roman8 256:1798230522475742175 259:365219932975470425 517:411099524688234919 2669:1641009756212483701 2854:1551188282732307087 87:1667849245924539206
+iso8859_10 iso8859-10 256:1505321930543593935 256:1505321930543593935 517:1940280183990313633 2659:235674776034848480 2874:1394284115352505423 83:290727554098847163
+iso8859_11 iso8859-11 256:726203723451315913 280:1611277342673278308 517:2301712360536153320 2772:364265609382361957 3019:2133607621153588186 54:808208123940777261
+iso8859_13 iso8859-13 256:1839247817172783442 256:1839247817172783442 517:1546731301298717790 2670:1822679130283233786 2889:1391313255157667735 80:937867883264244447
+iso8859_14 iso8859-14 256:943179512728599449 256:943179512728599449 517:2290320348884388029 2689:1598663579311733686 2894:992544144318504376 79:571222535796843688
+iso8859_15 iso8859-15 256:1600510263631291686 256:1600510263631291686 517:999740717431064980 2670:1782070894619859523 2858:355192953722656070 86:139547161416779975
+iso8859_16 iso8859-16 256:137356504221560695 256:137356504221560695 517:2057890388959152816 2652:97792564882700417 2858:1955289275010759337 86:148445809502985015
+iso8859_2 iso8859-2 256:580771171274472885 256:580771171274472885 517:696051176067287456 2642:720772757927053210 2869:2149963581210698883 84:2034967558077719462
+iso8859_3 iso8859-3 256:958081668310224671 277:1066223413601180278 517:731964588094604936 2670:1308562343729367302 2879:10182777678929663 82:1185931388857980697
+iso8859_4 iso8859-4 256:1916276850558426917 256:1916276850558426917 517:1378648433265701512 2653:538568555129732031 2874:595089659812485276 83:1712527402183665710
+iso8859_5 iso8859-5 256:649212530894248455 256:649212530894248455 517:644150111460588361 2617:104662483764592061 2833:1939517690529606861 85:1078080652527944887
+iso8859_6 iso8859-6 256:2304715500981030922 391:727024443444433616 517:2301712360536153320 2772:364265609382361957 3019:2133607621153588186 54:808208123940777261
+iso8859_7 iso8859-7 256:1901501704006363745 265:672870631129886611 517:1968048023775950898 2642:2184322805429287673 2878:153005313927219185 82:388806358162489299
+iso8859_8 iso8859-8 256:347378935155002968 364:2061768160487549702 517:2225359587668083674 2700:450833547227095863 2920:1810221577413900463 72:1956217814667076375
+iso8859_9 iso8859-9 256:334899261308124685 256:334899261308124685 517:616663080525863189 2677:589360037914074399 2864:916163404851229619 85:2233740497224090367
+koi8_r koi8-r 256:588993404452475360 256:588993404452475360 517:1552808332461098821 2697:1745822532613745103 2943:305057071575951049 65:1908436812057629188
+koi8_t koi8-t 256:1686639265670011746 313:1814256559798019429 517:993322870976913906 2653:213500733432702626 2886:2234025884297721837 75:860691592164093272
+koi8_u koi8-u 256:1964517308705816641 256:1964517308705816641 517:1556310106644125446 2692:1356155305354277564 2937:702165484702040808 66:41577305493872890
+kz1048 kz1048 256:1058780374229386970 259:475528406105973356 517:1398113647023528739 2633:283645508285498501 2862:196349669322812356 79:519818878989888490
+mac_arabic mac-arabic 256:1727486286112456812 256:1727486286112456812 517:1261904932934965882 2772:1777157215560694738 3019:2155033345985322633 54:2011040033968564521
+mac_croatian mac-croatian 256:2041964622827629923 256:2041964622827629923 517:1188688198693407372 2679:1143884574995466905 2892:94027873301777755 79:498817307366390239
+mac_cyrillic mac-cyrillic 256:1728225404767509549 256:1728225404767509549 517:1500785661943273716 2626:2087854066005448708 2856:401046402207052709 80:966218081551340997
+mac_farsi mac-farsi 256:1043168674985702134 256:1043168674985702134 517:1261904932934965882 2772:1777157215560694738 3019:2155033345985322633 54:2011040033968564521
+mac_greek mac-greek 256:1250210545308938707 256:1250210545308938707 517:9626346482514462 2638:2216034404176702395 2877:1900585372397641287 82:422026280218190354
+mac_iceland mac-iceland 256:653075465879928228 256:653075465879928228 517:227442210021832545 2672:1676636384690791423 2877:780207462039201062 82:1657269141832693793
+mac_latin2 mac-latin2 256:1978482107686527472 256:1978482107686527472 517:1921639263221497069 2657:1807001857769402074 2903:826451486971100745 77:146839164954329575
+mac_roman mac-roman 256:2102589858635306140 256:2102589858635306140 517:680978151981202099 2678:513090713710019275 2887:2206321145509129054 80:1941378432455146100
+mac_romanian mac-romanian 256:1067767792137742001 256:1067767792137742001 517:700092087634363907 2674:927219755702724979 2887:1317803209382206705 80:1313160349042178793
+mac_turkish mac-turkish 256:1414652498488460679 256:1414652498488460679 517:1618071963985059026 2678:123448750340518824 2888:160272202858764486 80:1563282248316017671
+palmos palmos 256:1776654770555112812 256:1776654770555112812 517:1357339364840980999 2681:939920975130859938 2882:967003624615564183 81:298206228262436965
+ptcp154 ptcp154 256:1636328908156222186 256:1636328908156222186 517:1370537832521414977 2616:236733581031007669 2843:25586764557198629 82:1339637096598321826
+tis_620 tis-620 256:931890578074683097 283:774679707189967998 517:2301712360536153320 2772:364265609382361957 3019:2133607621153588186 54:808208123940777261
+utf_8_sig utf-8-sig 256:2124229181358781977 640:1876514023655463476 998:960893927991855822 1003:1302717095685267233 1005:1619548337627837834 997:1134299380303233479
+raw_unicode_escape raw-unicode-escape 256:152317518971932586 256:152317518971932586 2676:2225253314306997453 2676:2225253314306997453 2676:2225253314306997453 2676:2225253314306997453
+unicode_escape unicode-escape 256:152317518971932586 256:152317518971932586 2836:1894262408988807388 2836:1894262408988807388 2836:1894262408988807388 2836:1894262408988807388
+'UTF-8' 'utf-8'
+'U8' 'utf-8'
+'UTF' 'utf-8'
+'Latin-1' 'iso8859-1'
+'ISO-8859-1' 'iso8859-1'
+'8859' 'iso8859-1'
+'cp819' 'iso8859-1'
+'US-ASCII' 'ascii'
+'646' 'ascii'
+'ANSI_X3.4_1968' 'ascii'
+'UTF16' 'utf-16'
+'utf_16le' 'utf-16-le'
+'U32' 'utf-32'
+'U7' 'utf-7'
+'utf-8-sig' 'utf-8-sig'
+'cp65001' 'utf-8'
+'windows-1252' 'cp1252'
+'koi8-r' 'koi8-r'
+'macintosh' 'mac-roman'
+'unicode-escape' 'unicode-escape'
+'rot13' 'rot-13'
+'punycode' 'punycode'
+'undefined' 'undefined'
+'csASCII' 'ascii'
+' utf 8 ' 'utf-8'
+'utf..8' LookupError: unknown encoding: utf..8
+'csHPRoman8' LookupError: unknown encoding: csHPRoman8
+'no-such-codec' LookupError: unknown encoding: no-such-codec
+b'bcher-kva' 'bücher' UnicodeDecodeError: 'punycode' codec can't decode bytes in position 8-8: incomplete punycode string ["decoding with 'punycode' codec failed"] UnicodeError: undefined encoding ["encoding with 'undefined' codec failed"] UnicodeError: undefined encoding ["decoding with 'undefined' codec failed"]
+b'\xef\xbb\xbfa\xc3\xa9' 'a' 'a' b'+ZeVnLIqe-' LookupError: 'rot13' is not a text encoding; use codecs.encode() to handle arbitrary codecs
+strict <built-in function strict_errors>
+replace <built-in function replace_errors>
+ignore <built-in function ignore_errors>
+backslashreplace <built-in function backslashreplace_errors>
+xmlcharrefreplace <built-in function xmlcharrefreplace_errors>
+namereplace <built-in function namereplace_errors>
+surrogateescape <built-in function surrogateescape>
+surrogatepass <built-in function surrogatepass>
+ignore ('', 2)
+replace ('??', 3)
+replace ('�', 3)
+replace ('��', 3)
+xmlcharrefreplace ('&#8364;&#128512;', 3)
+xmlcharrefreplace TypeError: don't know how to handle UnicodeDecodeError in error callback
+backslashreplace ('\\xe9\\u20ac\\U0001f600', 4)
+backslashreplace ('\\xff\\x80', 3)
+backslashreplace ('\\xe9', 2)
+namereplace ('\\N{LATIN SMALL LETTER E WITH ACUTE}\\N{EURO SIGN}\\N{GRINNING FACE}\\x80\\ue000\\N{CJK UNIFIED IDEOGRAPH-4E00}\\N{HANGUL SYLLABLE GA}\\N{CJK COMPATIBILITY IDEOGRAPH-F900}\\x00\\ud800', 11)
+surrogateescape (b'\x80\xff', 3)
+surrogateescape UnicodeEncodeError: 'a' codec can't encode character '\udc7f' in position 1: r
+surrogateescape ('\udc80\udc81\udc82\udc83', 5)
+surrogateescape UnicodeDecodeError: 'a' codec can't decode byte 0x10 in position 1: r
+surrogatepass (b'\xd8\x00', 2)
+surrogatepass (b'\x00\xd8\x00\x00', 2)
+surrogatepass UnicodeEncodeError: 'latin-1' codec can't encode character '\ud800' in position 1: r
+surrogatepass (b'\xed\xb2\x80', 2)
+surrogatepass ('\ud800', 4)
+surrogatepass ('\ud800', 3)
+ignore ('', 3)
+replace ('?', 1)
+backslashreplace ('', 1)
+replace ('', 0)
+strict UnicodeEncodeError: 'a' codec can't encode character '\x78' in position 0: r
+strict KeyError: 'k'
+strict TypeError: codec must pass exception instance
+ignore TypeError: don't know how to handle ValueError in error callback
+namereplace TypeError: don't know how to handle UnicodeTranslateError in error callback
+replace TypeError: UnicodeError 'object' attribute is not set
+TypeError: ignore_errors() takes exactly one argument (0 given) TypeError: ignore_errors() takes exactly one argument (2 given) TypeError: handler must be callable LookupError: unknown error handler name 'nope' TypeError: register_error() argument 1 must be str, not int TypeError: lookup_error() argument must be str, not int ValueError: cannot un-register built-in error handler 'strict' False
+UnicodeEncodeError: 'ascii' codec can't encode characters in position 1-2: ordinal not in range(128) UnicodeEncodeError: 'latin-1' codec can't encode character '\u20ac' in position 2: ordinal not in range(256) UnicodeEncodeError: 'utf-8' codec can't encode characters in position 1-2: surrogates not allowed UnicodeEncodeError: 'charmap' codec can't encode character '\u20ac' in position 1: character maps to <undefined> ["encoding with 'cp437' codec failed"] 'a[ff][80]b[e282]' 'a[81][8d]b' 'a[d800]' 'aa[80]' '[5c753132] [5c7831]'
+('UnicodeEncodeError', 'ascii', 1, 3, 'ordinal not in range(128)')
+('UnicodeEncodeError', 'latin-1', 2, 3, 'ordinal not in range(256)')
+('UnicodeEncodeError', 'utf-8', 1, 3, 'surrogates not allowed')
+('UnicodeEncodeError', 'charmap', 1, 2, 'character maps to <undefined>')
+('UnicodeDecodeError', 'utf-8', 1, 2, 'invalid start byte')
+('UnicodeDecodeError', 'utf-8', 2, 3, 'invalid start byte')
+('UnicodeDecodeError', 'utf-8', 4, 6, 'unexpected end of data')
+('UnicodeDecodeError', 'charmap', 1, 2, 'character maps to <undefined>')
+('UnicodeDecodeError', 'charmap', 2, 3, 'character maps to <undefined>')
+('UnicodeDecodeError', 'utf-16-be', 2, 4, 'unexpected end of data')
+('UnicodeDecodeError', 'utf7', 5, 6, 'unexpected special character')
+('UnicodeDecodeError', 'unicodeescape', 0, 4, 'truncated \\uXXXX escape')
+('UnicodeDecodeError', 'unicodeescape', 5, 8, 'truncated \\xXX escape')
+a ['TypeError: encoding error handler must return (str/bytes, int) tuple', 'TypeError: encoding error handler must return (str/bytes, int) tuple', 'TypeError: encoding error handler must return (str/bytes, int) tuple', 'TypeError: encoding error handler must return (str/bytes, int) tuple ["encoding with \'utf-16-le\' codec failed"]', 'TypeError: encoding error handler must return (str/bytes, int) tuple', 'TypeError: encoding error handler must return (str/bytes, int) tuple ["encoding with \'cp437\' codec failed"]'] ['TypeError: decoding error handler must return (str, int) tuple', 'TypeError: decoding error handler must return (str, int) tuple', 'TypeError: decoding error handler must return (str, int) tuple ["decoding with \'cp1252\' codec failed"]']
+b ['TypeError: encoding error handler must return (str/bytes, int) tuple', 'TypeError: encoding error handler must return (str/bytes, int) tuple', 'TypeError: encoding error handler must return (str/bytes, int) tuple', 'TypeError: encoding error handler must return (str/bytes, int) tuple ["encoding with \'utf-16-le\' codec failed"]', 'TypeError: encoding error handler must return (str/bytes, int) tuple', 'TypeError: encoding error handler must return (str/bytes, int) tuple ["encoding with \'cp437\' codec failed"]'] ['TypeError: decoding error handler must return (str, int) tuple', 'TypeError: decoding error handler must return (str, int) tuple', 'TypeError: decoding error handler must return (str, int) tuple ["decoding with \'cp1252\' codec failed"]']
+d ['TypeError: encoding error handler must return (str/bytes, int) tuple', 'TypeError: encoding error handler must return (str/bytes, int) tuple', 'TypeError: encoding error handler must return (str/bytes, int) tuple', 'TypeError: encoding error handler must return (str/bytes, int) tuple ["encoding with \'utf-16-le\' codec failed"]', 'TypeError: encoding error handler must return (str/bytes, int) tuple', 'TypeError: encoding error handler must return (str/bytes, int) tuple ["encoding with \'cp437\' codec failed"]'] ['TypeError: decoding error handler must return (str, int) tuple', 'TypeError: decoding error handler must return (str, int) tuple', 'TypeError: decoding error handler must return (str, int) tuple ["decoding with \'cp1252\' codec failed"]']
+e ["TypeError: 'str' object cannot be interpreted as an integer", "TypeError: 'str' object cannot be interpreted as an integer", "TypeError: 'str' object cannot be interpreted as an integer", 'TypeError: \'str\' object cannot be interpreted as an integer ["encoding with \'utf-16-le\' codec failed"]', "TypeError: 'str' object cannot be interpreted as an integer", 'TypeError: \'str\' object cannot be interpreted as an integer ["encoding with \'cp437\' codec failed"]'] ["TypeError: 'str' object cannot be interpreted as an integer", "TypeError: 'str' object cannot be interpreted as an integer", 'TypeError: \'str\' object cannot be interpreted as an integer ["decoding with \'cp1252\' codec failed"]']
+f ['IndexError: position 100 from error handler out of bounds', 'IndexError: position 100 from error handler out of bounds', 'IndexError: position 100 from error handler out of bounds', 'IndexError: position 100 from error handler out of bounds ["encoding with \'utf-16-le\' codec failed"]', 'IndexError: position 100 from error handler out of bounds', 'IndexError: position 100 from error handler out of bounds ["encoding with \'cp437\' codec failed"]'] ['IndexError: position 100 from error handler out of bounds', 'IndexError: position 100 from error handler out of bounds', 'IndexError: position 100 from error handler out of bounds ["decoding with \'cp1252\' codec failed"]']
+g ["b'axb'", "b'a\\xe9xb'", "b'axb'", "b'a\\x00x\\x00b\\x00'", "b'\\xff\\xfe\\x00\\x00a\\x00\\x00\\x00x\\x00\\x00\\x00b\\x00\\x00\\x00'", "b'axb'"] ["'axb'", "'axb'", "'axb'"]
+h ['IndexError: position -96 from error handler out of bounds', 'IndexError: position -96 from error handler out of bounds', 'IndexError: position -96 from error handler out of bounds', 'IndexError: position -97 from error handler out of bounds ["encoding with \'utf-16-le\' codec failed"]', 'IndexError: position -97 from error handler out of bounds', 'IndexError: position -96 from error handler out of bounds ["encoding with \'cp437\' codec failed"]'] ['IndexError: position -96 from error handler out of bounds', 'IndexError: position -96 from error handler out of bounds', 'IndexError: position -97 from error handler out of bounds ["decoding with \'cp1252\' codec failed"]']
+l ['OverflowError: Python int too large to convert to C ssize_t', 'OverflowError: Python int too large to convert to C ssize_t', 'OverflowError: Python int too large to convert to C ssize_t', 'OverflowError: Python int too large to convert to C ssize_t ["encoding with \'utf-16-le\' codec failed"]', 'OverflowError: Python int too large to convert to C ssize_t', 'OverflowError: Python int too large to convert to C ssize_t ["encoding with \'cp437\' codec failed"]'] ['OverflowError: Python int too large to convert to C ssize_t', 'OverflowError: Python int too large to convert to C ssize_t', 'OverflowError: Python int too large to convert to C ssize_t ["decoding with \'cp1252\' codec failed"]']
+m ["TypeError: 'float' object cannot be interpreted as an integer", "TypeError: 'float' object cannot be interpreted as an integer", "TypeError: 'float' object cannot be interpreted as an integer", 'TypeError: \'float\' object cannot be interpreted as an integer ["encoding with \'utf-16-le\' codec failed"]', "TypeError: 'float' object cannot be interpreted as an integer", 'TypeError: \'float\' object cannot be interpreted as an integer ["encoding with \'cp437\' codec failed"]'] ["TypeError: 'float' object cannot be interpreted as an integer", "TypeError: 'float' object cannot be interpreted as an integer", 'TypeError: \'float\' object cannot be interpreted as an integer ["decoding with \'cp1252\' codec failed"]']
+i ["b'aXb'", "b'a\\xe9Xb'", "b'aXb'", 'UnicodeEncodeError: \'utf-16-le\' codec can\'t encode character \'\\udc80\' in position 1: surrogates not allowed ["encoding with \'utf-16-le\' codec failed"]', "UnicodeEncodeError: 'utf-32' codec can't encode character '\\udc80' in position 1: surrogates not allowed", "b'aXb'"] ['TypeError: decoding error handler must return (str, int) tuple', 'TypeError: decoding error handler must return (str, int) tuple', 'TypeError: decoding error handler must return (str, int) tuple ["decoding with \'cp1252\' codec failed"]']
+j ["UnicodeEncodeError: 'ascii' codec can't encode characters in position 1-2: ordinal not in range(128)", "b'a\\xe9\\xe9b'", "UnicodeEncodeError: 'utf-8' codec can't encode characters in position 1-2: surrogates not allowed", 'UnicodeEncodeError: \'utf-16-le\' codec can\'t encode character \'\\udc80\' in position 1: surrogates not allowed ["encoding with \'utf-16-le\' codec failed"]', "UnicodeEncodeError: 'utf-32' codec can't encode character '\\udc80' in position 1: surrogates not allowed", "b'a\\x82b'"] ["'aééb'", "'aééb'", "'aéb'"]
+k ['TypeError: encoding error handler must return (str/bytes, int) tuple', 'TypeError: encoding error handler must return (str/bytes, int) tuple', 'TypeError: encoding error handler must return (str/bytes, int) tuple', 'TypeError: encoding error handler must return (str/bytes, int) tuple ["encoding with \'utf-16-le\' codec failed"]', 'TypeError: encoding error handler must return (str/bytes, int) tuple', 'TypeError: encoding error handler must return (str/bytes, int) tuple ["encoding with \'cp437\' codec failed"]'] ['TypeError: decoding error handler must return (str, int) tuple', 'TypeError: decoding error handler must return (str, int) tuple', 'TypeError: decoding error handler must return (str, int) tuple ["decoding with \'cp1252\' codec failed"]']
+n ['TypeError: encoding error handler must return (str/bytes, int) tuple', 'TypeError: encoding error handler must return (str/bytes, int) tuple', 'TypeError: encoding error handler must return (str/bytes, int) tuple', 'TypeError: encoding error handler must return (str/bytes, int) tuple ["encoding with \'utf-16-le\' codec failed"]', 'TypeError: encoding error handler must return (str/bytes, int) tuple', 'TypeError: encoding error handler must return (str/bytes, int) tuple ["encoding with \'cp437\' codec failed"]'] ['TypeError: decoding error handler must return (str, int) tuple', 'TypeError: decoding error handler must return (str, int) tuple', 'TypeError: decoding error handler must return (str, int) tuple ["decoding with \'cp1252\' codec failed"]']
+o ["b'aXYb'", "b'a\\xe9XYb'", "b'aXYb'", "b'a\\x00XYb\\x00'", "UnicodeEncodeError: 'utf-32' codec can't encode character '\\udc80' in position 1: surrogates not allowed", "b'aXYb'"] ['TypeError: decoding error handler must return (str, int) tuple', 'TypeError: decoding error handler must return (str, int) tuple', 'TypeError: decoding error handler must return (str, int) tuple ["decoding with \'cp1252\' codec failed"]']
+p ["UnicodeEncodeError: 'ascii' codec can't encode characters in position 1-2: ordinal not in range(128)", "UnicodeEncodeError: 'latin-1' codec can't encode character '\\u20ac' in position 2: ordinal not in range(256)", "UnicodeEncodeError: 'utf-8' codec can't encode characters in position 1-2: surrogates not allowed", 'UnicodeEncodeError: \'utf-16-le\' codec can\'t encode character \'\\udc80\' in position 1: surrogates not allowed ["encoding with \'utf-16-le\' codec failed"]', "UnicodeEncodeError: 'utf-32' codec can't encode character '\\udc80' in position 1: surrogates not allowed", 'UnicodeEncodeError: \'charmap\' codec can\'t encode characters in position 1-2: character maps to <undefined> ["encoding with \'cp437\' codec failed"]'] ["'a€€b'", "'a€€b'", "'a€b'"]
+q ["b'aabb'", "b'a\\xe9abb'", "b'aabb'", "b'a\\x00a\\x00b\\x00b\\x00'", "b'\\xff\\xfe\\x00\\x00a\\x00\\x00\\x00a\\x00\\x00\\x00b\\x00\\x00\\x00b\\x00\\x00\\x00'", "b'aabb'"] ["'aababb'", "'aababb'", "'aabb'"]
+'?Q' '?Q'
+b'ab<1>b<2>b<3>b<4>c' True False LookupError: unknown error handler name 'test.counting'
+TypeError: function takes exactly 5 arguments (0 given) TypeError: argument 1 must be str, not int TypeError: argument 2 must be str, not bytes TypeError: 'str' object cannot be interpreted as an integer TypeError: argument 5 must be str, not bytes TypeError: function takes exactly 5 arguments (6 given) TypeError: a bytes-like object is required, not 'str' b'xy' None TypeError: function takes exactly 4 arguments (3 given) TypeError: UnicodeEncodeError() takes no keyword arguments
+'ascii' codec can't encode character '\xe9' in position 1: bad UnicodeEncodeError('ascii', 'héllo', 1, 2, 'bad') ('ascii', 'héllo', 1, 2, 'bad') ascii héllo 1 2 bad
+'ascii' codec can't encode characters in position 1-2: bad
+'ascii' codec can't encode characters in position 1-0: bad
+'ascii' codec can't encode characters in position 1-99: bad
+'ascii' codec can't encode characters in position -5-99: bad
+start TypeError an integer is required
+start OverflowError Python int too large to convert to C ssize_t
+start 1 "'ascii' codec can't encode characters in position 1-99: bad"
+encoding 5 "'5' codec can't encode characters in position 1-99: bad"
+reason 5 "'5' codec can't encode characters in position 1-99: 5"
+object b'x' TypeError: UnicodeError 'object' attribute must be a string
+TypeError: can't delete numeric/char attribute None None
+'' 0 None {} False
+'utf-8' codec can't decode byte 0xff in position 0: invalid start byte UnicodeDecodeError('utf-8', b'\xff\xfe', 0, 1, 'invalid start byte')
+'utf-8' codec can't decode bytes in position 0-1: invalid start byte
+can't translate character '\U0001f600' in position 0: oops UnicodeTranslateError('😀ab', 0, 1, 'oops')
+can't translate characters in position 0-2: oops 'ascii' codec can't encode character '\u20ac' in position 0: r 'ascii' codec can't encode character '\U0001f600' in position 0: r
+UnicodeDecodeError('charmap', b'\x81', 0, 1, 'character maps to <undefined>') KeyError('k') ["decoding with 'cp1252' codec failed"] ('charmap', b'\x81', 0, 1, 'character maps to <undefined>')
+UnicodeEncodeError('ascii', 'aééb', 1, 3, 'ordinal not in range(128)') 1 3 None
+b'HELLO' b'HELLO' 'hello' test-codec True b'T' 't' TypeError: codec search functions must return 4-tuples
+LookupError: 'not_text' is not a text encoding; use codecs.encode() to handle arbitrary codecs LookupError: 'not_text' is not a text encoding; use codecs.decode() to handle arbitrary codecs 'x' TypeError: 'returns_str' encoder returned 'str' instead of 'bytes'; use codecs.encode() to encode to arbitrary types TypeError: 'returns_str' decoder returned 'bytes' instead of 'str'; use codecs.decode() to decode to arbitrary types TypeError: encoder must return a tuple (object, integer) TypeError: decoder must return a tuple (object,integer) ValueError: boom ["encoding with 'raises' codec failed"] ValueError: boom ["decoding with 'raises' codec failed"] ValueError: boom ["encoding with 'raises' codec failed"]
+b'()' b"('strict',)" 'memoryview ()' "bytes ('ignore',)" 'memoryview ()' b"('replace',)" LookupError: unknown encoding: no_such_codec LookupError: unknown encoding: no_such_codec
+['no_such_codec', 'no_such_codec']
+LookupError: unknown encoding: test_codec None TypeError: argument must be callable ValueError: embedded null character UnicodeEncodeError: 'utf-8' codec can't encode character '\udc80' in position 0: surrogates not allowed TypeError: lookup() argument must be str, not int TypeError: _codecs.lookup() takes exactly one argument (0 given) TypeError: _codecs.lookup() takes no keyword arguments TypeError: _codecs.register() takes exactly one argument (0 given) TypeError: register_error expected 2 arguments, got 1
+TypeError: utf_8_decode expected at least 1 argument, got 0 TypeError: utf_8_decode expected at most 3 arguments, got 4 TypeError: _codecs.utf_8_decode() takes no keyword arguments TypeError: a bytes-like object is required, not 'str' TypeError: utf_8_decode() argument 2 must be str or None, not int ('abc', 3) TypeError: utf_8_encode() argument 1 must be str, not bytes TypeError: utf_8_encode() argument 2 must be str or None, not int TypeError: 'str' object cannot be interpreted as an integer OverflowError: Python int too large to convert to C int (b'\x00a\x00b\x00c', 3) (b'a\x00b\x00c\x00', 3)
+utf-8 b'h\xc3\xa9llo \xe2\x82\xac \xf0\x9f\x98\x80 +x\\' ['h', '', 'é', 'l', 'l', 'o', ' ', '', '', '€', ' ', '', '', '', '😀', ' ', '+', 'x', '\\', ''] True (b'', 0)
+utf-8 'hé' (b'', 0)
+utf-16 b'\xff\xfeh\x00\xe9\x00l\x00l\x00o\x00 \x00\xac  \x00=\xd8\x00\xde \x00+\x00x\x00\\\x00' ['', '', '', 'h', '', 'é', '', 'l', '', 'l', '', 'o', '', ' ', '', '€', '', ' ', '', '', '', '😀', '', ' ', '', '+', '', 'x', '', '\\', ''] True (b'', 0)
+utf-16 '' (b'h', 0)
+utf-16-be b'\x00h\x00\xe9\x00l\x00l\x00o\x00  \xac\x00 \xd8=\xde\x00\x00 \x00+\x00x\x00\\' ['', 'h', '', 'é', '', 'l', '', 'l', '', 'o', '', ' ', '', '€', '', ' ', '', '', '', '😀', '', ' ', '', '+', '', 'x', '', '\\', ''] True (b'', 0)
+utf-16-be 'h' (b'\x00', 0)
+utf-32 b'\xff\xfe\x00\x00h\x00\x00\x00\xe9\x00\x00\x00l\x00\x00\x00l\x00\x00\x00o\x00\x00\x00 \x00\x00\x00\xac \x00\x00 \x00\x00\x00\x00\xf6\x01\x00 \x00\x00\x00+\x00\x00\x00x\x00\x00\x00\\\x00\x00\x00' ['', '', '', '', '', '', '', 'h', '', '', '', 'é', '', '', '', 'l', '', '', '', 'l', '', '', '', 'o', '', '', '', ' ', '', '', '', '€', '', '', '', ' ', '', '', '', '😀', '', '', '', ' ', '', '', '', '+', '', '', '', 'x', '', '', '', '\\', ''] True (b'', 0)
+utf-32 '' (b'\xff\xfe\x00', 2)
+utf-8-sig b'\xef\xbb\xbfh\xc3\xa9llo \xe2\x82\xac \xf0\x9f\x98\x80 +x\\' ['', '', '', 'h', '', 'é', 'l', 'l', 'o', ' ', '', '', '€', ' ', '', '', '', '😀', ' ', '+', 'x', '\\', ''] True (b'', 0)
+utf-8-sig '' (b'', 0)
+utf-7 b'h+AOk-llo +IKw- +2D3eAA- +-x+AFw-' ['h', '', '', '', '', 'é', 'l', 'l', 'o', ' ', '', '', '', '', '€', ' ', '', '', '', '', '', '', '', '😀', ' ', '', '+', 'x', '', '', '', '', '\\', ''] True (b'', 0)
+utf-7 'h' (b'+A', 0)
+cp1252 b'h\xe9llo \x80 +x' ['h', 'é', 'l', 'l', 'o', ' ', '€', ' ', '+', 'x', ''] True (b'', 0)
+cp1252 'hél' (b'', 0)
+unicode_escape b'h\\xe9llo \\u20ac \\U0001f600 +x\\\\' ['h', '', '', '', 'é', 'l', 'l', 'o', ' ', '', '', '', '', '', '€', ' ', '', '', '', '', '', '', '', '', '', '😀', ' ', '+', 'x', '', '\\', ''] True (b'', 0)
+unicode_escape 'h' (b'\\x', 0)
+raw_unicode_escape b'h\xe9llo \\u20ac \\U0001f600 +x\\' ['h', 'é', 'l', 'l', 'o', ' ', '', '', '', '', '', '€', ' ', '', '', '', '', '', '', '', '', '', '😀', ' ', '+', 'x', '', '\\'] True (b'', 0)
+raw_unicode_escape 'hél' (b'', 0)
+'a' '�b'
+'' '' 'a' (b'', 1) UnicodeDecodeError: 'utf-16-be' codec can't decode byte 0x00 in position 0: truncated data
+UnicodeDecodeError: 'utf-8' codec can't decode bytes in position 0-1: unexpected end of data
+b'\xff\xfea\x00' b'b\x00' 0
+b'c\x00'
+['€', 'a'] [b'\xff\xfea\x00', b'\xac ']
+[b'\xff\xfea\x00b\x00', b'\xac ', b'c\x00d\x00']
+'héllo\n' 'w€r' 'ld\n!'
+['ab\n', 'cd']
+'€�'
