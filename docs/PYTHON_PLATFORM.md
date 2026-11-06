@@ -619,7 +619,7 @@ milestones. Each milestone is commits gated by the quick check and pushed when i
 | M5 | literals and strings: f-strings as PEP 701 tokenizes them, the format-spec mini-language, `%` and `str.format`, t-strings (PEP 750, `string.templatelib`), bytes, complex, sets, slices and `slice`, `...` | M2 |
 | M6 | `match` (every pattern; or-patterns binding the same names, checked when compiling) | M2 |
 | M7 | `import`: module objects, a host-given loader (no file system unless the host gives one), a minimal `sys` | M2 |
-| M8 | `async def`, `await`, `async for`/`async with`, async generators and comprehensions (driven with `send` in tests: no asyncio) | M4 |
+| M8 | `async def`, `await`, `async for`/`async with`, async generators and comprehensions (driven with `send` in tests: no asyncio; done: their frames interpreted as generators' are, M4b after) | M4 |
 | M9 | deferred annotations (PEP 649/749: `__annotate__`), type parameters and `type` aliases (PEP 695), what is left | M2 |
 
 ### 11.2 Decisions (the expensive ones to change later)
@@ -735,6 +735,32 @@ Made with import (M7):
   package; relative imports from `__package__`; `from m import x` an attribute or a submodule; `import a.b as x`
   IMPORT_NAME then IMPORT_FROM, as 3.12 compiles it. A module's attributes are its dict (PEP 562's `__getattr__`
   after). `__spec__` and `__loader__` are None.
+
+Made with coroutines (M8):
+
+- **Coroutines and async generators are generators' frames** (`PyGenBase`: `PyGenerator`, `PyCoroutine`,
+  `PyAsyncGenerator`, by the code's kind, `PyCodeInfo.kind`), interpreted as generators' are. `await` is `yield
+  from`'s SEND loop over GET_AWAITABLE's iterator (a coroutine itself, else what its type's `__await__` gives). What a
+  suspended frame awaits (CPython's `_PyGen_yf`: its pc at the jump back to a SEND) is `cr_await`, and a coroutine
+  that has one cannot be awaited again.
+- **An async generator's yields are wrapped** (ASYNC_GEN_WRAP), so that the awaitables stepping it (`__anext__` and
+  `asend`, `athrow` and `aclose`: `PyAsyncGenASend`, `PyAsyncGenAThrow`, their states and messages genobject.c's)
+  tell a value it yields, which ends the awaitable (StopIteration(value)), from one an await in it passes up to the
+  driver. aclose throws GeneratorExit in without closing what it awaits (`MODE_THROW_ALL`, CPython's
+  `close_on_genexit` 0), so its finally bodies can await.
+- **`async for`'s handler covers only the awaiting of the next value** (GET_ANEXT and its SEND loop), not the target
+  or the body: END_ASYNC_FOR ends the loop at a StopAsyncIteration and raises anything else again, never making it
+  the exception handled. `async with` is `with` with `__aenter__` and `__aexit__` (`__aexit__` looked up first) and
+  each call awaited, where `return`, `break` and `continue` leave its body too. LOAD_SPECIAL's messages are 3.14's:
+  the type's qualified name, and the hint where the type has the other protocol's two methods.
+- **An asynchronous comprehension is a coroutine** (comprehensions are functions here), called and then awaited
+  where it is; an async generator expression is an async generator, which any function may make (its first
+  iterable's `__aiter__` called there: GET_AITER, the one async instruction outside coroutines' code, a runtime call
+  in the tier). The symbol table decides which comprehensions are asynchronous and rejects `await`, `async for`,
+  `async with` and asynchronous comprehensions where CPython's does; `yield from` in an async function and a `return`
+  with a value in an async generator are the compiler's errors, as in CPython.
+- **No event loop**: the tests drive coroutines with send() and throw(). There are no finalizers, so no "never
+  awaited" warning, and an async generator dropped while suspended is not closed (CPython's would aclose it).
 
 - **A statement gives its temporaries back** when it ends, so that the registers of one try or with serve the next:
   the tier's code keeps every register a handler may read in a home at the start of each block a handler covers

@@ -369,13 +369,21 @@ object PyClasses {
                 "step" -> obj.step
                 else -> null
             }
-            is PyGenerator -> when (name) {
+            is PyGenBase -> when (name) {
                 "__name__" -> PyStr(obj.name)
                 "__qualname__" -> PyStr(obj.qualname)
-                "gi_running" -> PyBool.of(obj.state == PyGenerator.RUNNING)
-                "gi_suspended" -> PyBool.of(obj.state == PyGenerator.SUSPENDED)
-                "gi_frame", "gi_yieldfrom" -> PyNone
-                else -> null
+                else -> {
+                    // gi_ a generator's, cr_ a coroutine's, ag_ an async generator's (its running is its awaitables')
+                    val p = when (obj) { is PyCoroutine -> "cr_"; is PyAsyncGenerator -> "ag_"; else -> "gi_" }
+                    if (!name.startsWith(p)) null else when (name.substring(3)) {
+                        "running" -> PyBool.of(if (obj is PyAsyncGenerator) obj.runningAsync else obj.state == PyGenBase.RUNNING)
+                        "suspended" -> PyBool.of(obj.state == PyGenBase.SUSPENDED)
+                        "frame" -> PyNone
+                        "yieldfrom" -> if (p == "gi_") obj.yieldFrom() ?: PyNone else null
+                        "await" -> if (p != "gi_") obj.yieldFrom() ?: PyNone else null
+                        else -> null
+                    }
+                }
             }
             is PyBoundMethod -> when (name) {
                 "__name__", "__qualname__" -> PyStr(obj.fn.name)

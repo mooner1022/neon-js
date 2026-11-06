@@ -285,17 +285,23 @@ object PyBuiltins {
                 }
             }
         }
-        def("next") { _, args ->
+        def("next") { ctx, args ->
             if (args.isEmpty()) throw PyRt.typeError("next expected at least 1 argument, got 0")
             if (args.size > 2) throw PyRt.typeError("next expected at most 2 arguments, got ${args.size}")
-            val v = PyDunder.next(args[0])
             val g = args[0]
-            if (v !== PyIterator.STOP) v else if (args.size == 2) args[1]
-            else throw if (g is PyGenerator) PyGenerators.stop(g.returned) else PyException("StopIteration", "")
+            if (g is PyAwaitIter) {
+                // (an awaitable's iterator ends with its value: the StopIteration carries it)
+                val r = g.send(ctx, PyNone)
+                if (r !is PyGenerators.Done) r else if (args.size == 2) args[1] else throw PyGenerators.stopOf(r)
+            } else {
+                val v = PyDunder.next(g)
+                if (v !== PyIterator.STOP) v else if (args.size == 2) args[1]
+                else throw if (g is PyGenerator) PyGenerators.stop(g.returned) else PyException("StopIteration", "")
+            }
         }
         // the exception classes, their behaviour; generators'
         PyExceptions.define()
-        PyGenerators.define()
+        PyGenerators.define(d)
         for ((n, t) in PyTypes.EXCEPTIONS) d[PyStr(n)] = t
         d[PyStr("EnvironmentError")] = PyExceptions.type("OSError")
         d[PyStr("IOError")] = PyExceptions.type("OSError")

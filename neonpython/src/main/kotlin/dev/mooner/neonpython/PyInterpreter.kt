@@ -30,7 +30,7 @@ class PyContext(
     @JvmField val sysModule: PyModule = PyImport.sys(this)
     /** The exception being handled (PyExceptions: PUSH_EXC_INFO sets it, POP_EXCEPT puts the one before back), or null. */
     @JvmField var handled: PyBaseException? = null
-    /** The callers' exceptions handled, under the generators running (each its own [handled]: PyGenerator.resume). */
+    /** The callers' exceptions handled, under the generators running (each its own [handled]: PyGenBase.resume). */
     @JvmField val handledStack = ArrayList<PyBaseException?>()
 
     /** The exception handled here: the running code's, else the nearest caller's (a generator with none of its own). */
@@ -95,7 +95,7 @@ class PyFrame(@JvmField val code: CodeUnit, @JvmField val ctx: PyContext, @JvmFi
     override val unit: CodeUnit get() = code
     override val agent: VmAgent get() = ctx.agent
 
-    /** A generator's: the value its YIELD hands over, and how it is resumed (MODE_NEXT, MODE_THROW). */
+    /** A generator's: the value its YIELD hands over, and how it is resumed (MODE_NEXT, MODE_THROW, MODE_THROW_ALL). */
     @JvmField var suspendValue: Any? = null
     @JvmField var resumeMode = MODE_NEXT
 
@@ -106,6 +106,8 @@ class PyFrame(@JvmField val code: CodeUnit, @JvmField val ctx: PyContext, @JvmFi
     companion object {
         const val MODE_NEXT = 0
         const val MODE_THROW = 1
+        /** thrown in, GeneratorExit too passed on to what a `yield from` or await steps (an async generator's aclose) */
+        const val MODE_THROW_ALL = 2
     }
 }
 
@@ -126,8 +128,15 @@ object PyInterpreter {
     @JvmStatic
     fun callBound(ctx: PyContext, fn: PyFunction, args: Array<Any?>): Any? {
         val code = fn.code
-        // a generator function: its generator, its frame (interpreted, M4) not run yet
-        if (fn.info.generator) return PyGenerator(PyFrame(code, ctx, fn.globals, args, null, fn.closure), fn)
+        // a generator function's generator, an async def's coroutine: its frame (interpreted, M4) not run yet
+        if (fn.info.kind != 0) {
+            val f = PyFrame(code, ctx, fn.globals, args, null, fn.closure)
+            return when (fn.info.kind) {
+                PyCodeInfo.GENERATOR -> PyGenerator(f, fn)
+                PyCodeInfo.COROUTINE -> PyCoroutine(f, fn)
+                else -> PyAsyncGenerator(f, fn)
+            }
+        }
         val c = Jit.prepare(code, ctx.agent)
         return runFrame(PyFrame(code, ctx, fn.globals, args, c, fn.closure), c)
     }
@@ -503,6 +512,11 @@ object PyInterpreter {
                 s[sp++] = PyFormat.buildString(parts)
             }
             PyOp.GET_YIELD_FROM_ITER -> s[sp - 1] = PyGenerators.yieldFromIter(s[sp - 1])
+            PyOp.GET_AWAITABLE -> s[sp - 1] = PyGenerators.getAwaitable(f, s[sp - 1], a)
+            PyOp.GET_AITER -> s[sp - 1] = PyGenerators.getAIter(f, s[sp - 1])
+            PyOp.GET_ANEXT -> s[sp - 1] = PyGenerators.getANext(f, s[sp - 1])
+            PyOp.END_ASYNC_FOR -> PyGenerators.endAsyncFor(pop())
+            PyOp.ASYNC_GEN_WRAP -> s[sp - 1] = PyGenerators.asyncGenWrap(s[sp - 1])
             PyOp.EXC_STAR_BEGIN -> s[sp - 1] = PyExceptions.excStarBegin(s[sp - 1])
             PyOp.EXC_STAR_MATCH -> {
                 val t = pop()

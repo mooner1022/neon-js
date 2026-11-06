@@ -427,6 +427,18 @@ class PyProgramsTest {
             "import sys\nsys.exit('bye')\n" to Triple("SystemExit", "bye", 2),
             "import sys\nsys.nope\n" to Triple("AttributeError", "module 'sys' has no attribute 'nope'", 2),
             "import string.nope\n" to Triple("ModuleNotFoundError", "No module named 'string.nope'", 1),
+            "async def f():\n    await 1\nf().send(None)\n" to Triple("TypeError", "'int' object can't be awaited", 2),
+            "async def c():\n    raise StopIteration\nc().send(None)\n" to Triple("RuntimeError", "coroutine raised StopIteration", 3),
+            "async def ag():\n    raise StopAsyncIteration\n    yield\nag().__anext__().send(None)\n" to Triple("RuntimeError", "async generator raised StopAsyncIteration", 4),
+            "class M:\n    pass\nasync def f():\n    async with M():\n        pass\nf().send(None)\n" to Triple("TypeError", "'M' object does not support the asynchronous context manager protocol (missed __aexit__ method)", 4),
+            "async def f():\n    async for x in 1:\n        pass\nf().send(None)\n" to Triple("TypeError", "'async for' requires an object with __aiter__ method, got int", 2),
+            "async def c():\n    pass\nx = c()\nx.close()\nx.send(None)\n" to Triple("RuntimeError", "cannot reuse already awaited coroutine", 5),
+            "async def ag():\n    yield 1\ng = ag()\ng.asend(1).send(None)\n" to Triple("TypeError", "can't send non-None value to a just-started async generator", 4),
+            "async def f():\n    return [x async for x in [1]]\nf().send(None)\n" to Triple("TypeError", "'async for' requires an object with __aiter__ method, got list", 2),
+            "def f():\n    return (x async for x in 1)\nf()\n" to Triple("TypeError", "'async for' requires an object with __aiter__ method, got int", 2),
+            "async def g():\n    await h()\nasync def h():\n    await 1\ng().send(None)\n" to Triple("TypeError", "'int' object can't be awaited", 4),
+            "aiter(1)\n" to Triple("TypeError", "'int' object is not an async iterable", 1),
+            "async def f():\n    async with 1:\n        pass\nf().send(None)\n" to Triple("TypeError", "'int' object does not support the asynchronous context manager protocol (missed __aexit__ method)", 2),
             "a, b = 1\n" to Triple("TypeError", "cannot unpack non-iterable int object", 1),
             "for a, b in [1]:\n    pass\n" to Triple("TypeError", "cannot unpack non-iterable int object", 1),
             "class C:\n    def __getitem__(self, i):\n        raise TypeError(\"gi\")\na, b = C()\n" to Triple("TypeError", "gi", 3),
@@ -464,7 +476,7 @@ class PyProgramsTest {
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
             "speculation", "functions", "closures", "unpacking", "types", "classes", "descriptors",
-            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods", "containers", "match", "imports",
+            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods", "containers", "match", "imports", "coroutines", "async_generators",
         )
 
         /** The code blocks of [cb] and every function it defines. */

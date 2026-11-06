@@ -144,6 +144,7 @@ class PySymtable private constructor() {
                 target(s.target)
             }
             is For -> {
+                if (s.isAsync && !cur.isCoroutine) err("'async for' outside async function", s)
                 expr(s.iter)
                 target(s.target)
                 stmts(s.body)
@@ -160,6 +161,7 @@ class PySymtable private constructor() {
                 stmts(s.orelse)
             }
             is With -> {
+                if (s.isAsync && !cur.isCoroutine) err("'async with' outside async function", s)
                 for (i in s.items) {
                     expr(i.contextExpr)
                     i.optionalVars?.let { target(it) }
@@ -300,8 +302,11 @@ class PySymtable private constructor() {
             is DictComp -> comprehension(e, "<dictcomp>", e.generators) { expr(e.key); expr(e.value) }
             is GeneratorExp -> comprehension(e, "<genexpr>", e.generators) { expr(e.elt) }
             is Await -> {
+                // (in a comprehension, it makes the comprehension's code a coroutine: an async def's it awaits)
+                if (cur.type != Scope.Type.FUNCTION && cur.type != Scope.Type.COMPREHENSION) err("'await' outside function", e)
+                if (cur.type == Scope.Type.FUNCTION && !cur.isCoroutine) err("'await' outside async function", e)
                 expr(e.value)
-                markCoroutine()
+                cur.isCoroutine = true
             }
             is Yield -> {
                 e.value?.let { expr(it) }
@@ -347,15 +352,11 @@ class PySymtable private constructor() {
     private fun markGenerator(e: Expr) {
         when (cur.type) {
             Scope.Type.FUNCTION -> cur.isGenerator = true
-            Scope.Type.COMPREHENSION -> if (cur.name != "<genexpr>") err("'yield' inside ${cur.name.removePrefix("<").removeSuffix(">").let {
-                when (it) { "listcomp" -> "list comprehension"; "setcomp" -> "set comprehension"; else -> "dict comprehension" } }}", e)
-                else cur.isGenerator = true
+            Scope.Type.COMPREHENSION -> err("'yield' inside ${when (cur.name) {
+                "<listcomp>" -> "list comprehension"; "<setcomp>" -> "set comprehension"; "<dictcomp>" -> "dict comprehension"
+                else -> "generator expression" }}", e)
             else -> err("'yield' outside function", e)
         }
-    }
-
-    private fun markCoroutine() {
-        if (cur.type == Scope.Type.COMPREHENSION) cur.isCoroutine = true
     }
 
     /** A walrus binds in the function around its comprehensions (PEP 572). */
@@ -384,7 +385,11 @@ class PySymtable private constructor() {
         bind(n, e)
     }
 
-    /** A comprehension: its first iterable in the scope around it, the rest in a scope of its own. */
+    /**
+     * A comprehension: its first iterable in the scope around it, the rest in a scope of its own. One with an async
+     * for or an await is asynchronous: a generator expression's an async generator; another's a coroutine the scope
+     * around awaits, an async def's or a comprehension's (which becomes asynchronous too).
+     */
     private fun comprehension(e: Expr, name: String, gens: List<Comprehension>, elt: () -> Unit) {
         expr(gens[0].iter)
         val s = push(Scope.Type.COMPREHENSION, name, e)
@@ -398,6 +403,12 @@ class PySymtable private constructor() {
         }
         elt()
         pop()
+        if (s.isCoroutine && name != "<genexpr>") {
+            if (cur.type != Scope.Type.COMPREHENSION && !(cur.type == Scope.Type.FUNCTION && cur.isCoroutine)) {
+                err("asynchronous comprehension outside of an asynchronous function", e)
+            }
+            cur.isCoroutine = true
+        }
     }
 
     private fun compTarget(e: Expr) {

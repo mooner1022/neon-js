@@ -314,7 +314,7 @@ object PyDunder {
     private fun callIter(v: Any, f: Any?): Any? {
         if (f === PyNone) throw PyRt.typeError("'${PyTypes.name(v)}' object is not iterable")
         val it = call(f, v)
-        if (it is PyIterator || it is PyGenerator || PyRt.special(it) && userMethod(PyTypes.typeOf(it), "__next__") != null) return it
+        if (it is PyIterator || it is PyGenerator || it is PyAwaitIter || PyRt.special(it) && userMethod(PyTypes.typeOf(it), "__next__") != null) return it
         throw PyRt.typeError("iter() returned non-iterator of type '${PyTypes.name(it)}'")
     }
 
@@ -326,7 +326,7 @@ object PyDunder {
         if (f != null) {
             return when (val it = callIter(v, f)) {
                 is PyIterator -> it
-                is PyGenerator -> PyRt.iter(it)
+                is PyGenerator, is PyAwaitIter -> PyRt.iter(it)
                 else -> wrap(it!!)
             }
         }
@@ -350,8 +350,8 @@ object PyDunder {
     /** iter(v), the builtin: the iterator __iter__ gave as it is (an instance stays one). */
     @JvmStatic
     fun iterObject(v: Any?): Any? {
-        // (a generator is its own iterator)
-        if (v is PyGenerator) return v
+        // (a generator is its own iterator, an awaitable's iterator too)
+        if (v is PyGenerator || v is PyAwaitIter) return v
         if (PyRt.special(v)) {
             val f = userMethod(PyTypes.typeOf(v), "__iter__")
             if (f != null) return callIter(v!!, f)
@@ -377,6 +377,7 @@ object PyDunder {
     fun next(it: Any?): Any? = when (it) {
         is PyIterator -> it.next()
         is PyGenerator -> it.next()
+        is PyAwaitIter -> it.send(ctx(), PyNone).let { r -> if (r is PyGenerators.Done) PyIterator.STOP else r }
         else -> {
             val f = (if (PyRt.special(it)) userMethod(PyTypes.typeOf(it), "__next__") else null)
                 ?: throw PyRt.typeError("'${PyTypes.name(it)}' object is not an iterator")

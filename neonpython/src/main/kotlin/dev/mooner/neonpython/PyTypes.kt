@@ -86,6 +86,8 @@ object PyTypes {
     @JvmField val SUPER = builtin("super")
     @JvmField val PROPERTY = builtin("property")
     @JvmField val GENERATOR = builtin("generator", subclassable = false)
+    @JvmField val COROUTINE = builtin("coroutine", subclassable = false)
+    @JvmField val ASYNC_GENERATOR = builtin("async_generator", subclassable = false)
     @JvmField val SET = builtin("set")
     @JvmField val FROZENSET = builtin("frozenset")
     @JvmField val SLICE = builtin("slice", subclassable = false)
@@ -160,6 +162,9 @@ object PyTypes {
         is PyRange -> RANGE
         is PyIterator -> v.type ?: ITERATOR
         is PyGenerator -> GENERATOR
+        is PyCoroutine -> COROUTINE
+        is PyAsyncGenerator -> ASYNC_GENERATOR
+        is PyAwaitIter -> v.type
         is PySet -> v.sub?.cls ?: if (v.frozen) FROZENSET else SET
         is PySlice -> SLICE
         is PyTemplate -> TEMPLATE
@@ -174,6 +179,9 @@ object PyTypes {
         PyNotImplemented -> NOT_IMPLEMENTED
         else -> OBJECT
     }
+
+    /** [t]'s name with its module (none for builtins' and `__main__`'s), as CPython's %T gives it. */
+    @JvmStatic fun fullName(t: PyType): String = if (t.module == "builtins" || t.module == "__main__") t.qualname else "${t.module}.${t.qualname}"
 
     /** The name of [v]'s type, as messages give it. */
     @JvmStatic fun name(v: Any?): String = typeOf(v).name

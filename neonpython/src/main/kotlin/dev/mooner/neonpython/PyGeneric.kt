@@ -53,6 +53,7 @@ internal class Generic(
         const val LIB = "dev/mooner/neonpython/PyLibrary"
         const val MATCH = "dev/mooner/neonpython/PyMatch"
         const val IMP = "dev/mooner/neonpython/PyImport"
+        const val GEN = "dev/mooner/neonpython/PyGenerators"
     }
 }
 
@@ -134,6 +135,8 @@ internal object PyGeneric {
         t[PyOp.IMPORT_NAME] = Generic("importName", "fvvk", pops = 2, result = true, owner = im)
         t[PyOp.IMPORT_FROM] = Generic("importFrom", "vk", pops = 1, result = true, owner = im)
         t[PyOp.IMPORT_STAR] = Generic("importStar", "fv", pops = 1, result = false, owner = im)
+        // (an async generator expression's first iterable, in the function that makes it: the rest is a coroutine's code)
+        t[PyOp.GET_AITER] = Generic("getAIter", "fv", pops = 1, result = true, owner = Generic.GEN)
         t[PyOp.WRAP_STAR] = Generic("wrapStar", "v", pops = 1, result = true, throws = false, owner = c, flags = OpInfo.REMOVABLE or OpInfo.ALLOCATES)
     }
 

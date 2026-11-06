@@ -56,7 +56,7 @@ class PyFrontTest {
         assertThrows<PySyntaxError> { PyParser("if x:\npass\n").parseModule() }
         assertThrows<PySyntaxError> { PyCompiler.compileModule("break\n") }
         assertThrows<PySyntaxError> { PyCompiler.compileModule("return 1\n") }
-        val e = assertThrows<PySyntaxError> { PyCompiler.compileModule("async def f(): pass\n") }
+        val e = assertThrows<PySyntaxError> { PyCompiler.compileModule("type X = int\n") }
         assertTrue(e.message!!.contains("not supported"), e.message)
     }
 
@@ -95,6 +95,25 @@ class PyFrontTest {
             "x = 1\nfrom __future__ import annotations\n" to ("from __future__ imports must occur at the beginning of the file" to 2),
             "from __future__ import nope\n" to ("future feature nope is not defined" to 1),
             "from __future__ import braces\n" to ("not a chance" to 1),
+            "await 1\n" to ("'await' outside function" to 1),
+            "def f():\n    await 1\n" to ("'await' outside async function" to 2),
+            "class C:\n    await 1\n" to ("'await' outside function" to 2),
+            "f = lambda: await 1\n" to ("'await' outside async function" to 1),
+            "async def g():\n    f = lambda: await 1\n" to ("'await' outside async function" to 2),
+            "async def f(a=await x):\n    pass\n" to ("'await' outside function" to 1),
+            "async for x in y:\n    pass\n" to ("'async for' outside async function" to 1),
+            "def f():\n    async with y:\n        pass\n" to ("'async with' outside async function" to 2),
+            "class C:\n    async for x in y:\n        pass\n" to ("'async for' outside async function" to 2),
+            "def f():\n    return [x async for x in y]\n" to ("asynchronous comprehension outside of an asynchronous function" to 2),
+            "[x async for x in y]\n" to ("asynchronous comprehension outside of an asynchronous function" to 1),
+            "def f():\n    return [await x for x in y]\n" to ("asynchronous comprehension outside of an asynchronous function" to 2),
+            "def f():\n    return [[x async for x in y] for z in w]\n" to ("asynchronous comprehension outside of an asynchronous function" to 2),
+            "async def f():\n    yield from []\n" to ("'yield from' inside async function" to 2),
+            "async def f():\n    yield 1\n    return 2\n" to ("'return' with value in async generator" to 3),
+            "async def f():\n    return 2\n    yield 1\n" to ("'return' with value in async generator" to 2),
+            "async def f():\n    return [(yield) for x in y]\n" to ("'yield' inside list comprehension" to 2),
+            "g = ((yield) for x in [])\n" to ("'yield' inside generator expression" to 1),
+            "def f():\n    return ((yield x) for x in [])\n" to ("'yield' inside generator expression" to 2),
         )
         for ((src, want) in cases) {
             val e = assertThrows<PySyntaxError>(src) { PyCompiler.compileModule(src) }

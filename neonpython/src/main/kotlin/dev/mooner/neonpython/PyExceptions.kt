@@ -213,10 +213,23 @@ object PyExceptions {
     /** LOAD_SPECIAL: [mgr]'s __enter__ (k 0) or __exit__ (k 1), from its type (not its own attributes), bound to it. */
     @JvmStatic
     fun loadSpecial(mgr: Any?, k: Int): Any? {
-        val n = if (k == 0) "__enter__" else "__exit__"
+        val n = SPECIAL[k]
         val t = PyTypes.typeOf(mgr)
-        val m = t.lookup(n) ?: throw PyRt.typeError("'${t.name}' object does not support the context manager protocol (missed $n method)")
+        val m = t.lookup(n) ?: throw PyRt.typeError(specialMissing(t, k))
         return PyClasses.descrGet(null, m, mgr, t)
+    }
+
+    /** LOAD_SPECIAL's names: a with's, an async with's. */
+    private val SPECIAL = arrayOf("__enter__", "__exit__", "__aenter__", "__aexit__")
+
+    /** 3.14's message where [t] has no SPECIAL[k], with its hint where [t] has the other protocol's two. */
+    private fun specialMissing(t: PyType, k: Int): String {
+        val async = k >= 2
+        val msg = "'${PyTypes.fullName(t)}' object does not support the ${if (async) "asynchronous " else ""}context manager protocol (missed ${SPECIAL[k]} method)"
+        val other = if (async) 0 else 2
+        if (t.lookup(SPECIAL[other]) == null || t.lookup(SPECIAL[other + 1]) == null) return msg
+        return msg + if (async) " but it supports the context manager protocol. Did you mean to use 'with'?"
+            else " but it supports the asynchronous context manager protocol. Did you mean to use 'async with'?"
     }
 
     /** WITH_EXCEPT: [exit] (a with's bound __exit__) called for [exc]: its type, it, its traceback; whether to suppress it. */

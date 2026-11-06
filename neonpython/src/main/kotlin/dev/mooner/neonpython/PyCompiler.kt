@@ -19,8 +19,8 @@ class PyCodeInfo(@JvmField val name: String, @JvmField val localNames: Array<Str
     @JvmField var paramNames: List<String> = emptyList()
     /** Its docstring. */
     @JvmField var doc: String? = null
-    /** Whether it is a generator's (calling it makes a generator), and its def's line. */
-    @JvmField var generator = false
+    /** What calling it makes: its frame run (0), a generator, a coroutine, an async generator; and its def's line. */
+    @JvmField var kind = 0
     @JvmField var firstLine = -1
 
     /**
@@ -42,6 +42,12 @@ class PyCodeInfo(@JvmField val name: String, @JvmField val localNames: Array<Str
             k += 2
         }
         return line
+    }
+
+    companion object {
+        const val GENERATOR = 1
+        const val COROUTINE = 2
+        const val ASYNC_GENERATOR = 3
     }
 }
 
@@ -126,7 +132,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     /** An `except ... as name:` clause's body: leaving it, the name deleted. */
     private class HandlerName(range: Range, val name: String) : FBlock(range)
     /** A with's body: leaving it, its __exit__ (bound, in register [exit]) called with three Nones. */
-    private class WithBody(range: Range, val exit: Int) : FBlock(range)
+    private class WithBody(range: Range, val exit: Int, val async: Boolean) : FBlock(range)
     /** An except* clause's body, which return, break and continue may not leave. */
     private class StarBody(range: Range) : FBlock(range) {
         override val leaves get() = false
@@ -223,10 +229,15 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             info.varkw = args.kwarg != null
             info.paramNames = scope.params.toList()
         }
-        if (scope.isGenerator || generatorExpr) {
-            cb.flags = cb.flags or CodeUnit.GENERATOR
-            info.generator = true
+        // (a generator's, a coroutine's, an async generator's frame is kept between its suspensions: interpreted)
+        val gen = scope.isGenerator || generatorExpr
+        info.kind = when {
+            scope.isCoroutine && gen -> PyCodeInfo.ASYNC_GENERATOR
+            scope.isCoroutine -> PyCodeInfo.COROUTINE
+            gen -> PyCodeInfo.GENERATOR
+            else -> 0
         }
+        if (info.kind != 0) cb.flags = cb.flags or CodeUnit.GENERATOR
         info.firstLine = firstLine
         cb.dialectData = info
         return cb
@@ -431,8 +442,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 block(s.orelse)
                 for (b in loop.breaks) patch(b, code.size)
             }
-            is For -> {
-                if (s.isAsync) unsupported("async for", s)
+            is For -> if (s.isAsync) asyncFor(s) else {
                 expr(s.iter)
                 emit(PyOp.GET_ITER)
                 val it = temp()
@@ -452,7 +462,6 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 for (b in loop.breaks) patch(b, code.size)
             }
             is FunctionDef -> {
-                if (s.isAsync) unsupported("async def", s)
                 if (s.typeParams.isNotEmpty()) unsupported("type parameters", s)
                 for (d in s.decoratorList) expr(d)
                 makeFunction(s, s.name, s.args, s.body)
@@ -462,6 +471,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             is Return -> {
                 if (namespace) throw PySyntaxError("'return' outside function", s.line, s.col)
                 if (fblocks.any { it is StarBody }) throw PySyntaxError("'break', 'continue' and 'return' cannot appear in an except* block", s.line, s.col)
+                if (s.value != null && scope.isCoroutine && scope.isGenerator) throw PySyntaxError("'return' with value in async generator", s.line, s.col)
                 if (s.value == null) loadConst(PyNone) else expr(s.value)
                 val exited = fblocks.asReversed().toList()
                 if (exited.none { it.leaves }) emit(PyOp.RETURN) else {
@@ -511,7 +521,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 }
                 emit(PyOp.RAISE, n)
             }
-            is With -> if (s.isAsync) unsupported("async with", s) else withItems(s, 0)
+            is With -> withItems(s, 0)
             is Match -> matchStmt(s)
             is Import -> for (a in s.names) {
                 loadConst(0L)
@@ -555,7 +565,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                     emit(PyOp.POP_EXCEPT)
                 }
                 is HandlerName -> clearName(fb.name)
-                is WithBody -> exitWith(fb.exit)
+                is WithBody -> exitWith(fb.exit, fb.async)
             }
         }
         jump()
@@ -567,7 +577,8 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     /**
      * `with` (its items, from [k] on, each inside the one before): the manager's __exit__ looked up and kept, then its
      * __enter__ called; the target stored and the body in a range whose handler calls __exit__ with the exception and
-     * raises it again unless that says to suppress it; __exit__ with three Nones on the way out.
+     * raises it again unless that says to suppress it; __exit__ with three Nones on the way out. `async with`'s
+     * __aenter__ and __aexit__, each call's result awaited.
      */
     private fun withItems(s: With, k: Int) {
         if (k == s.items.size) {
@@ -575,25 +586,28 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             return
         }
         val item = s.items[k]
+        val async = s.isAsync
+        val special = if (async) 2 else 0
         expr(item.contextExpr)
         val mgr = temp()
         val exit = temp()
         emit(PyOp.STORE_FAST, mgr)
         emit(PyOp.LOAD_FAST, mgr)
-        emit(PyOp.LOAD_SPECIAL, 1)
+        emit(PyOp.LOAD_SPECIAL, special + 1)
         emit(PyOp.STORE_FAST, exit)
         emit(PyOp.LOAD_FAST, mgr)
-        emit(PyOp.LOAD_SPECIAL, 0)
+        emit(PyOp.LOAD_SPECIAL, special)
         emit(PyOp.CALL, 0)
+        if (async) await(1)
         val range = Range()
-        fblocks.add(WithBody(range, exit))
+        fblocks.add(WithBody(range, exit, async))
         // (storing the target is the body's: an exception there calls __exit__ too)
         range.begin()
         if (item.optionalVars != null) store(item.optionalVars) else emit(PyOp.POP)
         withItems(s, k + 1)
         range.end()
         fblocks.removeAt(fblocks.size - 1)
-        exitWith(exit)
+        exitWith(exit, async)
         val toEnd = emit(PyOp.JUMP, 0)
         range.handle(code.size)
         var suppressed = -1
@@ -601,6 +615,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             emit(PyOp.LOAD_FAST, exit)
             emit(PyOp.LOAD_FAST, exc)
             emit(PyOp.WITH_EXCEPT)
+            if (async) await(2)
             val sup = emit(PyOp.POP_JUMP_IF_TRUE, 0)
             emit(PyOp.LOAD_FAST, exc)
             emit(PyOp.RERAISE)
@@ -633,8 +648,10 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         emit(PyOp.MAKE_FUNCTION, const(cb))
         if (flags != 0) emit(PyOp.SET_FUNCTION_ATTRIBUTE, flags)
         expr(gens[0].iter)
-        emit(PyOp.GET_ITER)
+        emit(if (gens[0].isAsync == 1) PyOp.GET_AITER else PyOp.GET_ITER)
         emit(PyOp.CALL, 1)
+        // (an asynchronous comprehension's code, other than a generator expression's, a coroutine: awaited here)
+        if (child.isCoroutine && e !is GeneratorExp) await(0)
     }
 
     private fun generatorsOf(e: Expr): List<Comprehension> = when (e) {
@@ -659,16 +676,20 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         }
         fun level(k: Int) {
             val g = gens[k]
-            if (g.isAsync == 1) unsupported("asynchronous comprehensions", e)
+            val async = g.isAsync == 1
             val it = if (k == 0) locals[".0"]!! else {
                 expr(g.iter)
-                emit(PyOp.GET_ITER)
+                emit(if (async) PyOp.GET_AITER else PyOp.GET_ITER)
                 temp().also { emit(PyOp.STORE_FAST, it) }
             }
-            val value = temp()
             val top = code.size
-            val exit = emit(PyOp.FOR_ITER, it, value, 0)
-            emit(PyOp.LOAD_FAST, value)
+            var exit = -1
+            val next = if (async) asyncNext(it) else {
+                val value = temp()
+                exit = emit(PyOp.FOR_ITER, it, value, 0)
+                emit(PyOp.LOAD_FAST, value)
+                null
+            }
             store(g.target)
             val skips = ArrayList<Int>()
             for (c in g.ifs) {
@@ -697,6 +718,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 }
                 is GeneratorExp -> {
                     expr(e.elt)
+                    if (scope.isCoroutine) emit(PyOp.ASYNC_GEN_WRAP)
                     emit(PyOp.YIELD)
                     emit(PyOp.RESUME)
                     emit(PyOp.POP)
@@ -706,7 +728,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             // (a condition that fails goes on to the next value: through the loop's jump back, its checks)
             for (s in skips) patch(s, code.size)
             emit(PyOp.JUMP, top)
-            patch(exit, code.size)
+            if (next != null) asyncEnd(next, e.line) else patch(exit, code.size)
         }
         level(0)
         if (acc >= 0) {
@@ -1064,14 +1086,82 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         }
     }
 
-    /** A with's __exit__ (bound, in register [exit]) called with three Nones, its result dropped. */
-    private fun exitWith(exit: Int) {
+    /** A with's __exit__ (bound, in register [exit]) called with three Nones (an async with's awaited), its result dropped. */
+    private fun exitWith(exit: Int, async: Boolean) {
         emit(PyOp.LOAD_FAST, exit)
         loadConst(PyNone)
         loadConst(PyNone)
         loadConst(PyNone)
         emit(PyOp.CALL, 3)
+        if (async) await(2)
         emit(PyOp.POP)
+    }
+
+    /**
+     * `await` of the value on the stack ([k] GET_AWAITABLE's: 1, 2 an async with's __aenter__'s, __aexit__'s): its
+     * iterator stepped ([sendLoop]), its result left.
+     */
+    private fun await(k: Int) {
+        emit(PyOp.GET_AWAITABLE, k)
+        sendLoop()
+    }
+
+    /**
+     * The loop of `yield from` and await over the iterator on the stack: stepped with what the frame is resumed with
+     * (SEND), each value it yields yielded on; its result left on the stack.
+     */
+    private fun sendLoop() {
+        val it = temp()
+        emit(PyOp.STORE_FAST, it)
+        loadConst(PyNone)
+        val top = code.size
+        val send = emit(PyOp.SEND, it, 0)
+        emit(PyOp.YIELD)
+        emit(PyOp.JUMP, top)
+        patch(send, code.size)
+    }
+
+    /**
+     * `async for`: its iterable's __aiter__, then each value its __anext__ gives awaited ([asyncNext]) until that
+     * raises StopAsyncIteration ([asyncEnd]); the target, the body and the else clause as a for's.
+     */
+    private fun asyncFor(s: For) {
+        expr(s.iter)
+        emit(PyOp.GET_AITER)
+        val it = temp()
+        emit(PyOp.STORE_FAST, it)
+        val top = code.size
+        val next = asyncNext(it)
+        store(s.target)
+        val loop = Loop(top)
+        fblocks.add(loop)
+        block(s.body)
+        fblocks.removeAt(fblocks.size - 1)
+        emit(PyOp.JUMP, top)
+        asyncEnd(next, s.iter.line)
+        block(s.orelse)
+        for (b in loop.breaks) patch(b, code.size)
+    }
+
+    /**
+     * An async for's next value, of the asynchronous iterator in register [it], awaited: in a range (only that, not the
+     * target or the body) whose handler, after the loop's jump back ([asyncEnd]), ends the loop at StopAsyncIteration.
+     */
+    private fun asyncNext(it: Int): Range {
+        val range = Range()
+        range.begin()
+        emit(PyOp.LOAD_FAST, it)
+        emit(PyOp.GET_ANEXT)
+        sendLoop()
+        range.end()
+        return range
+    }
+
+    /** The handler of [next] ([asyncNext]'s): END_ASYNC_FOR, raising again what is not a StopAsyncIteration. */
+    private fun asyncEnd(next: Range, l: Int) {
+        next.handle(code.size)
+        lineHere(l)
+        emit(PyOp.END_ASYNC_FOR)
     }
 
     /** `name = None; del name`: an except clause's name, after its body (the exception's traceback not kept alive). */
@@ -1588,23 +1678,21 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             is ListComp, is DictComp, is GeneratorExp -> comprehension(e)
             is Yield -> {
                 if (e.value == null) loadConst(PyNone) else expr(e.value)
+                // (an async generator's yielded value told from what its awaits pass on)
+                if (scope.isCoroutine) emit(PyOp.ASYNC_GEN_WRAP)
                 emit(PyOp.YIELD)
                 emit(PyOp.RESUME)
             }
             is YieldFrom -> {
-                // its iterator stepped with what the frame is resumed with (SEND), each value yielded on
+                if (scope.isCoroutine) throw PySyntaxError("'yield from' inside async function", e.line, e.col)
                 expr(e.value)
                 emit(PyOp.GET_YIELD_FROM_ITER)
-                val it = temp()
-                emit(PyOp.STORE_FAST, it)
-                loadConst(PyNone)
-                val top = code.size
-                val send = emit(PyOp.SEND, it, 0)
-                emit(PyOp.YIELD)
-                emit(PyOp.JUMP, top)
-                patch(send, code.size)
+                sendLoop()
             }
-            is Await -> unsupported("await", e)
+            is Await -> {
+                expr(e.value)
+                await(0)
+            }
             is JoinedStr -> fstring(e)
             is FormattedValue -> formatted(e)
             is TemplateStr -> template(e)

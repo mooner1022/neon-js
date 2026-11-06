@@ -511,7 +511,6 @@ object PyRt {
         is PyRange -> if (v.step == 1L) "range(${v.start}, ${v.stop})" else "range(${v.start}, ${v.stop}, ${v.step})"
         is PyType -> v.repr()
         is PyObject -> PyDunder.repr(v)
-        is PyGenerator -> "<generator object ${v.qualname} at 0x${Integer.toHexString(System.identityHashCode(v)).padStart(16, '0').uppercase()}>"
         else -> v.toString()
     }
 
@@ -738,6 +737,7 @@ object PyRt {
         is PyDictView -> PyContainers.iter(v.dict, v.kind)
         is PyObject -> PyDunder.iter(v)
         is PyGenerator -> PyIterator { v.next() }
+        is PyAwaitIter -> PyIterator { v.send(PyContext.current(), PyNone).let { r -> if (r is PyGenerators.Done) PyIterator.STOP else r } }
         is PyBytes -> {
             var k = 0
             PyIterator { if (k < v.b.size) (v.b[k++].toInt() and 0xFF).toLong() else PyIterator.STOP }.also { it.type = PyLibrary.BYTES_ITERATOR }

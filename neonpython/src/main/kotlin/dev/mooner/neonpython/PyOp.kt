@@ -235,13 +235,25 @@ object PyOp {
     /** (module -- ): its names into the namespace */
     const val IMPORT_STAR = 142
 
+    // coroutines (M8): await is a SEND's loop over GET_AWAITABLE's iterator, as `yield from` over GET_YIELD_FROM_ITER's
+    /** k (v -- iterator): what `await v` steps (k 1, 2: an async with's __aenter__'s, __aexit__'s result) */
+    const val GET_AWAITABLE = 143
+    /** (v -- aiterator): what `async for` steps, its __aiter__'s */
+    const val GET_AITER = 144
+    /** (aiterator -- awaitable): its next value's, awaited after */
+    const val GET_ANEXT = 145
+    /** (exc -- ): the handler of an async for's next: its end where a StopAsyncIteration, else raised again */
+    const val END_ASYNC_FOR = 146
+    /** (v -- wrapped): an async generator's yielded value, told from an await's */
+    const val ASYNC_GEN_WRAP = 147
+
     const val COUNT = 200
 
     @JvmField val operands = IntArray(COUNT).also { o ->
         for (op in intArrayOf(LOAD_CONST, LOAD_FAST, LOAD_FAST_CHECK, STORE_FAST, LOAD_GLOBAL, STORE_GLOBAL, JUMP, POP_JUMP_IF_FALSE,
             POP_JUMP_IF_TRUE, CALL, BUILD_LIST, BUILD_TUPLE, BUILD_MAP, LOAD_ATTR, UNPACK, MAKE_FUNCTION, CALL_KW, CALL_EX, LOAD_FREE,
             SET_FUNCTION_ATTRIBUTE, DELETE_FAST, DELETE_GLOBAL, DELETE_ATTR, ASSERT_FAIL, LOAD_NAME, STORE_NAME, DELETE_NAME,
-            LOAD_FROM_DICT_OR_DEREF, STORE_ATTR, INPLACE, RAISE, LOAD_SPECIAL, FORMAT_VALUE, FORMAT_SPEC, BUILD_STRING, BUILD_SET, BUILD_SLICE, LOAD_FAST_RAW, LOAD_LOCALS, MATCH_CLASS, IMPORT_NAME, IMPORT_FROM)) o[op] = 1
+            LOAD_FROM_DICT_OR_DEREF, STORE_ATTR, INPLACE, RAISE, LOAD_SPECIAL, FORMAT_VALUE, FORMAT_SPEC, BUILD_STRING, BUILD_SET, BUILD_SLICE, LOAD_FAST_RAW, LOAD_LOCALS, MATCH_CLASS, IMPORT_NAME, IMPORT_FROM, GET_AWAITABLE)) o[op] = 1
         for (op in intArrayOf(CELL_GET, CELL_DELETE, UNPACK_EX, SEND)) o[op] = 2
         o[FOR_ITER] = 3
     }
@@ -275,7 +287,7 @@ object PyOp {
         BUILD_STRING, BUILD_SET, BUILD_SLICE -> 1 - a
         SET_ADD, SET_UPDATE, BUILD_TEMPLATE, MATCH_KEYS, COPY_DICT_WITHOUT_KEYS -> -1
         MATCH_CLASS -> -2
-        IMPORT_NAME, IMPORT_STAR -> -1
+        IMPORT_NAME, IMPORT_STAR, END_ASYNC_FOR -> -1
         BUILD_INTERPOLATION -> -3
         RAISE -> -a
         CALL -> -a
