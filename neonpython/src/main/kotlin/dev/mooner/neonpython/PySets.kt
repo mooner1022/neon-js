@@ -91,6 +91,7 @@ object PyHash {
         v is PySlice -> tuple(arrayOf(v.start, v.stop, v.step))
         v is PyComplex -> fix(float(v.real, v) + 1000003L * float(v.imag, v))
         v is PyBytes -> fix(v.b.contentHashCode().toLong())
+        v is PyGenericAlias || v is PyUnion -> v.hashCode().toLong()
         else -> System.identityHashCode(v).toLong()
     }
 

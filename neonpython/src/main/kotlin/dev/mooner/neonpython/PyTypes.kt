@@ -16,6 +16,8 @@ class PyType(@JvmField var name: String, bases: Array<PyType>, @JvmField val dic
     @JvmField var subclassable = true
     /** A class (made by a class statement or type()), not a builtin type: what `__annotations__` is given for. */
     @JvmField var heap = false
+    /** The name messages give its instances' type by where it is not [name] (a C type's tp_name: `types.GenericAlias`). */
+    @JvmField var tpName: String? = null
     /** The attribute hooks its instances go through (PyClasses.hooksOf): __getattribute__ 1, __setattr__ 2, __delattr__ 4. */
     @JvmField var hooks = 0
     /** Makes a value of this builtin type (or of a class deriving from it): (context, type, arguments, keywords). */
@@ -167,6 +169,8 @@ object PyTypes {
         is PyCoroutine -> COROUTINE
         is PyAsyncGenerator -> ASYNC_GENERATOR
         is PyAwaitIter -> v.type
+        is PyGenericAlias -> PyTyping.GENERIC_ALIAS
+        is PyUnion -> PyTyping.UNION
         is PySet -> v.sub?.cls ?: if (v.frozen) FROZENSET else SET
         is PySlice -> SLICE
         is PyTemplate -> TEMPLATE
@@ -186,7 +190,7 @@ object PyTypes {
     @JvmStatic fun fullName(t: PyType): String = if (t.module == "builtins" || t.module == "__main__") t.qualname else "${t.module}.${t.qualname}"
 
     /** The name of [v]'s type, as messages give it. */
-    @JvmStatic fun name(v: Any?): String = typeOf(v).name
+    @JvmStatic fun name(v: Any?): String = typeOf(v).let { it.tpName ?: it.name }
 
     /**
      * The C3 linearization of a type with [bases]: itself, then its bases' orders merged so that each keeps its
@@ -214,6 +218,8 @@ object PyTypes {
     fun isInstance(v: Any?, cls: Any?): Boolean = when (cls) {
         is PyType -> typeOf(v).isSubtype(cls)
         is PyTuple -> cls.items.any { isInstance(v, it) }
+        is PyUnion -> PyTyping.unionInstance(v, cls)
+        is PyGenericAlias -> throw PyRt.typeError("isinstance() argument 2 cannot be a parameterized generic")
         else -> throw PyRt.typeError("isinstance() arg 2 must be a type, a tuple of types, or a union")
     }
 
@@ -224,6 +230,8 @@ object PyTypes {
         return when (cls) {
             is PyType -> c.isSubtype(cls)
             is PyTuple -> cls.items.any { isSubclass(c, it) }
+            is PyUnion -> PyTyping.unionSubclass(c, cls)
+            is PyGenericAlias -> throw PyRt.typeError("issubclass() argument 2 cannot be a parameterized generic")
             else -> throw PyRt.typeError("issubclass() arg 2 must be a class, a tuple of classes, or a union")
         }
     }

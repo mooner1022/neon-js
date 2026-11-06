@@ -1,0 +1,41 @@
+list[int] dict[str, list[int]] tuple[int, ...] tuple[()] list[None] list[1, 'a'] type[int] set[int] frozenset[str]
+list[__main__.C] list[__main__.fn] list[len] list[[int, str]] list[int, str] dict[int]
+GenericAlias types GenericAlias
+<class 'list'> (<class 'int'>,) () False list list builtins
+True <class 'types.GenericAlias'> (<class 'int'>,) (<class 'int'>,)
+[] [1, 2] {'a': 1} (1,)
+True False False False True 1
+True True list[int]
+TypeError: isinstance() argument 2 cannot be a parameterized generic
+TypeError: issubclass() argument 2 cannot be a parameterized generic
+TypeError: list[int] is not a generic class
+TypeError: type 'int' is not subscriptable
+TypeError: 'function' object is not subscriptable
+AttributeError: 'types.GenericAlias' object has no attribute 'x' and no __dict__ for setting new attributes
+(<class 'list'>,)
+[*tuple[int, ...]] *tuple[int, ...] True [*tuple[int, str]]
+(<class 'int'>,) None
+list[int] tuple[int, str]
+__main__.aliases.<locals>.MyList[int] GenericAlias
+custom <class 'int'> custom (1, 2)
+meta 3
+int | str Union typing (<class 'int'>, <class 'str'>) <class 'typing.Union'> () Union
+(<class 'int'>, <class 'NoneType'>) None | int int | None | str
+int | str | bytes <class 'int'> True list[int] | None list[int] | dict[str, int]
+True True False u
+True True True True
+True True False
+__main__.C | None list[__main__.C] | int True Union
+TypeError: unsupported operand type(s) for |: 'type' and 'int'
+TypeError: unsupported operand type(s) for |: 'int' and 'type'
+TypeError: unsupported operand type(s) for |: 'type' and 'str'
+TypeError: int | str is not a generic class
+TypeError: 'typing.Union' object is not callable
+TypeError: isinstance() argument 2 cannot be a parameterized generic
+(<class '__main__.subclassing.<locals>.Sub'>, <class 'list'>, <class 'object'>) (list[int],) (<class 'list'>,) [1, 2]
+False
+  bases 2
+(<class '__main__.subclassing.<locals>.FromEntries'>, <class 'dict'>, <class '__main__.C'>, <class 'object'>) <class '__main__.C'>
+TypeError: __mro_entries__ must return a tuple
+{'a': list[int], 'b': dict[str, int | None], 'c': *tuple[int, ...], 'return': int | None}
+{'x': set[__main__.C] | None, 'y': type[__main__.C]}

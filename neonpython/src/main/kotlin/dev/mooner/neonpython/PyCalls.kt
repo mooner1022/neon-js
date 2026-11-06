@@ -95,6 +95,7 @@ object PyCalls {
             callWith(ctx, fn.fn, all, kwNames, kwValues)
         }
         is PyStaticMethod -> callWith(ctx, fn.fn, pos, kwNames, kwValues)
+        is PyGenericAlias -> PyTyping.call(ctx, fn, pos, kwNames, kwValues)
         else -> {
             // an instance whose class has __call__
             val call = PyClasses.classOf(fn)?.lookup("__call__")
@@ -212,7 +213,7 @@ object PyCalls {
     /** SET_FUNCTION_ATTRIBUTE: [attr] as [fn]'s defaults (1), keyword-only defaults (2) or closure (8). */
     /** callable(v). */
     @JvmStatic fun isCallable(v: Any?): Boolean = v is PyFunction || v is PyBuiltin || v is PyBoundMethod || v is PyMethod ||
-        v is PyType || v is PyStaticMethod || PyClasses.classOf(v)?.lookup("__call__") != null
+        v is PyType || v is PyStaticMethod || v is PyGenericAlias || PyClasses.classOf(v)?.lookup("__call__") != null
 
     @JvmStatic fun setFunctionAttribute(attr: Any?, fn: Any?, flag: Int): Any? {
         val f = fn as PyFunction

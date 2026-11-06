@@ -65,7 +65,10 @@ object PyClasses {
         if (args.size < 2) throw PyRt.typeError("__build_class__: not enough arguments")
         val body = args[0] as? PyFunction ?: throw PyRt.typeError("__build_class__: func must be a function")
         val name = args[1] as? PyStr ?: throw PyRt.typeError("__build_class__: name is not a string")
-        val bases = args.copyOfRange(2, args.size)
+        val origBases = args.copyOfRange(2, args.size)
+        // (PEP 560: a base that is no type, list[int], gives the classes its __mro_entries__ says)
+        val resolved = PyTyping.mroEntries(ctx, origBases)
+        val bases = resolved ?: origBases
         val kwds = PyDict()
         var meta: Any? = null
         if (kw != null) for ((k, v) in kw.map) if ((k.v as PyStr).s == "metaclass") meta = v else kwds.map[k] = v
@@ -74,6 +77,7 @@ object PyClasses {
         if (meta is PyType) meta = winner(meta, typeBases)
         val ns = PyDict()
         PyInterpreter.callWithLocals(ctx, body, ns)
+        if (resolved != null) ns[PyStr("__orig_bases__")] = PyTuple(origBases)
         val cls = PyCalls.callWith(ctx, meta, arrayOf(name, PyTuple(bases), ns),
             kwds.map.keys.map { it.v }.toTypedArray(), kwds.map.values.toTypedArray())
         return cls
@@ -281,6 +285,8 @@ object PyClasses {
     @JvmStatic
     fun getAttr(obj: Any?, name: String): Any? {
         if (obj is PyModule) return moduleAttr(obj, name)
+        if (obj is PyGenericAlias) return PyTyping.aliasAttr(obj, name)
+        if (obj is PyUnion) return PyTyping.unionAttr(obj, name)
         val cls = classOf(obj)
         if (cls != null && cls.hooks and 1 != 0) {
             val type = cls
@@ -486,7 +492,7 @@ object PyClasses {
                 val s = obj.sub ?: throw PyException("AttributeError", "'${type.name}' object has no attribute '$name' and no __dict__ for setting new attributes")
                 (s.dict ?: PyDict().also { s.dict = it })[PyStr(name)] = v
             }
-            else -> throw PyException("AttributeError", "'${type.name}' object has no attribute '$name' and no __dict__ for setting new attributes")
+            else -> throw PyException("AttributeError", "'${PyTypes.name(obj)}' object has no attribute '$name' and no __dict__ for setting new attributes")
         }
     }
 
