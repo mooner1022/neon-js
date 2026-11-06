@@ -625,6 +625,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         is ListComp -> e.generators
         is DictComp -> e.generators
         is GeneratorExp -> e.generators
+        is SetComp -> e.generators
         else -> throw IllegalStateException("not a comprehension: $e")
     }
 
@@ -637,7 +638,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         lineHere(e.line)
         val gens = generatorsOf(e)
         val acc = if (e is GeneratorExp) -1 else temp().also {
-            emit(if (e is ListComp) PyOp.BUILD_LIST else PyOp.BUILD_MAP, 0)
+            emit(when (e) { is ListComp -> PyOp.BUILD_LIST; is SetComp -> PyOp.BUILD_SET; else -> PyOp.BUILD_MAP }, 0)
             emit(PyOp.STORE_FAST, it)
         }
         fun level(k: Int) {
@@ -670,6 +671,12 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                     expr(e.key)
                     expr(e.value)
                     emit(PyOp.MAP_ADD)
+                    emit(PyOp.POP)
+                }
+                is SetComp -> {
+                    emit(PyOp.LOAD_FAST, acc)
+                    expr(e.elt)
+                    emit(PyOp.SET_ADD)
                     emit(PyOp.POP)
                 }
                 is GeneratorExp -> {
@@ -974,7 +981,6 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         when (t) {
             is Name -> storeName(t.id)
             is Subscript -> {
-                if (t.slice is Slice) unsupported("slicing", t)
                 expr(t.value)
                 expr(t.slice)
                 emit(PyOp.STORE_SUBSCR)
@@ -998,7 +1004,6 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         when (t) {
             is Name -> deleteName(t.id)
             is Subscript -> {
-                if (t.slice is Slice) unsupported("slicing", t)
                 expr(t.value)
                 expr(t.slice)
                 emit(PyOp.DELETE_SUBSCR)
@@ -1023,7 +1028,6 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 storeName(t.id)
             }
             is Subscript -> {
-                if (t.slice is Slice) unsupported("slicing", t)
                 // obj and key once: in temporaries
                 val o = temp()
                 val k = temp()
@@ -1188,7 +1192,6 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 emit(PyOp.LOAD_ATTR, name(e.attr))
             }
             is Subscript -> {
-                if (e.slice is Slice || e.slice is TupleExpr && (e.slice as TupleExpr).elts.any { it is Slice }) unsupported("slicing", e)
                 expr(e.value)
                 expr(e.slice)
                 emit(PyOp.SUBSCR)
@@ -1228,7 +1231,20 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 }
             }
             is Starred -> throw PySyntaxError("can't use starred expression here", e.line, e.col)
-            is SetExpr, is SetComp -> unsupported("sets", e)
+            is SetExpr -> if (e.elts.any { it is Starred }) {
+                emit(PyOp.BUILD_SET, 0)
+                for (x in e.elts) if (x is Starred) {
+                    expr(x.value)
+                    emit(PyOp.SET_UPDATE)
+                } else {
+                    expr(x)
+                    emit(PyOp.SET_ADD)
+                }
+            } else {
+                for (x in e.elts) expr(x)
+                emit(PyOp.BUILD_SET, e.elts.size)
+            }
+            is SetComp -> comprehension(e)
             is ListComp, is DictComp, is GeneratorExp -> comprehension(e)
             is Yield -> {
                 if (e.value == null) loadConst(PyNone) else expr(e.value)
@@ -1252,7 +1268,14 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             is JoinedStr -> fstring(e)
             is FormattedValue -> formatted(e)
             is TemplateStr, is Interpolation -> unsupported("t-strings", e)
-            is Slice -> unsupported("slicing", e)
+            is Slice -> {
+                if (e.lower == null) loadConst(PyNone) else expr(e.lower)
+                if (e.upper == null) loadConst(PyNone) else expr(e.upper)
+                if (e.step != null) {
+                    expr(e.step)
+                    emit(PyOp.BUILD_SLICE, 3)
+                } else emit(PyOp.BUILD_SLICE, 2)
+            }
         }
     }
 

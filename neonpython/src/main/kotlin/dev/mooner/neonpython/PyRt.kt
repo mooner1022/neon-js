@@ -58,13 +58,16 @@ object PyRt {
 
     /** a op b where no builtin path took them: an instance's special methods (PyDunder), else the TypeError. */
     private fun other(op: Int, sym: String, a: Any?, b: Any?): Any? =
-        if (special(a) || special(b)) PyDunder.binary(a, b, op) else throw unsupported(sym, a, b)
+        if (special(a) || special(b)) PyDunder.binary(a, b, op) else values(op, a, b) ?: throw unsupported(sym, a, b)
 
     /** a op b of builtin values for [PyDunder.binary]: concatenation and repetition; null where none applies. */
     @JvmStatic fun values(op: Int, a: Any?, b: Any?): Any? = when (op) {
         PyOp.ADD -> addValues(a, b)
         PyOp.MUL -> mulValues(a, b)
         PyOp.MOD -> if (a is PyStr) PyStr(PyFormat.percent(a.s, b)) else null
+        // a dict | a dict: a copy, updated
+        PyOp.BITOR -> if (a is PyDict && b is PyDict) PyDict().also { d -> d.map.putAll(a.map); d.map.putAll(b.map) } else PySets.binary(op, a, b)
+        PyOp.BITAND, PyOp.SUB, PyOp.BITXOR -> PySets.binary(op, a, b)
         else -> null
     }
 
@@ -306,6 +309,7 @@ object PyRt {
         is PyList -> v.items.isNotEmpty()
         is PyTuple -> v.items.isNotEmpty()
         is PyDict -> v.size > 0
+        is PySet -> v.used > 0
         else -> true
     }
 
@@ -317,6 +321,7 @@ object PyRt {
         is PyTuple -> v.items.size.toLong()
         is PyStr -> v.length.toLong()
         is PyDict -> v.size.toLong()
+        is PySet -> v.used.toLong()
         is PyRange -> v.length
         else -> throw typeError("object of type '${t(v)}' has no len()")
     }
@@ -352,6 +357,8 @@ object PyRt {
             is PyList -> b is PyList && seqEquals(a.items, b.items)
             is PyTuple -> b is PyTuple && seqEquals(a.items.asList(), b.items.asList())
             is PyDict -> b is PyDict && a.size == b.size && a.map.all { (k, v) -> b.map.containsKey(k) && eq(v, b.map[k]) }
+            is PySet -> b is PySet && PySets.equal(a, b)
+            is PySlice -> b is PySlice && a == b
             PyNone, null -> b === PyNone || b == null
             else -> false
         }
@@ -372,6 +379,13 @@ object PyRt {
 
     /** a < b (op 0)... of builtin values (a subclass's instance as its base type's value); null where they have no order. */
     @JvmStatic fun orderValues(op: Int, a: Any?, b: Any?): Boolean? {
+        // (sets: subsets and supersets)
+        if (a is PySet && b is PySet) return when (op) {
+            0 -> a.used < b.used && PySets.isSubset(a, b)
+            1 -> PySets.isSubset(a, b)
+            2 -> b.used < a.used && PySets.isSubset(b, a)
+            else -> PySets.isSubset(b, a)
+        }
         val c: Int = when {
             isNumber(a) && isNumber(b) -> numCompare(a, b) ?: return false
             a is PyStr && b is PyStr -> a.compareTo(b)
@@ -405,6 +419,8 @@ object PyRt {
         is PyStr -> if (v.sub == null) v.s.hashCode() else PyDunder.hash(v)
         is PyTuple -> if (v.sub == null) v.hashCode() else PyDunder.hash(v)
         is PyList, is PyDict -> if (special(v)) PyDunder.hash(v) else throw typeError("unhashable type: '${t(v)}'")
+        is PySet -> if (v.sub == null) (if (v.frozen) java.lang.Long.hashCode(v.frozenHash()) else throw typeError("unhashable type: '${t(v)}'")) else PyDunder.hash(v)
+        is PySlice -> java.lang.Long.hashCode(PyHash.hash(v))
         is PyObject -> PyDunder.hash(v)
         else -> System.identityHashCode(v)
     }
@@ -414,6 +430,7 @@ object PyRt {
         is PyStr -> v.s.hashCode()
         is PyTuple -> v.hashCode()
         is PyList, is PyDict -> throw typeError("unhashable type: '${t(v)}'")
+        is PySet -> if (v.frozen) java.lang.Long.hashCode(v.frozenHash()) else throw typeError("unhashable type: '${t(v)}'")
         else -> System.identityHashCode(v)
     }
 
@@ -432,6 +449,7 @@ object PyRt {
         is PyList -> container.items.any { it === v || eq(it, v) }
         is PyTuple -> container.items.any { it === v || eq(it, v) }
         is PyDict -> container.containsKey(v)
+        is PySet -> container.contains(v)
         is PyStr -> if (v is PyStr) container.s.contains(v.s) else throw typeError("'in <string>' requires string as left operand, not ${t(v)}")
         is PyRange -> v is Long && (if (container.step > 0) v >= container.start && v < container.stop else v <= container.start && v > container.stop) &&
             (v - container.start) % container.step == 0L
@@ -463,6 +481,8 @@ object PyRt {
         is PyList -> v.items.joinToString(", ", "[", "]") { repr(it) }
         is PyTuple -> if (v.items.size == 1) "(" + repr(v.items[0]) + ",)" else v.items.joinToString(", ", "(", ")") { repr(it) }
         is PyDict -> v.map.entries.joinToString(", ", "{", "}") { repr(it.key.v) + ": " + repr(it.value) }
+        is PySet -> PySets.repr(v)
+        is PySlice -> v.toString()
         is PyRange -> if (v.step == 1L) "range(${v.start}, ${v.stop})" else "range(${v.start}, ${v.stop}, ${v.step})"
         is PyType -> v.repr()
         is PyObject -> PyDunder.repr(v)
@@ -565,7 +585,8 @@ object PyRt {
         if (obj is PyValue && obj.sub != null) PyDunder.getItem(obj, key) else getItemValues(obj, key)
 
     /** obj[key] of builtin values (a subclass's instance as its base type's value), an object's through its class. */
-    @JvmStatic fun getItemValues(obj: Any?, key: Any?): Any? = when (obj) {
+    @JvmStatic fun getItemValues(obj: Any?, key: Any?): Any? =
+        if (key is PySlice && (obj is PyList || obj is PyTuple || obj is PyStr || obj is PyRange)) sliceValues(obj, key) else when (obj) {
         is PyList -> obj.items[index(key, obj.items.size, "list")]
         is PyTuple -> obj.items[index(key, obj.items.size, "tuple")]
         is PyStr -> obj.at(index(key, obj.length, "string"))
@@ -586,7 +607,7 @@ object PyRt {
     /** obj[key] = v of builtin values (a subclass's instance as its base type's value), an object's through its class. */
     @JvmStatic fun setItemValues(obj: Any?, key: Any?, v: Any?) {
         when (obj) {
-            is PyList -> obj.items[index(key, obj.items.size, "list assignment")] = v
+            is PyList -> if (key is PySlice) assignSlice(obj, key, v) else obj.items[index(key, obj.items.size, "list assignment")] = v
             is PyDict -> obj[key] = v
             is PyObject -> PyDunder.setItem(obj, key, v)
             else -> throw typeError("'${t(obj)}' object does not support item assignment")
@@ -603,6 +624,63 @@ object PyRt {
     @JvmStatic fun iter(v: Any?): PyIterator = if (v is PyValue && v.sub != null) PyDunder.iter(v) else iterValues(v)
 
     /** iter(v) of builtin values (a subclass's instance as its base type's value), an object's through its class. */
+    /** seq[slice] of a list, a tuple, a str (by code point) or a range. */
+    @JvmStatic fun sliceValues(obj: Any?, s: PySlice): Any? {
+        when (obj) {
+            is PyList -> {
+                val (a, _, st, n) = s.indices(obj.items.size.toLong())
+                val out = ArrayList<Any?>(n.toInt())
+                var i = a
+                repeat(n.toInt()) { out.add(obj.items[i.toInt()]); i += st }
+                return PyList(out)
+            }
+            is PyTuple -> {
+                val (a, _, st, n) = s.indices(obj.items.size.toLong())
+                if (a == 0L && st == 1L && n == obj.items.size.toLong() && obj.sub == null) return obj
+                val out = arrayOfNulls<Any?>(n.toInt())
+                var i = a
+                for (k in 0 until n.toInt()) { out[k] = obj.items[i.toInt()]; i += st }
+                return if (n == 0L) PyTuple.EMPTY else PyTuple(out)
+            }
+            is PyStr -> {
+                val (a, _, st, n) = s.indices(obj.length.toLong())
+                if (obj.bmp && st == 1L) return PyStr(obj.s.substring(a.toInt(), (a + n).toInt()))
+                val cps = if (obj.bmp) null else obj.s.codePoints().toArray()
+                val sb = StringBuilder(n.toInt())
+                var i = a
+                repeat(n.toInt()) {
+                    if (cps == null) sb.append(obj.s[i.toInt()]) else sb.appendCodePoint(cps[i.toInt()])
+                    i += st
+                }
+                return PyStr(sb.toString())
+            }
+            is PyRange -> {
+                val (a, b, st, _) = s.indices(obj.length)
+                return PyRange(obj.start + a * obj.step, obj.start + b * obj.step, obj.step * st)
+            }
+            else -> return null
+        }
+    }
+
+    /** list[slice] = iterable: a slice of step 1 replaced (any length), an extended one item by item (its length). */
+    private fun assignSlice(l: PyList, s: PySlice, v: Any?) {
+        val (a, b, st, n) = s.indices(l.items.size.toLong())
+        val items = if (v === l) ArrayList(l.items) else try {
+            PyBuiltins.toList(v)
+        } catch (e: PyException) {
+            if (e.matches(PyExceptions.type("TypeError"))) throw typeError("must assign iterable to extended slice") else throw e
+        }
+        if (st == 1L) {
+            val end = maxOf(a, b).toInt()
+            l.items.subList(a.toInt(), end).clear()
+            l.items.addAll(a.toInt(), items)
+            return
+        }
+        if (items.size.toLong() != n) throw PyException("ValueError", "attempt to assign sequence of size ${items.size} to extended slice of size $n")
+        var i = a
+        for (x in items) { l.items[i.toInt()] = x; i += st }
+    }
+
     @JvmStatic fun iterValues(v: Any?): PyIterator = when (v) {
         is PyIterator -> v
         is PyRange -> {
@@ -636,6 +714,17 @@ object PyRt {
         }
         is PyObject -> PyDunder.iter(v)
         is PyGenerator -> PyIterator { v.next() }
+        is PySet -> {
+            // (in slot order; CPython's error where its size changes meanwhile)
+            var j = 0
+            val size0 = v.used
+            PyIterator {
+                if (v.used != size0) throw PyException("RuntimeError", "Set changed size during iteration")
+                val ks = v.keys
+                while (j < ks.size && (ks[j] == null || ks[j] === PySet.DUMMY)) j++
+                if (j < ks.size) ks[j++] else PyIterator.STOP
+            }
+        }
         else -> throw typeError("'${t(v)}' object is not iterable")
     }
 

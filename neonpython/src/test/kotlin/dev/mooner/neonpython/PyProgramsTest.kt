@@ -330,6 +330,26 @@ class PyProgramsTest {
             "format(1, 'c', 2)\n" to Triple("TypeError", "format expected at most 2 arguments, got 3", 1),
             "format(1, 'c', 2)\n" to Triple("TypeError", "format expected at most 2 arguments, got 3", 1),
             "f'{1:{\"x\"}d}'\n" to Triple("ValueError", "Invalid format specifier 'xd' for object of type 'int'", 1),
+            "{1} | [2]\n" to Triple("TypeError", "unsupported operand type(s) for |: 'set' and 'list'", 1),
+            "{1} < [2]\n" to Triple("TypeError", "'<' not supported between instances of 'set' and 'list'", 1),
+            "set().pop()\n" to Triple("KeyError", "'pop from an empty set'", 1),
+            "{[]}\n" to Triple("TypeError", "cannot use 'list' as a set element (unhashable type: 'list')", 1),
+            "s = set()\ns.add([])\n" to Triple("TypeError", "cannot use 'list' as a set element (unhashable type: 'list')", 2),
+            "s = {1}\ns.remove(2)\n" to Triple("KeyError", "2", 2),
+            "frozenset().add(1)\n" to Triple("AttributeError", "'frozenset' object has no attribute 'add'", 1),
+            "hash(set())\n" to Triple("TypeError", "unhashable type: 'set'", 1),
+            "a = [1, 2, 3]\na[::2] = [1]\n" to Triple("ValueError", "attempt to assign sequence of size 1 to extended slice of size 2", 2),
+            "a = [1]\na[0:1] = 1\n" to Triple("TypeError", "must assign iterable to extended slice", 2),
+            "[1][::0]\n" to Triple("ValueError", "slice step cannot be zero", 1),
+            "[1]['a':]\n" to Triple("TypeError", "slice indices must be integers or None or have an __index__ method", 1),
+            "t = (1, 2)\nt[0:1] = [3]\n" to Triple("TypeError", "'tuple' object does not support item assignment", 2),
+            "{} | []\n" to Triple("TypeError", "unsupported operand type(s) for |: 'dict' and 'list'", 1),
+            "'abc'[::0]\n" to Triple("ValueError", "slice step cannot be zero", 1),
+            "s = {1, 2}\nfor x in s:\n    s.add(3)\n" to Triple("RuntimeError", "Set changed size during iteration", 2),
+            "slice()\n" to Triple("TypeError", "slice expected at least 1 argument, got 0", 1),
+            "{1}[0]\n" to Triple("TypeError", "'set' object is not subscriptable", 1),
+            "set(1)\n" to Triple("TypeError", "'int' object is not iterable", 1),
+            "[] in {1}\n" to Triple("TypeError", "cannot use 'list' as a set element (unhashable type: 'list')", 1),
         )
         for (mode in Mode.entries) for ((src, want) in cases) {
             val e = try {
@@ -364,7 +384,7 @@ class PyProgramsTest {
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
             "speculation", "functions", "closures", "unpacking", "types", "classes", "descriptors",
-            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting",
+            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices",
         )
 
         /** The code blocks of [cb] and every function it defines. */

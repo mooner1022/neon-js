@@ -112,6 +112,15 @@ object PyDunder {
                 return a
             }
         }
+        // (a set |= &= -= ^= another, a dict |= a mapping: in place)
+        PySets.inplace(op, a, b)?.let { return it }
+        if (op == PyOp.BITOR && a is PyDict && (b is PyDict || !PyRt.special(b))) {
+            if (b is PyDict) a.map.putAll(b.map) else for (pair in PyBuiltins.toList(b)) {
+                val kv = PyBuiltins.toList(pair)
+                a[kv[0]] = kv[1]
+            }
+            return a
+        }
         if (classes) return PyRt.values(op, a, b) ?: throw unsupported("$sym=", a, b)
         try {
             return byCode(op, a, b)

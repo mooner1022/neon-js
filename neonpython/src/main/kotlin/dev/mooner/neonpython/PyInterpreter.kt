@@ -434,6 +434,18 @@ object PyInterpreter {
             PyOp.LOAD_SPECIAL -> s[sp - 1] = PyExceptions.loadSpecial(s[sp - 1], a)
             PyOp.RESUME -> s[sp - 1] = PyGenerators.resumeCheck(f, s[sp - 1])
             PyOp.FORMAT_VALUE -> s[sp - 1] = PyFormat.formatValue(s[sp - 1], a)
+            PyOp.BUILD_SET -> {
+                val items = popN(a)
+                s[sp++] = PySets.buildSet(items)
+            }
+            PyOp.BUILD_SLICE -> {
+                val parts = popN(a)
+                s[sp++] = PySets.buildSlice(parts)
+            }
+            PyOp.SET_ADD, PyOp.SET_UPDATE -> {
+                val v = pop()
+                s[sp - 1] = if (op == PyOp.SET_ADD) PySets.setAdd(s[sp - 1], v) else PySets.setUpdate(s[sp - 1], v)
+            }
             PyOp.FORMAT_SPEC -> {
                 val spec = pop()
                 s[sp - 1] = PyFormat.formatSpec(s[sp - 1], spec, a)

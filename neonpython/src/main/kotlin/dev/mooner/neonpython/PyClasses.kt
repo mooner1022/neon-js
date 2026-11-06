@@ -136,7 +136,7 @@ object PyClasses {
     }
 
     /** The builtin types whose values a class may derive from: their instances are such values (PyValue.sub). */
-    private val VALUE_BASES = setOf(PyTypes.STR, PyTypes.LIST, PyTypes.TUPLE, PyTypes.DICT)
+    private val VALUE_BASES = setOf(PyTypes.STR, PyTypes.LIST, PyTypes.TUPLE, PyTypes.DICT, PyTypes.SET, PyTypes.FROZENSET)
 
     /** The class of an instance of one (an object, or a builtin value of a subclass); null for a builtin value. */
     @JvmStatic
@@ -335,6 +335,12 @@ object PyClasses {
             }
             is PyBuiltin -> when (name) {
                 "__name__", "__qualname__" -> PyStr(obj.name)
+                else -> null
+            }
+            is PySlice -> when (name) {
+                "start" -> obj.start
+                "stop" -> obj.stop
+                "step" -> obj.step
                 else -> null
             }
             is PyGenerator -> when (name) {

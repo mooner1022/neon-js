@@ -231,8 +231,28 @@ object PyBuiltins {
         }
         def("hash") { _, args ->
             argc("hash", args, 1)
-            PyDunder.hashValue(args[0])
+            PyHash.hash(args[0])
         }
+        // sets and slices
+        PySets.define(d)
+        PyTypes.SLICE.newImpl = { _, _, a, kw ->
+            if (kw != null && kw.size > 0) throw PyRt.typeError("slice() takes no keyword arguments")
+            when (a.size) {
+                1 -> PySlice(PyNone, a[0], PyNone)
+                2 -> PySlice(a[0], a[1], PyNone)
+                3 -> PySlice(a[0], a[1], a[2])
+                0 -> throw PyRt.typeError("slice expected at least 1 argument, got 0")
+                else -> throw PyRt.typeError("slice expected at most 3 arguments, got ${a.size}")
+            }
+        }
+        d[PyStr("slice")] = PyTypes.SLICE
+        PyTypes.SLICE.def("indices", PyBuiltin("indices") { _, a ->
+            argc("indices", a, 2)
+            val n = a[1] as? Long ?: throw PyRt.typeError("'${PyTypes.name(a[1])}' object cannot be interpreted as an integer")
+            if (n < 0) throw PyException("ValueError", "length should not be negative")
+            val (st, sp, step, _) = (a[0] as PySlice).indices(n)
+            PyTuple(arrayOf(st, sp, step))
+        })
         def("iter") { ctx, args ->
             if (args.isEmpty()) throw PyRt.typeError("iter expected at least 1 argument, got 0")
             if (args.size > 2) throw PyRt.typeError("iter expected at most 2 arguments, got ${args.size}")

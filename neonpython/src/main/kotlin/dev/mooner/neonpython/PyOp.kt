@@ -195,13 +195,23 @@ object PyOp {
     /** n (s1..sn -- str): an f-string's parts joined */
     const val BUILD_STRING = 125
 
+    // sets and slices (M5)
+    /** n (v1..vn -- set) */
+    const val BUILD_SET = 126
+    /** (set v -- set) */
+    const val SET_ADD = 127
+    /** (set iterable -- set) */
+    const val SET_UPDATE = 128
+    /** n (start stop [step] -- slice) */
+    const val BUILD_SLICE = 129
+
     const val COUNT = 200
 
     @JvmField val operands = IntArray(COUNT).also { o ->
         for (op in intArrayOf(LOAD_CONST, LOAD_FAST, LOAD_FAST_CHECK, STORE_FAST, LOAD_GLOBAL, STORE_GLOBAL, JUMP, POP_JUMP_IF_FALSE,
             POP_JUMP_IF_TRUE, CALL, BUILD_LIST, BUILD_TUPLE, BUILD_MAP, LOAD_ATTR, UNPACK, MAKE_FUNCTION, CALL_KW, CALL_EX, LOAD_FREE,
             SET_FUNCTION_ATTRIBUTE, DELETE_FAST, DELETE_GLOBAL, DELETE_ATTR, ASSERT_FAIL, LOAD_NAME, STORE_NAME, DELETE_NAME,
-            LOAD_FROM_DICT_OR_DEREF, STORE_ATTR, INPLACE, RAISE, LOAD_SPECIAL, FORMAT_VALUE, FORMAT_SPEC, BUILD_STRING)) o[op] = 1
+            LOAD_FROM_DICT_OR_DEREF, STORE_ATTR, INPLACE, RAISE, LOAD_SPECIAL, FORMAT_VALUE, FORMAT_SPEC, BUILD_STRING, BUILD_SET, BUILD_SLICE)) o[op] = 1
         for (op in intArrayOf(CELL_GET, CELL_DELETE, UNPACK_EX, SEND)) o[op] = 2
         o[FOR_ITER] = 3
     }
@@ -232,7 +242,8 @@ object PyOp {
         in ADD..MATMUL, in LT..NOT_IN, SUBSCR, INPLACE, POP_EXCEPT, CHECK_EXC_MATCH, RERAISE, WITH_EXCEPT, EXC_STAR_MATCH -> -1
         EXC_STAR_RAISED -> -2
         FORMAT_SPEC -> -1
-        BUILD_STRING -> 1 - a
+        BUILD_STRING, BUILD_SET, BUILD_SLICE -> 1 - a
+        SET_ADD, SET_UPDATE -> -1
         RAISE -> -a
         CALL -> -a
         BUILD_LIST, BUILD_TUPLE -> 1 - a

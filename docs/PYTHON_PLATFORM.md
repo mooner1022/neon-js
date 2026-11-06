@@ -717,6 +717,11 @@ Made with literals and strings (M5):
 - **Floats are formatted from their exact binary value**, rounded half to even (`BigDecimal`, as CPython's
   dtoa): `f"{2.675:.2f}"` is `2.67`, never Java's `String.format` (which gives `2.68`). The mini-language is
   CPython's for ints, floats and strs (`PyFormat`), str.format and `%` too; a class's `__format__` comes first.
+- **Sets are CPython's table** (`PySet`: open addressing with its linear and perturbed probes, its dummies, its
+  growth at 3/5 full, pop's finger, the paths of update, intersection and difference), laid out by CPython's hashes
+  where they are not randomized (`PyHash`: ints, floats, None, tuples, frozensets, slices), so that a set of ints or
+  tuples iterates and prints as CPython's does. A str's hash is the JVM's: CPython randomizes them, so no program can
+  rely on the order of a set of strs. `hash()` gives CPython's values for those types.
 
 - **A statement gives its temporaries back** when it ends, so that the registers of one try or with serve the next:
   the tier's code keeps every register a handler may read in a home at the start of each block a handler covers

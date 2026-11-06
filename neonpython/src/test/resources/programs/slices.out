@@ -1,0 +1,21 @@
+[1, 2, 3] [0, 1] [3, 4, 5] [0, 2, 4] [5, 4, 3, 2, 1, 0] [4, 5] [0, 1, 2, 3] [4, 3, 2] [] [0, 1] [0]
+(2, 3) (3, 2, 1) él olléh bd 😀 b😀a 
+range(2, 8, 2) range(9, -1, -1) range(3, 12, 3) [7, 5, 3]
+True True (2,)
+[0, 0, 1, 2, 3, 4, 3]
+['a', 0, 'b', 2, 'c', 4, 'd']
+['a', 'b', 'c', 'd']
+['a', 9, 9, 'b', 'c', 'd']
+['a', 9]
+[7, 'a', 9]
+[7, 'a', 9]
+[1, 2, 4, 5]
+[1, 1, 2, 4, 5, 5]
+slice(1, 5, 2) 1 5 2 slice(None, 3, None) slice(None, 5, -1) (0, 3, 1) (2, 5, 2)
+[1, 3] True False hashable True
+slice(1, 2, None) slice(None, None, 3) (slice(1, 2, None), 3) Ellipsis (slice(None, None, None), 0) (slice(1, 2, 3), Ellipsis)
+set slice(1, 3, None) x
+del slice(None, None, 2)
+[1, 2, 3, 9, 4]
+{'a': 1, 'b': 2} {'b': 2, 'a': 1}
+{'a': 1, 'c': 3, 'e': 5}

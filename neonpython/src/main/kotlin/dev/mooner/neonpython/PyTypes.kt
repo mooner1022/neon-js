@@ -86,6 +86,9 @@ object PyTypes {
     @JvmField val SUPER = builtin("super")
     @JvmField val PROPERTY = builtin("property")
     @JvmField val GENERATOR = builtin("generator", subclassable = false)
+    @JvmField val SET = builtin("set")
+    @JvmField val FROZENSET = builtin("frozenset")
+    @JvmField val SLICE = builtin("slice", subclassable = false)
     @JvmField val STATICMETHOD = builtin("staticmethod")
     @JvmField val CLASSMETHOD = builtin("classmethod")
 
@@ -152,6 +155,8 @@ object PyTypes {
         is PyRange -> RANGE
         is PyIterator -> ITERATOR
         is PyGenerator -> GENERATOR
+        is PySet -> v.sub?.cls ?: if (v.frozen) FROZENSET else SET
+        is PySlice -> SLICE
         is PyComplex -> COMPLEX
         is PyBytes -> BYTES
         is PyCell -> CELL

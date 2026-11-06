@@ -305,6 +305,16 @@ object PyCalls {
 
     /** del obj[key] of builtin values (a subclass's instance as its base type's value). */
     @JvmStatic fun deleteValues(obj: Any?, key: Any?) {
+        if (obj is PyList && key is PySlice) {
+            val (a, b, st, n) = key.indices(obj.items.size.toLong())
+            if (st == 1L) obj.items.subList(a.toInt(), maxOf(a, b).toInt()).clear()
+            else {
+                // (from the last: the indices before stay)
+                val at = LongArray(n.toInt()) { a + it * st }.sortedDescending()
+                for (i in at) obj.items.removeAt(i.toInt())
+            }
+            return
+        }
         when (obj) {
             is PyList -> {
                 val n = obj.items.size
