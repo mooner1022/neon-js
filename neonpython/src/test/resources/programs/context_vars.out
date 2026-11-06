@@ -1,0 +1,18 @@
+<ContextVar name='v' default=1 <ContextVar name='w' v 1 5
+LookupError <ContextVar name='w'
+2 True True <Token.MISSING> <Token var=<ContextVar name='v' default=1
+1
+RuntimeError <Token used var=<ContextVar name='v' default=1
+Context 0 False True {}
+9 1 9 9 1 [9] d
+RuntimeError cannot enter context: <_contextvars.Context object
+7 Token
+1
+ValueError <Token var=<ContextVar name='w'
+ValueError <Token var=<ContextVar name='v' default=1
+Context 0 _contextvars _contextvars _contextvars
+ContextVar() takes exactly 1 positional argument (0 given)
+type '_contextvars.ContextVar' is not an acceptable base type
+_contextvars.ContextVar[int] True True False
+KeyError <ContextVar name='w'
+100 3

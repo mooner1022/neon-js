@@ -26,6 +26,7 @@ _weakrefset.py
 abc.py
 bisect.py
 collections/__init__.py
+contextvars.py
 copy.py
 copyreg.py
 enum.py

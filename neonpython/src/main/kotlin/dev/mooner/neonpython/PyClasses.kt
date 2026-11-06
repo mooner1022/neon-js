@@ -118,7 +118,7 @@ object PyClasses {
         val bases = (basesArg as? PyTuple ?: throw PyRt.typeError("type.__new__() argument 2 must be tuple, not ${PyTypes.name(basesArg)}"))
             .items.map { it as? PyType ?: throw PyRt.typeError("type.__new__() argument 2 must be a tuple of types") }
         val ns = nsArg as? PyDict ?: throw PyRt.typeError("type.__new__() argument 3 must be dict, not ${PyTypes.name(nsArg)}")
-        for (b in bases) if (!b.subclassable) throw PyRt.typeError("type '${b.name}' is not an acceptable base type")
+        for (b in bases) if (!b.subclassable) throw PyRt.typeError("type '${b.tpName ?: b.name}' is not an acceptable base type")
         for ((i, b) in bases.withIndex()) if (bases.subList(0, i).any { it === b }) throw PyRt.typeError("duplicate base class ${b.name}")
         // (str, list, tuple, dict, int and float as bases: their instances are such values (an int's, a float's a PyNumSub))
         for (b in bases) for (x in b.mro) if (x.newImpl != null && x !== PyTypes.OBJECT && x !== PyTypes.TYPE && x !in VALUE_BASES) {
