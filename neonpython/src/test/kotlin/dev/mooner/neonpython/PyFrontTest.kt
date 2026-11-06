@@ -216,6 +216,33 @@ class PyFrontTest {
             "1j2\n" to ("invalid imaginary literal" to 1),
             "print 'a'\n" to ("Missing parentheses in call to 'print'. Did you mean print(...)?" to 1),
             "exec code\n" to ("Missing parentheses in call to 'exec'. Did you mean exec(...)?" to 1),
+            "'\\N{nope}'\n" to ("(unicode error) 'unicodeescape' codec can't decode bytes in position 0-7: unknown Unicode character name" to 1),
+            "'é\\N{nope}'\n" to ("(unicode error) 'unicodeescape' codec can't decode bytes in position 10-17: unknown Unicode character name" to 1),
+            "'ab\\x1z'\n" to ("(unicode error) 'unicodeescape' codec can't decode bytes in position 2-4: truncated \\xXX escape" to 1),
+            "'\\U00110000'\n" to ("(unicode error) 'unicodeescape' codec can't decode bytes in position 0-9: illegal Unicode character" to 1),
+            "'\\N'\n" to ("(unicode error) 'unicodeescape' codec can't decode bytes in position 0-1: malformed \\N character escape" to 1),
+            "'\\N{'\n" to ("(unicode error) 'unicodeescape' codec can't decode bytes in position 0-2: malformed \\N character escape" to 1),
+            "'\\u12'\n" to ("(unicode error) 'unicodeescape' codec can't decode bytes in position 0-3: truncated \\uXXXX escape" to 1),
+            "b'\\x1'\n" to ("(value error) invalid \\x escape at position 0" to 1),
+            "f'{x}a\\N{nope}'\n" to ("(unicode error) 'unicodeescape' codec can't decode bytes in position 1-8: unknown Unicode character name" to 1),
+            "'''a\nb\\N{nope}'''\n" to ("(unicode error) 'unicodeescape' codec can't decode bytes in position 3-10: unknown Unicode character name" to 1),
+            "f'{'\n" to ("f-string: expecting '}'" to 1),
+            "f'{x!r'\n" to ("f-string: expecting '}'" to 1),
+            "t'{'\n" to ("t-string: expecting '}'" to 1),
+            "f'''{'''\n" to ("f-string: expecting '}'" to 1),
+            "f'{\"a\"'\n" to ("f-string: expecting '}'" to 1),
+            "f\"{'\"\n" to ("unterminated string literal (detected at line 1)" to 1),
+            "f'{x=!}'\n" to ("f-string: missing conversion character" to 1),
+            "f'{x!:}'\n" to ("f-string: missing conversion character" to 1),
+            "f'{x!1}'\n" to ("f-string: invalid conversion character" to 1),
+            "f'{x!z}'\n" to ("f-string: invalid conversion character 'z': expected 's', 'r', or 'a'" to 1),
+            "f'{x:'\n" to ("f-string: expecting '}', or format specs" to 1),
+            "f'{x!r:'\n" to ("f-string: expecting '}', or format specs" to 1),
+            "if True:\n\tx = 1\n        y = 2\n" to ("inconsistent use of tabs and spaces in indentation" to 3),  // TabError
+            "if True:\n        x = 1\n\ty = 2\n" to ("inconsistent use of tabs and spaces in indentation" to 3),  // TabError
+            "if x:\n\tif y:\n\t pass\n\t\tpass\n" to ("inconsistent use of tabs and spaces in indentation" to 4),  // TabError
+            "if x:\n  \tpass\n\t pass\n" to ("inconsistent use of tabs and spaces in indentation" to 3),  // TabError
+            "if 1:\n" + (1..100).joinToString("") { " ".repeat(it) + "if 1:\n" } + " ".repeat(101) + "pass\n" to ("too many levels of indentation" to 101),  // IndentationError
         )
         for ((src, want) in cases) {
             val e = assertThrows<PySyntaxError>(src) { PyCompiler.compileModule(src) }

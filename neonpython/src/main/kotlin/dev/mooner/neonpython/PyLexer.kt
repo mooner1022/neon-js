@@ -45,6 +45,8 @@ class PyLexer(private val src: String) {
     private var line = 1
     private var lineStart = 0
     private val indents = ArrayList<Int>().apply { add(0) }
+    /** Each indentation's column with a tab as one column (CPython's altindstack): where the two disagree, a TabError. */
+    private val altIndents = ArrayList<Int>().apply { add(0) }
     /** Brackets open, a replacement field's `{` among them; each one's character, line and column. */
     private var depth = 0
     private val parens = CharArray(MAXLEVEL)
@@ -73,9 +75,11 @@ class PyLexer(private val src: String) {
             if (atLineStart && depth == 0) {
                 // the indentation of a line that is not blank nor only a comment
                 var col = 0
+                var altcol = 0
                 var p = pos
                 while (p < src.length && (src[p] == ' ' || src[p] == '\t' || src[p] == '\u000c')) {
                     col = if (src[p] == '\t') (col / 8 + 1) * 8 else if (src[p] == '\u000c') 0 else col + 1
+                    altcol = if (src[p] == '\u000c') 0 else altcol + 1
                     p++
                 }
                 if (p >= src.length) { pos = p; break }
@@ -94,15 +98,22 @@ class PyLexer(private val src: String) {
                     continue
                 }
                 pos = p
+                fun tabError(): Nothing = throw PySyntaxError("inconsistent use of tabs and spaces in indentation", line, col, "TabError")
                 if (col > indents.last()) {
+                    // (CPython's MAXINDENT)
+                    if (indents.size >= 100) throw PySyntaxError("too many levels of indentation", line, col, "IndentationError")
+                    if (altcol <= altIndents.last()) tabError()
                     indents.add(col)
+                    altIndents.add(altcol)
                     out.add(PyToken(PyToken.Kind.INDENT, "", null, line, col, pos, pos))
                 } else {
                     while (col < indents.last()) {
                         indents.removeAt(indents.size - 1)
+                        altIndents.removeAt(altIndents.size - 1)
                         out.add(PyToken(PyToken.Kind.DEDENT, "", null, line, col, pos, pos))
                     }
                     if (col != indents.last()) throw PySyntaxError("unindent does not match any outer indentation level", line, col, "IndentationError")
+                    if (altcol != altIndents.last()) tabError()
                 }
                 atLineStart = false
             }
@@ -146,6 +157,7 @@ class PyLexer(private val src: String) {
         if (out.isNotEmpty() && out.last().kind != PyToken.Kind.NEWLINE) out.add(PyToken(PyToken.Kind.NEWLINE, "", null, line, col(pos), pos, pos))
         while (indents.size > 1) {
             indents.removeAt(indents.size - 1)
+            altIndents.removeAt(altIndents.size - 1)
             out.add(PyToken(PyToken.Kind.DEDENT, "", null, line, 0, pos, pos))
         }
         out.add(PyToken(PyToken.Kind.END, "", null, line, 0, pos, pos))
@@ -339,15 +351,18 @@ class PyLexer(private val src: String) {
         pos += if (triple) 3 else 1
         val startLine = line
         val startCol = col(start)
+        literalStart = pos
+        literalLine = startLine
+        literalQuote = q
         val sb = StringBuilder()
         while (true) {
-            if (pos >= src.length) throw unterminated(triple, startLine, false)
+            if (pos >= src.length) throw unterminatedIn(triple, startLine, q)
             val c = src[pos]
             if (c == q && (!triple || pos + 2 < src.length && src[pos + 1] == q && src[pos + 2] == q)) {
                 pos += if (triple) 3 else 1
                 break
             }
-            if ((c == '\n' || c == '\r') && !triple) throw unterminated(false, startLine, false)
+            if ((c == '\n' || c == '\r') && !triple) throw unterminatedIn(false, startLine, q)
             if (c == '\\' && pos + 1 < src.length) {
                 if (raw) {
                     sb.append(c)
@@ -374,12 +389,50 @@ class PyLexer(private val src: String) {
         out.add(PyToken(PyToken.Kind.STRING, src.substring(start, pos), StrLit(value, bytes, 'u' in prefix), startLine, startCol, start, pos))
     }
 
+    /**
+     * A string left open; in a replacement field, with its f-string's quotes, CPython's "f-string: expecting '}'"
+     * (the field's end missing, not a string's).
+     */
+    private fun unterminatedIn(triple: Boolean, startLine: Int, q: Char): PySyntaxError {
+        val m = modes.lastOrNull()
+        if (m != null && m.field && m.info.quote == q && m.info.triple == triple) {
+            // (at the string's first line, as CPython reports the string)
+            return PySyntaxError("${if (m.info.template) "t" else "f"}-string: expecting '}'", startLine, 0)
+        }
+        return unterminated(triple, startLine, false)
+    }
+
+    /** Where the literal whose escapes are decoded starts (its body, after the quotes), its line, its quote. */
+    private var literalStart = 0
+    private var literalLine = 0
+    private var literalQuote = '\''
+
+    /**
+     * A bad escape at [at] (its backslash) to [last], CPython's message: the positions in the literal's body as
+     * its decoder counts them (a character that is not ASCII as the ten of its \U escape), a bytes literal's.
+     */
+    private fun escapeError(at: Int, last: Int, what: String, bytes: Boolean): PySyntaxError {
+        fun offset(i: Int): Int {
+            var n = 0
+            var k = literalStart
+            while (k < i) {
+                val cp = src.codePointAt(k)
+                n += if (cp < 128) 1 else 10
+                k += Character.charCount(cp)
+            }
+            return n
+        }
+        if (bytes) return PySyntaxError("(value error) invalid \\x escape at position ${offset(at)}", literalLine, 0)
+        return PySyntaxError("(unicode error) 'unicodeescape' codec can't decode bytes in position ${offset(at)}-${offset(last)}: $what", literalLine, 0)
+    }
+
     private fun unterminated(triple: Boolean, startLine: Int, f: Boolean) =
         PySyntaxError("unterminated ${if (triple) "triple-quoted " else ""}${if (f) "f-" else ""}string literal (detected at line ${if (triple) line else startLine})",
             startLine, 0)
 
     /** The escape at [pos] (a backslash) into [sb]; [pos] past it. */
     private fun escape(sb: StringBuilder, bytes: Boolean) {
+        val at = pos
         val n = src[pos + 1]
         pos += 2
         when (n) {
@@ -400,20 +453,24 @@ class PyLexer(private val src: String) {
                 while (k < 2 && pos < src.length && src[pos] in '0'..'7') { v = v * 8 + (src[pos] - '0'); pos++; k++ }
                 if (bytes) sb.append((v and 0xFF).toChar()) else sb.appendCodePoint(v)
             }
-            'x' -> sb.appendCodePoint(hex(2, "x"))
-            'u' -> if (bytes) sb.append("\\u") else sb.appendCodePoint(hex(4, "u"))
+            'x' -> sb.appendCodePoint(hex(2, "x", at, bytes))
+            'u' -> if (bytes) sb.append("\\u") else sb.appendCodePoint(hex(4, "u", at, false))
             'U' -> if (bytes) sb.append("\\U") else {
-                val v = hex(8, "U")
-                if (v > 0x10FFFF) throw PySyntaxError("(unicode error) 'unicodeescape' codec can't decode bytes: illegal Unicode character", line, col(pos))
+                val v = hex(8, "U", at, false)
+                if (v > 0x10FFFF) throw escapeError(at, pos - 1, "illegal Unicode character", false)
                 sb.appendCodePoint(v)
             }
             'N' -> if (bytes) sb.append("\\N") else {
-                if (pos >= src.length || src[pos] != '{') throw PySyntaxError("(unicode error) 'unicodeescape' codec can't decode bytes: malformed \\N character escape", line, col(pos))
-                val close = src.indexOf('}', pos)
-                if (close < 0) throw PySyntaxError("(unicode error) 'unicodeescape' codec can't decode bytes: malformed \\N character escape", line, col(pos))
+                if (pos >= src.length || src[pos] != '{') throw escapeError(at, at + 1, "malformed \\N character escape", false)
+                // (the name up to '}', within the literal)
+                var close = pos + 1
+                while (close < src.length && src[close] != '}' && src[close] != literalQuote && src[close] != '\n' && src[close] != '\r') close++
+                if (close >= src.length || src[close] != '}' || close == pos + 1) {
+                    throw escapeError(at, if (close == pos + 1 && close < src.length && src[close] == '}') close else close - 1, "malformed \\N character escape", false)
+                }
                 val name = src.substring(pos + 1, close)
                 val cp = try { Character.codePointOf(name) } catch (_: IllegalArgumentException) {
-                    throw PySyntaxError("(unicode error) 'unicodeescape' codec can't decode bytes: unknown Unicode character name", line, col(pos))
+                    throw escapeError(at, close, "unknown Unicode character name", false)
                 }
                 sb.appendCodePoint(cp)
                 pos = close + 1
@@ -423,11 +480,11 @@ class PyLexer(private val src: String) {
         }
     }
 
-    private fun hex(n: Int, what: String): Int {
-        val s = if (pos + n <= src.length) src.substring(pos, pos + n) else ""
-        if (s.length < n || s.any { Character.digit(it, 16) < 0 }) {
-            throw PySyntaxError("(unicode error) 'unicodeescape' codec can't decode bytes: truncated \\$what${"X".repeat(n)} escape", line, col(pos))
-        }
+    private fun hex(n: Int, what: String, at: Int, bytes: Boolean): Int {
+        var k = 0
+        while (k < n && pos + k < src.length && Character.digit(src[pos + k], 16) >= 0 && src[pos + k].code < 128) k++
+        if (k < n) throw escapeError(at, pos + k - 1, "truncated \\$what${"X".repeat(n)} escape", bytes)
+        val s = src.substring(pos, pos + n)
         pos += n
         return s.toInt(16)
     }
@@ -440,6 +497,9 @@ class PyLexer(private val src: String) {
         val start = pos
         val startLine = line
         val startCol = col(pos)
+        literalStart = pos
+        literalLine = startLine
+        literalQuote = info.quote
         val sb = StringBuilder()
         while (true) {
             if (pos >= src.length) throw unterminatedF(info)
@@ -551,7 +611,8 @@ class PyLexer(private val src: String) {
                 return
             }
             if (c == info.quote && (!info.triple || src.startsWith(info.quote.toString().repeat(3), pos))) {
-                throw PySyntaxError("${if (info.template) "t" else "f"}-string: expecting '}'", line, col(pos))
+                // (the parser's invalid_fstring_replacement_field, where the field's end is missing after its spec)
+                throw PySyntaxError("${if (info.template) "t" else "f"}-string: expecting '}', or format specs", line, col(pos))
             }
             if ((c == '\n' || c == '\r') && !info.triple) throw unterminatedF(info)
             if (c == '\\' && pos + 1 < src.length && !info.raw) {

@@ -1528,9 +1528,10 @@ class PyParser(private val src: String) {
         if (atOp("!")) {
             next()
             val c = tok
-            if (c.kind != Kind.NAME || c.text !in setOf("s", "r", "a")) {
-                error("$what: invalid conversion character ${if (c.kind == Kind.NAME) "'${c.text}'" else "'${c.text}'"}: expected 's', 'r', or 'a'")
-            }
+            // (CPython's invalid_fstring_conversion_character)
+            if (atOp(":") || atOp("}")) error("$what: missing conversion character")
+            if (c.kind != Kind.NAME) error("$what: invalid conversion character")
+            if (c.text !in setOf("s", "r", "a")) error("$what: invalid conversion character '${c.text}': expected 's', 'r', or 'a'")
             next()
             conversion = c.text[0].code
         }
