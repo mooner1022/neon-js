@@ -43,7 +43,7 @@
         </button>
         <div class="navigation-controls--break ui-kit_mobile-only"></div>
         <div class="library-version" id="library-version">
-0.1.6        </div>
+0.1.7        </div>
         <div class="navigation-controls">
         <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
                 <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
@@ -107,24 +107,24 @@
   <div class="breadcrumbs"><a href="../../../index.html">neonjs-core</a><span class="delimiter">/</span><a href="../index.html">dev.mooner.neonjs.jit.opt</a><span class="delimiter">/</span><span class="current">InlineSite</span></div>
   <div class="cover ">
     <h1 class="cover"><span>Inline</span><wbr></wbr><span><span>Site</span></span></h1>
-    <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="index.html">InlineSite</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>parent<span class="token operator">: </span><a href="index.html">InlineSite</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>code<span class="token operator">: </span><a href="../../dev.mooner.neonjs.compiler/-code-block/index.html">CodeBlock</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>callPc<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>callerState<span class="token operator">: </span><a href="../-frame-state/index.html">FrameState</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">var </span>fn<span class="token operator">: </span><a href="../-value/index.html">Value</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">var </span>thisValue<span class="token operator">: </span><a href="../-value/index.html">Value</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>args<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-array/index.html">Array</a><span class="token operator">&lt;</span><a href="../-value/index.html">Value</a><span class="token operator">&gt;</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">var </span>env<span class="token operator">: </span><a href="../-value/index.html">Value</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>construct<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a><span class="token operator"> = </span><span class="token boolean">false</span></span></span><span class="token punctuation">)</span></div><p class="paragraph">A call compiled inlined: the callee's <span data-unresolved-link="dev.mooner.neonjs.jit.opt/InlineSite//#dev.mooner.neonjs.jit.opt.InlineSite?#dev.mooner.neonjs.compiler.CodeBlock#kotlin.Int#dev.mooner.neonjs.jit.opt.FrameState#dev.mooner.neonjs.jit.opt.Value#dev.mooner.neonjs.jit.opt.Value#kotlin.Array[dev.mooner.neonjs.jit.opt.Value]#dev.mooner.neonjs.jit.opt.Value#kotlin.Boolean/PointingToCallableParameters(1)/">code</span>, the CALL at <span data-unresolved-link="dev.mooner.neonjs.jit.opt/InlineSite//#dev.mooner.neonjs.jit.opt.InlineSite?#dev.mooner.neonjs.compiler.CodeBlock#kotlin.Int#dev.mooner.neonjs.jit.opt.FrameState#dev.mooner.neonjs.jit.opt.Value#dev.mooner.neonjs.jit.opt.Value#kotlin.Array[dev.mooner.neonjs.jit.opt.Value]#dev.mooner.neonjs.jit.opt.Value#kotlin.Boolean/PointingToCallableParameters(2)/">callPc</span> in its caller (the body of <span data-unresolved-link="dev.mooner.neonjs.jit.opt/InlineSite//#dev.mooner.neonjs.jit.opt.InlineSite?#dev.mooner.neonjs.compiler.CodeBlock#kotlin.Int#dev.mooner.neonjs.jit.opt.FrameState#dev.mooner.neonjs.jit.opt.Value#dev.mooner.neonjs.jit.opt.Value#kotlin.Array[dev.mooner.neonjs.jit.opt.Value]#dev.mooner.neonjs.jit.opt.Value#kotlin.Boolean/PointingToCallableParameters(0)/">parent</span>, or the function compiled), the caller's state at that call (<span data-unresolved-link="dev.mooner.neonjs.jit.opt/InlineSite//#dev.mooner.neonjs.jit.opt.InlineSite?#dev.mooner.neonjs.compiler.CodeBlock#kotlin.Int#dev.mooner.neonjs.jit.opt.FrameState#dev.mooner.neonjs.jit.opt.Value#dev.mooner.neonjs.jit.opt.Value#kotlin.Array[dev.mooner.neonjs.jit.opt.Value]#dev.mooner.neonjs.jit.opt.Value#kotlin.Boolean/PointingToCallableParameters(3)/">callerState</span>: its registers and the stack below the call's operands), and what a frame of the callee holds: the closure <span data-unresolved-link="dev.mooner.neonjs.jit.opt/InlineSite//#dev.mooner.neonjs.jit.opt.InlineSite?#dev.mooner.neonjs.compiler.CodeBlock#kotlin.Int#dev.mooner.neonjs.jit.opt.FrameState#dev.mooner.neonjs.jit.opt.Value#dev.mooner.neonjs.jit.opt.Value#kotlin.Array[dev.mooner.neonjs.jit.opt.Value]#dev.mooner.neonjs.jit.opt.Value#kotlin.Boolean/PointingToCallableParameters(4)/">fn</span>, <code class="lang-kotlin">this</code> as the call binds it (<span data-unresolved-link="dev.mooner.neonjs.jit.opt/InlineSite//#dev.mooner.neonjs.jit.opt.InlineSite?#dev.mooner.neonjs.compiler.CodeBlock#kotlin.Int#dev.mooner.neonjs.jit.opt.FrameState#dev.mooner.neonjs.jit.opt.Value#dev.mooner.neonjs.jit.opt.Value#kotlin.Array[dev.mooner.neonjs.jit.opt.Value]#dev.mooner.neonjs.jit.opt.Value#kotlin.Boolean/PointingToCallableParameters(5)/">thisValue</span>; undefined where the callee does not read it), the arguments, the environment.</p></div></div>
+    <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="index.html">InlineSite</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>parent<span class="token operator">: </span><a href="index.html">InlineSite</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>code<span class="token operator">: </span><a href="../../dev.mooner.neonjs.compiler/-code-block/index.html">CodeBlock</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>callPc<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>callerState<span class="token operator">: </span><a href="../-frame-state/index.html">FrameState</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>frame<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-array/index.html">Array</a><span class="token operator">&lt;</span><a href="../-value/index.html">Value</a><span class="token operator">&gt;</span><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>flags<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token operator"> = </span><span class="token constant">0</span></span></span><span class="token punctuation">)</span></div><p class="paragraph">A call compiled inlined: the callee's <span data-unresolved-link="dev.mooner.neonjs.jit.opt/InlineSite//#dev.mooner.neonjs.jit.opt.InlineSite?#dev.mooner.neonjs.compiler.CodeBlock#kotlin.Int#dev.mooner.neonjs.jit.opt.FrameState#kotlin.Array[dev.mooner.neonjs.jit.opt.Value]#kotlin.Int/PointingToCallableParameters(1)/">code</span>, the call at <span data-unresolved-link="dev.mooner.neonjs.jit.opt/InlineSite//#dev.mooner.neonjs.jit.opt.InlineSite?#dev.mooner.neonjs.compiler.CodeBlock#kotlin.Int#dev.mooner.neonjs.jit.opt.FrameState#kotlin.Array[dev.mooner.neonjs.jit.opt.Value]#kotlin.Int/PointingToCallableParameters(2)/">callPc</span> in its caller (the body of <span data-unresolved-link="dev.mooner.neonjs.jit.opt/InlineSite//#dev.mooner.neonjs.jit.opt.InlineSite?#dev.mooner.neonjs.compiler.CodeBlock#kotlin.Int#dev.mooner.neonjs.jit.opt.FrameState#kotlin.Array[dev.mooner.neonjs.jit.opt.Value]#kotlin.Int/PointingToCallableParameters(0)/">parent</span>, or the function compiled), the caller's state at that call (<span data-unresolved-link="dev.mooner.neonjs.jit.opt/InlineSite//#dev.mooner.neonjs.jit.opt.InlineSite?#dev.mooner.neonjs.compiler.CodeBlock#kotlin.Int#dev.mooner.neonjs.jit.opt.FrameState#kotlin.Array[dev.mooner.neonjs.jit.opt.Value]#kotlin.Int/PointingToCallableParameters(3)/">callerState</span>: its registers and the stack below the call's operands), and what a frame of the callee holds as its language lays it out (<span data-unresolved-link="dev.mooner.neonjs.jit.opt/InlineSite//#dev.mooner.neonjs.jit.opt.InlineSite?#dev.mooner.neonjs.compiler.CodeBlock#kotlin.Int#dev.mooner.neonjs.jit.opt.FrameState#kotlin.Array[dev.mooner.neonjs.jit.opt.Value]#kotlin.Int/PointingToCallableParameters(4)/">frame</span>: JavaScript's closure, <code class="lang-kotlin">this</code> as the call binds it, the arguments, the environment), which an exit inside the body passes to the interpreter, in that order. <span data-unresolved-link="dev.mooner.neonjs.jit.opt/InlineSite//#dev.mooner.neonjs.jit.opt.InlineSite?#dev.mooner.neonjs.compiler.CodeBlock#kotlin.Int#dev.mooner.neonjs.jit.opt.FrameState#kotlin.Array[dev.mooner.neonjs.jit.opt.Value]#kotlin.Int/PointingToCallableParameters(5)/">flags</span> are the language's facts about the call (JavaScript's: a construction).</p></div></div>
   </div>
   <div class="tabbedcontent">
     <div class="tabs-section" tabs-section="tabs-section"><button class="section-tab" data-active="" data-togglable="CONSTRUCTOR,TYPE,PROPERTY,FUNCTION">Members</button></div>
     <div class="tabs-section-body">
       <div data-togglable="CONSTRUCTOR">
         <h2 class="tableheader">Constructors</h2>
-        <div class="table"><a data-name="-1808127270%2FConstructors%2F-941727813" anchor-label="InlineSite" id="-1808127270%2FConstructors%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+        <div class="table"><a data-name="1270110013%2FConstructors%2F-941727813" anchor-label="InlineSite" id="1270110013%2FConstructors%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
           <div class="table-row table-row_content" data-togglable="CONSTRUCTOR" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
             <div class="main-subrow keyValue ">
               <div class=""><span class="inline-flex">
                   <div><a href="-inline-site.html"><span>Inline</span><wbr></wbr><span><span>Site</span></span></a></div>
-<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1808127270%2FConstructors%2F-941727813"></span>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1270110013%2FConstructors%2F-941727813"></span>
                     <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
                   </span></span></div>
               <div>
                 <div class="title">
-                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">constructor</span><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">parent<span class="token operator">: </span><a href="index.html">InlineSite</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter ">code<span class="token operator">: </span><a href="../../dev.mooner.neonjs.compiler/-code-block/index.html">CodeBlock</a><span class="token punctuation">, </span></span><span class="parameter ">callPc<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token punctuation">, </span></span><span class="parameter ">callerState<span class="token operator">: </span><a href="../-frame-state/index.html">FrameState</a><span class="token punctuation">, </span></span><span class="parameter ">fn<span class="token operator">: </span><a href="../-value/index.html">Value</a><span class="token punctuation">, </span></span><span class="parameter ">thisValue<span class="token operator">: </span><a href="../-value/index.html">Value</a><span class="token punctuation">, </span></span><span class="parameter ">args<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-array/index.html">Array</a><span class="token operator">&lt;</span><a href="../-value/index.html">Value</a><span class="token operator">&gt;</span><span class="token punctuation">, </span></span><span class="parameter ">env<span class="token operator">: </span><a href="../-value/index.html">Value</a><span class="token punctuation">, </span></span><span class="parameter ">construct<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a><span class="token operator"> = </span><span class="token boolean">false</span></span></span><span class="token punctuation">)</span></div></div></div>
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">constructor</span><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">parent<span class="token operator">: </span><a href="index.html">InlineSite</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter ">code<span class="token operator">: </span><a href="../../dev.mooner.neonjs.compiler/-code-block/index.html">CodeBlock</a><span class="token punctuation">, </span></span><span class="parameter ">callPc<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token punctuation">, </span></span><span class="parameter ">callerState<span class="token operator">: </span><a href="../-frame-state/index.html">FrameState</a><span class="token punctuation">, </span></span><span class="parameter ">frame<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-array/index.html">Array</a><span class="token operator">&lt;</span><a href="../-value/index.html">Value</a><span class="token operator">&gt;</span><span class="token punctuation">, </span></span><span class="parameter ">flags<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token operator"> = </span><span class="token constant">0</span></span></span><span class="token punctuation">)</span></div></div></div>
                 </div>
               </div>
             </div>
@@ -133,22 +133,7 @@
       </div>
       <div data-togglable="PROPERTY">
         <h2 class="tableheader">Properties</h2>
-        <div class="table"><a data-name="1622945358%2FProperties%2F-941727813" anchor-label="args" id="1622945358%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
-          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
-            <div class="main-subrow keyValue ">
-              <div class=""><span class="inline-flex">
-                  <div><a href="args.html"><span><span>args</span></span></a></div>
-<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1622945358%2FProperties%2F-941727813"></span>
-                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
-                  </span></span></div>
-              <div>
-                <div class="title">
-                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-jvm-field/index.html"><span class="token annotation builtin">JvmField</span></a></div></div><span class="token keyword">val </span><a href="args.html">args</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-array/index.html">Array</a><span class="token operator">&lt;</span><a href="../-value/index.html">Value</a><span class="token operator">&gt;</span></div></div></div>
-                </div>
-              </div>
-            </div>
-          </div>
-<a data-name="-1785764311%2FProperties%2F-941727813" anchor-label="callerState" id="-1785764311%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+        <div class="table"><a data-name="-1785764311%2FProperties%2F-941727813" anchor-label="callerState" id="-1785764311%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
           <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
             <div class="main-subrow keyValue ">
               <div class=""><span class="inline-flex">
@@ -193,21 +178,6 @@
               </div>
             </div>
           </div>
-<a data-name="64956344%2FProperties%2F-941727813" anchor-label="construct" id="64956344%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
-          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
-            <div class="main-subrow keyValue ">
-              <div class=""><span class="inline-flex">
-                  <div><a href="construct.html"><span><span>construct</span></span></a></div>
-<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="64956344%2FProperties%2F-941727813"></span>
-                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
-                  </span></span></div>
-              <div>
-                <div class="title">
-                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-jvm-field/index.html"><span class="token annotation builtin">JvmField</span></a></div></div><span class="token keyword">val </span><a href="construct.html">construct</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></div><div class="brief "><p class="paragraph">A construction (<code class="lang-kotlin">new</code>): <span data-unresolved-link="dev.mooner.neonjs.jit.opt/InlineSite//#dev.mooner.neonjs.jit.opt.InlineSite?#dev.mooner.neonjs.compiler.CodeBlock#kotlin.Int#dev.mooner.neonjs.jit.opt.FrameState#dev.mooner.neonjs.jit.opt.Value#dev.mooner.neonjs.jit.opt.Value#kotlin.Array[dev.mooner.neonjs.jit.opt.Value]#dev.mooner.neonjs.jit.opt.Value#kotlin.Boolean/PointingToCallableParameters(5)/">thisValue</span> is the object made for it (Ir.NEW_THIS), its result that unless the body returns an object.</p></div></div></div>
-                </div>
-              </div>
-            </div>
-          </div>
 <a data-name="-1720718516%2FProperties%2F-941727813" anchor-label="depth" id="-1720718516%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
           <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
             <div class="main-subrow keyValue ">
@@ -223,32 +193,32 @@
               </div>
             </div>
           </div>
-<a data-name="1005069538%2FProperties%2F-941727813" anchor-label="env" id="1005069538%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+<a data-name="-890123256%2FProperties%2F-941727813" anchor-label="flags" id="-890123256%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
           <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
             <div class="main-subrow keyValue ">
               <div class=""><span class="inline-flex">
-                  <div><a href="env.html"><span><span>env</span></span></a></div>
-<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1005069538%2FProperties%2F-941727813"></span>
+                  <div><a href="flags.html"><span><span>flags</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-890123256%2FProperties%2F-941727813"></span>
                     <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
                   </span></span></div>
               <div>
                 <div class="title">
-                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-jvm-field/index.html"><span class="token annotation builtin">JvmField</span></a></div></div><span class="token keyword">var </span><a href="env.html">env</a><span class="token operator">: </span><a href="../-value/index.html">Value</a></div></div></div>
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-jvm-field/index.html"><span class="token annotation builtin">JvmField</span></a></div></div><span class="token keyword">val </span><a href="flags.html">flags</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a></div></div></div>
                 </div>
               </div>
             </div>
           </div>
-<a data-name="1910340675%2FProperties%2F-941727813" anchor-label="fn" id="1910340675%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+<a data-name="13959138%2FProperties%2F-941727813" anchor-label="frame" id="13959138%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
           <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
             <div class="main-subrow keyValue ">
               <div class=""><span class="inline-flex">
-                  <div><a href="fn.html"><span><span>fn</span></span></a></div>
-<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1910340675%2FProperties%2F-941727813"></span>
+                  <div><a href="frame.html"><span><span>frame</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="13959138%2FProperties%2F-941727813"></span>
                     <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
                   </span></span></div>
               <div>
                 <div class="title">
-                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-jvm-field/index.html"><span class="token annotation builtin">JvmField</span></a></div></div><span class="token keyword">var </span><a href="fn.html">fn</a><span class="token operator">: </span><a href="../-value/index.html">Value</a></div></div></div>
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-jvm-field/index.html"><span class="token annotation builtin">JvmField</span></a></div></div><span class="token keyword">val </span><a href="frame.html">frame</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-array/index.html">Array</a><span class="token operator">&lt;</span><a href="../-value/index.html">Value</a><span class="token operator">&gt;</span></div></div></div>
                 </div>
               </div>
             </div>
@@ -283,26 +253,26 @@
               </div>
             </div>
           </div>
-<a data-name="-1690858084%2FProperties%2F-941727813" anchor-label="thisValue" id="-1690858084%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
-          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
-            <div class="main-subrow keyValue ">
-              <div class=""><span class="inline-flex">
-                  <div><a href="this-value.html"><span>this</span><wbr></wbr><span><span>Value</span></span></a></div>
-<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1690858084%2FProperties%2F-941727813"></span>
-                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
-                  </span></span></div>
-              <div>
-                <div class="title">
-                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-jvm-field/index.html"><span class="token annotation builtin">JvmField</span></a></div></div><span class="token keyword">var </span><a href="this-value.html">thisValue</a><span class="token operator">: </span><a href="../-value/index.html">Value</a></div></div></div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
       <div data-togglable="FUNCTION">
         <h2 class="tableheader">Functions</h2>
-        <div class="table"><a data-name="120737321%2FFunctions%2F-941727813" anchor-label="values" id="120737321%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+        <div class="table"><a data-name="1377343194%2FFunctions%2F-941727813" anchor-label="mapFrame" id="1377343194%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="map-frame.html"><span>map</span><wbr></wbr><span><span>Frame</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1377343194%2FFunctions%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">fun </span><a href="map-frame.html"><span class="token function">mapFrame</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">f<span class="token operator">: </span><span class="token punctuation">(</span><a href="../-value/index.html">Value</a><span class="token punctuation">)</span><span class="token operator"> -&gt; </span><a href="../-value/index.html">Value</a></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">Puts <a href="map-frame.html">f</a>'s value in place of each value of the frame (a pass replacing values).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="120737321%2FFunctions%2F-941727813" anchor-label="values" id="120737321%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
           <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
             <div class="main-subrow keyValue ">
               <div class=""><span class="inline-flex">

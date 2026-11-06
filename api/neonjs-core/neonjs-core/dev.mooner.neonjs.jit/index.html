@@ -43,7 +43,7 @@
         </button>
         <div class="navigation-controls--break ui-kit_mobile-only"></div>
         <div class="library-version" id="library-version">
-0.1.6        </div>
+0.1.7        </div>
         <div class="navigation-controls">
         <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
                 <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
@@ -199,6 +199,21 @@
               <div>
                 <div class="title">
                   <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-deopt/index.html">Deopt</a></div><div class="brief "><p class="paragraph">Deoptimization (docs/OPTIMIZING_TIER.md, &quot;Deoptimization&quot;): compiled code leaves an activation to the interpreter in the middle of its function, at an exit, with the interpreter state of every frame live there.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1630531012%2FClasslikes%2F-941727813" anchor-label="Emit" id="-1630531012%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-emit/index.html"><span><span>Emit</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1630531012%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">interface </span><a href="-emit/index.html">Emit</a></div><div class="brief "><p class="paragraph">What every code generator of the JIT emits alike, whatever the language: JVM locals, constants, calls of the runtime's static helpers, the interrupt check of a loop's back edge. <a href="-jvm-emitter/index.html">JvmEmitter</a> is the base class of the generators; <span data-unresolved-link="dev.mooner.neonjs.jit/JsEmit///PointingToDeclaration/">JsEmit</span> adds what JavaScript's code needs.</p></div></div></div>
                 </div>
               </div>
             </div>
@@ -364,6 +379,21 @@
               <div>
                 <div class="title">
                   <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">object </span><a href="-jvm-compiler/index.html">JvmCompiler</a></div><div class="brief "><p class="paragraph">Translates NeonJS stack bytecode into a JVM class implementing <a href="-compiled-code/index.html">CompiledCode</a>. The JS operand stack maps onto the JVM operand stack, registers onto JVM locals, and exception handler ranges onto JVM exception tables; complex instructions call <a href="-jit-rt/index.html">JitRt</a>. Generator and async functions are not compiled (they stay interpreted).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1947098814%2FClasslikes%2F-941727813" anchor-label="JvmEmitter" id="-1947098814%2FClasslikes%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="-jvm-emitter/index.html"><span>Jvm</span><wbr></wbr><span><span>Emitter</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1947098814%2FClasslikes%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">abstract </span><span class="token keyword">class </span><a href="-jvm-emitter/index.html">JvmEmitter</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>mv<span class="token operator">: </span><span data-unresolved-link="org.objectweb.asm/MethodVisitor///PointingToDeclaration/">MethodVisitor</span></span></span><span class="token punctuation">)</span> : <a href="-emit/index.html">Emit</a></div><div class="brief "><p class="paragraph">A code generator's base: the method it writes (<span data-unresolved-link="dev.mooner.neonjs.jit/JvmEmitter//#org.objectweb.asm.MethodVisitor/PointingToCallableParameters(0)/">mv</span>) and what <a href="-emit/index.html">Emit</a> gives every generator.</p></div></div></div>
                 </div>
               </div>
             </div>
