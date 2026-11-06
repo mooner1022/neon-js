@@ -89,8 +89,15 @@ object PyEval {
         return globals to locals
     }
 
-    private fun run(code: PyCode, globals: PyDict, locals: PyDict): Any? =
-        PyInterpreter.callWithLocals(PyContext.current(), PyFunction(code.code, globals, code.code.name), locals)
+    private fun run(code: PyCode, globals: PyDict, locals: PyDict, what: String): Any? {
+        // (a function's code that needs its closure)
+        val frees = (code.code.dialectData as PyCodeInfo).freeNames.size
+        if (frees > 0) {
+            throw PyRt.typeError(if (what == "eval") "code object passed to eval() may not contain free variables"
+                else "code object requires a closure of exactly length $frees")
+        }
+        return PyInterpreter.callWithLocals(PyContext.current(), PyFunction(code.code, globals, code.code.name), locals)
+    }
 
     /** exec(source, globals=None, locals=None): None. */
     @JvmStatic
@@ -100,7 +107,7 @@ object PyEval {
         if (src !is PyCode && src !is PyStr && src !is PyBytes) throw PyRt.typeError("exec() arg 1 must be a string, bytes or code object")
         val (g, l) = namespaces(f, a, "exec")
         val code = src as? PyCode ?: compile(src, "<string>", "exec")
-        run(code, g, l)
+        run(code, g, l, "exec")
         return PyNone
     }
 
@@ -112,7 +119,7 @@ object PyEval {
         val text = if (src is PyCode) null else text(src, "eval() arg 1 must be a string, bytes or code object").trimStart(' ', '\t')
         val (g, l) = namespaces(f, a, "eval")
         val code = src as? PyCode ?: compile(PyStr(text!!), "<string>", "eval")
-        val r = run(code, g, l)
+        val r = run(code, g, l, "eval")
         return if (code.mode == "eval") r else PyNone
     }
 
@@ -201,6 +208,7 @@ object PyEval {
         "co_argcount" -> (c.code.dialectData as PyCodeInfo).argcount.toLong()
         "co_posonlyargcount" -> (c.code.dialectData as PyCodeInfo).posonlyCount.toLong()
         "co_kwonlyargcount" -> (c.code.dialectData as PyCodeInfo).kwonlyCount.toLong()
+        "co_freevars" -> PyTuple((c.code.dialectData as PyCodeInfo).freeNames.map { PyStr(it) }.toTypedArray())
         "__class__" -> CODE
         else -> throw PyException("AttributeError", "'code' object has no attribute '$name'")
     }

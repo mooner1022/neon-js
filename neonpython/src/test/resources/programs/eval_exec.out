@@ -40,3 +40,8 @@ True code_objects.<locals>.f.<locals>.g 19
 51 147 531 <lambda>
 called
 1 2 True None
+['y'] ['f', 'g', 'h', 'result2', 'result9'] 9 2
+7
+TypeError: code object passed to eval() may not contain free variables
+TypeError: code object requires a closure of exactly length 1
+('x',) ()

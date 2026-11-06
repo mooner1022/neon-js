@@ -132,3 +132,50 @@ def code_objects():
 
 
 code_objects()
+
+
+def globals_declared():
+    # a name declared global anywhere is the module's global: exec stores it in the globals it is given
+    g = {}
+    l = {}
+    exec("""if 1:
+    def f():
+        y = 1
+        def g():
+            global y
+            return y
+        def h():
+            return y + 1
+        return g, h
+    y = 9
+    g, h = f()
+    result9 = g()
+    result2 = h()
+    """, g, l)
+    print(sorted(k for k in g if k != "__builtins__"), sorted(l), l["result9"], l["result2"])
+    # what is nested in a function declaring a name global sees the global
+    ns = {}
+    exec("""if 1:
+    x = 7
+    def f():
+        x = 1
+        def g():
+            global x
+            def i():
+                def h():
+                    return x
+                return h()
+            return i()
+        return g()
+    r = f()
+    """, ns)
+    print(ns["r"])
+
+    def outer(x):
+        return lambda: x + 1
+    for fn in (eval, exec):
+        error(fn, outer(3).__code__)
+    print(outer(3).__code__.co_freevars, (lambda: 0).__code__.co_freevars)
+
+
+globals_declared()

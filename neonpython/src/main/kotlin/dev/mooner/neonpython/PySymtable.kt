@@ -108,6 +108,8 @@ class PySymtable private constructor() {
     var futureAnnotations = false
         private set
     private lateinit var cur: Scope
+    /** The module's scope, where a `global` anywhere makes its name global too (CPython's st_global). */
+    private lateinit var top: Scope
 
     companion object {
         @JvmStatic
@@ -117,6 +119,7 @@ class PySymtable private constructor() {
             val top = Scope(Scope.Type.MODULE, "<module>", null, m)
             t.scopes[m] = top
             t.cur = top
+            t.top = top
             t.stmts(m.body)
             t.analyze(top, emptySet())
             return t
@@ -445,6 +448,8 @@ class PySymtable private constructor() {
                 if (f and Scope.USE != 0) err("name '$n' is used prior to global declaration", s)
                 if (f and Scope.DEF_LOCAL != 0) err("name '$n' is assigned to before global declaration", s)
                 cur.add(n, Scope.DEF_GLOBAL)
+                // (the module's name then: exec's code stores it in the globals, not the locals it is given)
+                top.add(n, Scope.DEF_GLOBAL)
             }
             is Nonlocal -> for (n in s.names) {
                 val f = cur.flagsOf(n)
@@ -716,7 +721,9 @@ class PySymtable private constructor() {
         val inner = when (s.type) {
             Scope.Type.MODULE -> emptySet()
             Scope.Type.CLASS -> bound + "__class__" + "__classdict__" + "__conditional_annotations__"
-            else -> bound + s.kinds.filter { it.value == Scope.Kind.LOCAL || it.value == Scope.Kind.FREE || it.value == Scope.Kind.CELL }.keys
+            // (a name a function declares global is global in what is nested in it too)
+            else -> bound - s.kinds.filter { it.value == Scope.Kind.GLOBAL_EXPLICIT }.keys +
+                s.kinds.filter { it.value == Scope.Kind.LOCAL || it.value == Scope.Kind.FREE || it.value == Scope.Kind.CELL }.keys
         }
         for (c in s.children) analyze(c, inner)
         for (c in s.children) for (n in c.frees) {

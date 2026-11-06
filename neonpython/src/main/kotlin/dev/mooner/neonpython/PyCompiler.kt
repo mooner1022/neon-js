@@ -25,6 +25,8 @@ class PyCodeInfo(@JvmField val name: String, @JvmField val localNames: Array<Str
     /** Its code object's co_varnames (parameters, then locals that are no cells) and co_flags. */
     @JvmField var varnames: List<String> = emptyList()
     @JvmField var coFlags = 0
+    /** The names its closure gives it (co_freevars). */
+    @JvmField var freeNames: List<String> = emptyList()
     /** Its function's `__code__`, made once. */
     @JvmField var codeObject: Any? = null
 
@@ -429,6 +431,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         }
         if (info.kind != 0) cb.flags = cb.flags or CodeUnit.GENERATOR
         info.firstLine = firstLine
+        info.freeNames = scope.frees.toList()
         if (!namespace) {
             info.varnames = scope.params + locals.keys.filter { it !in scope.params && scope.kind(it) == Scope.Kind.LOCAL && !it.startsWith(".") }
             var fl = 3 // CO_OPTIMIZED, CO_NEWLOCALS
