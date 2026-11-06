@@ -108,3 +108,39 @@ try:
     catching_group()
 except TypeError as e:
     print(e)
+
+
+# except* calls a subclass's own split: a tuple of two or more, else CPython's TypeError
+def own_split():
+    class BadEG1(ExceptionGroup):
+        def split(self, *args):
+            return "NOT A 2-TUPLE!"
+
+
+    class BadEG2(ExceptionGroup):
+        def split(self, *args):
+            return ("NOT A 2-TUPLE!",)
+
+
+    class WeirdEG(ExceptionGroup):
+        def split(self, *args):
+            return super().split(*args) + ("anything", 123456, None)
+
+
+    for cls in (BadEG1, BadEG2):
+        try:
+            try:
+                raise cls("eg", [OSError(123), ValueError(456)])
+            except* ValueError:
+                pass
+        except TypeError as e:
+            print(type(e).__name__, e, type(e.__context__).__name__)
+    try:
+        raise WeirdEG("eg", [OSError(123), ValueError(456)])
+    except* OSError as e:
+        print(repr(e))
+    except* ValueError as e:
+        print(repr(e))
+
+
+own_split()

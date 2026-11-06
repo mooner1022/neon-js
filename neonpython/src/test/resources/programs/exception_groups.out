@@ -34,3 +34,7 @@ else runs
 finally runs
 context ExceptionGroup('g', [ValueError(1)])
 catching ExceptionGroup with except* is not allowed. Use except instead.
+TypeError BadEG1.split must return a tuple, not str BadEG1
+TypeError BadEG2.split must return a 2-tuple, got tuple of size 1 BadEG2
+ExceptionGroup('eg', [OSError(123)])
+ExceptionGroup('eg', [ValueError(456)])

@@ -180,6 +180,9 @@ class PyFrontTest {
             "[i for i in range(5) if (j := 0) for j in range(5)]\n" to ("comprehension inner loop cannot rebind assignment expression target 'j'" to 1),
             "[i for i in range(5) if (j := 0) for k, j in [(1, 2)]]\n" to ("comprehension inner loop cannot rebind assignment expression target 'j'" to 1),
             "{i for i in range(5) if (j := 0) for j in range(5)}\n" to ("comprehension inner loop cannot rebind assignment expression target 'j'" to 1),
+            "try:\n    raise ValueError\nexcept* Exception as e:\n    break\n" to ("'break', 'continue' and 'return' cannot appear in an except* block" to 4),
+            "try:\n    pass\nexcept* Exception:\n    continue\n" to ("'break', 'continue' and 'return' cannot appear in an except* block" to 4),
+            "try:\n    pass\nexcept* Exception:\n    for i in x:\n        break\n    break\n" to ("'break', 'continue' and 'return' cannot appear in an except* block" to 6),
         )
         for ((src, want) in cases) {
             val e = assertThrows<PySyntaxError>(src) { PyCompiler.compileModule(src) }

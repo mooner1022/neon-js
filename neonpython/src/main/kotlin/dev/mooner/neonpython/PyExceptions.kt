@@ -365,7 +365,15 @@ object PyExceptions {
             st.current = g
             return g
         }
-        val (m, r) = split(rest) { PyTypes.isInstance(it, type) }
+        // (a subclass's own split, as CPython calls it: a tuple of at least two)
+        val own = PyClasses.classOf(rest)?.lookup("split")?.takeIf { it !is PyBuiltin }
+        val (m, r) = if (own == null) split(rest) { PyTypes.isInstance(it, type) } else {
+            val pair = PyCalls.callWith(PyContext.current(), PyClasses.getAttr(rest, "split"), arrayOf(type), NO_ARGS, NO_ARGS)
+            val what = PyTypes.name(rest)
+            if (pair !is PyTuple || PyTypes.typeOf(pair) !== PyTypes.TUPLE) throw PyRt.typeError("$what.split must return a tuple, not ${PyTypes.name(pair)}")
+            if (pair.items.size < 2) throw PyRt.typeError("$what.split must return a 2-tuple, got tuple of size ${pair.items.size}")
+            pair.items[0].takeIf { it !== PyNone } to pair.items[1].takeIf { it !== PyNone }
+        }
         st.rest = r
         st.current = m
         return m ?: PyNone

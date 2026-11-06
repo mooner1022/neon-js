@@ -760,12 +760,15 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             is Global, is Nonlocal, is Pass -> {}
             is Break -> {
                 val k = fblocks.indexOfLast { it is Loop }
+                // (CPython unwinds to the loop, or all the blocks where none: an except* block on the way its error)
+                if (k < 0 && fblocks.any { it is StarBody }) throw PySyntaxError("'break', 'continue' and 'return' cannot appear in an except* block", s.line, s.col)
                 if (k < 0) throw PySyntaxError("'break' outside loop", s.line, s.col)
                 val loop = fblocks[k] as Loop
                 unwind(fblocks.subList(k + 1, fblocks.size).asReversed().toList()) { loop.breaks.add(emit(PyOp.JUMP, 0)) }
             }
             is Continue -> {
                 val k = fblocks.indexOfLast { it is Loop }
+                if (k < 0 && fblocks.any { it is StarBody }) throw PySyntaxError("'break', 'continue' and 'return' cannot appear in an except* block", s.line, s.col)
                 if (k < 0) throw PySyntaxError("'continue' not properly in loop", s.line, s.col)
                 val loop = fblocks[k] as Loop
                 unwind(fblocks.subList(k + 1, fblocks.size).asReversed().toList()) { emit(PyOp.JUMP, loop.top) }
