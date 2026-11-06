@@ -32,7 +32,7 @@ object PyClasses {
             throw PyRt.typeError(if (cls.lookup("__new__") !== OBJECT_NEW_HOLDER) "object.__new__() takes exactly one argument (the type to instantiate)"
                 else "${cls.name}() takes no arguments")
         }
-        return PyObject(cls)
+        return PyObject(cls).also { if (cls.heap) PyWeakrefs.made(it) }
     }
 
     private fun objectInit(a: Array<Any?>, kw: Boolean): Any? {
@@ -117,6 +117,7 @@ object PyClasses {
         t.module = "__main__"
         if (meta !== PyTypes.TYPE) t.meta = meta
         t.heap = true
+        t.dispatchBuiltins = bases.any { it.dispatchBuiltins }
         var cell: PyCell? = null
         var dictCell: PyCell? = null
         for ((k, v0) in ns.map) {
@@ -289,6 +290,8 @@ object PyClasses {
         if (obj is PyGenericAlias) return PyTyping.aliasAttr(obj, name)
         if (obj is PyCode) return PyEval.codeAttr(obj, name)
         if (obj is PyFrameObj) return PyFrames.frameAttr(obj, name)
+        // (a proxy: its referent's attributes, its class too)
+        if (obj is PyWeakProxy) return getAttr(obj.get(), name)
         if (obj is PyTraceback) return PyFrames.tracebackAttr(obj, name)
         if (obj is PyUnion) return PyTyping.unionAttr(obj, name)
         if (obj is PyTypeParam) return PyTyping.typeParamAttr(obj, name)
@@ -499,6 +502,10 @@ object PyClasses {
         }
         if (obj is PyFrameObj || obj is PyTraceback) {
             PyFrames.setAttr(obj, name, v)
+            return
+        }
+        if (obj is PyWeakProxy) {
+            setAttr(obj.get(), name, v)
             return
         }
         if (obj is PyTypeAlias) PyTyping.aliasTypeSet(name)

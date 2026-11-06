@@ -925,7 +925,11 @@ stand-ins until the real `unittest` imports: from then on CPython's own).
 - **`__del__` runs when the collector finds the object unreachable, not at its last reference** (PyPy's choice: the
   JVM counts no references). The objects of classes with `__del__` are registered with a reference queue that is
   drained on the interpreter's thread at safe points (calls' interrupt checks), and `gc.collect()` asks the JVM to
-  collect and then drains it. A weak reference's callback goes the same way.
+  collect and then drains it. A weak reference's callback goes the same way. A `__del__` is called on an object of
+  the class with the instance's dict (the instance itself is gone), so an instance whose dict holds itself is never
+  finalized. In code the tier compiled, `del x` and `x = None` let go of the local (`PyIr.RELEASE`), but a value a
+  statement only looked at stays reachable until the function returns while the JVM still interprets the method (its
+  interpreter keeps every local holding an object); nulling locals after their last use would be the core's work.
 - **A module body larger than the tier's block limit is interpreted.** It runs once, at import. The bundled
   library's module bodies are not held to `noBlockFallsBackToTheInterpreter`.
 - **`dis` is NeonPy's, not CPython's.** NeonPy's bytecode is its own, so `dis` lists NeonPy's instructions and

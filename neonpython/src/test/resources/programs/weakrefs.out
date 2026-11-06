@@ -1,0 +1,21 @@
+(True, 1, True, 1, 'ReferenceType', True)
+(True, 2, True, True, True)
+True True [True] True
+TypeError weak object has gone away
+TypeError cannot create weak reference to 'int' object
+TypeError cannot create weak reference to 'str' object
+TypeError cannot create weak reference to 'list' object
+TypeError cannot create weak reference to 'dict' object
+TypeError cannot create weak reference to 'tuple' object
+TypeError cannot create weak reference to 'object' object
+True True True
+5 5 ProxyType C
+6
+ReferenceError weakly-referenced object no longer exists
+3 3 True [1, 2, 3] [3, 1, 2, 9] [3, 1, 2]
+CallableProxyType 7
+[1, 2]
+k True Sub True 1
+True True
+False
+True True

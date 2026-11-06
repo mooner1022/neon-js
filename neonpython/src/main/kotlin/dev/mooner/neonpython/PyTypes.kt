@@ -16,6 +16,8 @@ class PyType(@JvmField var name: String, bases: Array<PyType>, @JvmField val dic
     @JvmField var subclassable = true
     /** A class (made by a class statement or type()), not a builtin type: what `__annotations__` is given for. */
     @JvmField var heap = false
+    /** Whether dispatch takes its builtin methods too (a weak reference's, a proxy's: theirs are all it has), and its subclasses'. */
+    @JvmField var dispatchBuiltins = false
     /** The name messages give its instances' type by where it is not [name] (a C type's tp_name: `types.GenericAlias`). */
     @JvmField var tpName: String? = null
     /** The attribute hooks its instances go through (PyClasses.hooksOf): __getattribute__ 1, __setattr__ 2, __delattr__ 4. */

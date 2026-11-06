@@ -116,6 +116,11 @@ object PyIr {
     const val SEND_VALUE = 512
     /** (a b) comparison a (LT..NE) as a value: what a class's method returns (PyRt.compareValue); one a branch tests is the bytecode's, a bool. */
     const val COMPARE_VALUE = 513
+    /**
+     * (v) v's local let go of (null where it holds an object): a register deleted or stored over that held the only
+     * reference the code has, so that the collector finds what it referred to unreachable (weakref, __del__).
+     */
+    const val RELEASE = 514
 }
 
 /**
@@ -194,7 +199,7 @@ object PyKinds : KindSystem {
 
 /** What the passes know of Python's operations: most may run code and throw; a few only compute or allocate. */
 object PyOps : OpTable {
-    private val infos = arrayOfNulls<OpInfo>(PyIr.COMPARE_VALUE + 1).also { t ->
+    private val infos = arrayOfNulls<OpInfo>(PyIr.RELEASE + 1).also { t ->
         for (op in 0 until PyOp.COUNT) if (PyOp.names[op] != null) t[op] = OpInfo(PyOp.name(op), PyGeneric.of(op)?.flags ?: OpInfo.ANYTHING)
         t[PyOp.IS] = OpInfo("IS", OpInfo.REMOVABLE)
         t[PyOp.IS_NOT] = OpInfo("IS_NOT", OpInfo.REMOVABLE)
@@ -208,6 +213,7 @@ object PyOps : OpTable {
         t[PyIr.SEND_STEP] = OpInfo("SendStep", OpInfo.ANYTHING)
         t[PyIr.SEND_VALUE] = OpInfo("SendValue", OpInfo.REMOVABLE)
         t[PyIr.COMPARE_VALUE] = OpInfo("CompareValue", OpInfo.ANYTHING)
+        t[PyIr.RELEASE] = OpInfo("Release", 0)
         // a check's result is its input unboxed; arithmetic of numbers only computes (an exit goes with it)
         t[PyIr.CHECK_INT] = OpInfo("CheckInt", OpInfo.REMOVABLE or OpInfo.UNBOXES, OpInfo.HOIST_ALWAYS)
         t[PyIr.CHECK_FLOAT] = OpInfo("CheckFloat", OpInfo.REMOVABLE or OpInfo.UNBOXES, OpInfo.HOIST_ALWAYS)
@@ -380,12 +386,16 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
                     else stack.add(v)
                 }
                 PyOp.STORE_FAST -> {
+                    val old = regs[a]
                     regs[a] = pop()
                     home(a)
+                    release(old)
                 }
                 PyOp.DELETE_FAST -> {
+                    val old = regs[a]
                     regs[a] = dead()
                     home(a)
+                    release(old)
                 }
                 PyOp.UNPACK_EX -> {
                     val arr = inst(PyIr.UNPACK_EX_ARRAY, arrayOf(pop()), result = true)
@@ -469,6 +479,16 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
                 else -> throw JitBailout("python: no graph for ${PyOp.name(op)}")
             }
             false
+        }
+
+        /**
+         * [old], a register's value before it was deleted or stored over: let go of where no register or stack slot
+         * holds it (not a phi: a loop's, its local taken again each time round, and on-stack replacement's entries rest on it).
+         */
+        private fun At.release(old: Value?) {
+            if (old !is Inst) return
+            if (regs.any { it === old } || stack.any { it === old }) return
+            add(cur, Inst(PyIr.RELEASE, arrayOf(old), 0, 0, 0, pc, stmt))
         }
 
         /** The top [n] values of the stack, the deepest first, popped. */
@@ -563,6 +583,14 @@ class PyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, clas
                 load(i.inputs[1], ANY_KIND)
                 mv.visitMethodInsn(INVOKESTATIC, PY_GEN, "send", "($FRAME_D$OBJ$OBJ)$OBJ", false)
                 done(i, ANY_KIND)
+            }
+            PyIr.RELEASE -> {
+                val v = i.inputs[0]
+                val l = local[v]
+                if (l != null && kindOf(v) == ANY_KIND) {
+                    mv.visitInsn(ACONST_NULL)
+                    mv.visitVarInsn(ASTORE, l)
+                }
             }
             PyIr.COMPARE_VALUE -> {
                 storePc(i)

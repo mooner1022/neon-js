@@ -34,6 +34,14 @@ class PyContext(
     @JvmField val handledStack = ArrayList<PyBaseException?>()
     /** The innermost frame running (sys._getframe), the chain out through PyFrame.back. */
     @JvmField var top: PyFrame? = null
+    /** Weak references' and `__del__`'s (PyWeakrefs): the queue the collector puts what it found gone on, the instances with `__del__` followed, each object's weak references. */
+    @JvmField val refQueue = java.lang.ref.ReferenceQueue<Any>()
+    @JvmField val finalizers = HashSet<PyWeakrefs.Del>()
+    @JvmField val weakrefs = HashMap<PyWeakrefs.IdKey, ArrayList<java.lang.ref.WeakReference<PyObject>>>()
+    @JvmField var draining = false
+    @JvmField var weakrefNotes = 0
+    @JvmField var gcEnabled = true
+
     /** The source of each module imported, by its file (a traceback's lines). */
     @JvmField val sources = HashMap<String, String>()
 
@@ -197,6 +205,8 @@ object PyInterpreter {
             agent.callBudget = 1024
             try {
                 agent.checkInterrupt()
+                // (what the collector found gone: its weak references' callbacks, its __del__)
+                PyWeakrefs.drain(ctx)
             } catch (t: Throwable) {
                 agent.depth--
                 throw t

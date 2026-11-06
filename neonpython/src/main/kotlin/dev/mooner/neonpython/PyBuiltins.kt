@@ -370,6 +370,7 @@ object PyBuiltins {
         PyStrings.define()
         PyImport.define(d)
         PyFrames.define()
+        PyWeakrefs.define()
         // (an int's and a float's methods take a subclass's instance as its number)
         for (t in arrayOf(PyTypes.INT, PyTypes.BOOL, PyTypes.FLOAT, PyTypes.COMPLEX, PyTypes.BYTES)) for (v in t.dict.map.values) when (v) {
             is PyBuiltin -> if (v.name != "__new__") v.numSelf = true

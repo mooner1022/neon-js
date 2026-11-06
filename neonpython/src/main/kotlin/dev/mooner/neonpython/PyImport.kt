@@ -229,6 +229,14 @@ object PyImport {
                 for (f in FUTURES) d[PyStr(f)] = PyStr(f)
                 return mod()
             }
+            "_weakref" -> {
+                PyWeakrefs.fillWeakref(ctx, d)
+                return mod()
+            }
+            "gc" -> {
+                PyWeakrefs.fillGc(ctx, d)
+                return mod()
+            }
             else -> return null
         }
     }

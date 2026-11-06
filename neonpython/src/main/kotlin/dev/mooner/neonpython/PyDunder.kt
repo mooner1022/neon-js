@@ -49,8 +49,15 @@ object PyDunder {
     @JvmStatic
     fun userMethod(t: PyType, n: String): Any? {
         val m = t.lookup(n) ?: return null
-        return if (m is PyBuiltin) null else m
+        return if (m is PyBuiltin && !t.dispatchBuiltins) null else m
     }
+
+    /** The special method of binary opcode [op] (`__add__`), and its reflected one (`__radd__`). */
+    @JvmStatic fun opName(op: Int): String = NAMES[op]!!.first
+    @JvmStatic fun reflectedName(op: Int): String = NAMES[op]!!.second
+
+    /** The special method of comparison [op] (LT..NE). */
+    @JvmStatic fun compareName(op: Int): String = arrayOf("__lt__", "__le__", "__gt__", "__ge__", "__eq__", "__ne__")[op - PyOp.LT]
 
     // ------------------------------------------------------------------ binary operators
 
@@ -233,7 +240,7 @@ object PyDunder {
         val t = PyTypes.typeOf(v)
         val h = t.lookup("__hash__")
         if (h === PyNone) throw PyRt.typeError("unhashable type: '${t.name}'")
-        if (h == null || h is PyBuiltin) return if (v is PyValue) PyRt.hashValues(v) else System.identityHashCode(v)
+        if (h == null || h is PyBuiltin && !t.dispatchBuiltins) return if (v is PyValue) PyRt.hashValues(v) else System.identityHashCode(v)
         return when (val r = call(h, v)) {
             is Long -> java.lang.Long.hashCode(r)
             is BigInteger -> r.hashCode()
@@ -256,7 +263,7 @@ object PyDunder {
             when {
                 !PyRt.special(v) -> PyRt.hash(v).toLong()
                 h === PyNone -> throw PyRt.typeError("unhashable type: '${t.name}'")
-                h == null || h is PyBuiltin -> if (v is PyNumSub) hashValue(v.num) else if (v is PyValue) PyRt.hashValues(v).toLong() else System.identityHashCode(v).toLong()
+                h == null || h is PyBuiltin && !t.dispatchBuiltins -> if (v is PyNumSub) hashValue(v.num) else if (v is PyValue) PyRt.hashValues(v).toLong() else System.identityHashCode(v).toLong()
                 else -> when (val r = call(h, v)) {
                     is Long -> intHash(BigInteger.valueOf(r))
                     is BigInteger -> intHash(r)

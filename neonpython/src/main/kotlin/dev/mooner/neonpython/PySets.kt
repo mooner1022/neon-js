@@ -100,7 +100,7 @@ object PyHash {
         val t = PyTypes.typeOf(v)
         val h = t.lookup("__hash__")
         if (h === PyNone) throw PyRt.typeError("unhashable type: '${t.name}'")
-        if (h == null || h is PyBuiltin) return when (v) {
+        if (h == null || h is PyBuiltin && !t.dispatchBuiltins) return when (v) {
             is PyStr -> fix(v.s.hashCode().toLong())
             is PyTuple -> tuple(v.items)
             is PySet -> if (v.frozen) v.frozenHash() else throw PyRt.typeError("unhashable type: '${t.name}'")
