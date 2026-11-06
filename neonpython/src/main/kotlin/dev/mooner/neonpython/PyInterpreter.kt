@@ -442,6 +442,14 @@ object PyInterpreter {
                 val parts = popN(a)
                 s[sp++] = PySets.buildSlice(parts)
             }
+            PyOp.BUILD_INTERPOLATION -> {
+                val p = popN(4)
+                s[sp++] = PyLiterals.buildInterpolation(p[0], p[1], p[2], p[3])
+            }
+            PyOp.BUILD_TEMPLATE -> {
+                val interps = pop()
+                s[sp - 1] = PyLiterals.buildTemplate(s[sp - 1], interps)
+            }
             PyOp.SET_ADD, PyOp.SET_UPDATE -> {
                 val v = pop()
                 s[sp - 1] = if (op == PyOp.SET_ADD) PySets.setAdd(s[sp - 1], v) else PySets.setUpdate(s[sp - 1], v)

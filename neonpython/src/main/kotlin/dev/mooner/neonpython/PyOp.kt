@@ -204,6 +204,10 @@ object PyOp {
     const val SET_UPDATE = 128
     /** n (start stop [step] -- slice) */
     const val BUILD_SLICE = 129
+    /** (value expression conversion spec -- interpolation): a t-string's field */
+    const val BUILD_INTERPOLATION = 130
+    /** (strings interpolations -- template): a t-string */
+    const val BUILD_TEMPLATE = 131
 
     const val COUNT = 200
 
@@ -243,7 +247,8 @@ object PyOp {
         EXC_STAR_RAISED -> -2
         FORMAT_SPEC -> -1
         BUILD_STRING, BUILD_SET, BUILD_SLICE -> 1 - a
-        SET_ADD, SET_UPDATE -> -1
+        SET_ADD, SET_UPDATE, BUILD_TEMPLATE -> -1
+        BUILD_INTERPOLATION -> -3
         RAISE -> -a
         CALL -> -a
         BUILD_LIST, BUILD_TUPLE -> 1 - a

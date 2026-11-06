@@ -120,6 +120,7 @@ object PyBuiltins {
             argc("abs", args, 1)
             when (val v = args[0]) {
                 is Double -> Math.abs(v)
+                is PyComplex -> Math.hypot(v.real, v.imag)
                 else -> if (PyRt.isInt(v)) (if (PyRt.order(0, v, 0L)) PyRt.neg(v) else PyRt.pos(v)) else PyDunder.abs(v)
             }
         }
@@ -233,8 +234,9 @@ object PyBuiltins {
             argc("hash", args, 1)
             PyHash.hash(args[0])
         }
-        // sets and slices
+        // sets and slices; complex numbers, bytes
         PySets.define(d)
+        PyLiterals.define(d)
         PyTypes.SLICE.newImpl = { _, _, a, kw ->
             if (kw != null && kw.size > 0) throw PyRt.typeError("slice() takes no keyword arguments")
             when (a.size) {

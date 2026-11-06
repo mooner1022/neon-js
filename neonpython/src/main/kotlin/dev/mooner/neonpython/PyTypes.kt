@@ -89,6 +89,8 @@ object PyTypes {
     @JvmField val SET = builtin("set")
     @JvmField val FROZENSET = builtin("frozenset")
     @JvmField val SLICE = builtin("slice", subclassable = false)
+    @JvmField val TEMPLATE = builtin("Template", subclassable = false).also { it.module = "string.templatelib" }
+    @JvmField val INTERPOLATION = builtin("Interpolation", subclassable = false).also { it.module = "string.templatelib" }
     @JvmField val STATICMETHOD = builtin("staticmethod")
     @JvmField val CLASSMETHOD = builtin("classmethod")
 
@@ -157,6 +159,8 @@ object PyTypes {
         is PyGenerator -> GENERATOR
         is PySet -> v.sub?.cls ?: if (v.frozen) FROZENSET else SET
         is PySlice -> SLICE
+        is PyTemplate -> TEMPLATE
+        is PyInterpolation -> INTERPOLATION
         is PyComplex -> COMPLEX
         is PyBytes -> BYTES
         is PyCell -> CELL

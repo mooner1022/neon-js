@@ -58,7 +58,7 @@ object PyRt {
 
     /** a op b where no builtin path took them: an instance's special methods (PyDunder), else the TypeError. */
     private fun other(op: Int, sym: String, a: Any?, b: Any?): Any? =
-        if (special(a) || special(b)) PyDunder.binary(a, b, op) else values(op, a, b) ?: throw unsupported(sym, a, b)
+        if (special(a) || special(b)) PyDunder.binary(a, b, op) else PyLiterals.complexOp(op, a, b) ?: values(op, a, b) ?: throw unsupported(sym, a, b)
 
     /** a op b of builtin values for [PyDunder.binary]: concatenation and repetition; null where none applies. */
     @JvmStatic fun values(op: Int, a: Any?, b: Any?): Any? = when (op) {
@@ -85,11 +85,13 @@ object PyRt {
             return norm(big(a).add(big(b)))
         }
         if (special(a) || special(b)) return PyDunder.binary(a, b, PyOp.ADD)
-        return addValues(a, b) ?: throw unsupported("+", a, b)
+        return addValues(a, b) ?: PyLiterals.complexOp(PyOp.ADD, a, b) ?: throw unsupported("+", a, b)
     }
 
     /** a + b of a str, list or tuple: null where a is none of them, CPython's TypeError where b is not of a's kind. */
     @JvmStatic fun addValues(a: Any?, b: Any?): Any? {
+        if (a is PyBytes) return PyLiterals.bytesAdd(a, b)
+        if (a is PyTemplate || b is PyTemplate) return PyLiterals.templateAdd(a, b)
         if (a is PyStr) return if (b is PyStr) PyStr(a.s + b.s) else throw concat("str", b)
         if (a is PyList) {
             if (b !is PyList) throw concat("list", b)
@@ -128,11 +130,12 @@ object PyRt {
             return norm(big(a).multiply(big(b)))
         }
         if (special(a) || special(b)) return PyDunder.binary(a, b, PyOp.MUL)
-        return mulValues(a, b) ?: throw unsupported("*", a, b)
+        return mulValues(a, b) ?: PyLiterals.complexOp(PyOp.MUL, a, b) ?: throw unsupported("*", a, b)
     }
 
     /** A str, list or tuple repeated (either operand the count): null where neither is one, the TypeError where the count is no int. */
     @JvmStatic fun mulValues(a: Any?, b: Any?): Any? {
+        PyLiterals.bytesMul(a, b)?.let { return it }
         val seq: Any?
         val n: Any?
         if (a is PyStr || a is PyList || a is PyTuple) { seq = a; n = b } else if (b is PyStr || b is PyList || b is PyTuple) { seq = b; n = a } else return null
@@ -274,12 +277,14 @@ object PyRt {
         a is Long -> if (a == Long.MIN_VALUE) BigInteger.valueOf(a).negate() else -a
         a is Double -> -a
         isInt(a) -> norm(big(a).negate())
+        a is PyComplex -> PyComplex(-a.real, -a.imag)
         else -> PyDunder.unary(a, "__neg__", "-")
     }
 
     @JvmStatic fun pos(a: Any?): Any? = when {
         a is PyBool -> small(a)
         isNumber(a) -> a
+        a is PyComplex -> a
         else -> PyDunder.unary(a, "__pos__", "+")
     }
 
@@ -300,6 +305,8 @@ object PyRt {
         is PyValue -> if (v.sub == null) truthValues(v) else PyDunder.truthy(v)
         is PyRange -> v.length > 0
         is PyObject -> PyDunder.truthy(v)
+        is PyComplex -> v.real != 0.0 || v.imag != 0.0
+        is PyBytes -> v.b.isNotEmpty()
         else -> true
     }
 
@@ -322,6 +329,7 @@ object PyRt {
         is PyStr -> v.length.toLong()
         is PyDict -> v.size.toLong()
         is PySet -> v.used.toLong()
+        is PyBytes -> v.b.size.toLong()
         is PyRange -> v.length
         else -> throw typeError("object of type '${t(v)}' has no len()")
     }
@@ -352,12 +360,14 @@ object PyRt {
     /** a == b of builtin values (a subclass's instance as its base type's value); false for other kinds. */
     @JvmStatic fun eqValues(a: Any?, b: Any?): Boolean {
         if (isNumber(a) && isNumber(b)) return numCompare(a, b) == 0
+        if (a is PyComplex || b is PyComplex) return PyLiterals.complexEq(a, b)
         return when (a) {
             is PyStr -> b is PyStr && a.s == b.s
             is PyList -> b is PyList && seqEquals(a.items, b.items)
             is PyTuple -> b is PyTuple && seqEquals(a.items.asList(), b.items.asList())
             is PyDict -> b is PyDict && a.size == b.size && a.map.all { (k, v) -> b.map.containsKey(k) && eq(v, b.map[k]) }
             is PySet -> b is PySet && PySets.equal(a, b)
+            is PyBytes -> b is PyBytes && a.b.contentEquals(b.b)
             is PySlice -> b is PySlice && a == b
             PyNone, null -> b === PyNone || b == null
             else -> false
@@ -389,6 +399,7 @@ object PyRt {
         val c: Int = when {
             isNumber(a) && isNumber(b) -> numCompare(a, b) ?: return false
             a is PyStr && b is PyStr -> a.compareTo(b)
+            a is PyBytes && b is PyBytes -> PyLiterals.bytesCompare(a, b)
             a is PyList && b is PyList -> seqCompare(op, a.items, b.items) ?: return false
             a is PyTuple && b is PyTuple -> seqCompare(op, a.items.asList(), b.items.asList()) ?: return false
             else -> return null
@@ -421,6 +432,9 @@ object PyRt {
         is PyList, is PyDict -> if (special(v)) PyDunder.hash(v) else throw typeError("unhashable type: '${t(v)}'")
         is PySet -> if (v.sub == null) (if (v.frozen) java.lang.Long.hashCode(v.frozenHash()) else throw typeError("unhashable type: '${t(v)}'")) else PyDunder.hash(v)
         is PySlice -> java.lang.Long.hashCode(PyHash.hash(v))
+        is PyBytes -> v.hashCode()
+        // (equal to an int or a float, a complex with no imaginary part hashes as it)
+        is PyComplex -> if (v.imag == 0.0) hash(v.real) else java.lang.Long.hashCode(PyHash.hash(v))
         is PyObject -> PyDunder.hash(v)
         else -> System.identityHashCode(v)
     }
@@ -450,6 +464,7 @@ object PyRt {
         is PyTuple -> container.items.any { it === v || eq(it, v) }
         is PyDict -> container.containsKey(v)
         is PySet -> container.contains(v)
+        is PyBytes -> PyLiterals.bytesContains(container, v)
         is PyStr -> if (v is PyStr) container.s.contains(v.s) else throw typeError("'in <string>' requires string as left operand, not ${t(v)}")
         is PyRange -> v is Long && (if (container.step > 0) v >= container.start && v < container.stop else v <= container.start && v > container.stop) &&
             (v - container.start) % container.step == 0L
@@ -483,6 +498,8 @@ object PyRt {
         is PyDict -> v.map.entries.joinToString(", ", "{", "}") { repr(it.key.v) + ": " + repr(it.value) }
         is PySet -> PySets.repr(v)
         is PySlice -> v.toString()
+        is PyTemplate -> PyLiterals.templateRepr(v)
+        is PyInterpolation -> PyLiterals.interpolationRepr(v)
         is PyRange -> if (v.step == 1L) "range(${v.start}, ${v.stop})" else "range(${v.start}, ${v.stop}, ${v.step})"
         is PyType -> v.repr()
         is PyObject -> PyDunder.repr(v)
@@ -591,6 +608,7 @@ object PyRt {
         is PyTuple -> obj.items[index(key, obj.items.size, "tuple")]
         is PyStr -> obj.at(index(key, obj.length, "string"))
         is PyDict -> if (obj.containsKey(key)) obj[key] else throw PyException.keyError(key)
+        is PyBytes -> PyLiterals.bytesItem(obj, key)
         is PyRange -> {
             val n = obj.length
             if (n > Int.MAX_VALUE) throw PyException("OverflowError", "range too large")
@@ -714,6 +732,11 @@ object PyRt {
         }
         is PyObject -> PyDunder.iter(v)
         is PyGenerator -> PyIterator { v.next() }
+        is PyBytes -> {
+            var k = 0
+            PyIterator { if (k < v.b.size) (v.b[k++].toInt() and 0xFF).toLong() else PyIterator.STOP }
+        }
+        is PyTemplate -> PyLiterals.templateIter(v)
         is PySet -> {
             // (in slot order; CPython's error where its size changes meanwhile)
             var j = 0

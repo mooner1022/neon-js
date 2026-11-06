@@ -49,6 +49,7 @@ internal class Generic(
         const val EXC = "dev/mooner/neonpython/PyExceptions"
         const val FMT = "dev/mooner/neonpython/PyFormat"
         const val SETS = "dev/mooner/neonpython/PySets"
+        const val LIT = "dev/mooner/neonpython/PyLiterals"
     }
 }
 
@@ -115,6 +116,9 @@ internal object PyGeneric {
         t[PyOp.SET_ADD] = Generic("setAdd", "vv", pops = 2, result = true, owner = ss)
         t[PyOp.SET_UPDATE] = Generic("setUpdate", "vv", pops = 2, result = true, owner = ss)
         t[PyOp.BUILD_SLICE] = Generic("buildSlice", "n", pops = 0, popsPerA = 1, result = true, throws = false, owner = ss)
+        val lt = Generic.LIT
+        t[PyOp.BUILD_INTERPOLATION] = Generic("buildInterpolation", "vvvv", pops = 4, result = true, throws = false, owner = lt)
+        t[PyOp.BUILD_TEMPLATE] = Generic("buildTemplate", "vv", pops = 2, result = true, throws = false, owner = lt)
         t[PyOp.WRAP_STAR] = Generic("wrapStar", "v", pops = 1, result = true, throws = false, owner = c, flags = OpInfo.REMOVABLE or OpInfo.ALLOCATES)
     }
 

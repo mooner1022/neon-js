@@ -337,6 +337,19 @@ object PyClasses {
                 "__name__", "__qualname__" -> PyStr(obj.name)
                 else -> null
             }
+            is PyTemplate -> when (name) {
+                "strings" -> PyTuple(obj.strings)
+                "interpolations" -> PyTuple(obj.interpolations)
+                "values" -> PyTuple(Array(obj.interpolations.size) { (obj.interpolations[it] as PyInterpolation).value })
+                else -> null
+            }
+            is PyInterpolation -> when (name) {
+                "value" -> obj.value
+                "expression" -> obj.expression
+                "conversion" -> obj.conversion
+                "format_spec" -> obj.formatSpec
+                else -> null
+            }
             is PySlice -> when (name) {
                 "start" -> obj.start
                 "stop" -> obj.stop

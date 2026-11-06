@@ -350,6 +350,20 @@ class PyProgramsTest {
             "{1}[0]\n" to Triple("TypeError", "'set' object is not subscriptable", 1),
             "set(1)\n" to Triple("TypeError", "'int' object is not iterable", 1),
             "[] in {1}\n" to Triple("TypeError", "cannot use 'list' as a set element (unhashable type: 'list')", 1),
+            "1j < 2j\n" to Triple("TypeError", "'<' not supported between instances of 'complex' and 'complex'", 1),
+            "1j // 2\n" to Triple("TypeError", "unsupported operand type(s) for //: 'complex' and 'int'", 1),
+            "complex('abc')\n" to Triple("ValueError", "complex() arg is a malformed string", 1),
+            "1 / 0j\n" to Triple("ZeroDivisionError", "division by zero", 1),
+            "0j ** -1\n" to Triple("ZeroDivisionError", "zero to a negative or complex power", 1),
+            "b'a' + 1\n" to Triple("TypeError", "can't concat int to bytes", 1),
+            "bytes('a')\n" to Triple("TypeError", "string argument without an encoding", 1),
+            "bytes([256])\n" to Triple("ValueError", "bytes must be in range(0, 256)", 1),
+            "b'a'[5]\n" to Triple("IndexError", "index out of range", 1),
+            "'é'.encode('ascii')\n" to Triple("UnicodeEncodeError", "'ascii' codec can't encode character '\\xe9' in position 0: ordinal not in range(128)", 1),
+            "b'\\xff'.decode()\n" to Triple("UnicodeDecodeError", "'utf-8' codec can't decode byte 0xff in position 0: invalid start byte", 1),
+            "'a'.encode('nope')\n" to Triple("LookupError", "unknown encoding: nope", 1),
+            "'a' in b'a'\n" to Triple("TypeError", "a bytes-like object is required, not 'str'", 1),
+            "t'{1}' + 'x'\n" to Triple("TypeError", "can only concatenate string.templatelib.Template (not \"str\") to string.templatelib.Template", 1),
         )
         for (mode in Mode.entries) for ((src, want) in cases) {
             val e = try {
@@ -384,7 +398,7 @@ class PyProgramsTest {
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
             "speculation", "functions", "closures", "unpacking", "types", "classes", "descriptors",
-            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices",
+            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals",
         )
 
         /** The code blocks of [cb] and every function it defines. */

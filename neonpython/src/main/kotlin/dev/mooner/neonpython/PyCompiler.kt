@@ -699,6 +699,36 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         }
     }
 
+    /**
+     * A t-string (PEP 750): its strings (a constant tuple, one more than its fields: empty ones between two fields
+     * and at the ends) and its fields as Interpolations (the value, its source, its conversion, its spec formatted).
+     */
+    private fun template(e: TemplateStr) {
+        val strings = ArrayList<Any?>()
+        val fields = ArrayList<Interpolation>()
+        var cur = StringBuilder()
+        for (v in e.values) when (v) {
+            is Interpolation -> {
+                strings.add(PyStr(cur.toString()))
+                cur = StringBuilder()
+                fields.add(v)
+            }
+            is Constant -> cur.append((v.value as PyStr).s)
+            else -> throw IllegalStateException("a t-string's part: $v")
+        }
+        strings.add(PyStr(cur.toString()))
+        loadConst(PyTuple(strings.toTypedArray()))
+        for (f in fields) {
+            expr(f.value)
+            loadConst(PyStr(f.str))
+            loadConst(if (f.conversion < 0) PyNone else PyStr(f.conversion.toChar().toString()))
+            if (f.formatSpec != null) expr(f.formatSpec) else loadConst(PyStr.EMPTY)
+            emit(PyOp.BUILD_INTERPOLATION)
+        }
+        emit(PyOp.BUILD_TUPLE, fields.size)
+        emit(PyOp.BUILD_TEMPLATE)
+    }
+
     /** An f-string: its parts (strs, and fields formatted) joined; a part alone is the value. */
     private fun fstring(e: JoinedStr) {
         if (e.values.isEmpty()) {
@@ -1267,7 +1297,8 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             is Await -> unsupported("await", e)
             is JoinedStr -> fstring(e)
             is FormattedValue -> formatted(e)
-            is TemplateStr, is Interpolation -> unsupported("t-strings", e)
+            is TemplateStr -> template(e)
+            is Interpolation -> throw IllegalStateException("an interpolation outside a t-string")
             is Slice -> {
                 if (e.lower == null) loadConst(PyNone) else expr(e.lower)
                 if (e.upper == null) loadConst(PyNone) else expr(e.upper)
