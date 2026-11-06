@@ -427,6 +427,9 @@ class PyProgramsTest {
             "import sys\nsys.exit('bye')\n" to Triple("SystemExit", "bye", 2),
             "import sys\nsys.nope\n" to Triple("AttributeError", "module 'sys' has no attribute 'nope'", 2),
             "import string.nope\n" to Triple("ModuleNotFoundError", "No module named 'string.nope'", 1),
+            "a, b = 1\n" to Triple("TypeError", "cannot unpack non-iterable int object", 1),
+            "for a, b in [1]:\n    pass\n" to Triple("TypeError", "cannot unpack non-iterable int object", 1),
+            "class C:\n    def __getitem__(self, i):\n        raise TypeError(\"gi\")\na, b = C()\n" to Triple("TypeError", "gi", 3),
         )
         for (mode in Mode.entries) for ((src, want) in cases) {
             val e = try {

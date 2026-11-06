@@ -763,6 +763,17 @@ object PyRt {
     @JvmStatic fun isStop(v: Any?): Boolean = v === PyIterator.STOP
 
     /** The [n] items of [seq] (an unpacking assignment), or a ValueError. */
+    /** iter(seq) to unpack it: CPython's message where seq is no iterable at all (neither __iter__ nor __getitem__). */
+    @JvmStatic fun unpackIter(seq: Any?): PyIterator = try {
+        iter(seq)
+    } catch (e: PyException) {
+        val t = PyTypes.typeOf(seq)
+        if (e.matches(PyExceptions.type("TypeError")) && t.lookup("__iter__") == null && t.lookup("__getitem__") == null) {
+            throw typeError("cannot unpack non-iterable ${t.name} object")
+        }
+        throw e
+    }
+
     @JvmStatic fun unpack(seq: Any?, n: Int): Array<Any?> {
         // (a subclass's instance through its iteration, which its class may change)
         val exact = seq is PyValue && seq.sub == null
@@ -771,7 +782,7 @@ object PyRt {
             exact && seq is PyList -> seq.items
             else -> {
                 val out = ArrayList<Any?>()
-                val it = iter(seq)
+                val it = unpackIter(seq)
                 while (true) {
                     val x = it.next()
                     if (x === PyIterator.STOP) break

@@ -271,11 +271,7 @@ object PyCalls {
             seq is PyList && seq.sub == null -> items.addAll(seq.items)
             seq is PyTuple && seq.sub == null -> items.addAll(seq.items)
             else -> {
-                val it = try {
-                    PyRt.iter(seq)
-                } catch (e: PyException) {
-                    if (e.matches(PyExceptions.type("TypeError"))) throw PyRt.typeError("cannot unpack non-iterable ${PyTypes.name(seq)} object") else throw e
-                }
+                val it = PyRt.unpackIter(seq)
                 while (true) {
                     val x = it.next()
                     if (x === PyIterator.STOP) break
