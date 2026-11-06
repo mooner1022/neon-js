@@ -104,7 +104,7 @@ object PyMath {
     }
 
     /** _PyArg_CheckPositional's messages: "atan2 expected 2 arguments, got 1". */
-    private fun checkPositional(name: String, n: Int, min: Int, max: Int) {
+    internal fun checkPositional(name: String, n: Int, min: Int, max: Int) {
         if (n < min) throw PyRt.typeError("$name expected ${if (min == max) "" else "at least "}$min argument${s(min)}, got $n")
         if (n > max) throw PyRt.typeError("$name expected ${if (min == max) "" else "at most "}$max argument${s(max)}, got $n")
     }
