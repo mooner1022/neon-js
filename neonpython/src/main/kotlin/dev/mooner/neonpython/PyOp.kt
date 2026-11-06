@@ -167,6 +167,15 @@ object PyOp {
     const val LOAD_SPECIAL = 113
     /** (exit exc -- result): a with's __exit__ called for exception exc (its type, it, its traceback) */
     const val WITH_EXCEPT = 114
+    // except* (PyExceptions.ExcStar: what the clauses have not matched, what they raised)
+    /** (exc -- state) */
+    const val EXC_STAR_BEGIN = 115
+    /** (state type -- match): the part left that type matches, or None */
+    const val EXC_STAR_MATCH = 116
+    /** (state exc -- ): exc left a clause's body */
+    const val EXC_STAR_RAISED = 117
+    /** (state -- exc): what to raise, or None */
+    const val EXC_STAR_END = 118
 
     const val COUNT = 200
 
@@ -202,7 +211,8 @@ object PyOp {
         ASSERT_FAIL -> -a
         LOAD_CONST, LOAD_FAST, LOAD_FAST_CHECK, LOAD_GLOBAL, DUP, MAKE_FUNCTION -> 1
         STORE_FAST, STORE_GLOBAL, POP, POP_JUMP_IF_FALSE, POP_JUMP_IF_TRUE, RETURN -> -1
-        in ADD..MATMUL, in LT..NOT_IN, SUBSCR, INPLACE, POP_EXCEPT, CHECK_EXC_MATCH, RERAISE, WITH_EXCEPT -> -1
+        in ADD..MATMUL, in LT..NOT_IN, SUBSCR, INPLACE, POP_EXCEPT, CHECK_EXC_MATCH, RERAISE, WITH_EXCEPT, EXC_STAR_MATCH -> -1
+        EXC_STAR_RAISED -> -2
         RAISE -> -a
         CALL -> -a
         BUILD_LIST, BUILD_TUPLE -> 1 - a

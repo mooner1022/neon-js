@@ -693,6 +693,11 @@ Made with exceptions (M3):
 - **`with`** looks __exit__ up first, then __enter__, on the manager's type (LOAD_SPECIAL), and keeps the bound
   __exit__ in a register; storing the target is inside the range __exit__ handles, as in CPython. Leaving the body by
   `return`, `break` or `continue` calls __exit__ with three Nones (a with is an fblock).
+- **`except*`** keeps its state in a register (`PyExceptions.ExcStar`: what the clauses have not matched, the match
+  a clause handles, what the clauses raised anew and raised again). Each clause splits what is left (a naked
+  exception that matches goes into a group of its own); at the end what was raised anew comes first, then what is
+  left and what was raised again, rebuilt in the raised group's shape by the leaves' identity, as CPython's
+  `_PyExc_PrepReraiseStar` does; one exception alone is raised as it is.
 - **A statement gives its temporaries back** when it ends, so that the registers of one try or with serve the next:
   the tier's code keeps every register a handler may read in a home at the start of each block a handler covers
   (GraphBuilder), so a function's size grows with its handlers times those registers. (The core could keep only the

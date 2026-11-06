@@ -124,6 +124,10 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     private class HandlerName(range: Range, val name: String) : FBlock(range)
     /** A with's body: leaving it, its __exit__ (bound, in register [exit]) called with three Nones. */
     private class WithBody(range: Range, val exit: Int) : FBlock(range)
+    /** An except* clause's body, which return, break and continue may not leave. */
+    private class StarBody(range: Range) : FBlock(range) {
+        override val leaves get() = false
+    }
 
     private val fblocks = ArrayList<FBlock>()
 
@@ -431,6 +435,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             }
             is Return -> {
                 if (namespace) throw PySyntaxError("'return' outside function", s.line, s.col)
+                if (fblocks.any { it is StarBody }) throw PySyntaxError("'break', 'continue' and 'return' cannot appear in an except* block", s.line, s.col)
                 if (s.value == null) loadConst(PyNone) else expr(s.value)
                 val exited = fblocks.asReversed().toList()
                 if (exited.none { it.leaves }) emit(PyOp.RETURN) else {
@@ -467,7 +472,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 unwind(fblocks.subList(k + 1, fblocks.size).asReversed().toList()) { emit(PyOp.JUMP, loop.top) }
             }
             is ClassDef -> classDef(s)
-            is Try -> if (s.star) unsupported("try with except*", s) else tryStmt(s)
+            is Try -> tryStmt(s)
             is Raise -> {
                 var n = 0
                 if (s.exc != null) {
@@ -497,6 +502,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
      * clause's name deleted) from outside it, then [jump]; their ranges open again after (the code after is theirs).
      */
     private fun unwind(exited: List<FBlock>, jump: () -> Unit) {
+        if (exited.any { it is StarBody }) throw PySyntaxError("'break', 'continue' and 'return' cannot appear in an except* block", line, 0)
         if (exited.none { it.leaves }) {
             jump()
             return
@@ -602,13 +608,13 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
      */
     private fun tryStmt(s: Try) {
         if (s.finalbody.isEmpty()) {
-            tryExcept(s)
+            if (s.star) tryStar(s) else tryExcept(s)
             return
         }
         val range = Range()
         fblocks.add(Finally(range, s.finalbody))
         range.begin()
-        if (s.handlers.isEmpty()) block(s.body) else tryExcept(s)
+        if (s.handlers.isEmpty()) block(s.body) else if (s.star) tryStar(s) else tryExcept(s)
         range.end()
         fblocks.removeAt(fblocks.size - 1)
         block(s.finalbody)
@@ -685,6 +691,86 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             emit(PyOp.RERAISE)
         }
         for (e in ends) patch(e, code.size)
+        patch(toEnd, code.size)
+    }
+
+    /**
+     * try-except* (PEP 654): each clause takes the part of the exception (a group, or a naked one in a group of its
+     * own) its types match, from what the clauses before left (EXC_STAR_MATCH); what its body raises is noted (raised
+     * again or anew: EXC_STAR_RAISED) and the next clause tried; after the last, what is left and what they raised is
+     * raised (EXC_STAR_END), or nothing.
+     */
+    private fun tryStar(s: Try) {
+        val range = Range()
+        fblocks.add(TryBody(range))
+        range.begin()
+        block(s.body)
+        range.end()
+        fblocks.removeAt(fblocks.size - 1)
+        block(s.orelse)
+        val toEnd = emit(PyOp.JUMP, 0)
+        range.handle(code.size)
+        var handled = -1
+        handler(s.handlers.first().line) { exc, prev, _ ->
+            val st = temp()
+            emit(PyOp.LOAD_FAST, exc)
+            emit(PyOp.EXC_STAR_BEGIN)
+            emit(PyOp.STORE_FAST, st)
+            for (h in s.handlers) {
+                lineHere(h.line)
+                val m = temp()
+                val before = temp()
+                emit(PyOp.LOAD_FAST, st)
+                expr(h.type!!)
+                emit(PyOp.EXC_STAR_MATCH)
+                emit(PyOp.STORE_FAST, m)
+                emit(PyOp.LOAD_FAST, m)
+                loadConst(PyNone)
+                emit(PyOp.IS)
+                val next = emit(PyOp.POP_JUMP_IF_TRUE, 0)
+                if (h.name != null) {
+                    emit(PyOp.LOAD_FAST, m)
+                    storeName(h.name)
+                }
+                // (the match is the exception handled in the body)
+                emit(PyOp.LOAD_FAST, m)
+                emit(PyOp.PUSH_EXC_INFO)
+                emit(PyOp.STORE_FAST, before)
+                val body = Range()
+                fblocks.add(StarBody(body))
+                body.begin()
+                block(h.body)
+                body.end()
+                fblocks.removeAt(fblocks.size - 1)
+                emit(PyOp.LOAD_FAST, before)
+                emit(PyOp.POP_EXCEPT)
+                if (h.name != null) clearName(h.name)
+                val done = emit(PyOp.JUMP, 0)
+                // (an exception left the body: noted, on to the next clause)
+                body.handle(code.size)
+                emit(PyOp.LOAD_FAST, before)
+                emit(PyOp.POP_EXCEPT)
+                emit(PyOp.LOAD_FAST, st)
+                emit(PyOp.SWAP)
+                emit(PyOp.EXC_STAR_RAISED)
+                if (h.name != null) clearName(h.name)
+                patch(done, code.size)
+                patch(next, code.size)
+            }
+            emit(PyOp.LOAD_FAST, st)
+            emit(PyOp.EXC_STAR_END)
+            emit(PyOp.DUP)
+            loadConst(PyNone)
+            emit(PyOp.IS)
+            val none = emit(PyOp.POP_JUMP_IF_TRUE, 0)
+            emit(PyOp.RERAISE)
+            patch(none, code.size)
+            emit(PyOp.POP)
+            emit(PyOp.LOAD_FAST, prev)
+            emit(PyOp.POP_EXCEPT)
+            handled = emit(PyOp.JUMP, 0)
+        }
+        patch(handled, code.size)
         patch(toEnd, code.size)
     }
 

@@ -277,6 +277,16 @@ class PyProgramsTest {
             "class C:\n    def __enter__(self): return self\n    def __exit__(self, *a): raise ValueError('x')\nwith C():\n    pass\n" to Triple("ValueError", "x", 3),
             "class C:\n    def __enter__(self): return self\n    def __exit__(self, *a): return False\ndef f():\n    with C():\n        return {}[1]\nf()\n" to Triple("KeyError", "1", 6),
             "class C:\n    pass\nC(x=1)\n" to Triple("TypeError", "C() takes no arguments", 3),
+            "ExceptionGroup('g', [])\n" to Triple("ValueError", "second argument (exceptions) must be a non-empty sequence", 1),
+            "ExceptionGroup('g', [1])\n" to Triple("ValueError", "Item 0 of second argument (exceptions) is not an exception", 1),
+            "ExceptionGroup(1, [ValueError()])\n" to Triple("TypeError", "BaseExceptionGroup.__new__() argument 1 must be str, not int", 1),
+            "ExceptionGroup('g', ValueError())\n" to Triple("TypeError", "second argument (exceptions) must be a sequence", 1),
+            "ExceptionGroup('g', [KeyboardInterrupt()])\n" to Triple("TypeError", "Cannot nest BaseExceptions in an ExceptionGroup", 1),
+            "try:\n    raise ValueError(1)\nexcept* ExceptionGroup:\n    pass\n" to Triple("TypeError", "catching ExceptionGroup with except* is not allowed. Use except instead.", 3),
+            "try:\n    raise ValueError(1)\nexcept* 1:\n    pass\n" to Triple("TypeError", "catching classes that do not inherit from BaseException is not allowed", 3),
+            "try:\n    raise ExceptionGroup('g', [ValueError(1), KeyError(2)])\nexcept* ValueError:\n    pass\n" to Triple("ExceptionGroup", "g (1 sub-exception)", 2),
+            "try:\n    raise ValueError(1)\nexcept* TypeError:\n    pass\n" to Triple("ValueError", "1", 2),
+            "eg = ExceptionGroup('g', [ValueError(1)])\neg.split(1)\n" to Triple("TypeError", "expected an exception type, a tuple of exception types, or a callable (other than a class)", 2),
         )
         for (mode in Mode.entries) for ((src, want) in cases) {
             val e = try {
@@ -311,7 +321,7 @@ class PyProgramsTest {
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
             "speculation", "functions", "closures", "unpacking", "types", "classes", "descriptors",
-            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with",
+            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups",
         )
 
         /** The code blocks of [cb] and every function it defines. */

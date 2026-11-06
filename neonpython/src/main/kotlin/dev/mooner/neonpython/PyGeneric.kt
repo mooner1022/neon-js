@@ -100,6 +100,10 @@ internal object PyGeneric {
         t[PyOp.RERAISE] = Generic("reraise", "v", pops = 1, result = true, throws = false, owner = x)
         t[PyOp.LOAD_SPECIAL] = Generic("loadSpecial", "va", pops = 1, result = true, owner = x)
         t[PyOp.WITH_EXCEPT] = Generic("withExcept", "fvv", pops = 2, result = true, owner = x)
+        t[PyOp.EXC_STAR_BEGIN] = Generic("excStarBegin", "v", pops = 1, result = true, throws = false, owner = x)
+        t[PyOp.EXC_STAR_MATCH] = Generic("excStarMatch", "vv", pops = 2, result = true, owner = x)
+        t[PyOp.EXC_STAR_RAISED] = Generic("excStarRaised", "vv", pops = 2, result = false, throws = false, owner = x)
+        t[PyOp.EXC_STAR_END] = Generic("excStarEnd", "v", pops = 1, result = true, owner = x)
         t[PyOp.WRAP_STAR] = Generic("wrapStar", "v", pops = 1, result = true, throws = false, owner = c, flags = OpInfo.REMOVABLE or OpInfo.ALLOCATES)
     }
 

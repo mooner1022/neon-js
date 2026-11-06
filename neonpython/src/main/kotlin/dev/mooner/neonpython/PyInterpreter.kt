@@ -387,6 +387,16 @@ object PyInterpreter {
                 s[sp - 1] = PyExceptions.checkExcMatch(s[sp - 1], t)
             }
             PyOp.LOAD_SPECIAL -> s[sp - 1] = PyExceptions.loadSpecial(s[sp - 1], a)
+            PyOp.EXC_STAR_BEGIN -> s[sp - 1] = PyExceptions.excStarBegin(s[sp - 1])
+            PyOp.EXC_STAR_MATCH -> {
+                val t = pop()
+                s[sp - 1] = PyExceptions.excStarMatch(s[sp - 1], t)
+            }
+            PyOp.EXC_STAR_RAISED -> {
+                val exc = pop()
+                PyExceptions.excStarRaised(pop(), exc)
+            }
+            PyOp.EXC_STAR_END -> s[sp - 1] = PyExceptions.excStarEnd(s[sp - 1])
             PyOp.WITH_EXCEPT -> {
                 val exc = pop()
                 s[sp - 1] = PyExceptions.withExcept(f, s[sp - 1], exc)

@@ -226,6 +226,159 @@ object PyExceptions {
         return PyCalls.callWith((f as PyFrame).ctx, exit, arrayOf(e.type, e, e.traceback), NO_ARGS, NO_ARGS)
     }
 
+    // ------------------------------------------------------------------ exception groups (PEP 654)
+
+    @JvmField val BASE_GROUP = type("BaseExceptionGroup")
+    private val EXCEPTION = type("Exception")
+
+    @JvmStatic fun isGroup(v: Any?): Boolean = v is PyBaseException && v.type.isSubtype(BASE_GROUP)
+
+    /** A group's exceptions (its `exceptions`, a tuple). */
+    private fun members(g: PyBaseException): Array<Any?> = (g.field("exceptions") as PyTuple).items
+
+    /**
+     * BaseExceptionGroup(message, exceptions) of class [cls]: BaseExceptionGroup itself gives an ExceptionGroup where
+     * every exception is an Exception's; an ExceptionGroup holds Exceptions only. Its args are the two as given.
+     */
+    @JvmStatic
+    fun newGroup(cls: PyType, message: Any?, excs: Any?): PyBaseException {
+        if (message !is PyStr) throw PyRt.typeError("BaseExceptionGroup.__new__() argument 1 must be str, not ${PyTypes.name(message)}")
+        val items = when (excs) {
+            is PyList -> excs.items.toTypedArray()
+            is PyTuple -> excs.items
+            else -> throw PyRt.typeError("second argument (exceptions) must be a sequence")
+        }
+        if (items.isEmpty()) throw PyException("ValueError", "second argument (exceptions) must be a non-empty sequence")
+        for ((i, e) in items.withIndex()) if (e !is PyBaseException) throw PyException("ValueError", "Item $i of second argument (exceptions) is not an exception")
+        val all = items.all { (it as PyBaseException).type.isSubtype(EXCEPTION) }
+        val c = if (cls === BASE_GROUP && all) type("ExceptionGroup") else cls
+        if (c.isSubtype(EXCEPTION) && !all) throw PyRt.typeError("Cannot nest BaseExceptions in ${if (c === type("ExceptionGroup")) "an ExceptionGroup" else "'${c.name}'"}")
+        val g = PyBaseException(c)
+        g.args = PyTuple(arrayOf(message, excs))
+        g.setField("message", message)
+        g.setField("exceptions", PyTuple(items.copyOf()))
+        return g
+    }
+
+    /** eg.derive(excs) (a class's own too), with eg's cause, context, traceback and notes. */
+    private fun derive(eg: PyBaseException, excs: List<Any?>): PyBaseException {
+        val d = PyCalls.callWith(PyContext.current(), PyRt.getAttr(eg, "derive"), arrayOf(PyList(ArrayList(excs))), NO_ARGS, NO_ARGS)
+            as? PyBaseException ?: throw PyRt.typeError("derive must return an instance of BaseExceptionGroup")
+        d.cause = eg.cause
+        d.context = eg.context
+        d.suppressContext = eg.suppressContext
+        d.traceback = eg.traceback
+        eg.dict?.get(PyStr("__notes__"))?.let { n -> (d.dict ?: PyDict().also { d.dict = it })[PyStr("__notes__")] = n }
+        // (where it was raised: the group's)
+        eg.thrown?.let { t -> d.thrown = PyException(d).also { it.line = t.line; it.function = t.function } }
+        return d
+    }
+
+    /**
+     * eg.split(matches): the part of [eg] whose exceptions [matches] (a group matching whole: itself), and the rest,
+     * each a group of eg's shape (derive) or null.
+     */
+    private fun split(eg: Any?, matches: (Any?) -> Boolean): Pair<Any?, Any?> {
+        if (matches(eg)) return eg to null
+        if (!isGroup(eg)) return null to eg
+        val g = eg as PyBaseException
+        val m = ArrayList<Any?>()
+        val r = ArrayList<Any?>()
+        for (e in members(g)) {
+            val (em, er) = split(e, matches)
+            if (em != null) m.add(em)
+            if (er != null) r.add(er)
+        }
+        return (if (m.isEmpty()) null else derive(g, m)) to (if (r.isEmpty()) null else derive(g, r))
+    }
+
+    /** What split and subgroup take: an exception class, a tuple of them, or a predicate. */
+    private fun matcher(cond: Any?): (Any?) -> Boolean {
+        fun cls(t: Any?) = t is PyType && t.isSubtype(BASE_EXCEPTION)
+        if (cls(cond) || cond is PyTuple && cond.items.all { cls(it) }) return { PyTypes.isInstance(it, cond) }
+        if (cond is PyFunction || cond is PyBuiltin || cond is PyMethod || cond is PyBoundMethod || PyClasses.classOf(cond)?.lookup("__call__") != null) {
+            return { PyRt.truthy(PyCalls.callWith(PyContext.current(), cond, arrayOf(it), NO_ARGS, NO_ARGS)) }
+        }
+        throw PyRt.typeError("expected an exception type, a tuple of exception types, or a callable (other than a class)")
+    }
+
+    /** The leaves of [e] (itself, or a group's exceptions', all the way down). */
+    private fun leaves(e: Any?, out: MutableSet<Any?>) {
+        if (isGroup(e)) for (x in members(e as PyBaseException)) leaves(x, out) else out.add(e)
+    }
+
+    /**
+     * An except* statement's state (EXC_STAR_BEGIN to EXC_STAR_END): the exception raised in its body, what the
+     * clauses have not matched yet, the match the running clause handles, what its clauses raised (anew) and raised
+     * again (the match itself).
+     */
+    class ExcStar(@JvmField val orig: PyBaseException) {
+        @JvmField var rest: Any? = orig
+        @JvmField var current: Any? = null
+        @JvmField val raised = ArrayList<PyBaseException>()
+        @JvmField val reraised = ArrayList<PyBaseException>()
+    }
+
+    /** EXC_STAR_BEGIN: the state of the clauses that handle [exc]. */
+    @JvmStatic fun excStarBegin(exc: Any?): Any? = ExcStar(exc as PyBaseException)
+
+    /**
+     * EXC_STAR_MATCH: the part of what is left that [type] matches, taken from it (a naked exception that matches in a
+     * group of its own), or None.
+     */
+    @JvmStatic
+    fun excStarMatch(state: Any?, type: Any?): Any? {
+        val st = state as ExcStar
+        fun valid(t: Any?) = t is PyType && t.isSubtype(BASE_EXCEPTION)
+        val types = if (type is PyTuple) type.items.asList() else listOf(type)
+        if (!types.all { valid(it) }) throw PyRt.typeError("catching classes that do not inherit from BaseException is not allowed")
+        if (types.any { (it as PyType).isSubtype(BASE_GROUP) }) throw PyRt.typeError("catching ExceptionGroup with except* is not allowed. Use except instead.")
+        val rest = st.rest ?: return PyNone
+        if (!isGroup(rest)) {
+            if (!PyTypes.isInstance(rest, type)) return PyNone
+            st.rest = null
+            val e = rest as PyBaseException
+            val g = newGroup(BASE_GROUP, PyStr.EMPTY, PyTuple(arrayOf(e)))
+            g.traceback = e.traceback
+            st.current = g
+            return g
+        }
+        val (m, r) = split(rest) { PyTypes.isInstance(it, type) }
+        st.rest = r
+        st.current = m
+        return m ?: PyNone
+    }
+
+    /** EXC_STAR_RAISED: [exc] left a clause's body: raised again (the clause's match) or anew. */
+    @JvmStatic
+    fun excStarRaised(state: Any?, exc: Any?) {
+        val st = state as ExcStar
+        val e = exc as PyBaseException
+        if (e === st.current) st.reraised.add(e) else st.raised.add(e)
+    }
+
+    /**
+     * EXC_STAR_END: what the statement raises, or None: what the clauses raised anew, then what is left and what they
+     * raised again, in the shape of the exception raised (one alone as it is, more in an ExceptionGroup).
+     */
+    @JvmStatic
+    fun excStarEnd(state: Any?): Any? {
+        val st = state as ExcStar
+        val orig = st.orig
+        if (!isGroup(orig)) {
+            // (a naked exception: one clause at most took it)
+            return st.raised.firstOrNull() ?: st.reraised.firstOrNull() ?: st.rest ?: PyNone
+        }
+        val keep = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Any?, Boolean>())
+        st.rest?.let { leaves(it, keep) }
+        for (r in st.reraised) leaves(r, keep)
+        val again = if (keep.isEmpty()) null else split(orig) { !isGroup(it) && it in keep }.first
+        if (st.raised.isEmpty()) return again ?: PyNone
+        val all = ArrayList<Any?>(st.raised)
+        if (again != null) all.add(again)
+        return if (all.size == 1) all[0] else newGroup(BASE_GROUP, PyStr.EMPTY, PyList(all))
+    }
+
     // ------------------------------------------------------------------ the classes' behaviour
 
     /** BaseException's methods and attributes and its builtin subclasses' (once: the types are the runtime's). */
@@ -299,6 +452,29 @@ object PyExceptions {
             type("OSError") to listOf("errno", "strerror", "filename"), type("NameError") to listOf("name"),
             type("AttributeError") to listOf("name", "obj"), type("ImportError") to listOf("name", "path"),
         )) for (n in names) prop(t, n, { it.field(n) }) { o, v -> o.setField(n, v) }
+        // exception groups
+        val bg = BASE_GROUP
+        fun groupNew(a: Array<Any?>): Any? {
+            val cls = a.getOrNull(0) as? PyType ?: throw PyRt.typeError("BaseExceptionGroup.__new__(X): X is not a type object")
+            if (a.size != 3) throw PyRt.typeError("BaseExceptionGroup.__new__() takes exactly 2 arguments (${a.size - 1} given)")
+            return newGroup(cls, a[1], a[2])
+        }
+        bg.def("__new__", PyBuiltin("__new__", { _, a -> groupNew(a) }, { _, a, _ -> groupNew(a) }))
+        // (__init__ takes what __new__ took; the arguments stay __new__'s)
+        bg.def("__init__", PyBuiltin("__init__", { _, _ -> PyNone }, { _, _, _ -> PyNone }))
+        method(bg, "__str__") { a ->
+            val g = self(a, "__str__")
+            val n = members(g).size
+            PyStr("${(g.field("message") as PyStr).s} ($n sub-exception${if (n == 1) "" else "s"})")
+        }
+        prop(bg, "message", { it.field("message") }, null)
+        prop(bg, "exceptions", { it.field("exceptions") }, null)
+        method(bg, "derive") { a -> newGroup(BASE_GROUP, self(a, "derive").field("message"), a.getOrNull(1)) }
+        method(bg, "split") { a ->
+            val (m, r) = split(self(a, "split"), matcher(a.getOrNull(1)))
+            PyTuple(arrayOf(m ?: PyNone, r ?: PyNone))
+        }
+        method(bg, "subgroup") { a -> split(self(a, "subgroup"), matcher(a.getOrNull(1))).first ?: PyNone }
         method(type("KeyError"), "__str__") { a ->
             val o = self(a, "__str__")
             PyStr(if (o.args.items.size == 1) PyRt.repr(o.args.items[0]) else baseStr(o))

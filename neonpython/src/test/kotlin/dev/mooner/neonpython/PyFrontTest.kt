@@ -75,6 +75,11 @@ class PyFrontTest {
             "break\n" to ("'break' outside loop" to 1),
             "def g():\n    x = 1\n    def h():\n        x = 2\n        nonlocal x\n" to ("name 'x' is assigned to before nonlocal declaration" to 5),
             "def f(): yield\nclass C:\n    yield\n" to ("'yield' outside function" to 3),
+            "def f():\n    try:\n        pass\n    except* ValueError:\n        return 1\n" to ("'break', 'continue' and 'return' cannot appear in an except* block" to 5),
+            "for i in range(2):\n    try:\n        pass\n    except* ValueError:\n        break\n" to ("'break', 'continue' and 'return' cannot appear in an except* block" to 5),
+            "try:\n    pass\nexcept*:\n    pass\n" to ("expected one or more exception types" to 3),
+            "try:\n    pass\nexcept:\n    pass\nexcept ValueError:\n    pass\n" to ("default 'except:' must be last" to 3),
+            "try:\n    pass\nexcept ValueError:\n    pass\nexcept* TypeError:\n    pass\n" to ("cannot have both 'except' and 'except*' on the same 'try'" to 5),
         )
         for ((src, want) in cases) {
             val e = assertThrows<PySyntaxError>(src) { PyCompiler.compileModule(src) }
