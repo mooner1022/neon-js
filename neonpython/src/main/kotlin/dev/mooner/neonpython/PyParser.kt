@@ -10,36 +10,71 @@ import dev.mooner.neonpython.PyToken.Kind
  * starting with the name match).
  */
 class PyParser(private val src: String) {
-    private val toks = PyLexer(src).tokenize()
+    private val lexer = PyLexer(src)
+    private val toks = lexer.tokenize()
+    /** The bracket the source leaves open ([PyLexer.unclosed]). */
+    private val unclosed = lexer.unclosed
     private var p = 0
+    /** The furthest token looked at. */
+    private var far = 0
 
-    fun parseModule(): Module {
+    fun parseModule(): Module = parse {
         val body = ArrayList<Stmt>()
         while (!at(Kind.END)) {
             if (at(Kind.NEWLINE)) { p++; continue }
             if (at(Kind.INDENT)) error("unexpected indent", "IndentationError")
             body.addAll(statement())
         }
-        return Module(body).also { it.line = 1 }
+        Module(body).also { it.line = 1 }
     }
 
     /** An expression alone (eval's input). */
-    fun parseExpression(): Expression {
+    fun parseExpression(): Expression = parse {
         while (at(Kind.NEWLINE)) p++
         val e = starExpressions()
         while (at(Kind.NEWLINE)) p++
         if (!at(Kind.END)) error()
-        return Expression(e)
+        Expression(e)
+    }
+
+    /**
+     * With a bracket left open, CPython's error: reaching the end of the tokens is "'(' was never closed", and so
+     * is another error once the tokens looked at went past the bracket's line (_PyPegen_tokenize_full_source_to_check_for_errors).
+     */
+    private inline fun <T> parse(body: () -> T): T {
+        try {
+            return body()
+        } catch (e: PySyntaxError) {
+            val u = unclosed ?: throw e
+            if (toks[minOf(far, toks.size - 1)].line > u.line) neverClosed()
+            throw e
+        }
+    }
+
+    private fun neverClosed(): Nothing {
+        val u = unclosed!!
+        throw PySyntaxError("'${u.text}' was never closed", u.line, u.col).also { it.fatal = true }
     }
 
     // ------------------------------------------------------------------ tokens
 
-    private val tok: PyToken get() = toks[p]
-    private fun peek(k: Int = 1): PyToken = toks[minOf(p + k, toks.size - 1)]
+    private val tok: PyToken get() {
+        if (p > far) far = p
+        val t = toks[p]
+        if (t.kind == Kind.END && unclosed != null) neverClosed()
+        return t
+    }
+    private fun peek(k: Int = 1): PyToken {
+        val i = minOf(p + k, toks.size - 1)
+        if (i > far) far = i
+        val t = toks[i]
+        if (t.kind == Kind.END && unclosed != null) neverClosed()
+        return t
+    }
     private fun at(k: Kind) = tok.kind == k
     private fun atOp(s: String) = tok.kind == Kind.OP && tok.text == s
     private fun atName(s: String) = tok.kind == Kind.NAME && tok.text == s
-    private fun next(): PyToken = toks[p++]
+    private fun next(): PyToken = tok.also { p++ }
     private fun error(msg: String = "invalid syntax", type: String = "SyntaxError", t: PyToken = tok): Nothing =
         throw PySyntaxError(msg, t.line, t.col, type)
 
@@ -67,9 +102,30 @@ class PyParser(private val src: String) {
             if (at(Kind.NEWLINE)) break
             out.add(simpleStatement())
         }
-        if (!at(Kind.NEWLINE)) error()
+        if (!at(Kind.NEWLINE)) legacy(out.last())
         next()
         return out
+    }
+
+    /**
+     * Python 2's `print x` and `exec code` (CPython's invalid_legacy_expression): a name print or exec followed by
+     * expressions is the error of the missing parentheses; anything else after a statement invalid syntax.
+     */
+    private fun legacy(last: Stmt): Nothing {
+        val n = ((last as? ExprStmt)?.value as? Name)?.takeIf { !it.parenthesized && (it.id == "print" || it.id == "exec") }
+        if (n != null && !atOp("(")) {
+            val save = p
+            val ok = try {
+                starExpressions()
+                true
+            } catch (e: PySyntaxError) {
+                if (e.fatal) throw e
+                false
+            }
+            p = save
+            if (ok) throw PySyntaxError("Missing parentheses in call to '${n.id}'. Did you mean ${n.id}(...)?", n.line, n.col)
+        }
+        error()
     }
 
     /**
@@ -302,7 +358,9 @@ class PyParser(private val src: String) {
                 }
                 next()
                 if (atOp(":") && items.isNotEmpty()) return With(items, block("'with' statement", start.line), async).at(start)
-            } catch (_: PySyntaxError) {}
+            } catch (e: PySyntaxError) {
+                if (e.fatal) throw e
+            }
             p = save
         }
         val items = arrayListOf(withItem())
@@ -1181,7 +1239,8 @@ class PyParser(private val src: String) {
         next()
         val subject = try {
             if (atOp(":") || at(Kind.NEWLINE)) null else matchSubject()
-        } catch (_: PySyntaxError) {
+        } catch (e: PySyntaxError) {
+            if (e.fatal) throw e
             null
         }
         if (subject == null || !atOp(":") || peek().kind != Kind.NEWLINE) {

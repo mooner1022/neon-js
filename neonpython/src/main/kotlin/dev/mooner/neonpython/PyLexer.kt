@@ -26,6 +26,8 @@ class PySyntaxError(message: String, @JvmField val line: Int, @JvmField val col:
     val msg: String = message
     /** What raised it, for compile()'s SyntaxError: the symbol table (0), the compiler (1), the tokenizer or parser (2). */
     @JvmField var stage = 0
+    /** An error no speculative parse may take back (the tokenizer's, as CPython's aborts its parser). */
+    @JvmField var fatal = false
 }
 
 /**
@@ -43,8 +45,17 @@ class PyLexer(private val src: String) {
     private var line = 1
     private var lineStart = 0
     private val indents = ArrayList<Int>().apply { add(0) }
-    /** Brackets open, a replacement field counting as one. */
+    /** Brackets open, a replacement field's `{` among them; each one's character, line and column. */
     private var depth = 0
+    private val parens = CharArray(MAXLEVEL)
+    private val parenLines = IntArray(MAXLEVEL)
+    private val parenCols = IntArray(MAXLEVEL)
+    /**
+     * The bracket the source leaves open, if any (its character, line, column): the tokens then end without a
+     * NEWLINE, and [PyParser] reports it as CPython's parser does, reaching the end or failing on a later line.
+     */
+    var unclosed: PyToken? = null
+        private set
     private val out = ArrayList<PyToken>()
 
     /** An f-string being tokenized: its literal text, or a replacement field's expression or format spec. */
@@ -109,7 +120,7 @@ class PyLexer(private val src: String) {
                 }
                 mode != null && depth == mode.base && fieldPunct(mode, c) -> {}
                 c.isLetter() || c == '_' || c.code > 127 && Character.isUnicodeIdentifierStart(src.codePointAt(pos)) -> nameOrString()
-                c.isDigit() || c == '.' && pos + 1 < src.length && src[pos + 1].isDigit() -> number()
+                c in '0'..'9' || c == '.' && pos + 1 < src.length && src[pos + 1] in '0'..'9' -> number()
                 c == '"' || c == '\'' -> string("", pos)
                 else -> op()
             }
@@ -118,7 +129,11 @@ class PyLexer(private val src: String) {
             val m = modes.first()
             throw PySyntaxError("unterminated ${if (m.info.triple) "triple-quoted " else ""}${if (m.info.template) "t" else "f"}-string literal (detected at line $line)", line, col(pos))
         }
-        if (depth > 0) throw PySyntaxError("'(' was never closed", line, 0)
+        if (depth > 0) {
+            unclosed = PyToken(PyToken.Kind.OP, parens[depth - 1].toString(), null, parenLines[depth - 1], parenCols[depth - 1])
+            out.add(PyToken(PyToken.Kind.END, "", null, line, col(pos), pos, pos))
+            return out
+        }
         if (out.isNotEmpty() && out.last().kind != PyToken.Kind.NEWLINE) out.add(PyToken(PyToken.Kind.NEWLINE, "", null, line, col(pos), pos, pos))
         while (indents.size > 1) {
             indents.removeAt(indents.size - 1)
@@ -152,73 +167,152 @@ class PyLexer(private val src: String) {
             pos += Character.charCount(src.codePointAt(pos))
         }
         val text = src.substring(start, pos)
-        if (pos < src.length && (src[pos] == '"' || src[pos] == '\'') && text.lowercase() in STRING_PREFIXES) {
-            string(text.lowercase(), start)
-            return
+        if (pos < src.length && (src[pos] == '"' || src[pos] == '\'')) {
+            val prefix = text.lowercase()
+            if (prefix in STRING_PREFIXES) {
+                string(prefix, start)
+                return
+            }
+            // distinct prefix letters that may not go together (CPython's maybe_raise_syntax_error_for_string_prefixes)
+            if (prefix.length <= 5 && prefix.all { it in "burft" } && prefix.toSet().size == prefix.length) {
+                for (pair in INCOMPATIBLE_PREFIXES) {
+                    if (pair[0] in prefix && pair[1] in prefix) {
+                        throw PySyntaxError("'${pair[0]}' and '${pair[1]}' prefixes are incompatible", line, col(start))
+                    }
+                }
+            }
         }
         out.add(PyToken(PyToken.Kind.NAME, java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFKC), null, line, col(start), start, pos))
     }
 
+    /**
+     * A number, as CPython's tokenizer reads one (Parser/lexer/lexer.c): single underscores between digits, its
+     * messages for a bad digit, a missing one, leading zeros; what follows it checked (verify_end_of_number): a
+     * keyword that may follow one (and, else, for, if, in, is, not, or) is taken (CPython warns), another name
+     * character "invalid ... literal".
+     */
     private fun number() {
         val start = pos
-        fun digits(ok: (Char) -> Boolean) {
-            while (pos < src.length && (ok(src[pos]) || src[pos] == '_' && pos + 1 < src.length && ok(src[pos + 1]))) pos++
-            if (pos < src.length && src[pos] == '_') throw PySyntaxError("invalid decimal literal", line, col(pos))
+        fun c(): Char = if (pos < src.length) src[pos] else '\u0000'
+        fun err(msg: String, at: Int = pos): Nothing = throw PySyntaxError(msg, line, col(minOf(at, src.length)))
+        fun digit(ch: Char) = ch in '0'..'9'
+        fun idChar(ch: Char) = ch.code >= 128 || ch in 'a'..'z' || ch in 'A'..'Z' || ch in '0'..'9' || ch == '_'
+        // the next characters (after c()) [test], then no name character
+        fun lookahead(test: String): Boolean {
+            if (!src.startsWith(test, pos + 1)) return false
+            val after = pos + 1 + test.length
+            return after >= src.length || !idChar(src[after])
         }
-        if (src[pos] == '0' && pos + 1 < src.length && src[pos + 1].lowercaseChar() in "xob") {
-            val radix = when (src[pos + 1].lowercaseChar()) { 'x' -> 16; 'o' -> 8; else -> 2 }
-            val what = if (radix == 16) "hexadecimal" else if (radix == 8) "octal" else "binary"
+        fun verifyEnd(kind: String) {
+            val ch = c()
+            val keyword = when (ch) {
+                'a' -> lookahead("nd")
+                'e' -> lookahead("lse")
+                'f' -> lookahead("or")
+                'o' -> lookahead("r")
+                'n' -> lookahead("ot")
+                'i' -> pos + 1 < src.length && src[pos + 1] in "fns"
+                else -> false
+            }
+            if (!keyword && ch.code in 1..127 && idChar(ch)) err("invalid $kind literal")
+        }
+        // digits, single underscores between them (tok_decimal_tail)
+        fun decimalTail() {
+            while (true) {
+                while (digit(c())) pos++
+                if (c() != '_') return
+                pos++
+                if (!digit(c())) err("invalid decimal literal")
+            }
+        }
+        fun value(text: String, float: Boolean): Any = if (float) text.replace("_", "").toDouble() else PyRt.norm(BigInteger(text.replace("_", "")))
+        if (src[pos] == '0' && pos + 1 < src.length && src[pos + 1] in "xXoObB") {
+            val r = src[pos + 1].lowercaseChar()
+            val (kind, radix) = when (r) { 'x' -> "hexadecimal" to 16; 'o' -> "octal" to 8; else -> "binary" to 2 }
+            fun ok(ch: Char) = Character.digit(ch, radix) >= 0 && (radix == 16 || digit(ch))
             pos += 2
-            if (pos < src.length && src[pos] == '_') pos++
-            val ds = pos
-            digits { Character.digit(it, radix) >= 0 }
-            if (pos == ds) throw PySyntaxError("invalid $what literal", line, col(start))
-            if (pos < src.length && (src[pos].isLetterOrDigit() || src[pos] == '_')) throw PySyntaxError("invalid $what literal", line, col(pos))
-            add(PyToken.Kind.NUMBER, start, PyRt.norm(BigInteger(src.substring(ds, pos).replace("_", ""), radix)))
+            do {
+                if (c() == '_') pos++
+                if (!ok(c())) {
+                    if (radix != 16 && digit(c())) err("invalid digit '${c()}' in $kind literal", pos + 1)
+                    err("invalid $kind literal")
+                }
+                while (ok(c())) pos++
+            } while (c() == '_')
+            if (radix != 16 && digit(c())) err("invalid digit '${c()}' in $kind literal", pos + 1)
+            verifyEnd(kind)
+            add(PyToken.Kind.NUMBER, start, PyRt.norm(BigInteger(src.substring(start + 2, pos).replace("_", ""), radix)))
             return
         }
-        var isFloat = false
-        digits { it.isDigit() }
-        if (pos < src.length && src[pos] == '.') {
-            isFloat = true
+        var fraction = false
+        var exponent = false
+        var imaginary = false
+        if (src[pos] == '.') {
             pos++
-            digits { it.isDigit() }
-        }
-        if (pos < src.length && (src[pos] == 'e' || src[pos] == 'E')) {
-            val save = pos
+            fraction = true
+        } else if (src[pos] == '0') {
             pos++
-            if (pos < src.length && (src[pos] == '+' || src[pos] == '-')) pos++
-            if (pos < src.length && src[pos].isDigit()) {
-                isFloat = true
-                digits { it.isDigit() }
-            } else {
-                pos = save
-                throw PySyntaxError("invalid decimal literal", line, col(pos))
+            var nonzero = false
+            while (true) {
+                if (c() == '_') {
+                    pos++
+                    if (!digit(c())) err("invalid decimal literal")
+                }
+                if (c() != '0') break
+                pos++
+            }
+            if (digit(c())) {
+                nonzero = true
+                decimalTail()
+            }
+            when {
+                c() == '.' -> { pos++; fraction = true }
+                c() == 'e' || c() == 'E' -> exponent = true
+                c() == 'j' || c() == 'J' -> imaginary = true
+                nonzero -> err("leading zeros in decimal integer literals are not permitted; use an 0o prefix for octal integers", start)
+                else -> {
+                    verifyEnd("decimal")
+                    add(PyToken.Kind.NUMBER, start, 0L)
+                    return
+                }
+            }
+        } else {
+            decimalTail()
+            if (c() == '.') {
+                pos++
+                fraction = true
             }
         }
-        val clean = src.substring(start, pos).replace("_", "")
-        if (pos < src.length && (src[pos] == 'j' || src[pos] == 'J')) {
+        var float = fraction
+        if (!imaginary) {
+            if (fraction && digit(c())) decimalTail()
+            if (exponent || c() == 'e' || c() == 'E') {
+                val e = pos
+                pos++
+                if (c() == '+' || c() == '-') {
+                    pos++
+                    if (!digit(c())) err("invalid decimal literal")
+                } else if (!digit(c())) {
+                    // (`1else`: the number ends before the e)
+                    pos = e
+                    verifyEnd("decimal")
+                    add(PyToken.Kind.NUMBER, start, value(src.substring(start, e), float))
+                    return
+                }
+                decimalTail()
+                float = true
+            }
+            if (c() == 'j' || c() == 'J') imaginary = true
+        }
+        if (imaginary) {
+            val text = src.substring(start, pos)
             pos++
-            add(PyToken.Kind.NUMBER, start, PyComplex(0.0, clean.toDouble()))
+            verifyEnd("imaginary")
+            add(PyToken.Kind.NUMBER, start, PyComplex(0.0, text.replace("_", "").toDouble()))
             return
         }
-        if (pos < src.length && (src[pos].isLetter() || src[pos] == '_') && !keywordFollows()) {
-            throw PySyntaxError("invalid ${if (isFloat) "decimal" else "decimal"} literal", line, col(start))
-        }
-        val value: Any = if (isFloat) clean.toDouble() else {
-            if (clean.length > 1 && clean[0] == '0' && clean.any { it != '0' }) {
-                throw PySyntaxError("leading zeros in decimal integer literals are not permitted; use an 0o prefix for octal integers", line, col(start))
-            }
-            PyRt.norm(BigInteger(clean))
-        }
-        add(PyToken.Kind.NUMBER, start, value)
-    }
-
-    /** `1if x else y`: a keyword right after a number is one (as CPython takes it, with a warning). */
-    private fun keywordFollows(): Boolean {
-        var e = pos
-        while (e < src.length && (src[e].isLetterOrDigit() || src[e] == '_')) e++
-        return src.substring(pos, e) in setOf("and", "or", "if", "else", "in", "is", "not", "for")
+        verifyEnd("decimal")
+        add(PyToken.Kind.NUMBER, start, value(src.substring(start, pos), float))
     }
 
     private fun string(prefix: String, start: Int) {
@@ -389,7 +483,7 @@ class PyLexer(private val src: String) {
         val s = pos
         pos++
         add(PyToken.Kind.OP, s)
-        depth++
+        open('{', s)
         modes.add(Mode(info, field = true, base = depth))
     }
 
@@ -469,22 +563,52 @@ class PyLexer(private val src: String) {
             if (s in OPERATORS) {
                 pos += len
                 when (s) {
-                    "(", "[", "{" -> depth++
-                    ")", "]", "}" -> if (depth > 0) depth--
+                    "(", "[", "{" -> open(s[0], start)
+                    ")", "]", "}" -> close(s[0], start)
                 }
                 out.add(PyToken(PyToken.Kind.OP, s, null, line, col(start), start, pos))
                 return
             }
         }
         val cp = src.codePointAt(pos)
-        if (cp == '!'.code) throw PySyntaxError("invalid syntax", line, col(start))
         val hex = Integer.toHexString(cp).uppercase().padStart(4, '0')
         if (!PyRt.printable(cp)) throw PySyntaxError("invalid non-printable character U+$hex", line, col(start))
+        if (cp < 128) {
+            // (`!`, `$`, `?`, a backquote: CPython's one-character tokens no rule takes)
+            pos++
+            out.add(PyToken(PyToken.Kind.OP, src.substring(start, pos), null, line, col(start), start, pos))
+            return
+        }
         throw PySyntaxError("invalid character '${String(Character.toChars(cp))}' (U+$hex)", line, col(start))
+    }
+
+    private fun open(c: Char, at: Int) {
+        if (depth >= MAXLEVEL) throw PySyntaxError("too many nested parentheses", line, col(at))
+        parens[depth] = c
+        parenLines[depth] = line
+        parenCols[depth] = col(at)
+        depth++
+    }
+
+    /** A closing bracket: CPython's messages for one that closes nothing, or another kind of bracket. */
+    private fun close(c: Char, at: Int) {
+        if (depth == 0) throw PySyntaxError("unmatched '$c'", line, col(at))
+        depth--
+        val opening = parens[depth]
+        if (c == ')' && opening == '(' || c == ']' && opening == '[' || c == '}' && opening == '{') return
+        val m = modes.lastOrNull()
+        if (m != null && opening == '{' && depth + 1 == m.base) {
+            throw PySyntaxError("${if (m.info.template) "t" else "f"}-string: unmatched '$c'", line, col(at))
+        }
+        val where = if (parenLines[depth] != line) " on line ${parenLines[depth]}" else ""
+        throw PySyntaxError("closing parenthesis '$c' does not match opening parenthesis '$opening'$where", line, col(at))
     }
 
     private companion object {
         val STRING_PREFIXES = setOf("r", "u", "b", "br", "rb", "f", "fr", "rf", "t", "tr", "rt")
+        val INCOMPATIBLE_PREFIXES = arrayOf("ub", "ur", "uf", "ut", "bf", "bt", "ft")
+        /** CPython's MAXLEVEL: brackets open at once. */
+        const val MAXLEVEL = 200
         val OPERATORS = setOf(
             "**=", "//=", ">>=", "<<=", "...", "->", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "@=", ":=",
             "**", "//", "<<", ">>", "<=", ">=", "==", "!=", "+", "-", "*", "/", "%", "@", "&", "|", "^", "~", "<", ">",

@@ -179,6 +179,53 @@ class PyFrontTest {
     }
 
     @Test
+    fun tokenizerErrorsAreCPythons() {
+        // (message and line as CPython 3.14's compile gives them)
+        val cases = listOf(
+            "f(\n" to ("'(' was never closed" to 1),
+            "x = (1,\ny = 2\n" to ("'(' was never closed" to 1),
+            "foo(\n1 2\n" to ("'(' was never closed" to 1),
+            "def f(:\n  pass\n" to ("invalid syntax" to 1),
+            "x = 1 2\ny = (\n" to ("invalid syntax" to 1),
+            "print 1, (2\n" to ("'(' was never closed" to 1),
+            "with (a,\n" to ("'(' was never closed" to 1),
+            "x = )\n" to ("unmatched ')'" to 1),
+            "(\n]\n" to ("closing parenthesis ']' does not match opening parenthesis '(' on line 1" to 2),
+            "[)\n" to ("closing parenthesis ')' does not match opening parenthesis '['" to 1),
+            "f'{)}'\n" to ("f-string: unmatched ')'" to 1),
+            "t'{]}'\n" to ("t-string: unmatched ']'" to 1),
+            "f'{(]}'\n" to ("closing parenthesis ']' does not match opening parenthesis '('" to 1),
+            "a \$ b\n" to ("invalid syntax" to 1),
+            "a!b\n" to ("invalid syntax" to 1),
+            "a € b\n" to ("invalid character '€' (U+20AC)" to 1),
+            "ub''\n" to ("'u' and 'b' prefixes are incompatible" to 1),
+            "ru''\n" to ("'u' and 'r' prefixes are incompatible" to 1),
+            "tb''\n" to ("'b' and 't' prefixes are incompatible" to 1),
+            "frt''\n" to ("'f' and 't' prefixes are incompatible" to 1),
+            "bub''\n" to ("invalid syntax" to 1),
+            "x = ub'x'\nfoo(\n" to ("'u' and 'b' prefixes are incompatible" to 1),
+            "(".repeat(201) + "\n" to ("too many nested parentheses" to 1),
+            "0b12\n" to ("invalid digit '2' in binary literal" to 1),
+            "0o8\n" to ("invalid digit '8' in octal literal" to 1),
+            "09\n" to ("leading zeros in decimal integer literals are not permitted; use an 0o prefix for octal integers" to 1),
+            "1__0\n" to ("invalid decimal literal" to 1),
+            "1_\n" to ("invalid decimal literal" to 1),
+            "0x_\n" to ("invalid hexadecimal literal" to 1),
+            "1e+\n" to ("invalid decimal literal" to 1),
+            "0xg\n" to ("invalid hexadecimal literal" to 1),
+            "1j2\n" to ("invalid imaginary literal" to 1),
+            "print 'a'\n" to ("Missing parentheses in call to 'print'. Did you mean print(...)?" to 1),
+            "exec code\n" to ("Missing parentheses in call to 'exec'. Did you mean exec(...)?" to 1),
+        )
+        for ((src, want) in cases) {
+            val e = assertThrows<PySyntaxError>(src) { PyCompiler.compileModule(src) }
+            assertEquals(want, e.msg to e.line, src)
+        }
+        // (accepted: prefixes in any case and order)
+        PyCompiler.compileModule("Rb'' bR'' rB'' Br''\n")
+    }
+
+    @Test
     fun localsThatMayHaveNoValueAreChecked() {
         val cb = PyCompiler.compileModule("def f(a):\n  if a:\n    b = 1\n  c = 2\n  return a + b + c\n")
         val f = cb.constants.filterIsInstance<dev.mooner.neonjs.compiler.CodeUnit>().single()
