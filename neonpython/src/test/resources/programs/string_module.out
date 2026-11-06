@@ -1,0 +1,43 @@
+'a{0!r:>5}b{}' [('a', '0', '>5', 'r'), ('b', '', '', None)]
+'a{{b}}c' [('a{', None, None, None), ('b}', None, None, None), ('c', None, None, None)]
+'{x.y[0]:{w}}' [('', 'x.y[0]', '{w}', None)]
+'tail' [('tail', None, None, None)]
+'' []
+'{}{}' [('', '', '', None), ('', '', '', None)]
+'{:}' [('', '', '', None)]
+'{!s}' [('', '', '', 's')]
+'x{{' [('x{', None, None, None)]
+'}}y' [('}', None, None, None), ('y', None, None, None)]
+'{0[a.b]}' [('', '0[a.b]', '', None)]
+'{a!r}' [('', 'a', '', 'r')]
+'{0!x}' [('', '0', '', 'x')]
+'{0:{1:{2}}}' [('', '0', '{1:{2}}', None)]
+'{' !! ValueError Single '{' encountered in format string
+'}' !! ValueError Single '}' encountered in format string
+'a{0' !! ValueError expected '}' before end of string
+'{0!}' !! ValueError unmatched '{' in format spec
+'{0!r' !! ValueError unmatched '{' in format spec
+'{[}' !! ValueError expected '}' before end of string
+'{a{b}' !! ValueError unexpected '{' in field name
+'{0!rx}' !! ValueError expected ':' after conversion specifier
+'0' -> (0, [])
+'x.y[0]' -> ('x', [(True, 'y'), (False, 0)])
+'a[1].b' -> ('a', [(False, 1), (True, 'b')])
+'12.real' -> (12, [(True, 'real')])
+'' -> ('', [])
+'x[a][b]' -> ('x', [(False, 'a'), (False, 'b')])
+'[0]' -> ('', [(False, 0)])
+'a.' !! ValueError Empty attribute in format string
+'a[0]x' !! ValueError Only '.' or '[' may follow ']' in format field specifier
+'a[0' !! ValueError Missing ']' in format string
+'٣' -> (3, [])
+formatteriterator
+abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789 0123456789abcdefABCDEF 01234567 ' \t\n\r\x0b\x0c' !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
+100 Hello World Foo A-B-C
+a-n-   b 'q' [('a', 'b', '', None), ('c', None, None, None)]
+tim likes kung pao; $ cost tim likes ${what}; $ cost ['who', 'what'] True
+template missing !! KeyError 'what'
+template bad !! ValueError Invalid placeholder in string: line 1, col 1
+1 and 2
+True ('hi ', ' there') [(2, '1 + 1', 'r', '>3')] 5 'x'
+convert bad !! ValueError invalid conversion specifier: z

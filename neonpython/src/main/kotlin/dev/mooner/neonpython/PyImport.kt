@@ -193,7 +193,7 @@ object PyImport {
         fun mod(): PyModule {
             d[PyStr("__name__")] = PyStr(name)
             d[PyStr("__doc__")] = PyNone
-            d[PyStr("__package__")] = PyStr(if (name == "string") name else name.substringBeforeLast('.', ""))
+            d[PyStr("__package__")] = PyStr(name.substringBeforeLast('.', ""))
             d[PyStr("__loader__")] = PyNone
             d[PyStr("__spec__")] = PyNone
             val m = PyModule(name, d)
@@ -211,24 +211,6 @@ object PyImport {
                 m.builtin = true
                 ctx.modules[PyStr("builtins")] = m
                 return m
-            }
-            "string" -> {
-                d[PyStr("__path__")] = PyList()
-                d[PyStr("ascii_lowercase")] = PyStr("abcdefghijklmnopqrstuvwxyz")
-                d[PyStr("ascii_uppercase")] = PyStr("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-                d[PyStr("ascii_letters")] = PyStr("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-                d[PyStr("digits")] = PyStr("0123456789")
-                d[PyStr("hexdigits")] = PyStr("0123456789abcdefABCDEF")
-                d[PyStr("octdigits")] = PyStr("01234567")
-                d[PyStr("punctuation")] = PyStr("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~")
-                d[PyStr("whitespace")] = PyStr(" \t\n\r\u000b\u000c")
-                d[PyStr("printable")] = PyStr("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~ \t\n\r\u000b\u000c")
-                return mod()
-            }
-            "string.templatelib" -> {
-                d[PyStr("Template")] = PyTypes.TEMPLATE
-                d[PyStr("Interpolation")] = PyTypes.INTERPOLATION
-                return mod()
             }
             "_thread" -> {
                 PyStdlib.fillThread(ctx, d)
@@ -258,12 +240,16 @@ object PyImport {
                 PySre.fill(ctx, d)
                 return mod()
             }
+            "_string" -> {
+                PyStringModule.fill(ctx, d)
+                return mod()
+            }
             else -> return null
         }
     }
 
     /** The modules NeonPy makes itself (sys.builtin_module_names). */
-    @JvmField val BUILTIN_NAMES = listOf("sys", "builtins", "string", "string.templatelib", "_thread", "_weakref", "gc", "_collections", "itertools", "_contextvars", "_sre")
+    @JvmField val BUILTIN_NAMES = listOf("sys", "builtins", "_thread", "_weakref", "gc", "_collections", "itertools", "_contextvars", "_sre", "_string")
 
     /** The features `from __future__ import` knows (CPython 3.14's). */
     @JvmField val FUTURES = listOf("nested_scopes", "generators", "division", "absolute_import", "with_statement", "print_function",

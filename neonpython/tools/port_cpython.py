@@ -43,6 +43,8 @@ re/_compiler.py
 re/_constants.py
 re/_parser.py
 reprlib.py
+string/__init__.py
+string/templatelib.py
 types.py
 warnings.py
 weakref.py
