@@ -151,6 +151,8 @@ object PyTypes {
         is Long, is BigInteger -> INT
         is Double -> FLOAT
         is PyNumSub -> v.sub!!.cls
+        is PyFrameObj -> PyFrames.FRAME
+        is PyTraceback -> PyFrames.TRACEBACK
         is PyStr -> v.sub?.cls ?: STR
         is PyList -> v.sub?.cls ?: LIST
         is PyTuple -> v.sub?.cls ?: TUPLE

@@ -63,6 +63,7 @@ object PyExceptions {
         e.attrs?.let { a -> for ((k, v) in a) o.setField(k, v) }
         initFields(o)
         o.thrown = e
+        o.traceback = e.tb ?: PyNone
         e.exc = o
         // (raised while another was handled: that one is its context, as CPython sets it raising)
         val h = ctx?.currentHandled()
@@ -142,6 +143,8 @@ object PyExceptions {
             e.line = (f.code.dialectData as PyCodeInfo).lineAt(f.code, f.pc)
             e.function = f.code.name
         }
+        // (this frame's traceback entry, where a handler takes it: the interpreter's or compiled code's)
+        PyFrames.addTraceback(e, f)
         return objectOf(e, f.ctx)
     }
 
@@ -169,7 +172,8 @@ object PyExceptions {
         val ctx = (f as PyFrame).ctx
         if (args.isEmpty()) {
             val h = ctx.currentHandled() ?: return PyException("RuntimeError", "No active exception to reraise")
-            return thrown(h)
+            // (raised again as it was: no traceback entry in this frame, CPython's RAISE_VARARGS 0)
+            return thrown(h).also { it.tbFrame = f }
         }
         val exc = try {
             instance(ctx, args[0], "exceptions must derive from BaseException")
@@ -265,10 +269,17 @@ object PyExceptions {
     @JvmStatic
     fun newGroup(cls: PyType, message: Any?, excs: Any?): PyBaseException {
         if (message !is PyStr) throw PyRt.typeError("BaseExceptionGroup.__new__() argument 1 must be str, not ${PyTypes.name(message)}")
+        // (a sequence: a list or tuple, or what has __getitem__, not a mapping; its repr now, as it is now, for the group's)
+        var reprNow: String? = null
         val items = when (excs) {
             is PyList -> excs.items.toTypedArray()
             is PyTuple -> excs.items
-            else -> throw PyRt.typeError("second argument (exceptions) must be a sequence")
+            else -> {
+                val t = PyTypes.typeOf(excs)
+                if (!PyRt.special(excs) || t.lookup("__getitem__") == null || excs is PyDict) throw PyRt.typeError("second argument (exceptions) must be a sequence")
+                reprNow = PyRt.repr(excs)
+                PyBuiltins.toList(excs).toTypedArray()
+            }
         }
         if (items.isEmpty()) throw PyException("ValueError", "second argument (exceptions) must be a non-empty sequence")
         for ((i, e) in items.withIndex()) if (e !is PyBaseException) throw PyException("ValueError", "Item $i of second argument (exceptions) is not an exception")
@@ -279,6 +290,7 @@ object PyExceptions {
         g.args = PyTuple(arrayOf(message, excs))
         g.setField("message", message)
         g.setField("exceptions", PyTuple(items.copyOf()))
+        if (reprNow != null) g.setField("__excs_repr__", PyStr(reprNow))
         return g
     }
 
@@ -290,7 +302,12 @@ object PyExceptions {
         d.context = eg.context
         d.suppressContext = eg.suppressContext
         d.traceback = eg.traceback
-        eg.dict?.get(PyStr("__notes__"))?.let { n -> (d.dict ?: PyDict().also { d.dict = it })[PyStr("__notes__")] = n }
+        // (its notes a copy of the group's, where they are a sequence)
+        eg.dict?.get(PyStr("__notes__"))?.let { n ->
+            if (n is PyList || n is PyTuple || PyRt.special(n) && PyTypes.typeOf(n).lookup("__getitem__") != null) {
+                (d.dict ?: PyDict().also { d.dict = it })[PyStr("__notes__")] = PyList(ArrayList(PyBuiltins.toList(n)))
+            }
+        }
         // (where it was raised: the group's)
         eg.thrown?.let { t -> d.thrown = PyException(d).also { it.line = t.line; it.function = t.function } }
         return d
@@ -300,14 +317,16 @@ object PyExceptions {
      * eg.split(matches): the part of [eg] whose exceptions [matches] (a group matching whole: itself), and the rest,
      * each a group of eg's shape (derive) or null.
      */
-    private fun split(eg: Any?, matches: (Any?) -> Boolean): Pair<Any?, Any?> {
+    private fun split(eg: Any?, depth: Int = 0, matches: (Any?) -> Boolean): Pair<Any?, Any?> {
         if (matches(eg)) return eg to null
         if (!isGroup(eg)) return null to eg
+        // (CPython's Py_EnterRecursiveCall(" in split"))
+        if (depth > PyContext.current().agent.maxDepth) throw PyException("RecursionError", "maximum recursion depth exceeded in split")
         val g = eg as PyBaseException
         val m = ArrayList<Any?>()
         val r = ArrayList<Any?>()
         for (e in members(g)) {
-            val (em, er) = split(e, matches)
+            val (em, er) = split(e, depth + 1, matches)
             if (em != null) m.add(em)
             if (er != null) r.add(er)
         }
@@ -448,6 +467,8 @@ object PyExceptions {
         method(b, "__repr__") { a ->
             val o = self(a, "__repr__")
             val items = o.args.items
+            // (a group made of another sequence: that sequence's repr as it was then)
+            (o.field("__excs_repr__") as? PyStr)?.let { r -> if (items.size == 2) return@method PyStr(o.type.name + "(" + PyRt.repr(items[0]) + ", " + r.s + ")") }
             PyStr(o.type.name + if (items.size == 1) "(" + PyRt.repr(items[0]) + ")" else PyRt.repr(o.args))
         }
         method(b, "with_traceback") { a ->
@@ -502,10 +523,10 @@ object PyExceptions {
         prop(bg, "exceptions", { it.field("exceptions") }, null)
         method(bg, "derive") { a -> newGroup(BASE_GROUP, self(a, "derive").field("message"), a.getOrNull(1)) }
         method(bg, "split") { a ->
-            val (m, r) = split(self(a, "split"), matcher(a.getOrNull(1)))
+            val (m, r) = split(self(a, "split"), matches = matcher(a.getOrNull(1)))
             PyTuple(arrayOf(m ?: PyNone, r ?: PyNone))
         }
-        method(bg, "subgroup") { a -> split(self(a, "subgroup"), matcher(a.getOrNull(1))).first ?: PyNone }
+        method(bg, "subgroup") { a -> split(self(a, "subgroup"), matches = matcher(a.getOrNull(1))).first ?: PyNone }
         method(type("KeyError"), "__str__") { a ->
             val o = self(a, "__str__")
             PyStr(if (o.args.items.size == 1) PyRt.repr(o.args.items[0]) else baseStr(o))

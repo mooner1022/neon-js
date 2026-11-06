@@ -32,6 +32,22 @@ class PyContext(
     @JvmField var handled: PyBaseException? = null
     /** The callers' exceptions handled, under the generators running (each its own [handled]: PyGenBase.resume). */
     @JvmField val handledStack = ArrayList<PyBaseException?>()
+    /** The innermost frame running (sys._getframe), the chain out through PyFrame.back. */
+    @JvmField var top: PyFrame? = null
+    /** The source of each module imported, by its file (a traceback's lines). */
+    @JvmField val sources = HashMap<String, String>()
+
+    /** [e] (one Python code raised and did not catch) as CPython prints it: its traceback, then its type and message. */
+    fun formatException(e: PyException): String {
+        // (with this context current: a class's __str__ may run, KeyError's is its key's repr)
+        val outer = CURRENT.get()
+        CURRENT.set(this)
+        try {
+            return PyFrames.format(PyExceptions.objectOf(e, null), sources)
+        } finally {
+            CURRENT.set(outer)
+        }
+    }
 
     /** The exception handled here: the running code's, else the nearest caller's (a generator with none of its own). */
     fun currentHandled(): PyBaseException? {
@@ -41,7 +57,7 @@ class PyContext(
     }
 
     /** Runs the module [src]; returns its globals. */
-    fun exec(src: String, name: String = "<module>"): PyDict = exec(PyCompiler.compileModule(src, name), name)
+    fun exec(src: String, name: String = "<module>"): PyDict = exec(PyCompiler.withFilename(PyCompiler.compileModule(src, name), "<string>"), name)
 
     /** Runs a module's code [cb] (PyCompiler.compileModule's); returns its globals. */
     fun exec(cb: dev.mooner.neonjs.compiler.CodeUnit, name: String = "<module>"): PyDict {
@@ -98,6 +114,9 @@ class PyFrame(@JvmField val code: CodeUnit, @JvmField val ctx: PyContext, @JvmFi
     /** A generator's: the value its YIELD hands over, and how it is resumed (MODE_NEXT, MODE_THROW, MODE_THROW_ALL). */
     @JvmField var suspendValue: Any? = null
     @JvmField var resumeMode = MODE_NEXT
+    /** The frame running it, while it runs (f_back); its frame object, once asked for (PyFrames). */
+    @JvmField var back: PyFrame? = null
+    @JvmField var obj: PyFrameObj? = null
     /** A function's locals' snapshot, what exec() and eval() called from it take as their locals (SET_EVAL_LOCALS). */
     @JvmField var evalLocals: PyDict? = null
 
@@ -168,7 +187,8 @@ object PyInterpreter {
 
     /** Runs [f] (with [c], or interpreted), with the agent's call depth and interrupts kept. */
     private fun runFrame(f: PyFrame, c: CompiledCode?): Any? {
-        val agent = f.ctx.agent
+        val ctx = f.ctx
+        val agent = ctx.agent
         if (++agent.depth > agent.maxDepth) {
             agent.depth--
             throw PyException("RecursionError", "maximum recursion depth exceeded")
@@ -182,6 +202,9 @@ object PyInterpreter {
                 throw t
             }
         }
+        val back = ctx.top
+        f.back = back
+        ctx.top = f
         try {
             if (c == null) return run(f)
             val r = c.run(f)
@@ -193,10 +216,14 @@ object PyInterpreter {
                 e.line = (f.code.dialectData as PyCodeInfo).lineAt(f.code, f.pc)
                 e.function = f.code.name
             }
+            // (its entry where it leaves this frame, the tier's code having none of its own)
+            PyFrames.addTraceback(e, f)
             throw e
         } catch (e: StackOverflowError) {
             throw PyException("RecursionError", "maximum recursion depth exceeded")
         } finally {
+            ctx.top = back
+            f.back = null
             agent.depth--
         }
     }
@@ -382,6 +409,7 @@ object PyInterpreter {
             } catch (t: Throwable) {
                 f.pc = opStart
                 f.sp = sp
+                if (t is PyException) PyFrames.addTraceback(t, f)
                 if (!handle(f, t)) throw t
                 pc = f.pc
                 sp = f.sp

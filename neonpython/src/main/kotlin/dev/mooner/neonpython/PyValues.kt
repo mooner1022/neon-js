@@ -279,6 +279,9 @@ class PyException private constructor(@JvmField val typeName: String?, @JvmField
     /** Where it was raised: the line (-1 before a frame noted it) and the function. */
     @JvmField var line = -1
     @JvmField var function: String? = null
+    /** Its traceback while it has no object yet (the object's after), and the frame whose entry this raising made last. */
+    @JvmField var tb: PyTraceback? = null
+    @JvmField var tbFrame: PyFrame? = null
     private var frozen: String? = null
 
     /** The name of its class. */

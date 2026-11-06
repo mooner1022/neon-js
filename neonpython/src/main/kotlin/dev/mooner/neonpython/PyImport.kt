@@ -79,11 +79,12 @@ object PyImport {
         if (src.isPackage) d[PyStr("__path__")] = PyList(arrayListOf(PyStr(src.path.substringBeforeLast('/', src.path.substringBeforeLast('\\', "")))))
         val m = PyModule(name, d)
         val cb = try {
-            PyCompiler.compileModule(src.source, "<module>")
+            PyCompiler.withFilename(PyCompiler.compileModule(src.source, "<module>"), src.path)
         } catch (e: PySyntaxError) {
             throw PyException("SyntaxError", "${e.msg} (${src.path}, line ${e.line})")
         }
         ctx.moduleUnits.add(cb)
+        ctx.sources[src.path] = src.source
         ctx.modules[PyStr(name)] = m
         m.initializing = true
         try {
@@ -273,6 +274,23 @@ object PyImport {
             if (h == null) PyTuple(arrayOf(PyNone, PyNone, PyNone)) else PyTuple(arrayOf(h.type, h, h.traceback))
         }
         def("exception") { _ -> ctx.currentHandled() ?: PyNone }
+        def("_getframe") { a -> PyFrames.getFrame(ctx, a.getOrNull(0)) }
+        // (an exception no code caught: printed to stderr as CPython prints it)
+        val hook = PyBuiltin("excepthook") { _, a ->
+            val v = a.getOrNull(1) as? PyBaseException ?: throw PyRt.typeError("excepthook expects an exception")
+            ctx.err.append(PyFrames.format(v, ctx.sources))
+            PyNone
+        }
+        d[PyStr("excepthook")] = hook
+        d[PyStr("__excepthook__")] = hook
+        def("_getframemodulename") { a ->
+            // (the module of the frame [depth] out: its globals' __name__)
+            try {
+                PyFrames.getFrame(ctx, a.getOrNull(0)).f.globals[PyStr("__name__")] ?: PyNone
+            } catch (e: PyException) {
+                PyNone
+            }
+        }
         def("getrecursionlimit") { _ -> ctx.agent.maxDepth.toLong() }
         def("setrecursionlimit") { a ->
             val n = a[0] as? Long ?: throw PyRt.typeError("'${PyTypes.name(a[0])}' object cannot be interpreted as an integer")

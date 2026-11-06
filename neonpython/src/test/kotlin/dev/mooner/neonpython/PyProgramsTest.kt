@@ -124,6 +124,18 @@ class PyProgramsTest {
     }
 
     @Test
+    fun uncaughtExceptionsPrintAsCPythonPrintsThem() {
+        // (CPython's traceback.format_exception of the program exec'd from "<string>", recorded with CPython)
+        val src = javaClass.getResourceAsStream("/tracebacks/chain.py")!!.readBytes().toString(Charsets.UTF_8).replace("\r\n", "\n")
+        val expected = javaClass.getResourceAsStream("/tracebacks/chain.out")!!.readBytes().toString(Charsets.UTF_8).replace("\r\n", "\n")
+        for (mode in Mode.entries) {
+            val ctx = PyContext(StringBuilder(), config(mode), loader, StringBuilder())
+            val e = org.junit.jupiter.api.assertThrows<PyException> { ctx.exec(src) }
+            assertEquals(expected, ctx.formatException(e), "$mode")
+        }
+    }
+
+    @Test
     fun generatorsSuspendInTheTiersCode() {
         val src = resource("suspensions.py")
         val expected = resource("suspensions.out")
@@ -524,7 +536,7 @@ class PyProgramsTest {
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
             "speculation", "functions", "closures", "unpacking", "types", "classes", "descriptors",
-            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods", "containers", "match", "imports", "coroutines", "async_generators", "annotations", "future_annotations", "generic_aliases", "type_params", "generic_classes", "private_names", "eval_exec", "suspensions", "rich_compare", "number_subclasses",
+            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods", "containers", "match", "imports", "coroutines", "async_generators", "annotations", "future_annotations", "generic_aliases", "type_params", "generic_classes", "private_names", "eval_exec", "suspensions", "rich_compare", "number_subclasses", "frames",
         )
 
         /** The code blocks of [cb] and every function it defines. */

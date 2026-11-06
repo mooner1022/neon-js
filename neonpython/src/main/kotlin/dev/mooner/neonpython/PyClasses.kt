@@ -288,6 +288,8 @@ object PyClasses {
         if (obj is PyModule) return moduleAttr(obj, name)
         if (obj is PyGenericAlias) return PyTyping.aliasAttr(obj, name)
         if (obj is PyCode) return PyEval.codeAttr(obj, name)
+        if (obj is PyFrameObj) return PyFrames.frameAttr(obj, name)
+        if (obj is PyTraceback) return PyFrames.tracebackAttr(obj, name)
         if (obj is PyUnion) return PyTyping.unionAttr(obj, name)
         if (obj is PyTypeParam) return PyTyping.typeParamAttr(obj, name)
         if (obj is PyParamSpecPart || obj is PyUnpacked) return PyTyping.partAttr(obj, name)
@@ -493,6 +495,10 @@ object PyClasses {
         }
         if (obj is PyTypeParam) {
             PyTyping.typeParamSet(obj, name, v)
+            return
+        }
+        if (obj is PyFrameObj || obj is PyTraceback) {
+            PyFrames.setAttr(obj, name, v)
             return
         }
         if (obj is PyTypeAlias) PyTyping.aliasTypeSet(name)

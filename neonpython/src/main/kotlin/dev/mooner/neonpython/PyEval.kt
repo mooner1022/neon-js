@@ -29,8 +29,8 @@ object PyEval {
         if (flags and ONLY_AST != 0) throw PyException("NotImplementedError", "compile() to an AST is not supported")
         val src = text(source, "compile() arg 1 must be a string, bytes or AST object")
         try {
-            val cb = PyCompiler.compileSource(src, if (mode == "eval") "eval" else "exec", flags and FUTURE_ANNOTATIONS != 0)
-            return PyCode(cb, mode, filename)
+            val cb = PyCompiler.withFilename(PyCompiler.compileSource(src, if (mode == "eval") "eval" else "exec", flags and FUTURE_ANNOTATIONS != 0), filename)
+            return PyCode(cb, mode, filename).also { (cb.dialectData as PyCodeInfo).codeObject = it }
         } catch (e: PySyntaxError) {
             throw syntaxError(e, filename, src, mode)
         }
@@ -195,7 +195,14 @@ object PyEval {
 
     /** f.__code__: its function's code object (the same each time). */
     @JvmStatic
-    fun functionCode(f: PyFunction): Any? = f.info.codeObject ?: PyCode(f.code, "function", "<string>").also { f.info.codeObject = it }
+    fun functionCode(f: PyFunction): Any? = codeOf(f.code)
+
+    /** The code object of [cb], made once (a function's __code__, a frame's f_code). */
+    @JvmStatic
+    fun codeOf(cb: CodeUnit): PyCode {
+        val info = cb.dialectData as PyCodeInfo
+        return info.codeObject as PyCode? ?: PyCode(cb, if (info.module) "exec" else "function", info.filename).also { info.codeObject = it }
+    }
 
     @JvmStatic
     fun codeAttr(c: PyCode, name: String): Any? = when (name) {

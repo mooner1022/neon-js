@@ -29,6 +29,8 @@ class PyCodeInfo(@JvmField val name: String, @JvmField val localNames: Array<Str
     @JvmField var freeNames: List<String> = emptyList()
     /** Its function's `__code__`, made once. */
     @JvmField var codeObject: Any? = null
+    /** The file it was compiled from (co_filename): an imported module's path, compile()'s filename, `<string>`. */
+    @JvmField var filename: String = "<string>"
 
     /**
      * The operand types the interpreter saw at each arithmetic and comparison instruction, by pc ([PyProfile]): made
@@ -204,6 +206,13 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 if (!future && !(i == 0 && st is ExprStmt && st.value is Constant && (st.value as Constant).value is PyStr)) start = false
             }
             return m.body.any { it is ImportFrom && it.module == "__future__" && it.level == 0 && it.names.any { a -> a.name == "annotations" } }
+        }
+
+        /** [cb] and every code block in it as compiled from [filename]; [cb]. */
+        @JvmStatic fun withFilename(cb: CodeUnit, filename: String): CodeUnit {
+            (cb.dialectData as? PyCodeInfo)?.filename = filename
+            for (c in cb.constants) if (c is CodeUnit) withFilename(c, filename)
+            return cb
         }
 
         /** The code block of module [src]. */

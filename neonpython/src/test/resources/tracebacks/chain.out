@@ -1,0 +1,18 @@
+Traceback (most recent call last):
+  File "<string>", line 13, in load
+  File "<string>", line 6, in parse
+ValueError: invalid literal for int() with base 10: 'two'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "<string>", line 21, in run
+  File "<string>", line 15, in load
+AppError: bad item 'two'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "<string>", line 26, in <module>
+  File "<string>", line 23, in run
+KeyError: 'missing'
