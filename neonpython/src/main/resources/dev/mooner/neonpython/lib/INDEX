@@ -1,8 +1,18 @@
 # CPython v3.14.6 Lib files bundled (neonpython/tools/port_cpython.py); one per line
 __future__.py
+_collections_abc.py
+_py_abc.py
+_weakrefset.py
+abc.py
 bisect.py
+collections/__init__.py
+copy.py
 copyreg.py
+functools.py
 heapq.py
 keyword.py
+numbers.py
 operator.py
 reprlib.py
+types.py
+weakref.py

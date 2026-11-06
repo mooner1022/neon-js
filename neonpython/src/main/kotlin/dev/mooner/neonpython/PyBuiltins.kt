@@ -557,6 +557,28 @@ object PyBuiltins {
             def("__format__") { a -> PyStr(PyFormat.builtinFormat(plain(a[0]), (a.getOrNull(1) as? PyStr)?.s ?: "")) }
         }
         PyTypes.INT.def("__invert__", PyBuiltin("__invert__") { _, a -> PyRt.invert(plainInt(a[0])) })
+        for (t in arrayOf(PyTypes.INT, PyTypes.FLOAT, PyTypes.COMPLEX)) {
+            t.def("__getnewargs__", PyBuiltin("__getnewargs__") { _, a -> PyTuple(arrayOf(plainReal(a[0]) ?: PyRt.num(a[0]))) })
+        }
+        PyTypes.STR.def("__getnewargs__", PyBuiltin("__getnewargs__") { _, a -> PyTuple(arrayOf(PyStr((a[0] as PyStr).s))) })
+        PyTypes.TUPLE.def("__getnewargs__", PyBuiltin("__getnewargs__") { _, a -> PyTuple(arrayOf(PyTuple((a[0] as PyTuple).items))) })
+        // (their own __reduce__, as CPython's: what copy and pickle make them again from)
+        fun state(v: Any?): Any? = PyClasses.instanceDict(v)?.takeIf { it.size > 0 } ?: PyNone
+        for (t in arrayOf(PyTypes.SET, PyTypes.FROZENSET)) t.def("__reduce__", PyBuiltin("__reduce__") { _, a ->
+            PyTuple(arrayOf(PyTypes.typeOf(a[0]), PyTuple(arrayOf(PyList(toList(a[0])))), state(a[0])))
+        })
+        PyTypes.RANGE.def("__reduce__", PyBuiltin("__reduce__") { _, a ->
+            val r = a[0] as PyRange
+            PyTuple(arrayOf(PyTypes.RANGE, PyTuple(arrayOf(PyRanges.start(r), PyRanges.stop(r), PyRanges.step(r)))))
+        })
+        PyTypes.SLICE.def("__reduce__", PyBuiltin("__reduce__") { _, a ->
+            val s = a[0] as PySlice
+            PyTuple(arrayOf(PyTypes.SLICE, PyTuple(arrayOf(s.start, s.stop, s.step))))
+        })
+        PyTypes.BYTEARRAY.def("__reduce_ex__", PyBuiltin("__reduce_ex__") { _, a ->
+            PyTuple(arrayOf(PyTypes.typeOf(a[0]), PyTuple(arrayOf(PyBytes((a[0] as PyByteArray).bytes()))), state(a[0])))
+        })
+        PyTypes.BYTEARRAY.def("__reduce__", PyTypes.BYTEARRAY.dict[PyStr("__reduce_ex__")])
         PyTypes.INT.def("__index__", PyBuiltin("__index__") { _, a -> plainInt(a[0]) })
         PyTypes.INT.def("__int__", PyBuiltin("__int__") { _, a -> plainInt(a[0]) })
         PyTypes.FLOAT.def("__int__", PyBuiltin("__int__") { _, a ->

@@ -200,7 +200,7 @@ object PyTypes {
         is PyCoroutine -> COROUTINE
         is PyAsyncGenerator -> ASYNC_GENERATOR
         is PyAwaitIter -> v.type
-        is PyGenericAlias -> if (v.typing) PyTyping.TYPING_ALIAS else PyTyping.GENERIC_ALIAS
+        is PyGenericAlias -> v.sub?.cls ?: if (v.typing) PyTyping.TYPING_ALIAS else PyTyping.GENERIC_ALIAS
         is PyCode -> PyEval.CODE
         is PyUnion -> PyTyping.UNION
         is PyTypeParam, is PyParamSpecPart, is PyUnpacked, is PyTypeAlias, PyNoDefault, PyUnpackForm -> PyTyping.typeOf(v)!!

@@ -6,7 +6,7 @@ package dev.mooner.neonpython
  * Generic class subscripted gives (`K[int]`, `Generic[T]`), as typing.py's.
  */
 class PyGenericAlias(@JvmField val origin: Any?, @JvmField val args: PyTuple, @JvmField val starred: Boolean = false,
-                     @JvmField val typing: Boolean = false) {
+                     @JvmField val typing: Boolean = false) : PyValue() {
     override fun equals(other: Any?) = other is PyGenericAlias && starred == other.starred && typing == other.typing &&
         PyRt.eq(origin, other.origin) && PyRt.eq(args, other.args)
 
@@ -75,9 +75,22 @@ class PyTypeAlias(@JvmField val name: String, @JvmField val typeParams: PyTuple?
 object PyTyping {
     private val NO_ARGS = arrayOfNulls<Any?>(0)
 
-    @JvmField val GENERIC_ALIAS = PyTypes.newBuiltin("GenericAlias", subclassable = false).also {
+    @JvmField val GENERIC_ALIAS = PyTypes.newBuiltin("GenericAlias").also {
         it.module = "types"
         it.tpName = "types.GenericAlias"
+        // GenericAlias(origin, args); a subclass's instance (collections.abc's _CallableGenericAlias) one with its class
+        fun make(cls: Any?, a: Array<Any?>, from: Int): Any {
+            val n = a.size - from
+            if (n != 2) throw PyRt.typeError("GenericAlias expected 2 arguments, got $n")
+            val ga = PyGenericAlias(a[from], argsOf(a[from + 1]))
+            if (cls is PyType && cls !== it) ga.sub = PySub(cls)
+            return ga
+        }
+        it.newImpl = { _, _, a, kw ->
+            if (kw != null && kw.size > 0) throw PyRt.typeError("GenericAlias() takes no keyword arguments")
+            make(it, a, 0)
+        }
+        it.def("__new__", PyBuiltin("__new__", { _, a -> make(a[0], a, 1) }, { _, a, _ -> make(a[0], a, 1) }))
     }
     @JvmField val UNION = PyTypes.newBuiltin("Union", subclassable = false).also {
         it.module = "typing"

@@ -1,0 +1,37 @@
+abstract !! TypeError Can't instantiate abstract class Shape without an implementation for abstract methods 'area', 'make'
+concrete -> (4, True, ['area', 'make'])
+register -> (<class '__main__.abcs.<locals>.Duck'>, True, True)
+hooks -> (True, True, True, True)
+more -> (True, True, True, True)
+bytes abc -> (True, True, True)
+callable -> (True, (<class 'int'>, <class 'str'>), '_CallableGenericAlias')
+get_cache_token -> int
+mixin -> (1, True, ['a', 'b'], [('a', 1), ('b', 2)], True)
+namedtuple -> (P(x=1, y=0), 1, 0, {'x': 1, 'y': 0}, P(x=5, y=0), ('x', 'y'), {'y': 0}, 'P(x=1, y=2)', True)
+counter -> ([('a', 5), ('b', 2)], 0, ['a', 'a', 'a'], 7, 11)
+ordered -> (['b', 'a'], ('b', 2), "OrderedDict({'a': 1})", True)
+chainmap -> (1, 3, 2, ['a', 'b'], 4)
+deque -> (deque([1, 2], maxlen=2), True)
+defaultdict -> (0, 'collections')
+user -> (1, [1, 2, 3], 'AB')
+partial -> (5, True)
+reduce -> 120
+lru -> (12586269025, True, 'fib', 'fib')
+wraps -> ('named', 'doc', 'named', 3)
+total_ordering -> (True, True, False)
+singledispatch -> ('int', 'list', 'obj', 'int')
+computing
+cached_property -> (42, 42, True)
+cmp_to_key -> [3, 2, 1]
+partialmethod -> 12
+copy -> (True, False, 4, False)
+copy builtins -> ((1, 2), {1, 2}, bytearray(b'x'), OrderedDict({'a': [1]}))
+copy cycle -> True
+weak -> (True, True, 1, 1, True)
+weak method -> True
+types -> ('function', 'getset_descriptor', 'member_descriptor', 'getset_descriptor')
+mappingproxy -> (1, namespace(a=1))
+new_class -> ('C', 1)
+numbers -> (True, True, True, True, True)
+descr -> ("<attribute '__code__' of 'function' objects>", <class 'function'>, True)
+descr ro !! AttributeError readonly attribute

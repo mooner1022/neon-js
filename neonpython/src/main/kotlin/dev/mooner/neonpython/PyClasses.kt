@@ -158,7 +158,7 @@ object PyClasses {
 
     /** The builtin types whose values a class may derive from: their instances are such values (PyValue.sub). */
     private val VALUE_BASES = setOf(PyTypes.STR, PyTypes.LIST, PyTypes.TUPLE, PyTypes.DICT, PyTypes.SET, PyTypes.FROZENSET, PyTypes.INT, PyTypes.FLOAT, PyTypes.COMPLEX, PyTypes.BYTES,
-        PyTypes.STATICMETHOD, PyTypes.CLASSMETHOD, PyTypes.PROPERTY, PyTypes.BYTEARRAY)
+        PyTypes.STATICMETHOD, PyTypes.CLASSMETHOD, PyTypes.PROPERTY, PyTypes.BYTEARRAY, PyTyping.GENERIC_ALIAS)
 
     /** The class of an instance of one (an object, or a builtin value of a subclass); null for a builtin value. */
     @JvmStatic
@@ -178,9 +178,22 @@ object PyClasses {
         return h
     }
 
-    /** A class called: __new__, then __init__ where __new__ gave an instance of it. */
+    /** A class called: its metaclass's own __call__ where it has one (enum's EnumType), else [construct]. */
     @JvmStatic
     fun instantiate(ctx: PyContext, cls: PyType, pos: Array<Any?>, kwNames: Array<Any?>, kwValues: Array<Any?>): Any? {
+        val meta = cls.meta
+        if (meta != null) PyDunder.userMethod(meta, "__call__")?.let { call ->
+            val all = arrayOfNulls<Any?>(pos.size + 1)
+            all[0] = cls
+            pos.copyInto(all, 1)
+            return PyCalls.callWith(ctx, call, all, kwNames, kwValues)
+        }
+        return construct(ctx, cls, pos, kwNames, kwValues)
+    }
+
+    /** type.__call__: __new__, then __init__ where __new__ gave an instance of the class. */
+    @JvmStatic
+    fun construct(ctx: PyContext, cls: PyType, pos: Array<Any?>, kwNames: Array<Any?>, kwValues: Array<Any?>): Any? {
         // type(x): the type of x
         if (cls === PyTypes.TYPE && pos.size == 1 && kwNames.isEmpty()) return PyTypes.typeOf(pos[0])
         if (cls.isSubtype(PyTypes.TYPE)) return metaCall(ctx, cls, pos, kwNames, kwValues)
@@ -246,6 +259,26 @@ object PyClasses {
         PyTypes.TYPE.def("__subclasscheck__", PyBuiltin("__subclasscheck__") { _, a ->
             val c = a[1] as? PyType ?: throw PyRt.typeError("issubclass() arg 1 must be a class")
             PyBool.of(c.isSubtype(self(a, "__subclasscheck__")))
+        })
+        fun kwOf(kw: PyDict?): Pair<Array<Any?>, Array<Any?>> =
+            if (kw == null || kw.size == 0) NO_ARGS to NO_ARGS else kw.map.keys.map { it.v }.toTypedArray() to kw.map.values.toTypedArray()
+        fun typeCall(ctx: PyContext, a: Array<Any?>, kw: PyDict?): Any? {
+            val (n, v) = kwOf(kw)
+            return construct(ctx, self(a, "__call__"), a.copyOfRange(1, a.size), n, v)
+        }
+        PyTypes.TYPE.def("__call__", PyBuiltin("__call__", { ctx, a -> typeCall(ctx, a, null) }, { ctx, a, kw -> typeCall(ctx, a, kw) }))
+        // (what calling a function, a builtin, a method, an alias is, in their types' dicts: collections.abc's Callable looks there)
+        for (t in listOf(PyTypes.FUNCTION, PyTypes.BUILTIN_FUNCTION, PyTypes.METHOD, PyTypes.STATICMETHOD, PyTyping.GENERIC_ALIAS)) {
+            fun call(ctx: PyContext, a: Array<Any?>, kw: PyDict?): Any? {
+                val (n, v) = kwOf(kw)
+                return PyCalls.callWith(ctx, a[0], a.copyOfRange(1, a.size), n, v)
+            }
+            t.def("__call__", PyBuiltin("__call__", { ctx, a -> call(ctx, a, null) }, { ctx, a, kw -> call(ctx, a, kw) }))
+        }
+        // (a function is a descriptor: f.__get__(obj) a method, partialmethod's way)
+        PyTypes.FUNCTION.def("__get__", PyBuiltin("__get__") { _, a ->
+            val obj = a.getOrNull(1)
+            if (obj == null || obj === PyNone) a[0] else PyMethod(a[0] as PyFunction, obj)
         })
         // (a class body's namespace: a dict, whatever the arguments)
         PyTypes.TYPE.def("__prepare__", PyClassMethod(PyBuiltin("__prepare__", { _, _ -> PyDict() }, { _, _, _ -> PyDict() })))
@@ -326,7 +359,17 @@ object PyClasses {
     @JvmStatic
     fun getAttr(obj: Any?, name: String): Any? {
         if (obj is PyModule) return moduleAttr(obj, name)
-        if (obj is PyGenericAlias) return PyTyping.aliasAttr(obj, name)
+        if (obj is PyGenericAlias) {
+            // (a subclass's instance: its classes' attributes and its own first)
+            obj.sub?.let { s ->
+                for (c in s.cls.mro) {
+                    if (c === PyTyping.GENERIC_ALIAS) break
+                    c.dict[PyStr(name)]?.let { d -> return descrGet(null, d, obj, s.cls) }
+                }
+                s.dict?.get(PyStr(name))?.let { return it }
+            }
+            return PyTyping.aliasAttr(obj, name)
+        }
         if (obj is PyCode) return PyEval.codeAttr(obj, name)
         if (obj is PyFrameObj) return PyFrames.frameAttr(obj, name)
         // (a proxy: its referent's attributes, its class too)
@@ -518,6 +561,13 @@ object PyClasses {
         if (PyAnnotations.isName(name)) return PyAnnotations.typeGet(t, name)
         // (a class's own type parameters, not a base's)
         if (name == "__type_params__") return t.dict[PyStr(name)] ?: PyTuple.EMPTY
+        // (type's data descriptors: what the class's dict holds of the names does not hide them)
+        when (name) {
+            "__name__" -> return PyStr(t.name)
+            "__qualname__" -> return PyStr(t.qualname)
+            "__mro__" -> return PyTuple(arrayOf(*t.mro))
+            "__bases__" -> return PyTuple(arrayOf(*t.bases))
+        }
         // (its own abstract methods, where they were set: not a base's, not type's)
         if (name == "__abstractmethods__") {
             return (if (t === PyTypes.TYPE) null else t.dict[PyStr(name)]) ?: throw PyException("AttributeError", "__abstractmethods__")
@@ -536,7 +586,8 @@ object PyClasses {
             "__doc__" -> PyNone
             "__type_params__" -> PyTuple.EMPTY
             "__class__" -> meta
-            else -> throw PyException("AttributeError", "type object '${t.name}' has no attribute '$name'")
+            // (a builtin type's attributes its instances have: their descriptors, FunctionType.__code__)
+            else -> PyAttrDescrs.of(t, name) ?: throw PyException("AttributeError", "type object '${t.name}' has no attribute '$name'")
         }
     }
 
@@ -592,6 +643,12 @@ object PyClasses {
                 return
             }
             if (name == "__abstractmethods__") obj.isAbstract = PyRt.truthy(v)
+            // (the type's names, not its dict's)
+            if (name == "__name__" || name == "__qualname__") {
+                val s = v as? PyStr ?: throw PyRt.typeError("can only assign string to ${obj.name}.$name, not '${PyTypes.name(v)}'")
+                if (name == "__name__") obj.name = s.s else obj.qualname = s.s
+                return
+            }
             obj.dict[PyStr(name)] = v
             if (name == "__getattribute__" || name == "__setattr__" || name == "__delattr__") obj.hooks = hooksOf(obj)
             return
@@ -618,7 +675,7 @@ object PyClasses {
             is PyObject -> (obj.dict ?: PyDict().also { obj.dict = it })[PyStr(name)] = v
             is PyFunction -> (obj.dict ?: PyDict().also { obj.dict = it })[PyStr(name)] = v
             is PyValue -> {
-                val s = obj.sub ?: throw PyException("AttributeError", "'${type.name}' object has no attribute '$name' and no __dict__ for setting new attributes")
+                val s = obj.sub ?: throw PyException("AttributeError", "'${type.tpName ?: type.name}' object has no attribute '$name' and no __dict__ for setting new attributes")
                 (s.dict ?: PyDict().also { s.dict = it })[PyStr(name)] = v
             }
             else -> throw PyException("AttributeError", "'${PyTypes.name(obj)}' object has no attribute '$name' and no __dict__ for setting new attributes")

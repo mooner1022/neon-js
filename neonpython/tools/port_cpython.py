@@ -20,12 +20,22 @@ import sys
 VERSION = 'v3.14.6'
 PORTS = """
 __future__.py
+_collections_abc.py
+_py_abc.py
+_weakrefset.py
+abc.py
 bisect.py
+collections/__init__.py
+copy.py
 copyreg.py
+functools.py
 heapq.py
 keyword.py
+numbers.py
 operator.py
 reprlib.py
+types.py
+weakref.py
 """
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))

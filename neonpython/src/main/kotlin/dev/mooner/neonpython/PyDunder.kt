@@ -530,5 +530,52 @@ object PyDunder {
             PyClasses.genericDelAttr(a[0], (a[1] as? PyStr ?: throw PyRt.typeError("attribute name must be string, not '${PyTypes.name(a[1])}'")).s)
             PyNone
         })
+        // pickle's and copy's protocol: __getstate__, __reduce_ex__, __reduce__ (copyreg's functions, as CPython's)
+        o.def("__getstate__", PyBuiltin("__getstate__") { _, a -> getState(a[0]) })
+        o.def("__reduce_ex__", PyBuiltin("__reduce_ex__") { ctx, a ->
+            val proto = (PyRt.indexValue(a.getOrNull(1)) as? Long ?: throw PyRt.typeError("__reduce_ex__() missing required argument 'protocol' (pos 1)")).toInt()
+            reduceEx(ctx, a[0], proto)
+        })
+        o.def("__reduce__", PyBuiltin("__reduce__") { ctx, a -> copyreg(ctx, "_reduce_ex", a[0], 0L) })
+    }
+
+    private fun copyregModule(ctx: PyContext): Any? = PyImport.importModule(ctx, "copyreg")
+
+    private fun copyreg(ctx: PyContext, fn: String, vararg a: Any?): Any? =
+        PyCalls.callWith(ctx, PyRt.getAttr(copyregModule(ctx), fn), arrayOf(*a), NO_ARGS, NO_ARGS)
+
+    /** object.__getstate__: the instance's dict, None where it is empty. */
+    @JvmStatic
+    fun getState(v: Any?): Any? {
+        val d = PyClasses.instanceDict(v)
+        return if (d == null || d.size == 0) PyNone else d
+    }
+
+    /**
+     * object.__reduce_ex__(protocol): a class's own __reduce__ where it has one; from protocol 2 copyreg.__newobj__ with
+     * __getnewargs_ex__'s or __getnewargs__'s arguments, the state __getstate__ gives, a list's items and a dict's;
+     * below it copyreg._reduce_ex.
+     */
+    @JvmStatic
+    fun reduceEx(ctx: PyContext, v: Any?, proto: Int): Any? {
+        val t = PyTypes.typeOf(v)
+        val reduce = t.lookup("__reduce__")
+        if (reduce != null && reduce !== PyTypes.OBJECT.dict[PyStr("__reduce__")]) return PyCalls.callWith(ctx, PyRt.getAttr(v, "__reduce__"), NO_ARGS, NO_ARGS, NO_ARGS)
+        if (proto < 2) return copyreg(ctx, "_reduce_ex", v, proto.toLong())
+        val cr = copyregModule(ctx)
+        val exArgs = t.lookup("__getnewargs_ex__")?.let { PyCalls.callWith(ctx, PyRt.getAttr(v, "__getnewargs_ex__"), NO_ARGS, NO_ARGS, NO_ARGS) }
+        val (fn, args) = if (exArgs != null) {
+            val pair = exArgs as? PyTuple ?: throw PyRt.typeError("__getnewargs_ex__ should return a tuple of length 2, not '${PyTypes.name(exArgs)}'")
+            val kw = pair.items.getOrNull(1) as? PyDict
+            if (kw != null && kw.size > 0) PyRt.getAttr(cr, "__newobj_ex__") to PyTuple(arrayOf(t, pair.items[0], kw))
+            else PyRt.getAttr(cr, "__newobj__") to PyTuple(arrayOf(t, *(pair.items[0] as PyTuple).items))
+        } else {
+            val na = t.lookup("__getnewargs__")?.let { PyCalls.callWith(ctx, PyRt.getAttr(v, "__getnewargs__"), NO_ARGS, NO_ARGS, NO_ARGS) as PyTuple }
+            PyRt.getAttr(cr, "__newobj__") to PyTuple(arrayOf(t, *(na?.items ?: NO_ARGS)))
+        }
+        val state = PyCalls.callWith(ctx, PyRt.getAttr(v, "__getstate__"), NO_ARGS, NO_ARGS, NO_ARGS)
+        val list = if (PyRt.num(v) is PyList) PyRt.iter(v) else PyNone
+        val dict = if (PyRt.num(v) is PyDict) PyRt.iter(PyDictView(PyDictView.ITEMS, v as PyDict)) else PyNone
+        return PyTuple(arrayOf(fn, args, state, list, dict))
     }
 }
