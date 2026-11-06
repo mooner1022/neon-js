@@ -28,11 +28,20 @@ object PyClasses {
     private fun objectNew(a: Array<Any?>, kw: Boolean): Any? {
         if (a.isEmpty() || a[0] !is PyType) throw PyRt.typeError("object.__new__(X): X is not a type object (${PyTypes.name(a.getOrNull(0))})")
         val cls = a[0] as PyType
+        if (cls.isAbstract) abstractError(cls)
         if ((a.size > 1 || kw) && (cls.lookup("__new__") !== OBJECT_NEW_HOLDER || cls.lookup("__init__") === OBJECT_INIT_HOLDER)) {
             throw PyRt.typeError(if (cls.lookup("__new__") !== OBJECT_NEW_HOLDER) "object.__new__() takes exactly one argument (the type to instantiate)"
                 else "${cls.name}() takes no arguments")
         }
         return PyObject(cls).also { if (cls.heap) PyWeakrefs.made(it) }
+    }
+
+    /** "Can't instantiate abstract class A without an implementation for abstract methods 'a', 'b'". */
+    private fun abstractError(cls: PyType): Nothing {
+        val names = cls.dict[PyStr("__abstractmethods__")]?.let { PyBuiltins.toList(it) } ?: emptyList()
+        val sorted = ArrayList(names).also { PyLibrary.sort(it, null, false) }
+        val list = sorted.joinToString(", ") { PyRt.repr(it) }
+        throw PyRt.typeError("Can't instantiate abstract class ${cls.name} without an implementation for abstract method${if (sorted.size == 1) "" else "s"} $list")
     }
 
     private fun objectInit(a: Array<Any?>, kw: Boolean): Any? {
@@ -111,8 +120,9 @@ object PyClasses {
         if (bases.mapNotNull { b -> b.mro.firstOrNull { it in VALUE_BASES || it === PyExceptions.BASE_EXCEPTION } }.distinct().size > 1) {
             throw PyRt.typeError("multiple bases have instance lay-out conflict")
         }
-        val t = PyType(name.s, if (bases.isEmpty()) arrayOf(PyTypes.OBJECT) else bases.toTypedArray())
+        val t = PyType(name.s, if (bases.isEmpty()) arrayOf(PyTypes.OBJECT) else bases.toTypedArray(), heap = true)
         t.mro = PyTypes.c3(t, t.bases)
+        PyContext.current().let { ctx -> for (b in t.bases) b.addSubclass(ctx, t) }
         // (a class made by type() without __module__: its caller's, the main module's until import comes, M7)
         t.module = "__main__"
         if (meta !== PyTypes.TYPE) t.meta = meta
@@ -228,6 +238,18 @@ object PyClasses {
 
     init {
         PyTypes.TYPE.def("__new__", TYPE_NEW)
+        fun self(a: Array<Any?>, n: String): PyType = a.getOrNull(0) as? PyType
+            ?: throw PyRt.typeError("descriptor '$n' for 'type' objects doesn't apply to a '${PyTypes.name(a.getOrNull(0))}' object")
+        PyTypes.TYPE.def("__subclasses__", PyBuiltin("__subclasses__") { ctx, a -> PyList(ArrayList<Any?>(self(a, "__subclasses__").subclasses(ctx))) })
+        PyTypes.TYPE.def("mro", PyBuiltin("mro") { _, a -> val t = self(a, "mro"); PyList(ArrayList<Any?>(PyTypes.c3(t, t.bases).toList())) })
+        PyTypes.TYPE.def("__instancecheck__", PyBuiltin("__instancecheck__") { _, a -> PyBool.of(PyTypes.typeOf(a[1]).isSubtype(self(a, "__instancecheck__"))) })
+        PyTypes.TYPE.def("__subclasscheck__", PyBuiltin("__subclasscheck__") { _, a ->
+            val c = a[1] as? PyType ?: throw PyRt.typeError("issubclass() arg 1 must be a class")
+            PyBool.of(c.isSubtype(self(a, "__subclasscheck__")))
+        })
+        // (a class body's namespace: a dict, whatever the arguments)
+        PyTypes.TYPE.def("__prepare__", PyClassMethod(PyBuiltin("__prepare__", { _, _ -> PyDict() }, { _, _, _ -> PyDict() })))
+        PyTypes.OBJECT.def("__subclasshook__", PyClassMethod(PyBuiltin("__subclasshook__") { _, _ -> PyNotImplemented }))
     }
 
     /** After a class is made: its descriptors' __set_name__, then its parent's __init_subclass__ (with the class's keywords). */
@@ -490,8 +512,14 @@ object PyClasses {
         if (PyAnnotations.isName(name)) return PyAnnotations.typeGet(t, name)
         // (a class's own type parameters, not a base's)
         if (name == "__type_params__") return t.dict[PyStr(name)] ?: PyTuple.EMPTY
+        // (its own abstract methods, where they were set: not a base's, not type's)
+        if (name == "__abstractmethods__") {
+            return (if (t === PyTypes.TYPE) null else t.dict[PyStr(name)]) ?: throw PyException("AttributeError", "__abstractmethods__")
+        }
         t.lookup(name)?.let { return descrGet(null, it, null, t) }
         if (md != null) return descrGet(null, md, t, meta)
+        // (type's own methods, for a class whose metaclass is type: C.mro(), C.__subclasses__())
+        if (meta === PyTypes.TYPE) PyTypes.TYPE.dict[PyStr(name)]?.let { return descrGet(null, it, t, meta) }
         return when (name) {
             "__name__" -> PyStr(t.name)
             "__qualname__" -> PyStr(t.qualname)
@@ -557,6 +585,7 @@ object PyClasses {
                 PyAnnotations.typeSet(obj, name, v)
                 return
             }
+            if (name == "__abstractmethods__") obj.isAbstract = PyRt.truthy(v)
             obj.dict[PyStr(name)] = v
             if (name == "__getattribute__" || name == "__setattr__" || name == "__delattr__") obj.hooks = hooksOf(obj)
             return
@@ -635,6 +664,11 @@ object PyClasses {
         if (obj is PyType) {
             if (obj.heap && PyAnnotations.isName(name)) {
                 PyAnnotations.typeSet(obj, name, null)
+                return
+            }
+            if (name == "__abstractmethods__") {
+                if (obj.dict.map.remove(PyDict.Key(PyStr(name))) == null) throw PyException("AttributeError", "__abstractmethods__")
+                obj.isAbstract = false
                 return
             }
             if (obj.dict.map.remove(PyDict.Key(PyStr(name))) == null) throw PyException("AttributeError", "type object '${obj.name}' has no attribute '$name'")

@@ -1,0 +1,26 @@
+instancecheck M int
+instancecheck M int
+instancecheck M Sub
+True False True False
+subclasscheck M int
+subclasscheck M str
+subclasscheck M 1
+subclasscheck M int
+True False False True
+True False True True
+issubclass() arg 1 must be a class
+True True True
+[<class '__main__.B'>, <class '__main__.C'>] [<class '__main__.D'>] [] True
+[<class '__main__.D'>, <class '__main__.B'>, <class '__main__.C'>, <class '__main__.A'>, <class 'object'>] [<class '__main__.D'>, <class '__main__.B'>, <class '__main__.C'>, <class '__main__.A'>, <class 'object'>] [<class 'int'>, <class 'object'>] True
+dict {} NotImplemented NotImplemented
+list True
+AttributeError __abstractmethods__
+['a', 'z']
+Q
+AttributeError __abstractmethods__
+Can't instantiate abstract class P without an implementation for abstract methods 'a', 'z'
+Can't instantiate abstract class P without an implementation for abstract method 'only'
+P
+AttributeError __abstractmethods__
+AttributeError __abstractmethods__
+callable_iterator

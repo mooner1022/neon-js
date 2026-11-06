@@ -7,7 +7,7 @@ import java.math.BigInteger
  * order ([mro], C3, the type itself first). Builtin types make their values with [newImpl]; a type may refuse to be a
  * base ([subclassable]). The type of a type is [meta] (`type` where null).
  */
-class PyType(@JvmField var name: String, bases: Array<PyType>, @JvmField val dict: PyDict = PyDict()) {
+class PyType(@JvmField var name: String, bases: Array<PyType>, @JvmField val dict: PyDict = PyDict(), heap: Boolean = false) {
     @JvmField var qualname: String = name
     @JvmField var module: String = "builtins"
     @JvmField var bases: Array<PyType> = bases
@@ -15,7 +15,7 @@ class PyType(@JvmField var name: String, bases: Array<PyType>, @JvmField val dic
     @JvmField var meta: PyType? = null
     @JvmField var subclassable = true
     /** A class (made by a class statement or type()), not a builtin type: what `__annotations__` is given for. */
-    @JvmField var heap = false
+    @JvmField var heap = heap
     /** Whether dispatch takes its builtin methods too (a weak reference's, a proxy's: theirs are all it has), and its subclasses'. */
     @JvmField var dispatchBuiltins = false
     /** The name messages give its instances' type by where it is not [name] (a C type's tp_name: `types.GenericAlias`). */
@@ -24,6 +24,30 @@ class PyType(@JvmField var name: String, bases: Array<PyType>, @JvmField val dic
     @JvmField var hooks = 0
     /** Makes a value of this builtin type (or of a class deriving from it): (context, type, arguments, keywords). */
     @JvmField var newImpl: ((PyContext, PyType, Array<Any?>, PyDict?) -> Any?)? = null
+    /** Whether its __abstractmethods__ were set non-empty: object.__new__ refuses to make an instance (abc's ABCMeta sets them). */
+    @JvmField var isAbstract = false
+    /** The builtin types deriving from it directly (bool from int): every context's. */
+    @JvmField val builtinSubclasses = java.util.concurrent.CopyOnWriteArrayList<PyType>()
+    /** A class's classes deriving from it directly, while they live (a builtin type's are each context's: [PyContext.subclassRefs]). */
+    @JvmField val subclassRefs = ArrayList<java.lang.ref.WeakReference<PyType>>(0)
+
+    init {
+        if (!heap) for (b in bases) b.builtinSubclasses.add(this)
+    }
+
+    /** `__subclasses__()`: the types deriving from it directly that live, in the order they were made ([ctx]'s classes). */
+    fun subclasses(ctx: PyContext): List<PyType> {
+        val refs = if (heap) subclassRefs else ctx.subclassRefs[this] ?: emptyList<java.lang.ref.WeakReference<PyType>>()
+        return builtinSubclasses + refs.mapNotNull { it.get() }
+    }
+
+    /** Notes [sub], a class just made in [ctx], as one deriving from it. */
+    fun addSubclass(ctx: PyContext, sub: PyType) {
+        val refs = if (heap) subclassRefs else ctx.subclassRefs.getOrPut(this) { ArrayList() }
+        // (those gone let go of now and then)
+        if (refs.size >= 32 && refs.size and (refs.size - 1) == 0) refs.removeAll { it.get() == null }
+        refs.add(java.lang.ref.WeakReference(sub))
+    }
 
     /** Attribute [n] of the first type of the MRO that has it, or null. */
     fun lookup(n: String): Any? {
@@ -220,19 +244,44 @@ object PyTypes {
         }
     }
 
-    /** isinstance(v, cls), cls a type or a tuple of them. */
+    /**
+     * isinstance(v, cls), cls a type or a tuple of them: an instance of exactly cls is one; else cls's metaclass's
+     * __instancecheck__ where it has its own (abc's ABCMeta), and so for an object of a class that has one.
+     */
     @JvmStatic
     fun isInstance(v: Any?, cls: Any?): Boolean = when (cls) {
-        is PyType -> typeOf(v).isSubtype(cls)
+        is PyType -> {
+            val t = typeOf(v)
+            if (t === cls) true else {
+                val meta = typeOf(cls)
+                val check = if (meta === TYPE) null else PyDunder.userMethod(meta, "__instancecheck__")
+                if (check != null) PyRt.truthy(PyCalls.callWith(PyContext.current(), check, arrayOf(cls, v), NO_ARGS, NO_ARGS))
+                else t.isSubtype(cls)
+            }
+        }
         is PyTuple -> cls.items.any { isInstance(v, it) }
         is PyUnion -> PyTyping.unionInstance(v, cls)
         is PyGenericAlias -> throw PyRt.typeError(if (cls.typing) "Subscripted generics cannot be used with class and instance checks" else "isinstance() argument 2 cannot be a parameterized generic")
-        else -> throw PyRt.typeError("isinstance() arg 2 must be a type, a tuple of types, or a union")
+        else -> {
+            val check = PyClasses.classOf(cls)?.let { PyDunder.userMethod(it, "__instancecheck__") }
+                ?: throw PyRt.typeError("isinstance() arg 2 must be a type, a tuple of types, or a union")
+            PyRt.truthy(PyCalls.callWith(PyContext.current(), check, arrayOf(cls, v), NO_ARGS, NO_ARGS))
+        }
+    }
+
+    /** cls's metaclass's (or class's) own __subclasscheck__, or null. */
+    private fun subclassCheck(cls: Any?): Any? = when (cls) {
+        is PyType -> typeOf(cls).let { meta -> if (meta === TYPE) null else PyDunder.userMethod(meta, "__subclasscheck__") }
+        is PyTuple, is PyUnion, is PyGenericAlias -> null
+        else -> PyClasses.classOf(cls)?.let { PyDunder.userMethod(it, "__subclasscheck__") }
     }
 
     /** issubclass(c, cls). */
     @JvmStatic
     fun isSubclass(c: Any?, cls: Any?): Boolean {
+        // (a metaclass's own check first: it decides what it takes as arg 1 too)
+        subclassCheck(cls)?.let { return PyRt.truthy(PyCalls.callWith(PyContext.current(), it, arrayOf(cls, c), NO_ARGS, NO_ARGS)) }
+        if (cls is PyTuple) return cls.items.any { isSubclass(c, it) }
         if (c !is PyType) throw PyRt.typeError("issubclass() arg 1 must be a class")
         return when (cls) {
             is PyType -> c.isSubtype(cls)

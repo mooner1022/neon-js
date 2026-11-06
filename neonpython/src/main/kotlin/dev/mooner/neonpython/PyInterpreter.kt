@@ -45,6 +45,8 @@ class PyContext(
     @JvmField var gcEnabled = true
     /** sys.set_int_max_str_digits: the most digits an int-str conversion of a base not a power of 2 takes (0: no limit). */
     @JvmField var maxStrDigits = PySys.DEFAULT_MAX_STR_DIGITS
+    /** The classes of this context deriving from each builtin type (`object.__subclasses__()`): a context's are its own. */
+    @JvmField val subclassRefs = java.util.IdentityHashMap<PyType, ArrayList<java.lang.ref.WeakReference<PyType>>>()
     /** The containers whose repr is being made ([PyRt.reprGuarded]: `[...]` where one holds itself). */
     @JvmField val reprActive = java.util.IdentityHashMap<Any, Boolean>()
 

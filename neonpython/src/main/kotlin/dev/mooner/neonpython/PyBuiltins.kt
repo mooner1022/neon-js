@@ -385,7 +385,7 @@ object PyBuiltins {
                             PyIterator.STOP
                         } else v
                     }
-                }
+                }.also { it.type = PyLibrary.type("callable_iterator") }
             }
         }
         def("next") { ctx, args ->
