@@ -650,7 +650,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                     store(s.target)
                 } else when (val t = s.target) {
                     // (an annotation alone evaluates its target's parts, not the target)
-                    is Attribute -> { expr(t.value); emit(PyOp.POP) }
+                    is Attribute -> { forbidden(t.attr); expr(t.value); emit(PyOp.POP) }
                     is Subscript -> { expr(t.value); emit(PyOp.POP); expr(t.slice); emit(PyOp.POP) }
                     else -> {}
                 }
@@ -1175,6 +1175,9 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 bind(p.rest, p)
             }
             is MatchClass -> {
+                for ((i, k) in p.kwdAttrs.withIndex()) {
+                    if (k == "__debug__") throw PySyntaxError("cannot assign to __debug__", p.kwdPatterns[i].line, p.kwdPatterns[i].col)
+                }
                 p.patterns.forEach { checkPattern(it, names) }
                 p.kwdPatterns.forEach { checkPattern(it, names) }
             }
@@ -1840,6 +1843,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 expr(t.value)
                 emit(PyOp.STORE_ATTR, name(mangle(t.attr)))
             }
+            is Starred -> throw PySyntaxError("starred assignment target must be in a list or tuple", t.line, t.col)
             else -> unsupported("assignment to this target", t)
         }
     }

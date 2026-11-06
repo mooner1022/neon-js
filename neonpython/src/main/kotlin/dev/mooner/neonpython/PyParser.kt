@@ -194,7 +194,14 @@ class PyParser(private val src: String) {
         }
     }
 
-    private fun elseBlock(): List<Stmt> = if (atName("else")) block("'else' statement", next().line, forced = true) else emptyList()
+    private fun elseBlock(): List<Stmt> = if (atName("else")) elseBody() else emptyList()
+
+    /** An else block, at `else` (CPython's invalid_else_stmt: an elif after it). */
+    private fun elseBody(): List<Stmt> {
+        val body = block("'else' statement", next().line, forced = true)
+        if (atName("elif")) error("'elif' block follows an 'else' block")
+        return body
+    }
 
     private fun decorated(): Stmt {
         val decorators = ArrayList<Expr>()
@@ -302,12 +309,30 @@ class PyParser(private val src: String) {
         }
         while (!atOp(close)) {
             if (kwarg != null) error("arguments cannot follow var-keyword argument")
+            // (CPython's invalid_parameters: plain parameters, then ones in parentheses)
+            if (atOp("(") && invalidRules && !slash && !star && defaults.isEmpty()) {
+                val lp = tok
+                val save = p
+                val grouped = speculate {
+                    next()
+                    param()
+                    while (atOp(",")) {
+                        next()
+                        if (atOp(")")) break
+                        param()
+                    }
+                    if (!atOp(")")) error()
+                }
+                p = save
+                if (grouped) error(if (close == ")") "Function parameters cannot be parenthesized" else "Lambda expression parameters cannot be parenthesized", t = lp)
+            }
             when {
                 atOp("/") -> {
                     if (slash) error("/ may appear only once")
                     if (star) error("/ must be ahead of *")
                     if (args.isEmpty()) error("at least one argument must precede /")
                     next()
+                    if (atOp("*")) error("expected comma between / and *")
                     slash = true
                     posonly.addAll(args)
                     args.clear()
@@ -318,8 +343,8 @@ class PyParser(private val src: String) {
                     star = true
                     if (atOp(",") || atOp(close)) bareStar = t
                     else {
-                        if (atOp("=")) error("var-positional argument cannot have default value")
                         vararg = param(starred = true)
+                        if (atOp("=")) error("var-positional argument cannot have default value")
                     }
                 }
                 atOp("**") -> {
@@ -329,7 +354,12 @@ class PyParser(private val src: String) {
                 }
                 else -> {
                     val a = param()
-                    val d = if (atOp("=")) { next(); expression() } else null
+                    val d = if (atOp("=")) {
+                        // (CPython's invalid_default)
+                        if (peek().kind == Kind.OP && (peek().text == ")" || peek().text == ",")) error("expected default value expression")
+                        next()
+                        expression()
+                    } else null
                     if (star) {
                         kwonly.add(a)
                         kwDefaults.add(d)
@@ -352,7 +382,7 @@ class PyParser(private val src: String) {
         val body = block("'${t.text}' statement", t.line)
         val orelse = when {
             atName("elif") -> listOf(ifStmt())
-            atName("else") -> block("'else' statement", next().line, forced = true)
+            atName("else") -> elseBody()
             else -> emptyList()
         }
         return If(test, body, orelse).at(t)
@@ -431,13 +461,26 @@ class PyParser(private val src: String) {
                 if (atName("as")) error("multiple exception types must be parenthesized when using 'as'")
                 type = TupleExpr(elts).at(et)
             }
-            val name = if (atName("as")) { next(); expectName().text } else null
+            val name = if (atName("as")) { next(); exceptTarget(isStar) } else null
             handlers.add(ExceptHandler(type, name, block(if (isStar) "'except*' statement" else "'except' statement", et.line)).at(et))
         }
         val orelse = if (handlers.isNotEmpty()) elseBlock() else emptyList()
         val finalbody = if (atName("finally")) block("'finally' statement", next().line, forced = true) else emptyList()
         if (handlers.isEmpty() && finalbody.isEmpty()) error("expected 'except' or 'finally' block")
         return Try(body, handlers, orelse, finalbody, star == true).at(t)
+    }
+
+    /** The name after an except's `as` (CPython's invalid_except_stmt: another expression before its `:`). */
+    private fun exceptTarget(star: Boolean): String {
+        if (atIdentifier() && peek().kind == Kind.OP && peek().text == ":") return next().text
+        val t = tok
+        val save = p
+        var e: Expr? = null
+        if (invalidRules && speculate { e = expression() } && atOp(":")) {
+            error("cannot use ${if (star) "except*" else "except"} statement with ${targetWhat(e!!)}", t = t)
+        }
+        p = save
+        return expectName().text
     }
 
     private fun simpleStatement(): Stmt {
@@ -464,14 +507,25 @@ class PyParser(private val src: String) {
             }
             "del" -> {
                 next()
+                val start = p
                 val targets = ArrayList<Expr>()
-                while (true) {
-                    val e = delTarget()
-                    toTarget(e, Ctx.Del)
-                    targets.add(e)
-                    if (!atOp(",")) break
-                    next()
-                    if (endOfSimple()) break
+                try {
+                    while (true) {
+                        val e = delTarget()
+                        toTarget(e, Ctx.Del)
+                        targets.add(e)
+                        if (!atOp(",")) break
+                        next()
+                        if (endOfSimple()) break
+                    }
+                    if (!endOfSimple()) error()
+                } catch (e: PySyntaxError) {
+                    // (CPython's invalid_del_stmt: what does not parse as targets, its error as an expression's)
+                    if (e.fatal || !invalidRules) throw e
+                    p = start
+                    var x: Expr? = null
+                    if (speculate { x = starExpressions() }) toTarget(x!!, Ctx.Del)
+                    throw e
                 }
                 return Delete(targets).at(t)
             }
@@ -482,8 +536,13 @@ class PyParser(private val src: String) {
             }
             "import" -> {
                 next()
+                if (at(Kind.NEWLINE)) error("Expected one or more names after 'import'")
                 val names = arrayListOf(dottedAlias())
                 while (atOp(",")) { next(); names.add(dottedAlias()) }
+                // (CPython's invalid_import)
+                if (atName("from") && names.all { it.asname == null } && run { val save = p; next(); val ok = speculate { dottedName() }; p = save; ok }) {
+                    error("Did you mean to use 'from ... import ...' instead?", t = t)
+                }
                 return Import(names).at(t)
             }
             "from" -> return importFrom()
@@ -513,7 +572,22 @@ class PyParser(private val src: String) {
     private fun dottedAlias(): Alias {
         val t = tok
         val name = dottedName()
-        return Alias(name, if (atName("as")) { next(); expectName().text } else null).at(t)
+        return Alias(name, if (atName("as")) { next(); importTarget() } else null).at(t)
+    }
+
+    /**
+     * The name after an import's `as` (CPython's invalid_dotted_as_name, invalid_import_from_as_name: an
+     * expression where no name before `,`, `)`, `;` or the line's end).
+     */
+    private fun importTarget(): String {
+        val n = peek()
+        if (atIdentifier() && (n.kind == Kind.NEWLINE || n.kind == Kind.OP && n.text in setOf(",", ")", ";"))) return next().text
+        val t = tok
+        val save = p
+        var e: Expr? = null
+        if (invalidRules && speculate { e = expression() }) error("cannot use ${targetWhat(e!!)} as import target", t = t)
+        p = save
+        return expectName().text
     }
 
     private fun importFrom(): Stmt {
@@ -526,6 +600,7 @@ class PyParser(private val src: String) {
         } else dottedName()
         if (!atName("import")) error()
         next()
+        if (at(Kind.NEWLINE)) error("Expected one or more names after 'import'")
         val names = ArrayList<Alias>()
         if (atOp("*")) {
             val st = next()
@@ -537,7 +612,7 @@ class PyParser(private val src: String) {
         while (true) {
             val at = tok
             val n = expectName().text
-            names.add(Alias(n, if (atName("as")) { next(); expectName().text } else null).at(at))
+            names.add(Alias(n, if (atName("as")) { next(); importTarget() } else null).at(at))
             if (!atOp(",")) break
             next()
             if (paren && atOp(")")) break
@@ -572,7 +647,21 @@ class PyParser(private val src: String) {
                     if (!atOp("=")) break
                     targets.add(value)
                 }
-                for (x in targets) toTarget(x, Ctx.Store, assign = true)
+                try {
+                    for (x in targets) {
+                        if (x is Yield && !x.parenthesized || x is YieldFrom && !x.parenthesized) {
+                            error("assignment to yield expression not possible", t = tokAt(x))
+                        }
+                        toTarget(x, Ctx.Store)
+                    }
+                } catch (e: PySyntaxError) {
+                    // (a target that does not parse as one: not the compiler's errors, __debug__ or two starred)
+                    if (invalidRules && (e.msg.startsWith("cannot assign to") && e.msg != "cannot assign to __debug__" ||
+                            e.msg == "assignment to yield expression not possible")) {
+                        assignmentError(first, if (targets.size > 1) targets[1] else value, targets.size > 1 || atOp(":="))
+                    }
+                    throw e
+                }
                 return Assign(targets, value).at(t)
             }
             tok.kind == Kind.OP && tok.text in AUG -> {
@@ -584,8 +673,73 @@ class PyParser(private val src: String) {
                 return AugAssign(first, op, if (atName("yield")) yieldExpr() else starExpressions()).at(t)
             }
         }
+        if (atOp(":=") && invalidRules) {
+            // (CPython's invalid_named_expression: the target before it no name)
+            val a = if (first is TupleExpr && !first.parenthesized) first.elts.last() else first
+            if (a !is Name || a.parenthesized) error("cannot use assignment expressions with ${targetWhat(a)}", t = tokAt(a))
+        }
         if (first is Starred) error("can't use starred expression here", t = t)
         return ExprStmt(first).at(t)
+    }
+
+    /**
+     * CPython's invalid_named_expression for an assignment with a target it cannot assign to: on the first
+     * target's last element, before `=` and [rhs] (followed by another `=` or `:=` where [chained]). A name there
+     * is "Maybe you meant '==' or ':='", another operand "cannot assign to X here. Maybe you meant '=='"; else the
+     * plain error stays.
+     */
+    private fun assignmentError(first: Expr, rhs: Expr, chained: Boolean) {
+        val a = if (first is TupleExpr && !first.parenthesized) first.elts.last() else first
+        if (!leadingOperand(rhs) || chained && operand(rhs)) return
+        if (a is Name && !a.parenthesized) error("invalid syntax. Maybe you meant '==' or ':=' instead of '='?", t = tokAt(a))
+        if (operand(a) && !excludedOperand(a)) error("cannot assign to ${targetWhat(a)} here. Maybe you meant '==' instead of '='?", t = tokAt(a))
+    }
+
+    /** Whether [e] is one bitwise_or (an operand of a comparison), as CPython's grammar parses it. */
+    private fun operand(e: Expr): Boolean = e.parenthesized || when (e) {
+        is TupleExpr, is Compare, is BoolOp, is IfExp, is Lambda, is Yield, is YieldFrom, is Starred, is NamedExpr -> false
+        is UnaryOp -> e.op != UnaryOpKind.Not
+        else -> true
+    }
+
+    /** Whether [e] starts with a bitwise_or. */
+    private fun leadingOperand(e: Expr): Boolean = e.parenthesized || when (e) {
+        is TupleExpr -> e.elts.isNotEmpty() && leadingOperand(e.elts[0])
+        is Compare -> true
+        is BoolOp -> leadingOperand(e.values[0])
+        is IfExp -> leadingOperand(e.body)
+        else -> operand(e)
+    }
+
+    /** An operand starting with a list, a tuple, a generator expression, True, None or False (the lookahead CPython excludes). */
+    private fun excludedOperand(e: Expr): Boolean {
+        var x = e
+        while (!x.parenthesized) {
+            x = when (x) {
+                is Attribute -> x.value
+                is Subscript -> x.value
+                is Call -> x.func
+                is BinOp -> x.left
+                else -> break
+            }
+        }
+        return x is ListExpr || x is TupleExpr && x.parenthesized || x is GeneratorExp ||
+            x is Constant && (x.value is PyBool || x.value === PyNone)
+    }
+
+    /**
+     * An expression and `=` where a named expression was expected (CPython's invalid_named_expression): a name
+     * before it "Maybe you meant '==' or ':='", another operand "cannot assign to X here", where a bitwise_or
+     * follows without another `=` or `:=`.
+     */
+    private fun assignInExpression(start: Int, e: Expr) {
+        val save = p
+        next() // =
+        val rhs = speculate { bitwiseOr() } && !atOp("=") && !atOp(":=")
+        p = save
+        if (!rhs) return
+        if (toks[start].kind == Kind.NAME && toks[start].text !in KEYWORDS && p == start + 1) error("invalid syntax. Maybe you meant '==' or ':=' instead of '='?", t = toks[start])
+        if (operand(e) && !excludedOperand(e)) error("cannot assign to ${targetWhat(e)} here. Maybe you meant '==' instead of '='?", t = tokAt(e))
     }
 
     // ------------------------------------------------------------------ targets
@@ -618,7 +772,7 @@ class PyParser(private val src: String) {
      * Marks [e] a target ([ctx] Store or Del), or the SyntaxError CPython gives for what it is ([assign]: in an
      * assignment's `=`, where CPython suggests `==`).
      */
-    private fun toTarget(e: Expr, ctx: Ctx, assign: Boolean = false) {
+    private fun toTarget(e: Expr, ctx: Ctx) {
         when (e) {
             is Name -> {
                 if (ctx == Ctx.Store && e.id == "__debug__") error("cannot assign to __debug__", t = tokAt(e))
@@ -635,14 +789,9 @@ class PyParser(private val src: String) {
                 val elts = if (e is TupleExpr) e.elts else (e as ListExpr).elts
                 if (e is TupleExpr) e.ctx = ctx else (e as ListExpr).ctx = ctx
                 if (ctx == Ctx.Store && elts.count { it is Starred } > 1) error("multiple starred expressions in assignment", t = tokAt(e))
-                for (x in elts) toTarget(x, ctx, assign)
+                for (x in elts) toTarget(x, ctx)
             }
-            else -> {
-                val what = targetWhat(e)
-                val verb = if (ctx == Ctx.Del) "delete" else "assign to"
-                val named = e is Constant && (e.value is PyBool || e.value === PyNone)
-                error(if (assign && !named) "cannot assign to $what here. Maybe you meant '==' instead of '='?" else "cannot $verb $what", t = tokAt(e))
-            }
+            else -> error("cannot ${if (ctx == Ctx.Del) "delete" else "assign to"} ${targetWhat(e)}", t = tokAt(e))
         }
     }
 
@@ -673,6 +822,11 @@ class PyParser(private val src: String) {
         is GeneratorExp -> "generator expression"
         is TupleExpr -> "tuple"
         is ListExpr -> "list"
+        is Attribute -> "attribute"
+        is Subscript -> "subscript"
+        is Starred -> "starred"
+        is Name -> "name"
+        is Slice -> "slice"
         else -> "expression"
     }
 
@@ -703,12 +857,22 @@ class PyParser(private val src: String) {
     private fun starNamedExpression(display: Boolean = false): Expr {
         if (atOp("*")) {
             val t = next()
+            if (display) starredOperand()
             val start = p
             val v = bitwiseOr()
             if (display && invalidRules && startsExpression()) adjacent(start, v)
             return Starred(v).at(t)
         }
         return namedExpression()
+    }
+
+    /** After an argument and `=`: whether an expression follows (and then the tokens back at the `=`). */
+    private fun valueAfterEquals(): Boolean {
+        val save = p
+        next()
+        val ok = speculate { expression() }
+        p = save
+        return ok
     }
 
     /** Whether the token can start an expression (after a trailing comma it cannot). */
@@ -719,14 +883,20 @@ class PyParser(private val src: String) {
         else -> false
     }
 
-    private fun namedExpression(): Expr {
+    /** A named expression, or (an argument's, [argument]: CPython's assignment_expression or expression) an expression. */
+    private fun namedExpression(argument: Boolean = false): Expr {
         if (atIdentifier() && peek().kind == Kind.OP && peek().text == ":=") {
             val t = next()
             next()
             return NamedExpr(Name(t.text, Ctx.Store).at(t), expression()).at(t)
         }
+        val start = p
         val e = expression()
-        if (atOp(":=")) error("cannot use assignment expressions with ${targetWhat(e)}")
+        if (atOp(":=")) {
+            if (argument || !invalidRules) error()
+            error("cannot use assignment expressions with ${targetWhat(e)}", t = tokAt(e))
+        }
+        if (!argument && invalidRules && atOp("=")) assignInExpression(start, e)
         return e
     }
 
@@ -876,9 +1046,21 @@ class PyParser(private val src: String) {
         var left = operand()
         while (tok.kind == Kind.OP && tok.text in ops) {
             val op = OpKind.of(next().text)!!
+            // (CPython's invalid_arithmetic)
+            if (atName("not") && invalidRules && ops[0] in ARITH_FIRST) notAfterOperator { inversion() }
             left = BinOp(left, op, operand()).at(t)
         }
         return left
+    }
+
+    /** At `not` after an operator: "'not' after an operator must be parenthesized" where [operand] follows it. */
+    private fun notAfterOperator(operand: () -> Unit) {
+        val nt = tok
+        val save = p
+        next()
+        val ok = speculate { operand() }
+        p = save
+        if (ok) error("'not' after an operator must be parenthesized", t = nt)
     }
 
     private fun bitwiseOr(): Expr = binary(::bitwiseXor, "|")
@@ -892,6 +1074,8 @@ class PyParser(private val src: String) {
         if (tok.kind == Kind.OP && tok.text in setOf("-", "+", "~")) {
             val t = next()
             val k = when (t.text) { "-" -> UnaryOpKind.USub; "+" -> UnaryOpKind.UAdd; else -> UnaryOpKind.Invert }
+            // (CPython's invalid_factor)
+            if (atName("not") && invalidRules) notAfterOperator { factor() }
             return UnaryOp(k, factor()).at(t)
         }
         return power()
@@ -942,6 +1126,15 @@ class PyParser(private val src: String) {
 
     private fun <T : Node> T.at(line: Int, col: Int): T = also { it.line = line; it.col = col }
 
+    /** After a `*` where CPython's starred_expression is ('*' expression): none there is "Invalid star expression". */
+    private fun starredOperand() {
+        if (!invalidRules) return
+        val save = p
+        val ok = speculate { expression() }
+        p = save
+        if (!ok) error("Invalid star expression", t = toks[p - 1])
+    }
+
     /** A call's arguments, up to and with its `)`: positional ones (`*x` among them), then keyword ones (`**m`). */
     private fun arguments(allowGenexp: Boolean): Pair<List<Expr>, List<Keyword>> {
         val args = ArrayList<Expr>()
@@ -954,25 +1147,39 @@ class PyParser(private val src: String) {
             when {
                 atOp("*") -> {
                     next()
+                    starredOperand()
                     if (sawDoubleStar) error("iterable argument unpacking follows keyword argument unpacking", t = t)
-                    args.add(Starred(expression()).at(t))
+                    val v = expression()
+                    // (CPython's invalid_starred_expression_unpacking)
+                    if (atOp("=") && invalidRules && valueAfterEquals()) error("cannot assign to iterable argument unpacking", t = t)
+                    args.add(Starred(v).at(t))
                 }
                 atOp("**") -> {
                     next()
-                    keywords.add(Keyword(null, expression()).at(t))
+                    val v = expression()
+                    if (atOp("=") && invalidRules && valueAfterEquals()) error("cannot assign to keyword argument unpacking", t = t)
+                    keywords.add(Keyword(null, v).at(t))
                     sawDoubleStar = true
+                }
+                t.kind == Kind.NAME && t.text in setOf("True", "False", "None") && peek().kind == Kind.OP && peek().text == "=" -> {
+                    error("cannot assign to ${t.text}")
                 }
                 atIdentifier() && peek().kind == Kind.OP && peek().text == "=" -> {
                     val n = next().text
                     next()
-                    keywords.add(Keyword(n, expression()).at(t))
+                    // (CPython's invalid_arguments: no value, or a generator expression's)
+                    if (atOp(",") || atOp(")")) error("expected argument value expression", t = t)
+                    val v = expression()
+                    if (atComprehension()) error("invalid syntax. Maybe you meant '==' or ':=' instead of '='?", t = t)
+                    keywords.add(Keyword(n, v).at(t))
                     sawKeyword = true
                 }
                 else -> {
-                    var e = namedExpression()
+                    var e = namedExpression(argument = true)
                     if (atName("for") || atName("async") && peek().text == "for") {
                         e = GeneratorExp(e, comprehensions()).at(t)
                         genexp = true
+                        if (atOp(",")) error("Generator expression must be parenthesized", t = t)
                     } else if (atOp("=")) {
                         error("expression cannot contain assignment, perhaps you meant \"==\"?", t = t)
                     }
@@ -984,7 +1191,8 @@ class PyParser(private val src: String) {
             if (!atOp(")")) expectOp(",")
         }
         next()
-        if (genexp && (!allowGenexp || args.size + keywords.size > 1)) error("Generator expression must be parenthesized")
+        if (genexp && args.size + keywords.size > 1) error("Generator expression must be parenthesized")
+        if (genexp && !allowGenexp) error(t = toks[p - 1])
         return args to keywords
     }
 
@@ -1007,7 +1215,9 @@ class PyParser(private val src: String) {
         val t = tok
         if (atOp("*")) {
             next()
-            return Starred(bitwiseOr()).at(t)
+            starredOperand()
+            // (CPython's starred_expression: '*' expression)
+            return Starred(expression()).at(t)
         }
         val lower = if (atOp(":")) null else namedExpression()
         if (!atOp(":")) return lower!!
@@ -1094,8 +1304,10 @@ class PyParser(private val src: String) {
                     while (atOp(",")) {
                         next()
                         if (atOp("]")) break
+                        if (atComprehension()) break
                         elts.add(starNamedExpression())
                     }
+                    if (atComprehension()) error("did you forget parentheses around the comprehension target?", t = tokAt(first))
                     expectOp("]")
                     return ListExpr(elts).at(t)
                 }
@@ -1171,8 +1383,10 @@ class PyParser(private val src: String) {
         while (atOp(",")) {
             next()
             if (atOp("}")) break
+            if (atComprehension()) break
             elts.add(starNamedExpression())
         }
+        if (atComprehension()) error("did you forget parentheses around the comprehension target?", t = tokAt(first))
         expectOp("}")
         return SetExpr(elts).at(t)
     }
@@ -1376,6 +1590,14 @@ class PyParser(private val src: String) {
             if (atOp(":") || at(Kind.NEWLINE)) null else matchSubject()
         } catch (e: PySyntaxError) {
             if (e.fatal) throw e
+            // (an invalid_ rule's error in the subject is CPython's where the line is no statement either)
+            if (e.msg != "invalid syntax") {
+                p = save
+                val stmt = speculate { simpleStatements() }
+                p = save
+                if (!stmt) throw e
+                return null
+            }
             null
         }
         if (subject != null && at(Kind.NEWLINE)) {
@@ -1398,7 +1620,7 @@ class PyParser(private val src: String) {
         val cases = ArrayList<MatchCase>()
         while (!at(Kind.DEDENT) && !at(Kind.END)) {
             if (at(Kind.NEWLINE)) { p++; continue }
-            if (!atName("case")) error("expected 'case'")
+            if (!atName("case")) error()
             val ct = next()
             val pattern = patterns()
             val guard = if (atName("if")) { next(); namedExpression() } else null
@@ -1456,6 +1678,15 @@ class PyParser(private val src: String) {
         if (!atName("as")) return p
         next()
         val nt = tok
+        // (CPython's invalid_as_pattern: no name before '.', '(' or '=')
+        val n0 = peek()
+        if (!atIdentifier() || n0.kind == Kind.OP && n0.text in setOf(".", "(", "=")) {
+            if (atName("_")) error("cannot use '_' as a target")
+            val save = this.p
+            var e: Expr? = null
+            if (invalidRules && speculate { e = expression() }) error("cannot use ${targetWhat(e!!)} as pattern target", t = nt)
+            this.p = save
+        }
         val n = expectName().text
         if (n == "_") error("cannot use '_' as a target", t = nt)
         return MatchAs(p, n).at(t)
@@ -1551,7 +1782,10 @@ class PyParser(private val src: String) {
             if (rest != null) error()
             if (atOp("**")) {
                 next()
+                val nt = tok
                 rest = expectName().text
+                // (a capture target: not _)
+                if (rest == "_") error(t = nt)
             } else {
                 val kt = tok
                 val key: Expr = when {
@@ -1606,6 +1840,8 @@ class PyParser(private val src: String) {
         val EXPR_KEYWORDS = setOf("None", "True", "False", "not", "lambda", "await")
         val CMP = setOf("<", ">", "==", ">=", "<=", "!=")
         val SOFT_KEYWORDS = setOf("_", "case", "match", "type")
+        /** The first operators of sum and term, after which `not` is CPython's invalid_arithmetic. */
+        val ARITH_FIRST = setOf("+", "*")
         val EXPR_START_OPS = setOf("(", "[", "{", "-", "+", "~", "*", "...")
         val AUG = setOf("+=", "-=", "*=", "@=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=", "**=", "//=")
     }
