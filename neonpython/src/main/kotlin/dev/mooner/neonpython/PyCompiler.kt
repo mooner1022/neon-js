@@ -64,11 +64,64 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     private val lines = IntArrayList()
     private var line = 0
 
-    /** The loops around the statement compiled: where `continue` and `break` go (patched once known). */
-    private class Loop(val top: Int) {
-        val breaks = ArrayList<Int>()
+    /** The exception handlers' table (CodeUnit.handlers): quadruples (start, end, handler, depth 0), inner ones first. */
+    private val handlerTable = IntArrayList()
+
+    /**
+     * A range of code whose exceptions go to one handler: segments, since what leaving it runs (a return through a
+     * finally, the finally body copied there) is not its own; the handler known after the code ([handle]).
+     */
+    private inner class Range {
+        private val segs = IntArrayList()
+        private var open = -1
+
+        fun begin() {
+            open = code.size
+        }
+
+        fun end() {
+            if (open >= 0 && code.size > open) {
+                segs.add(open)
+                segs.add(code.size)
+            }
+            open = -1
+        }
+
+        fun handle(handler: Int) {
+            for (k in 0 until segs.size step 2) {
+                handlerTable.add(segs[k])
+                handlerTable.add(segs[k + 1])
+                handlerTable.add(handler)
+                handlerTable.add(0)
+            }
+        }
     }
-    private val loops = ArrayList<Loop>()
+
+    /**
+     * The blocks around the statement compiled (CPython's fblocks): what `return`, `break` and `continue` leave, and
+     * what leaving each runs ([unwind]).
+     */
+    private abstract class FBlock(val range: Range?) {
+        /** Whether leaving it runs code. */
+        open val leaves: Boolean get() = true
+    }
+    /** A loop: where `continue` goes, and the `break`s (patched once its end is known). */
+    private class Loop(val top: Int) : FBlock(null) {
+        val breaks = ArrayList<Int>()
+        override val leaves get() = false
+    }
+    /** A try's body, whose except clauses follow. */
+    private class TryBody(range: Range) : FBlock(range) {
+        override val leaves get() = false
+    }
+    /** A try's body, whose finally body runs leaving it. */
+    private class Finally(range: Range, val body: List<Stmt>) : FBlock(range)
+    /** A handler's body (an except clause's, a finally's for an exception): leaving it, the exception handled before. */
+    private class Handler(range: Range, val prev: Int) : FBlock(range)
+    /** An `except ... as name:` clause's body: leaving it, the name deleted. */
+    private class HandlerName(range: Range, val name: String) : FBlock(range)
+
+    private val fblocks = ArrayList<FBlock>()
 
     init {
         if (isClass) {
@@ -119,6 +172,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         emit(PyOp.RETURN)
         val cb = CodeUnit(name)
         cb.code = code.toArray()
+        cb.handlers = handlerTable.toArray()
         markUnbound(cb.code)
         cb.constants = constants.toTypedArray()
         cb.numRegs = regs
@@ -321,9 +375,9 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 expr(s.test)
                 val exit = emit(PyOp.POP_JUMP_IF_FALSE, 0)
                 val loop = Loop(top)
-                loops.add(loop)
+                fblocks.add(loop)
                 block(s.body)
-                loops.removeAt(loops.size - 1)
+                fblocks.removeAt(fblocks.size - 1)
                 emit(PyOp.JUMP, top)
                 patch(exit, code.size)
                 block(s.orelse)
@@ -341,9 +395,9 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 emit(PyOp.LOAD_FAST, value)
                 store(s.target)
                 val loop = Loop(top)
-                loops.add(loop)
+                fblocks.add(loop)
                 block(s.body)
-                loops.removeAt(loops.size - 1)
+                fblocks.removeAt(fblocks.size - 1)
                 emit(PyOp.JUMP, top)
                 patch(exit, code.size)
                 block(s.orelse)
@@ -360,7 +414,16 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             is Return -> {
                 if (namespace) throw PySyntaxError("'return' outside function", s.line, s.col)
                 if (s.value == null) loadConst(PyNone) else expr(s.value)
-                emit(PyOp.RETURN)
+                val exited = fblocks.asReversed().toList()
+                if (exited.none { it.leaves }) emit(PyOp.RETURN) else {
+                    // (the value kept while finally bodies run)
+                    val t = temp()
+                    emit(PyOp.STORE_FAST, t)
+                    unwind(exited) {
+                        emit(PyOp.LOAD_FAST, t)
+                        emit(PyOp.RETURN)
+                    }
+                }
             }
             is Delete -> for (t in s.targets) delete(t)
             is Assert -> {
@@ -374,16 +437,31 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             }
             is Global, is Nonlocal, is Pass -> {}
             is Break -> {
-                val loop = loops.lastOrNull() ?: throw PySyntaxError("'break' outside loop", s.line, s.col)
-                loop.breaks.add(emit(PyOp.JUMP, 0))
+                val k = fblocks.indexOfLast { it is Loop }
+                if (k < 0) throw PySyntaxError("'break' outside loop", s.line, s.col)
+                val loop = fblocks[k] as Loop
+                unwind(fblocks.subList(k + 1, fblocks.size).asReversed().toList()) { loop.breaks.add(emit(PyOp.JUMP, 0)) }
             }
             is Continue -> {
-                val loop = loops.lastOrNull() ?: throw PySyntaxError("'continue' not properly in loop", s.line, s.col)
-                emit(PyOp.JUMP, loop.top)
+                val k = fblocks.indexOfLast { it is Loop }
+                if (k < 0) throw PySyntaxError("'continue' not properly in loop", s.line, s.col)
+                val loop = fblocks[k] as Loop
+                unwind(fblocks.subList(k + 1, fblocks.size).asReversed().toList()) { emit(PyOp.JUMP, loop.top) }
             }
             is ClassDef -> classDef(s)
-            is Try -> unsupported(if (s.star) "try with except*" else "try", s)
-            is Raise -> unsupported("raise", s)
+            is Try -> if (s.star) unsupported("try with except*", s) else tryStmt(s)
+            is Raise -> {
+                var n = 0
+                if (s.exc != null) {
+                    expr(s.exc)
+                    n = 1
+                    if (s.cause != null) {
+                        expr(s.cause)
+                        n = 2
+                    }
+                }
+                emit(PyOp.RAISE, n)
+            }
             is With -> unsupported(if (s.isAsync) "async with" else "with", s)
             is Match -> unsupported("match", s)
             is Import, is ImportFrom -> unsupported("import", s)
@@ -393,6 +471,167 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
 
     private fun block(ss: List<Stmt>) {
         for (s in ss) stmt(s)
+    }
+
+    /**
+     * Leaves [exited] (innermost first), as `return`, `break` and `continue` do: their ranges closed here (what leaving
+     * runs is not theirs to handle), what leaving each runs (a finally body, the exception handled before, an except
+     * clause's name deleted) from outside it, then [jump]; their ranges open again after (the code after is theirs).
+     */
+    private fun unwind(exited: List<FBlock>, jump: () -> Unit) {
+        if (exited.none { it.leaves }) {
+            jump()
+            return
+        }
+        for (fb in exited) fb.range?.end()
+        val saved = ArrayList(fblocks)
+        for (fb in exited) {
+            while (fblocks.isNotEmpty() && fblocks.last() !== fb) fblocks.removeAt(fblocks.size - 1)
+            fblocks.removeAt(fblocks.size - 1)
+            when (fb) {
+                is Finally -> block(fb.body)
+                is Handler -> {
+                    emit(PyOp.LOAD_FAST, fb.prev)
+                    emit(PyOp.POP_EXCEPT)
+                }
+                is HandlerName -> clearName(fb.name)
+            }
+        }
+        jump()
+        fblocks.clear()
+        fblocks.addAll(saved)
+        for (fb in exited) fb.range?.begin()
+    }
+
+    /** `name = None; del name`: an except clause's name, after its body (the exception's traceback not kept alive). */
+    private fun clearName(n: String) {
+        loadConst(PyNone)
+        storeName(n)
+        deleteName(n)
+    }
+
+    /** A line for the code from here (the handlers' code: an except clause's). */
+    private fun lineHere(l: Int) {
+        line = l
+        lines.add(code.size)
+        lines.add(l)
+    }
+
+    /**
+     * `try`: its body in a range whose handler is the except clauses' (or the finally's); with a finally, the
+     * try-except-else inside a range whose handler runs the finally body and raises again, the body copied for the
+     * normal way out and for each return, break and continue through it ([unwind]).
+     */
+    private fun tryStmt(s: Try) {
+        if (s.finalbody.isEmpty()) {
+            tryExcept(s)
+            return
+        }
+        val range = Range()
+        fblocks.add(Finally(range, s.finalbody))
+        range.begin()
+        if (s.handlers.isEmpty()) block(s.body) else tryExcept(s)
+        range.end()
+        fblocks.removeAt(fblocks.size - 1)
+        block(s.finalbody)
+        val toEnd = emit(PyOp.JUMP, 0)
+        range.handle(code.size)
+        handler(s.finalbody.first().line) { exc, prev, cleanup ->
+            fblocks.add(Handler(cleanup, prev))
+            block(s.finalbody)
+            fblocks.removeAt(fblocks.size - 1)
+            emit(PyOp.LOAD_FAST, prev)
+            emit(PyOp.POP_EXCEPT)
+            emit(PyOp.LOAD_FAST, exc)
+            emit(PyOp.RERAISE)
+        }
+        patch(toEnd, code.size)
+    }
+
+    /** try-except-else: the body's exceptions to the clauses, tried in order; none matching, raised again. */
+    private fun tryExcept(s: Try) {
+        for ((k, h) in s.handlers.withIndex()) {
+            if (h.type == null && k < s.handlers.size - 1) throw PySyntaxError("default 'except:' must be last", h.line, h.col)
+        }
+        val range = Range()
+        fblocks.add(TryBody(range))
+        range.begin()
+        block(s.body)
+        range.end()
+        fblocks.removeAt(fblocks.size - 1)
+        block(s.orelse)
+        val toEnd = emit(PyOp.JUMP, 0)
+        range.handle(code.size)
+        val ends = ArrayList<Int>()
+        handler(s.handlers.first().line) { exc, prev, cleanup ->
+            for (h in s.handlers) {
+                lineHere(h.line)
+                var next = -1
+                if (h.type != null) {
+                    emit(PyOp.LOAD_FAST, exc)
+                    expr(h.type)
+                    emit(PyOp.CHECK_EXC_MATCH)
+                    next = emit(PyOp.POP_JUMP_IF_FALSE, 0)
+                }
+                if (h.name != null) {
+                    emit(PyOp.LOAD_FAST, exc)
+                    storeName(h.name)
+                    val named = Range()
+                    fblocks.add(Handler(cleanup, prev))
+                    fblocks.add(HandlerName(named, h.name))
+                    named.begin()
+                    block(h.body)
+                    named.end()
+                    fblocks.removeAt(fblocks.size - 1)
+                    fblocks.removeAt(fblocks.size - 1)
+                    clearName(h.name)
+                    emit(PyOp.LOAD_FAST, prev)
+                    emit(PyOp.POP_EXCEPT)
+                    ends.add(emit(PyOp.JUMP, 0))
+                    // (leaving the body by an exception: the name deleted too, then on to the cleanup)
+                    named.handle(code.size)
+                    clearName(h.name)
+                    emit(PyOp.RERAISE)
+                } else {
+                    fblocks.add(Handler(cleanup, prev))
+                    block(h.body)
+                    fblocks.removeAt(fblocks.size - 1)
+                    emit(PyOp.LOAD_FAST, prev)
+                    emit(PyOp.POP_EXCEPT)
+                    ends.add(emit(PyOp.JUMP, 0))
+                }
+                if (next >= 0) patch(next, code.size)
+            }
+            // no clause took it
+            emit(PyOp.LOAD_FAST, exc)
+            emit(PyOp.RERAISE)
+        }
+        for (e in ends) patch(e, code.size)
+        patch(toEnd, code.size)
+    }
+
+    /**
+     * A handler's code, entered with the exception on the stack: kept in a register ([body]'s exc), made the exception
+     * handled (the one before in [body]'s prev), [body] in a range whose handler (the cleanup) puts the one before
+     * back and raises what left it again.
+     */
+    private fun handler(l: Int, body: (exc: Int, prev: Int, cleanup: Range) -> Unit) {
+        lineHere(l)
+        val exc = temp()
+        val prev = temp()
+        emit(PyOp.STORE_FAST, exc)
+        emit(PyOp.LOAD_FAST, exc)
+        emit(PyOp.PUSH_EXC_INFO)
+        emit(PyOp.STORE_FAST, prev)
+        val cleanup = Range()
+        cleanup.begin()
+        body(exc, prev, cleanup)
+        cleanup.end()
+        cleanup.handle(code.size)
+        // (the exception on the stack; the one before handled again, it is raised again)
+        emit(PyOp.LOAD_FAST, prev)
+        emit(PyOp.POP_EXCEPT)
+        emit(PyOp.RERAISE)
     }
 
     /**
@@ -794,9 +1033,15 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             PyOp.JUMP -> intArrayOf(bc[pc + 1])
             PyOp.POP_JUMP_IF_FALSE, PyOp.POP_JUMP_IF_TRUE -> intArrayOf(bc[pc + 1], next)
             PyOp.FOR_ITER -> intArrayOf(bc[pc + 3], next)
-            PyOp.RETURN -> IntArray(0)
+            PyOp.RETURN, PyOp.RAISE, PyOp.RERAISE -> IntArray(0)
             else -> intArrayOf(next)
         }
+    }
+
+    /** The innermost handler whose range covers [pc], or -1. */
+    private fun handlerOf(pc: Int): Int {
+        for (k in 0 until handlerTable.size step 4) if (pc >= handlerTable[k] && pc < handlerTable[k + 1]) return handlerTable[k + 2]
+        return -1
     }
 
     /** The deepest the operand stack gets (every path reaches an instruction at one depth). */
@@ -806,6 +1051,16 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         depth[0] = 0
         work.add(0)
         var max = 0
+        // (a handler starts with its depth and the exception)
+        for (k in 0 until handlerTable.size step 4) {
+            val h = handlerTable[k + 2]
+            val d = handlerTable[k + 3] + 1
+            if (depth[h] < 0) {
+                depth[h] = d
+                work.add(h)
+                if (d > max) max = d
+            } else if (depth[h] != d) throw IllegalStateException("handler depth differs at $h in $name")
+        }
         while (work.isNotEmpty()) {
             val pc = work.removeLast()
             val op = bc[pc]
@@ -839,6 +1094,19 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         work.add(0)
         while (work.isNotEmpty()) {
             val pc = work.removeLast()
+            // (an exception here reaches the handler with the registers as they are before)
+            val hp = handlerOf(pc)
+            if (hp >= 0) {
+                val cur = maybe[hp]
+                if (cur == null) {
+                    maybe[hp] = maybe[pc]!!.clone() as java.util.BitSet
+                    work.add(hp)
+                } else {
+                    val before = cur.cardinality()
+                    cur.or(maybe[pc]!!)
+                    if (cur.cardinality() != before) work.add(hp)
+                }
+            }
             val out = maybe[pc]!!.clone() as java.util.BitSet
             val op = bc[pc]
             if (op == PyOp.STORE_FAST) out.clear(bc[pc + 1])

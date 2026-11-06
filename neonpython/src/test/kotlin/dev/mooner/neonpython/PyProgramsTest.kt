@@ -246,6 +246,30 @@ class PyProgramsTest {
             "[] * 'a'\n" to Triple("TypeError", "can't multiply sequence by non-int of type 'str'", 1),
             "1.5 * 'a'\n" to Triple("TypeError", "can't multiply sequence by non-int of type 'float'", 1),
             "x = ()\nx += 1\n" to Triple("TypeError", "can only concatenate tuple (not \"int\") to tuple", 2),
+            "raise 1\n" to Triple("TypeError", "exceptions must derive from BaseException", 1),
+            "raise ValueError from 1\n" to Triple("TypeError", "exception causes must derive from BaseException", 1),
+            "raise\n" to Triple("RuntimeError", "No active exception to reraise", 1),
+            "try:\n    1/0\nexcept 1:\n    pass\n" to Triple("TypeError", "catching classes that do not inherit from BaseException is not allowed", 3),
+            "try:\n    1/0\nexcept (1, ValueError):\n    pass\n" to Triple("TypeError", "catching classes that do not inherit from BaseException is not allowed", 3),
+            "class C(Exception, list): pass\n" to Triple("TypeError", "multiple bases have instance lay-out conflict", 1),
+            "def f():\n    try:\n        1/0\n    except ZeroDivisionError:\n        raise\nf()\n" to Triple("ZeroDivisionError", "division by zero", 3),
+            "def f():\n    try:\n        1/0\n    except ZeroDivisionError:\n        raise ValueError('v')\nf()\n" to Triple("ValueError", "v", 5),
+            "try:\n    1/0\nexcept ZeroDivisionError:\n    raise ValueError('v')\n" to Triple("ValueError", "v", 4),
+            "try:\n    1/0\nexcept ValueError:\n    pass\n" to Triple("ZeroDivisionError", "division by zero", 2),
+            "raise ValueError\n" to Triple("ValueError", "", 1),
+            "class C: pass\nraise C()\n" to Triple("TypeError", "exceptions must derive from BaseException", 2),
+            "class C: pass\nraise C\n" to Triple("TypeError", "exceptions must derive from BaseException", 2),
+            "e = ValueError('x')\ne.args = 5\n" to Triple("TypeError", "'int' object is not iterable", 2),
+            "try:\n    1/0\nexcept ZeroDivisionError as e:\n    pass\nprint(e)\n" to Triple("NameError", "name 'e' is not defined", 5),
+            "class E(Exception):\n    def __str__(self): return 'custom'\nraise E()\n" to Triple("E", "custom", 3),
+            "raise KeyError('k')\n" to Triple("KeyError", "'k'", 1),
+            "x = {}\ntry:\n    x['a']\nfinally:\n    pass\n" to Triple("KeyError", "'a'", 3),
+            "def f():\n    raise OSError(2, 'nf')\ntry:\n    f()\nexcept ValueError:\n    pass\n" to Triple("FileNotFoundError", "[Errno 2] nf", 2),
+            "class E(Exception):\n    pass\nraise E(1, 2)\n" to Triple("E", "(1, 2)", 3),
+            "e = ValueError()\ne.add_note(1)\n" to Triple("TypeError", "add_note() argument must be str, not int", 2),
+            "e = ValueError()\ne.__cause__ = 1\n" to Triple("TypeError", "exception cause must be None or derive from BaseException", 2),
+            "def f():\n    try:\n        return 1\n    finally:\n        {}['k']\nf()\n" to Triple("KeyError", "'k'", 5),
+            "for i in range(3):\n    try:\n        break\n    finally:\n        1/0\n" to Triple("ZeroDivisionError", "division by zero", 5),
         )
         for (mode in Mode.entries) for ((src, want) in cases) {
             val e = try {
@@ -280,7 +304,7 @@ class PyProgramsTest {
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
             "speculation", "functions", "closures", "unpacking", "types", "classes", "descriptors",
-            "dunders", "protocols", "subclasses",
+            "dunders", "protocols", "subclasses", "exceptions", "exception_objects",
         )
 
         /** The code blocks of [cb] and every function it defines. */

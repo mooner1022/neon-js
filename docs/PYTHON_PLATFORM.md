@@ -672,6 +672,25 @@ Made with the object model (M2):
   identity first, as CPython's do. Whether a class overrides `__getattribute__`, `__setattr__` or `__delattr__` is
   a flag of its type (`PyType.hooks`), set when the class is made or given one; a base given one later does not
   flag its existing subclasses.
+Made with exceptions (M3):
+
+- **An exception the runtime raises is a name and a message** (`PyException("TypeError", ...)`, as before), and its
+  object is made where Python code first sees it: an except clause, a finally (`PyExceptions.objectOf`; KeyError keeps
+  its key, NameError its name). `raise` throws the object's own `PyException`, the same one each time it is raised
+  again, so it keeps the line where it was first raised, as CPython's traceback does. Runtime code that catches an
+  exception tests its class (`PyException.matches`), never its name.
+- **The exception handled is the context's** (`PyContext.handled`): PUSH_EXC_INFO sets it entering a handler and
+  keeps the one before in a register; POP_EXCEPT puts it back, also when the handler is left by an exception (each
+  handler body is in a range whose handler does it). An exception raised meanwhile gets it as `__context__`, when it
+  is raised or (the runtime's) when its object is made.
+- **A finally body is copied**, as CPython copies it: once for the normal way out, once for an exception, and once
+  for each `return`, `break` and `continue` leaving through it. The ranges such leaving goes through are closed
+  around the copied code (a range is segments), so that what leaving runs is not handled by the try it leaves.
+- **`raise` ends a block** in the tier's graphs: the exception made by a runtime call, then `Ir.THROW`. A catch entry's
+  `Ir.CATCH_VALUE` is `PyExceptions.catchValue`, which lets a sandbox's termination and the JVM's errors through.
+- **OSError's errno subclasses** use Linux's numbers for the network errors (Android's), where they differ by platform.
+- No warnings yet: PEP 765's SyntaxWarning for a `return`, `break` or `continue` in a finally is not printed.
+
 - **Augmented assignment is its own instruction,** `INPLACE op`: `__iadd__` and the rest, lists changed in place,
   CPython's `+=` messages. `PyRt.inplace` keeps numbers and strs as cheap as `a op b`, and the speculating tier
   builds it as the binary operator where the interpreter saw only ints or only floats.

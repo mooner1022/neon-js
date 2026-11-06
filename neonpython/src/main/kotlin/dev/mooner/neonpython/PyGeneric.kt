@@ -46,6 +46,7 @@ internal class Generic(
         const val CALLS = "dev/mooner/neonpython/PyCalls"
         const val CLASSES = "dev/mooner/neonpython/PyClasses"
         const val DUNDER = "dev/mooner/neonpython/PyDunder"
+        const val EXC = "dev/mooner/neonpython/PyExceptions"
     }
 }
 
@@ -90,6 +91,13 @@ internal object PyGeneric {
         val d = Generic.DUNDER
         t[PyOp.MATMUL] = Generic("matmul", "vv", pops = 2, result = true, owner = d)
         t[PyOp.INPLACE] = Generic("inplace", "vva", pops = 2, result = true)
+        val x = Generic.EXC
+        t[PyOp.PUSH_EXC_INFO] = Generic("pushExcInfo", "fv", pops = 1, result = true, throws = false, owner = x)
+        t[PyOp.POP_EXCEPT] = Generic("popExcept", "fv", pops = 1, result = false, throws = false, owner = x)
+        t[PyOp.CHECK_EXC_MATCH] = Generic("checkExcMatch", "vv", pops = 2, result = true, owner = x)
+        // (what to throw: the builder ends the block with Ir.THROW of it)
+        t[PyOp.RAISE] = Generic("raise", "fn", pops = 0, popsPerA = 1, result = true, owner = x)
+        t[PyOp.RERAISE] = Generic("reraise", "v", pops = 1, result = true, throws = false, owner = x)
         t[PyOp.WRAP_STAR] = Generic("wrapStar", "v", pops = 1, result = true, throws = false, owner = c, flags = OpInfo.REMOVABLE or OpInfo.ALLOCATES)
     }
 

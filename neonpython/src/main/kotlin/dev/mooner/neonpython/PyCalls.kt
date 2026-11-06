@@ -45,7 +45,7 @@ object PyCalls {
                     val it = try {
                         PyRt.iter(v)
                     } catch (e: PyException) {
-                        if (e.type == "TypeError") throw PyRt.typeError("${qualified(fn)} argument after * must be an iterable, not ${PyTypes.name(v)}") else throw e
+                        if (e.matches(PyExceptions.type("TypeError"))) throw PyRt.typeError("${qualified(fn)} argument after * must be an iterable, not ${PyTypes.name(v)}") else throw e
                     }
                     while (true) {
                         val y = it.next()
@@ -237,7 +237,7 @@ object PyCalls {
                 val i = try {
                     PyRt.iter(it)
                 } catch (e: PyException) {
-                    if (e.type == "TypeError") throw PyRt.typeError("Value after * must be an iterable, not ${PyTypes.name(it)}") else throw e
+                    if (e.matches(PyExceptions.type("TypeError"))) throw PyRt.typeError("Value after * must be an iterable, not ${PyTypes.name(it)}") else throw e
                 }
                 while (true) {
                     val x = i.next()
@@ -274,7 +274,7 @@ object PyCalls {
                 val it = try {
                     PyRt.iter(seq)
                 } catch (e: PyException) {
-                    if (e.type == "TypeError") throw PyRt.typeError("cannot unpack non-iterable ${PyTypes.name(seq)} object") else throw e
+                    if (e.matches(PyExceptions.type("TypeError"))) throw PyRt.typeError("cannot unpack non-iterable ${PyTypes.name(seq)} object") else throw e
                 }
                 while (true) {
                     val x = it.next()
@@ -296,7 +296,7 @@ object PyCalls {
     // ------------------------------------------------------------------ del, assert
 
     @JvmStatic fun deleteGlobal(f: VmFrame, name: Any?) {
-        if ((f as PyFrame).globals.map.remove(PyDict.Key(name)) == null) throw PyException("NameError", "name '$name' is not defined")
+        if ((f as PyFrame).globals.map.remove(PyDict.Key(name)) == null) throw PyException.nameError(name)
     }
 
     @JvmStatic fun deleteSubscr(obj: Any?, key: Any?) {
@@ -313,7 +313,7 @@ object PyCalls {
                 if (k < 0 || k >= n) throw PyException("IndexError", "list assignment index out of range")
                 obj.items.removeAt(k.toInt())
             }
-            is PyDict -> if (obj.map.remove(PyDict.Key(key)) == null) throw PyException("KeyError", PyRt.repr(key))
+            is PyDict -> if (obj.map.remove(PyDict.Key(key)) == null) throw PyException.keyError(key)
             else -> throw PyRt.typeError("'${PyTypes.name(obj)}' object doesn't support item deletion")
         }
     }

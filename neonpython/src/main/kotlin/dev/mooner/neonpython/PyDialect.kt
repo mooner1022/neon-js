@@ -251,7 +251,7 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
                 PyOp.JUMP -> intArrayOf(bc[pc + 1])
                 PyOp.POP_JUMP_IF_FALSE, PyOp.POP_JUMP_IF_TRUE -> if (bc[pc + 1] == next) intArrayOf(next) else intArrayOf(bc[pc + 1], next)
                 PyOp.FOR_ITER -> intArrayOf(bc[pc + 3], next)
-                PyOp.RETURN -> IntArray(0)
+                PyOp.RETURN, PyOp.RAISE, PyOp.RERAISE -> IntArray(0)
                 else -> null
             }
         }
@@ -336,6 +336,14 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
 
         override fun buildOp(at: At): Boolean = with(at) {
             if (speculated()) return false
+            // raising: the exception made (a runtime call, PyGeneric's row), then thrown, the block's end
+            if (op == PyOp.RAISE || op == PyOp.RERAISE) {
+                val t = inst(op, popN(PyGeneric.of(op)!!.popped(a)), result = true)
+                pop()
+                add(cur, Inst(Ir.THROW, arrayOf(t), 0, 0, 0, pc, stmt))
+                end()
+                return true
+            }
             // (a runtime call: its row in PyGeneric)
             PyGeneric.of(op)?.let { gen ->
                 inst(op, popN(gen.popped(a)), result = gen.result)
@@ -494,6 +502,24 @@ class PyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, clas
             return
         }
         when (op) {
+            Ir.CATCH_VALUE -> {
+                // a catch entry: the JVM's exception on the stack becomes the Python exception object caught
+                frame()
+                mv.visitMethodInsn(INVOKESTATIC, Generic.EXC, "catchValue", "(Ljava/lang/Throwable;$FRAME_D)$OBJ", false)
+                done(i, ANY_KIND)
+            }
+            Ir.SET_HOME -> {
+                val k = homeKind[i.a]!!
+                load(i.inputs[0], k)
+                mv.visitVarInsn(ks.rep(k).store, homeLocal[i.a]!!)
+            }
+            Ir.LOAD_HOME -> {
+                val k = homeKind[i.a] ?: ANY_KIND
+                val l = homeLocal[i.a]
+                // (never set: the register's dead value)
+                if (l == null) mv.visitInsn(ACONST_NULL) else mv.visitVarInsn(ks.rep(k).load, l)
+                done(i, if (l == null) ANY_KIND else k)
+            }
             PyIr.ARG -> {
                 frame()
                 mv.visitFieldInsn(GETFIELD, FRAME, "args", OBJS)
@@ -742,7 +768,15 @@ class PyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, clas
     }
 
     override fun switchIndex(i: Inst) = throw JitBailout("python: no switch")
-    override fun otherTerminator(i: Inst): Boolean = false
+    override fun otherTerminator(i: Inst): Boolean {
+        if (i.op != Ir.THROW) return false
+        // (RAISE's or RERAISE's exception, made by its runtime call)
+        storePc(i)
+        load(i.inputs[0], ANY_KIND)
+        mv.visitTypeInsn(CHECKCAST, "java/lang/Throwable")
+        mv.visitInsn(ATHROW)
+        return true
+    }
 
     override fun pushConst(c: Const, want: Byte) {
         val v = c.value

@@ -420,7 +420,7 @@ object PyRt {
     @JvmStatic fun keyHash(v: Any?): Int = try {
         hash(v)
     } catch (e: PyException) {
-        if (e.type == "TypeError") throw typeError("cannot use '${t(v)}' as a dict key (${e.message})") else throw e
+        if (e.matches(PyExceptions.type("TypeError"))) throw typeError("cannot use '${t(v)}' as a dict key (${e.message})") else throw e
     }
 
     @JvmStatic fun contains(container: Any?, v: Any?): Boolean =
@@ -567,7 +567,7 @@ object PyRt {
         is PyList -> obj.items[index(key, obj.items.size, "list")]
         is PyTuple -> obj.items[index(key, obj.items.size, "tuple")]
         is PyStr -> obj.at(index(key, obj.length, "string"))
-        is PyDict -> if (obj.containsKey(key)) obj[key] else throw PyException("KeyError", repr(key))
+        is PyDict -> if (obj.containsKey(key)) obj[key] else throw PyException.keyError(key)
         is PyRange -> {
             val n = obj.length
             if (n > Int.MAX_VALUE) throw PyException("OverflowError", "range too large")
@@ -768,7 +768,7 @@ object PyRt {
     /** The global [name] of [f]'s module, else the builtin, else a NameError. */
     @JvmStatic fun loadGlobal(f: dev.mooner.neonjs.vm.VmFrame, name: Any?): Any? {
         val pf = f as PyFrame
-        return pf.globals[name] ?: pf.ctx.builtins[name] ?: throw PyException("NameError", "name '$name' is not defined")
+        return pf.globals[name] ?: pf.ctx.builtins[name] ?: throw PyException.nameError(name)
     }
 
     @JvmStatic fun storeGlobal(f: dev.mooner.neonjs.vm.VmFrame, name: Any?, v: Any?) {

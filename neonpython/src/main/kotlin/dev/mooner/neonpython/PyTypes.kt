@@ -42,8 +42,8 @@ class PyType(@JvmField var name: String, bases: Array<PyType>, @JvmField val dic
     override fun toString() = repr()
 }
 
-/** An instance of a class: its type and its attributes. */
-class PyObject(@JvmField var type: PyType) {
+/** An instance of a class: its type and its attributes. (Exceptions' instances are of a subclass: PyBaseException.) */
+open class PyObject(@JvmField var type: PyType) {
     @JvmField var dict: PyDict? = null
 
     override fun toString() = "<${type.module}.${type.qualname} object>"
@@ -101,10 +101,16 @@ object PyTypes {
             "KeyboardInterrupt" to "BaseException", "SystemExit" to "BaseException", "Exception" to "BaseException",
             "ArithmeticError" to "Exception", "FloatingPointError" to "ArithmeticError", "OverflowError" to "ArithmeticError",
             "ZeroDivisionError" to "ArithmeticError", "AssertionError" to "Exception", "AttributeError" to "Exception",
-            "BufferError" to "Exception", "EOFError" to "Exception", "ExceptionGroup" to "Exception",
+            "BufferError" to "Exception", "EOFError" to "Exception", "ExceptionGroup" to "BaseExceptionGroup",
             "ImportError" to "Exception", "ModuleNotFoundError" to "ImportError", "LookupError" to "Exception",
             "IndexError" to "LookupError", "KeyError" to "LookupError", "MemoryError" to "Exception", "NameError" to "Exception",
-            "UnboundLocalError" to "NameError", "OSError" to "Exception", "ReferenceError" to "Exception",
+            "UnboundLocalError" to "NameError", "OSError" to "Exception", "BlockingIOError" to "OSError",
+            "ChildProcessError" to "OSError", "ConnectionError" to "OSError", "BrokenPipeError" to "ConnectionError",
+            "ConnectionAbortedError" to "ConnectionError", "ConnectionRefusedError" to "ConnectionError",
+            "ConnectionResetError" to "ConnectionError", "FileExistsError" to "OSError", "FileNotFoundError" to "OSError",
+            "InterruptedError" to "OSError", "IsADirectoryError" to "OSError", "NotADirectoryError" to "OSError",
+            "PermissionError" to "OSError", "ProcessLookupError" to "OSError", "TimeoutError" to "OSError",
+            "ReferenceError" to "Exception",
             "RuntimeError" to "Exception", "NotImplementedError" to "RuntimeError", "PythonFinalizationError" to "RuntimeError",
             "RecursionError" to "RuntimeError", "StopAsyncIteration" to "Exception", "StopIteration" to "Exception",
             "SyntaxError" to "Exception", "IndentationError" to "SyntaxError", "TabError" to "IndentationError",
@@ -115,7 +121,12 @@ object PyTypes {
             "ResourceWarning" to "Warning", "RuntimeWarning" to "Warning", "SyntaxWarning" to "Warning",
             "UnicodeWarning" to "Warning", "UserWarning" to "Warning",
         )
-        for ((n, base) in tree) EXCEPTIONS[n] = if (base == null) builtin(n) else builtin(n, EXCEPTIONS[base]!!)
+        for ((n, base) in tree) EXCEPTIONS[n] = when {
+            base == null -> builtin(n)
+            // (ExceptionGroup derives from BaseExceptionGroup and Exception)
+            n == "ExceptionGroup" -> builtin(n, EXCEPTIONS[base]!!, EXCEPTIONS["Exception"]!!)
+            else -> builtin(n, EXCEPTIONS[base]!!)
+        }
     }
 
     /** The type of [v]. */

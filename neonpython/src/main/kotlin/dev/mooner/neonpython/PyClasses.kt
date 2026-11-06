@@ -98,7 +98,7 @@ object PyClasses {
             throw PyRt.typeError("subclassing '${x.name}' is not supported yet")
         }
         // (an instance is one kind of value: two of them among the bases cannot be)
-        if (bases.mapNotNull { b -> b.mro.firstOrNull { it in VALUE_BASES } }.distinct().size > 1) {
+        if (bases.mapNotNull { b -> b.mro.firstOrNull { it in VALUE_BASES || it === PyExceptions.BASE_EXCEPTION } }.distinct().size > 1) {
             throw PyRt.typeError("multiple bases have instance lay-out conflict")
         }
         val t = PyType(name.s, if (bases.isEmpty()) arrayOf(PyTypes.OBJECT) else bases.toTypedArray())
@@ -278,7 +278,7 @@ object PyClasses {
                 return PyCalls.callWith(PyContext.current(), gab, arrayOf(obj, PyStr(name)), NO_ARGS, NO_ARGS)
             } catch (e: PyException) {
                 val ga = type.lookup("__getattr__")
-                if (e.type != "AttributeError" || ga == null) throw e
+                if (!e.matches(PyExceptions.type("AttributeError")) || ga == null) throw e
                 return PyCalls.callWith(PyContext.current(), ga, arrayOf(obj, PyStr(name)), NO_ARGS, NO_ARGS)
             }
         }
@@ -299,7 +299,7 @@ object PyClasses {
         special(obj, name)?.let { return it }
         val ga = if (hook) type.lookup("__getattr__") else null
         if (ga != null) return PyCalls.callWith(PyContext.current(), ga, arrayOf(obj, PyStr(name)), NO_ARGS, NO_ARGS)
-        throw PyException("AttributeError", "'${type.name}' object has no attribute '$name'")
+        throw PyException.attributeError(obj, name, "'${type.name}' object has no attribute '$name'")
     }
 
     /** The attributes every object of a kind has (not in a type's dict). */
@@ -483,7 +483,7 @@ object PyClasses {
     /** LOAD_NAME in a class body: its namespace, the module's globals, the builtins. */
     @JvmStatic fun loadName(f: VmFrame, name: Any?): Any? {
         val pf = f as PyFrame
-        return pf.locals?.get(name) ?: pf.globals[name] ?: pf.ctx.builtins[name] ?: throw PyException("NameError", "name '$name' is not defined")
+        return pf.locals?.get(name) ?: pf.globals[name] ?: pf.ctx.builtins[name] ?: throw PyException.nameError(name)
     }
 
     @JvmStatic fun storeName(f: VmFrame, name: Any?, v: Any?) {
@@ -491,7 +491,7 @@ object PyClasses {
     }
 
     @JvmStatic fun deleteName(f: VmFrame, name: Any?) {
-        if ((f as PyFrame).locals!!.map.remove(PyDict.Key(name)) == null) throw PyException("NameError", "name '$name' is not defined")
+        if ((f as PyFrame).locals!!.map.remove(PyDict.Key(name)) == null) throw PyException.nameError(name)
     }
 
     /** A class body's free variable: its namespace's where it has one, else the cell's. */

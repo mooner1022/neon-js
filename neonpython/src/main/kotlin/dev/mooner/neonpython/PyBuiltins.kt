@@ -198,7 +198,7 @@ object PyBuiltins {
             if (args.size == 2) PyRt.getAttr(args[0], n.s) else try {
                 PyRt.getAttr(args[0], n.s)
             } catch (e: PyException) {
-                if (e.type == "AttributeError") args[2] else throw e
+                if (e.matches(PyExceptions.type("AttributeError"))) args[2] else throw e
             }
         }
         def("setattr") { _, args ->
@@ -220,7 +220,7 @@ object PyBuiltins {
                 PyRt.getAttr(args[0], n.s)
                 PyBool.TRUE
             } catch (e: PyException) {
-                if (e.type == "AttributeError") PyBool.FALSE else throw e
+                if (e.matches(PyExceptions.type("AttributeError"))) PyBool.FALSE else throw e
             }
         }
         def("callable") { _, args ->
@@ -260,6 +260,11 @@ object PyBuiltins {
             val v = PyDunder.next(args[0])
             if (v !== PyIterator.STOP) v else if (args.size == 2) args[1] else throw PyException("StopIteration", "")
         }
+        // the exception classes, their behaviour
+        PyExceptions.define()
+        for ((n, t) in PyTypes.EXCEPTIONS) d[PyStr(n)] = t
+        d[PyStr("EnvironmentError")] = PyExceptions.type("OSError")
+        d[PyStr("IOError")] = PyExceptions.type("OSError")
         d[PyStr("NotImplemented")] = PyNotImplemented
         d[PyStr("Ellipsis")] = PyEllipsis
         // the builtin types' methods

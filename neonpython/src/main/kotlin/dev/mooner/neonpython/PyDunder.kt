@@ -117,7 +117,7 @@ object PyDunder {
             return byCode(op, a, b)
         } catch (e: PyException) {
             // (the message names the augmented operator)
-            if (e.type == "TypeError" && e.message == unsupported(sym, a, b).message) throw unsupported("$sym=", a, b)
+            if (e.matches(PyExceptions.type("TypeError")) && e.message == unsupported(sym, a, b).message) throw unsupported("$sym=", a, b)
             throw e
         }
     }
@@ -244,14 +244,24 @@ object PyDunder {
 
     @JvmStatic
     fun str(v: Any): String {
-        val f = userMethod(PyTypes.typeOf(v), "__str__") ?: return if (v is PyStr) v.s else repr(v)
+        val t = PyTypes.typeOf(v)
+        val f = userMethod(t, "__str__") ?: return when (v) {
+            is PyStr -> v.s
+            is PyBaseException -> (call(t.lookup("__str__"), v) as PyStr).s
+            else -> repr(v)
+        }
         val r = call(f, v)
         return (r as? PyStr ?: throw PyRt.typeError("__str__ returned non-string (type ${PyTypes.name(r)})")).s
     }
 
     @JvmStatic
     fun repr(v: Any): String {
-        val f = userMethod(PyTypes.typeOf(v), "__repr__") ?: return if (v is PyValue) PyRt.reprValues(v) else defaultRepr(v)
+        val t = PyTypes.typeOf(v)
+        val f = userMethod(t, "__repr__") ?: return when (v) {
+            is PyValue -> PyRt.reprValues(v)
+            is PyBaseException -> (call(t.lookup("__repr__"), v) as PyStr).s
+            else -> defaultRepr(v)
+        }
         val r = call(f, v)
         return (r as? PyStr ?: throw PyRt.typeError("__repr__ returned non-string (type ${PyTypes.name(r)})")).s
     }
@@ -317,7 +327,7 @@ object PyDunder {
             if (done) PyIterator.STOP else try {
                 call(gi, v, i++)
             } catch (e: PyException) {
-                if (e.type == "IndexError" || e.type == "StopIteration") {
+                if (e.matches(PyExceptions.type("IndexError")) || e.matches(PyExceptions.type("StopIteration"))) {
                     done = true
                     PyIterator.STOP
                 } else throw e
@@ -343,7 +353,7 @@ object PyDunder {
             try {
                 call(next, it)
             } catch (e: PyException) {
-                if (e.type == "StopIteration") PyIterator.STOP else throw e
+                if (e.matches(PyExceptions.type("StopIteration"))) PyIterator.STOP else throw e
             }
         }
     }
@@ -358,7 +368,7 @@ object PyDunder {
             try {
                 call(f, it)
             } catch (e: PyException) {
-                if (e.type == "StopIteration") PyIterator.STOP else throw e
+                if (e.matches(PyExceptions.type("StopIteration"))) PyIterator.STOP else throw e
             }
         }
     }

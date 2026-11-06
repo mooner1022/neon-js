@@ -16,6 +16,8 @@ import dev.mooner.neonjs.vm.VmFrame
 class PyContext(@JvmField val out: Appendable = StringBuilder(), config: VmConfig = VmConfig()) {
     @JvmField val agent = VmAgent(config)
     @JvmField val builtins: PyDict = PyBuiltins.module()
+    /** The exception being handled (PyExceptions: PUSH_EXC_INFO sets it, POP_EXCEPT puts the one before back), or null. */
+    @JvmField var handled: PyBaseException? = null
 
     /** Runs the module [src]; returns its globals. */
     fun exec(src: String, name: String = "<module>"): PyDict = exec(PyCompiler.compileModule(src, name), name)
@@ -25,11 +27,17 @@ class PyContext(@JvmField val out: Appendable = StringBuilder(), config: VmConfi
         val globals = PyDict()
         globals[PyStr("__name__")] = PyStr("__main__")
         val outer = CURRENT.get()
+        val outerHandled = handled
         CURRENT.set(this)
         try {
             PyInterpreter.call(this, PyFunction(cb, globals, name), NO_ARGS)
+        } catch (e: PyException) {
+            // (its message while Python code can still run: a class's __str__)
+            e.freeze()
+            throw e
         } finally {
             CURRENT.set(outer)
+            handled = outerHandled
         }
         return globals
     }
@@ -280,10 +288,13 @@ object PyInterpreter {
                         }
                     }
                 }
-            } catch (e: PyException) {
+            } catch (t: Throwable) {
                 f.pc = opStart
                 f.sp = sp
-                throw e
+                if (!handle(f, t)) throw t
+                pc = f.pc
+                sp = f.sp
+                continue
             }
             // a loop continues in compiled code (backEdge)
             f.pc = pc
@@ -297,6 +308,27 @@ object PyInterpreter {
             }
             if (r !== VmRt.NO_OSR) return r
         }
+    }
+
+    /**
+     * Where [t], raised at [f]'s pc, goes: the innermost handler covering the pc, the operand stack cut to its depth and
+     * the exception object pushed (the frame's pc and sp set to go on there). False where none covers it, or [t] is
+     * none of Python's (a sandbox's termination): it leaves the frame.
+     */
+    private fun handle(f: PyFrame, t: Throwable): Boolean {
+        val cb = f.code
+        val h = cb.handlers
+        var k = 0
+        while (k < h.size && !(f.pc >= h[k] && f.pc < h[k + 1])) k += 4
+        if (k >= h.size) return false
+        val v = PyExceptions.caught(t, f) ?: return false
+        val s = f.slots
+        val base = cb.numRegs + h[k + 3]
+        for (i in base until f.sp) s[i] = null
+        s[base] = v
+        f.sp = base + 1
+        f.pc = h[k + 2]
+        return true
     }
 
     /** The instruction at [pc] of [f]'s code, one that does not jump ([run]'s rarer ones): the new top of the stack. */
@@ -345,6 +377,14 @@ object PyInterpreter {
             PyOp.MATMUL -> {
                 val b = pop()
                 s[sp - 1] = PyDunder.matmul(s[sp - 1], b)
+            }
+            PyOp.RAISE -> throw PyExceptions.raise(f, popN(a)) as Throwable
+            PyOp.RERAISE -> throw PyExceptions.reraise(pop()) as Throwable
+            PyOp.PUSH_EXC_INFO -> s[sp - 1] = PyExceptions.pushExcInfo(f, s[sp - 1])
+            PyOp.POP_EXCEPT -> PyExceptions.popExcept(f, pop())
+            PyOp.CHECK_EXC_MATCH -> {
+                val t = pop()
+                s[sp - 1] = PyExceptions.checkExcMatch(s[sp - 1], t)
             }
             PyOp.WRAP_STAR -> s[sp - 1] = PyCalls.wrapStar(s[sp - 1])
             PyOp.MAP_ADD -> {

@@ -152,13 +152,25 @@ object PyOp {
     /** op (a b -- a op= b): augmented assignment of binary operator op (__iadd__..., a list in place) */
     const val INPLACE = 107
 
+    // exceptions (M3): handlers are the code block's (CodeUnit.handlers), entered with the exception on the stack
+    /** (exc -- prev): exc becomes the exception handled, the one before (or None) on the stack, for POP_EXCEPT */
+    const val PUSH_EXC_INFO = 108
+    /** (prev -- ): the exception handled before the handler, again */
+    const val POP_EXCEPT = 109
+    /** (exc type -- bool): whether exc is an instance of type (a class or a tuple of classes, exceptions') */
+    const val CHECK_EXC_MATCH = 110
+    /** a (exc cause if a > 0 -- ): `raise` (a 0: the exception handled again), `raise exc`, `raise exc from cause` */
+    const val RAISE = 111
+    /** (exc -- ): the exception object raised again, as it was */
+    const val RERAISE = 112
+
     const val COUNT = 200
 
     @JvmField val operands = IntArray(COUNT).also { o ->
         for (op in intArrayOf(LOAD_CONST, LOAD_FAST, LOAD_FAST_CHECK, STORE_FAST, LOAD_GLOBAL, STORE_GLOBAL, JUMP, POP_JUMP_IF_FALSE,
             POP_JUMP_IF_TRUE, CALL, BUILD_LIST, BUILD_TUPLE, BUILD_MAP, LOAD_ATTR, UNPACK, MAKE_FUNCTION, CALL_KW, CALL_EX, LOAD_FREE,
             SET_FUNCTION_ATTRIBUTE, DELETE_FAST, DELETE_GLOBAL, DELETE_ATTR, ASSERT_FAIL, LOAD_NAME, STORE_NAME, DELETE_NAME,
-            LOAD_FROM_DICT_OR_DEREF, STORE_ATTR, INPLACE)) o[op] = 1
+            LOAD_FROM_DICT_OR_DEREF, STORE_ATTR, INPLACE, RAISE)) o[op] = 1
         for (op in intArrayOf(CELL_GET, CELL_DELETE, UNPACK_EX)) o[op] = 2
         o[FOR_ITER] = 3
     }
@@ -186,7 +198,8 @@ object PyOp {
         ASSERT_FAIL -> -a
         LOAD_CONST, LOAD_FAST, LOAD_FAST_CHECK, LOAD_GLOBAL, DUP, MAKE_FUNCTION -> 1
         STORE_FAST, STORE_GLOBAL, POP, POP_JUMP_IF_FALSE, POP_JUMP_IF_TRUE, RETURN -> -1
-        in ADD..MATMUL, in LT..NOT_IN, SUBSCR, INPLACE -> -1
+        in ADD..MATMUL, in LT..NOT_IN, SUBSCR, INPLACE, POP_EXCEPT, CHECK_EXC_MATCH, RERAISE -> -1
+        RAISE -> -a
         CALL -> -a
         BUILD_LIST, BUILD_TUPLE -> 1 - a
         BUILD_MAP -> 1 - 2 * a

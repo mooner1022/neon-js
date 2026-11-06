@@ -237,14 +237,44 @@ class PyIterator(@JvmField val next: () -> Any?) {
 }
 
 /**
- * A Python exception: its type's name and its message (the slice's exceptions are the runtime's, by name; classes
- * and `try` come later). Carries no JVM stack trace.
+ * A Python exception as the JVM throws it: the exception object ([exc], a [PyBaseException]), or, for one the runtime
+ * raises, its type's name and message, of which [PyExceptions.objectOf] makes the object where Python code first sees
+ * it (an except clause). [type], [message] and [line] are the host's view (and the tests'). Carries no JVM stack trace.
  */
-class PyException(@JvmField val type: String, message: String) : RuntimeException(message, null, false, false) {
+class PyException private constructor(@JvmField val typeName: String?, @JvmField val rawMessage: String?, exc: PyBaseException?) :
+    RuntimeException(null, null, false, false) {
+    constructor(type: String, message: String) : this(type, message, null)
+    constructor(exc: PyBaseException) : this(null, null, exc)
+
+    @JvmField var exc: PyBaseException? = exc
+    /** The object's arguments where they are not the message (KeyError's key), and fields of its (NameError's name). */
+    @JvmField var args: Array<Any?>? = null
+    @JvmField var attrs: Map<String, Any?>? = null
     /** Where it was raised: the line (-1 before a frame noted it) and the function. */
     @JvmField var line = -1
     @JvmField var function: String? = null
+    private var frozen: String? = null
+
+    /** The name of its class. */
+    val type: String get() = exc?.type?.name ?: typeName!!
+
+    override val message: String get() = frozen ?: rawMessage ?: PyExceptions.strOf(exc!!)
+
+    /** Whether it is an instance of [t] (a subclass's too). */
+    fun matches(t: PyType): Boolean = (exc?.type ?: PyTypes.EXCEPTIONS[typeName] ?: PyExceptions.BASE_EXCEPTION).isSubtype(t)
+
+    /** Its message computed now, while Python code may run (a class's __str__): the host reads it after. */
+    fun freeze() {
+        if (frozen == null) frozen = message
+    }
 
     override fun toString() = "$type: $message"
+
+    companion object {
+        @JvmStatic fun keyError(key: Any?) = PyException("KeyError", PyRt.repr(key)).also { it.args = arrayOf(key) }
+        @JvmStatic fun nameError(name: Any?) = PyException("NameError", "name '$name' is not defined").also { it.attrs = mapOf("name" to name) }
+        @JvmStatic fun attributeError(obj: Any?, name: String, message: String) =
+            PyException("AttributeError", message).also { it.attrs = mapOf("name" to PyStr(name), "obj" to obj) }
+    }
 }
 
