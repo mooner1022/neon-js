@@ -531,10 +531,12 @@ object PyDunder {
             PyClasses.genericGetAttr(a[0], (a[1] as? PyStr ?: throw PyRt.typeError("attribute name must be string, not '${PyTypes.name(a[1])}'")).s)
         })
         o.def("__setattr__", PyBuiltin("__setattr__") { _, a ->
+            hackcheck(a[0], "__setattr__")
             PyClasses.genericSetAttr(a[0], (a[1] as? PyStr ?: throw PyRt.typeError("attribute name must be string, not '${PyTypes.name(a[1])}'")).s, a[2])
             PyNone
         })
         o.def("__delattr__", PyBuiltin("__delattr__") { _, a ->
+            hackcheck(a[0], "__delattr__")
             PyClasses.genericDelAttr(a[0], (a[1] as? PyStr ?: throw PyRt.typeError("attribute name must be string, not '${PyTypes.name(a[1])}'")).s)
             PyNone
         })
@@ -545,6 +547,17 @@ object PyDunder {
             reduceEx(ctx, a[0], proto)
         })
         o.def("__reduce__", PyBuiltin("__reduce__") { ctx, a -> copyreg(ctx, "_reduce_ex", a[0], 0L) })
+    }
+
+    /**
+     * CPython's hackcheck: object's __setattr__ and __delattr__ do not apply to a class, whose type (type, a
+     * metaclass) has its own (the "Carlo Verre hack": `object.__delattr__(str, "lower")`).
+     */
+    private fun hackcheck(self: Any?, what: String) {
+        if (self is PyType) {
+            val t = PyTypes.typeOf(self)
+            throw PyRt.typeError("can't apply this $what to ${t.tpName ?: t.name} object")
+        }
     }
 
     private fun copyregModule(ctx: PyContext): Any? = PyImport.importModule(ctx, "copyreg")

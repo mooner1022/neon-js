@@ -180,6 +180,35 @@ def module_from_spec(spec):
     return module
 
 
+def cache_from_source(path, debug_override=None, *, optimization=None):
+    """Given the path to a .py file, return the path to its .pyc file.
+
+    NeonPy writes no bytecode files (sys.implementation.cache_tag is None), so this raises NotImplementedError after
+    CPython's checks of its arguments.
+    """
+    if debug_override is not None:
+        import warnings
+        warnings.warn('the debug_override parameter is deprecated; use '
+                      "'optimization' instead", DeprecationWarning, stacklevel=2)
+        if optimization is not None:
+            raise TypeError('debug_override or optimization must be set to None')
+    import os
+    os.fspath(path)
+    if sys.implementation.cache_tag is None:
+        raise NotImplementedError('sys.implementation.cache_tag is None')
+    raise NotImplementedError('NeonPy writes no bytecode files')
+
+
+def source_from_cache(path):
+    """Given the path to a .pyc file, return the path to its .py file.
+
+    NeonPy writes no bytecode files (sys.implementation.cache_tag is None), so this raises NotImplementedError.
+    """
+    if sys.implementation.cache_tag is None:
+        raise NotImplementedError('sys.implementation.cache_tag is None')
+    raise NotImplementedError('NeonPy writes no bytecode files')
+
+
 def decode_source(source_bytes):
     """Decode bytes representing source code and return the string."""
     import tokenize  # To avoid bootstrap issues.

@@ -314,6 +314,18 @@ object PyClasses {
         PyAttrDescrs.defineTypeDescriptors()
         fun self(a: Array<Any?>, n: String): PyType = a.getOrNull(0) as? PyType
             ?: throw PyRt.typeError("descriptor '$n' for 'type' objects doesn't apply to a '${PyTypes.name(a.getOrNull(0))}' object")
+        // (type's own __setattr__ and __delattr__: a class's attributes through them, an immutable type's refused)
+        fun attrName(v: Any?): String = (v as? PyStr ?: throw PyRt.typeError("attribute name must be string, not '${PyTypes.name(v)}'")).s
+        PyTypes.TYPE.def("__setattr__", PyBuiltin("__setattr__") { _, a ->
+            if (a.size != 3) throw PyRt.typeError("expected 2 arguments, got ${a.size - 1}")
+            genericSetAttr(self(a, "__setattr__"), attrName(a[1]), a[2])
+            PyNone
+        })
+        PyTypes.TYPE.def("__delattr__", PyBuiltin("__delattr__") { _, a ->
+            if (a.size != 2) throw PyRt.typeError("expected 1 argument, got ${a.size - 1}")
+            genericDelAttr(self(a, "__delattr__"), attrName(a[1]))
+            PyNone
+        })
         PyTypes.TYPE.def("__subclasses__", PyBuiltin("__subclasses__") { ctx, a -> PyList(ArrayList<Any?>(self(a, "__subclasses__").subclasses(ctx))) })
         PyTypes.TYPE.def("mro", PyBuiltin("mro") { _, a -> val t = self(a, "mro"); PyList(ArrayList<Any?>(PyTypes.c3(t, t.bases).toList())) })
         PyTypes.TYPE.def("__instancecheck__", PyBuiltin("__instancecheck__") { _, a -> PyBool.of(PyTypes.typeOf(a[1]).isSubtype(self(a, "__instancecheck__"))) })
@@ -815,10 +827,16 @@ object PyClasses {
         }
     }
 
+    /**
+     * The class whose __setattr__ and __delattr__ [obj]'s attributes go through: an instance's class, a class's
+     * metaclass where that is a class (enum's EnumType guards its members so).
+     */
+    private fun hookClass(obj: Any?): PyType? = classOf(obj) ?: (obj as? PyType)?.let { t -> PyTypes.typeOf(t).takeIf { it.heap } }
+
     /** obj.name = v: its class's __setattr__, else [genericSetAttr]. */
     @JvmStatic
     fun setAttr(obj: Any?, name: String, v: Any?) {
-        val cls = classOf(obj)
+        val cls = hookClass(obj)
         if (cls != null && cls.hooks and 2 != 0) {
             PyCalls.callWith(PyContext.current(), PyDunder.userMethod(cls, "__setattr__")!!, arrayOf(obj, PyStr(name), v), NO_ARGS, NO_ARGS)
             return
@@ -867,6 +885,13 @@ object PyClasses {
         if (obj is PyObject) obj.type = to else (obj as PyValue).sub!!.cls = to
     }
 
+    /**
+     * Whether [t]'s attributes are not to be set or deleted: a builtin type's, a module's C type's (CPython's
+     * Py_TPFLAGS_IMMUTABLETYPE; every context shares them).
+     */
+    @JvmStatic
+    fun immutable(t: PyType): Boolean = !t.heap || t.tpName != null
+
     private fun dictValue(v: Any?): PyDict =
         v as? PyDict ?: throw PyRt.typeError("__dict__ must be set to a dictionary, not a '${PyTypes.name(v)}'")
 
@@ -913,9 +938,7 @@ object PyClasses {
         }
         if (obj is PyTypeAlias) PyTyping.aliasTypeSet(name)
         if (obj is PyType) {
-            if (obj.module == "builtins") {
-                throw PyRt.typeError("cannot set '$name' attribute of immutable type '${obj.name}'")
-            }
+            if (immutable(obj)) throw PyRt.typeError("cannot set '$name' attribute of immutable type '${obj.tpName ?: obj.name}'")
             if (PyAnnotations.isName(name)) {
                 PyAnnotations.typeSet(obj, name, v)
                 return
@@ -1007,7 +1030,7 @@ object PyClasses {
     /** del obj.name: its class's __delattr__, else [genericDelAttr]. */
     @JvmStatic
     fun delAttr(obj: Any?, name: String) {
-        val cls = classOf(obj)
+        val cls = hookClass(obj)
         if (cls != null && cls.hooks and 4 != 0) {
             PyCalls.callWith(PyContext.current(), PyDunder.userMethod(cls, "__delattr__")!!, arrayOf(obj, PyStr(name)), NO_ARGS, NO_ARGS)
             return
@@ -1049,6 +1072,8 @@ object PyClasses {
             return
         }
         if (obj is PyType) {
+            // (CPython's message says "set" for a deletion too)
+            if (immutable(obj)) throw PyRt.typeError("cannot set '$name' attribute of immutable type '${obj.tpName ?: obj.name}'")
             if (obj.heap && PyAnnotations.isName(name)) {
                 PyAnnotations.typeSet(obj, name, null)
                 return
