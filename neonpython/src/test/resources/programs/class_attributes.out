@@ -1,0 +1,55 @@
+A dict -> ['__dict__', '__weakref__']
+B dict -> []
+S dict -> ['__doc__', '__firstlineno__', '__module__', '__slots__', '__static_attributes__', '__weakref__']
+A attr -> ("<attribute '__weakref__' of 'A' objects>", '__weakref__', <class '__main__.descriptors.<locals>.A'>, 'list of weak references to the object')
+B attr -> True
+none -> None
+ref -> True
+P attr !! AttributeError type object 'P' has no attribute '__weakref__'
+P inst !! AttributeError 'P' object has no attribute '__weakref__'
+E attr -> ("<attribute '__weakref__' of 'E' objects>", None)
+L -> ("<attribute '__weakref__' of 'L' objects>", None)
+set !! AttributeError attribute '__weakref__' of 'A' objects is not writable
+del !! AttributeError attribute '__weakref__' of 'A' objects is not writable
+S inst -> None
+dict descr -> ("<attribute '__dict__' of 'A' objects>", {}, "<attribute '__dict__' of 'L' objects>")
+dir -> (True, True, False)
+order -> ['__module__', '__firstlineno__', '__static_attributes__', '__dict__', '__weakref__', '__doc__']
+order D -> ['__module__', '__firstlineno__', '__static_attributes__', '__doc__']
+order QD -> ['__module__', '__firstlineno__', '__static_attributes__', '__dict__', '__weakref__', '__doc__']
+I -> ['__dict__']
+S -> ['__module__', '__firstlineno__', '__slots__', '__static_attributes__', 'x', '__dict__', '__doc__']
+N -> (5, 5)
+E -> ['__weakref__']
+del dict -> {}
+after -> ({}, False)
+set dict -> (None, 2)
+set bad !! TypeError __dict__ must be set to a dictionary, not a 'int'
+descr -> ({'y': 2}, 'dictionary for instance variables', 'descriptors.<locals>.A.__dict__')
+descr other !! TypeError descriptor '__dict__' for 'A' objects doesn't apply to a 'Q' object
+weak descr set !! AttributeError attribute '__weakref__' of 'A' objects is not writable
+weak descr del !! AttributeError attribute '__weakref__' of 'A' objects is not writable
+dict descr del -> None
+obj setattr str !! TypeError can't apply this __setattr__ to type object
+obj delattr str !! TypeError can't apply this __delattr__ to type object
+type setattr str !! TypeError cannot set 'foo' attribute of immutable type 'str'
+type delattr str !! TypeError cannot set 'lower' attribute of immutable type 'str'
+type delattr str missing !! TypeError cannot set 'nope' attribute of immutable type 'str'
+setattr str !! TypeError cannot set 'foo' attribute of immutable type 'str'
+delattr str !! TypeError cannot set 'lower' attribute of immutable type 'str'
+delattr int !! TypeError cannot set 'bit_length' attribute of immutable type 'int'
+obj setattr C !! TypeError can't apply this __setattr__ to type object
+obj delattr C !! TypeError can't apply this __delattr__ to type object
+obj setattr int inst !! AttributeError 'int' object has no attribute 'y' and no __dict__ for setting new attributes
+indirect !! TypeError can't apply this __setattr__ to D object
+list via dict -> None
+str lower -> a
+meta set a
+a -> 1
+meta del a
+gone -> False
+meta set b
+meta del b
+enum reassign !! AttributeError cannot reassign member 'RED'
+enum delete !! AttributeError 'Color' cannot delete member 'RED'.
+cache paths -> (True, True)
