@@ -1,0 +1,28 @@
+pkg init pkg pkg
+sub init pkg.sub pkg
+1 pkg value module pkg pkg True False
+True pkg.sub from sibling from sibling
+1 from sibling True
+from sibling! True from sibling!
+True 1 True plain <module 'sys' (built
+1 2 2
+2 True
+1 3 False False
+False
+2 2
+False
+real lazy anything
+ModuleNotFoundError No module named 'nope'
+ModuleNotFoundError No module named 'plain.nope'; 'plain' is not a package
+ValueError in module False
+ImportError cannot import name 'nothing_yet' from partially initialized module 'circ_a'
+cannot import name 'nope' from 'plain'
+Item in badall.__all__ must be str, not int
+42
+9223372036854775807 little (3, 14) list True
+exit 3
+ZeroDivisionError division by zero
+(None, None, None)
+written
+True module
+True 0123456789 abc

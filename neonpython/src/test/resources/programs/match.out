@@ -1,0 +1,52 @@
+0 zero
+2 small
+-1 minus one
+2.5 a half
+'hello' greeting
+None nothing
+True small
+(1+2j) complex
+500 big 500
+'x' other str x
+50 something else
+[1] something else
+[] empty
+[1] one: 1
+(1, 2) two: 1 2
+[1, 2, 3, 4] many: 1 [2, 3] 4
+(1, 2, 3) head 1 rest [2, 3] list
+'ab' not a sequence
+b'ab' not a sequence
+{1: 2} not a sequence
+{1, 2} not a sequence
+range(0, 2) two: 0 1
+range(0, 5) many: 0 [1, 2, 3] 4
+nested 1 2 [2, 3]
+or with as 1 x
+{'mode': 'fast', 'x': 1} fast with {'x': 1}
+{'mode': 'slow', 'level': 3} slow at 3
+{'mode': 'slow', 'level': 'high'} some mode
+{} a mapping
+[] not a mapping
+{'other': 1} a mapping
+a mapping pattern uses get, not []
+origin
+on the y axis at 5
+on the x axis at 3
+diagonal
+somewhere
+not a point
+a is 1
+int 5
+float or str str
+float or str 2.5
+list or tuple [1]
+list or tuple (1,)
+dict {1: 1}
+bool True
+blue by a dotted name
+tuple subject 1 2
+not bound: name 'first' is not defined
+bound by the case whose guard failed: 1 2
+no case matched: on we go
+match is a soft keyword

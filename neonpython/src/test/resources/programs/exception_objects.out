@@ -1,0 +1,13 @@
+NotFound 404 not found: page NotFound('page') ('page',) True
+Plain() Plain(1) Plain(1, 'two') (1, 'two') (1, 2) (1, 2)
+raised the class Plain()
+('k',) 'k'  ('a', 'b')
+2 No such file [Errno 2] No such file (2, 'No such file') OSError
+3 None 5 None
+['first', 'second'] 1 True
+(1, 2) (1, 2) BaseExceptionGroup
+True True True
+[2, 1, 0]
+10 empty
+[10, 'div0', 'type', 5]
+recursion maximum recursion depth exceeded

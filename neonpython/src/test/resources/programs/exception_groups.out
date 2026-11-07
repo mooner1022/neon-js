@@ -1,0 +1,40 @@
+g (ValueError(1), TypeError(2)) ('g', [ValueError(1), TypeError(2)]) g (2 sub-exceptions) ExceptionGroup('g', [ValueError(1), TypeError(2)])
+ExceptionGroup BaseExceptionGroup
+one (1 sub-exception) True True
+ExceptionGroup('g', [ValueError(1), ExceptionGroup('n', [ValueError(3)])])
+ExceptionGroup('g', [ExceptionGroup('n', [TypeError(2)])])
+ExceptionGroup('g', [ExceptionGroup('n', [TypeError(2)])]) None True
+ExceptionGroup('g', [ExceptionGroup('n', [ValueError(3)])]) ExceptionGroup('g', [ValueError(1), ExceptionGroup('n', [TypeError(2)])])
+ExceptionGroup('g', [ExceptionGroup('n', [TypeError(2)])])
+ExceptionGroup('g', [KeyError('d')])
+['a note'] ['a note']
+MyGroup ExceptionGroup ExceptionGroup('mine', [ValueError(1)])
+handling ExceptionGroup('g', [ValueError(1), TypeError(2), ValueError(3)])
+  values ExceptionGroup('g', [ValueError(1), ValueError(3)])
+  types ExceptionGroup('g', [TypeError(2)])
+handling ExceptionGroup('g', [ValueError(1)])
+  values ExceptionGroup('g', [ValueError(1)])
+handling ValueError('naked')
+  values ExceptionGroup('', (ValueError('naked'),))
+handling ExceptionGroup('g', [ValueError(1), ExceptionGroup('n', [TypeError(2), ValueError(3)])])
+  values ExceptionGroup('g', [ValueError(1), ExceptionGroup('n', [ValueError(3)])])
+  types ExceptionGroup('g', [ExceptionGroup('n', [TypeError(2)])])
+  took ExceptionGroup('g', [ValueError(1)])
+ExceptionGroup('g', [KeyError(2)])
+KeyError('naked, unmatched')
+  took ExceptionGroup('', (ValueError('naked, matched'),))
+all handled
+ExceptionGroup ExceptionGroup('g', [ValueError(1)])
+ExceptionGroup ExceptionGroup('', [KeyError('new'), IndexError('other')])
+KeyError KeyError('new')
+ExceptionGroup ExceptionGroup('', (ValueError('v'),))
+KeyError KeyError('new')
+nothing
+else runs
+finally runs
+context ExceptionGroup('g', [ValueError(1)])
+catching ExceptionGroup with except* is not allowed. Use except instead.
+TypeError BadEG1.split must return a tuple, not str BadEG1
+TypeError BadEG2.split must return a 2-tuple, got tuple of size 1 BadEG2
+ExceptionGroup('eg', [OSError(123)])
+ExceptionGroup('eg', [ValueError(456)])

@@ -1,0 +1,123 @@
+async_generator ag basics.<locals>.ag <async_generator object basics.<locals>.ag
+True True True True True
+False False False False False
+False None False True
+async_generator_asend <async_generator_asend object True True
+1
+mid
+True generator True
+2 False
+StopAsyncIteration
+StopAsyncIteration: 
+  yielded mid
+[1, 2]
+value (1, 2) ((1, 2),)
+value None (None,)
+([100, 101, 102], [0, 2, 4])
+first
+10
+14
+[5, 7]
+TypeError: async_generator.asend() takes exactly one argument (0 given)
+TypeError: can't send non-None value to a just-started async generator
+1
+RuntimeError: cannot reuse already awaited __anext__()/asend()
+None
+slow True
+RuntimeError: anext(): asynchronous generator is already running
+RuntimeError: aclose(): asynchronous generator is already running
+RuntimeError: athrow(): asynchronous generator is already running
+v False
+1
+finally ran
+None
+StopAsyncIteration: 
+None
+None
+StopAsyncIteration: 
+  passed closing
+closed after await
+None
+RuntimeError: async generator ignored GeneratorExit
+got 1
+finally ran
+broke
+noisy waiting
+RuntimeError: aclose(): asynchronous generator is already running
+noisy got GeneratorExit
+ag finally
+None False
+StopAsyncIteration: 
+  passed noisy waiting
+1
+ag finally
+None
+noisy waiting
+finally awaited noisy done
+None
+ag finally
+KeyError: 'into noisy'
+False False
+1
+caught v
+after
+KeyError: 'k'
+None
+StopAsyncIteration: 
+ValueError: x
+StopAsyncIteration: 
+TypeError: 
+RuntimeError: cannot reuse already awaited aclose()/athrow()
+RuntimeError: can't send non-None value to a just-started coroutine
+waiting
+caught at the await
+RuntimeError: async generator raised StopIteration StopIteration True
+RuntimeError: async generator raised StopAsyncIteration StopAsyncIteration True
+  yielded ag 0
+  yielded ag 1
+  yielded ag 2
+  yielded ag 0
+  yielded ag 1
+  yielded ag 2
+  yielded ag 0
+  yielded ag 1
+  yielded ag 2
+  yielded ag 0
+  yielded ag 1
+  yielded ag 0
+  yielded ag 0
+  yielded ag 1
+([0, 1, 2], [0, 1], {1: 1, 2: 4}, [(0, 1), (0, 2), (1, 1), (1, 2)], [0, 0, 1])
+async_generator
+  yielded ag 0
+  yielded ag 1
+[0, 10]
+async_generator
+  yielded 0
+  yielded 1
+['s0', 's1']
+  yielded ag 0
+  yielded ag 1
+[0, 1]
+TypeError: 'async for' requires an object with __aiter__ method, got int
+TypeError: 'async for' requires an object with __aiter__ method, got list
+  yielded ag 0
+  yielded ag 0
+  yielded ag 1
+[[], [0], [0, 1]]
+  yielded tick 1
+  yielded tick 2
+[1, 2]
+True
+1
+anext_awaitable
+2
+default
+StopAsyncIteration
+  yielded tick 1
+1 empty
+True
+TypeError: 'int' object is not an async iterable
+TypeError: 'int' object is not an async iterator
+TypeError: aiter() returned not an async iterator of type 'int'
+TypeError: anext expected at least 1 argument, got 0

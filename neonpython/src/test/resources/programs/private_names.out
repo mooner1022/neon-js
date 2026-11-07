@@ -1,0 +1,17 @@
+['_C__Inner', '_C__a', '_C__m', '_C__n', '_C__sys', '_C__version', '__b__', '__static_attributes__', '_c', 'delete', 'glob', 'handler', 'kw', 'lam', 'run']
+((1, 2), 10, 5, [0, 1], 1) ['__y'] 4 False v
+glob True False
+C.__Inner __m C.__m sys str
+not found 1 {'_C__n': <class 'int'>}
+AttributeError: 'C' object has no attribute '__m'
+TypeError: C.__m() got an unexpected keyword argument 'p'
+['__x'] ['__y'] ['_A__z']
+('__main__', True, 'D')
+Point int
+(__T,) {'x': __T, 'return': __T}
+('__private', 'a', 'ann', 'b', 'c', 'e', 'f', 'inner_attr', 'not_self') ('k_attr',) ()
+105 146 151 13
+['__module__', '__firstlineno__', '__doc__', 'x', '__static_attributes__']
+False False
+True bool
+debug on

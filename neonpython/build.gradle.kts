@@ -17,6 +17,10 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    // PyAstTest's check of a whole tree of files and CPython's dumps of them (src/test/resources/ast/record_tree.py)
+    System.getProperty("neonpy.astDir")?.let { systemProperty("neonpy.astDir", it) }
+    // the core's switches (-Dneonjs.jit.suspendable=false, -Dneonjs.jit.osrStress, ...) for the tests' JVM too
+    for ((k, v) in System.getProperties()) if (k.toString().startsWith("neonjs.")) systemProperty(k.toString(), v.toString())
     maxHeapSize = "2g"
     jvmArgs("-Xss16m")
 }

@@ -1,0 +1,22 @@
+(3+4j) 3.0 4.0 (3-4j) 5.0 (-3-4j) (3+4j) (-1+0j) (-4+0j) (-0.2+0.4j) True True
+(1+2j) (1+2j) -3.5j (2+0j) 0j (1.5-0j) 0j (-0-0j) infj
+(4+4j) (4+4j) (0.5+4j) (6+8j) (1.5+2j) (1.5+2j) (1-1j) (-7+24j) (2+1j) (0.7692389013639721+0.6389612763136348j) (-2+2j)
+1j (1+0j) -1j (3-0j) True True True
+5 0 5 2.5 0.0 False True True complex
+b'hello' 101 b'el' b'olleh' 5 b'hello!' b'hellohello' True True [97, 98] True True
+b'\x00\x00\x00' b'ABC' b'\x00\x01\x02' b'\xc3\xa9' b'\xc3\xa9' é abc
+b'\x00\x7f\x80' b"it's" b'a"b' b'\t\n' c8 b'AB' 6162 bytes
+b'ABC' b'x' [b'a', b'b'] b'a-b' True 2
+byte 104
+byte 105
+True 1 99 b'copy' True
+Ellipsis Ellipsis True ellipsis Ellipsis True
+Template ('hello ', ', ', ' times ', '') 3 ('world', 3, 'world')
+'hello '
+('world', 'name', None, '')
+', '
+(3, 'count', None, '03d')
+' times '
+('world', 'name', 'r', '')
+Interpolation 3 count None 03d
+('a', 'b') (3,) ('', '') ('',) ()

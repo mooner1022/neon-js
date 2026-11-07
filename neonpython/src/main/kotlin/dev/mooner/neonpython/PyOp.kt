@@ -2,8 +2,19 @@ package dev.mooner.neonpython
 
 /**
  * Python's bytecode: a stack machine with registers (a function's locals), as JavaScript's is. Each instruction is an
- * opcode and a fixed number of int operands ([operands]). The opcodes are below 1000, the optimizing tier's core's
- * own operations' range (docs/IR_NEUTRALITY.md): a [PyDialect] graph holds them as they are.
+ * opcode and a fixed number of int operands ([operands]). The opcodes are below 500, where the dialect's own graph
+ * operations start ([PyIr]), and so below the optimizing tier's core's (1000, docs/IR_NEUTRALITY.md): a [PyDialect]
+ * graph holds them as they are.
+ *
+ * A new instruction needs, or something breaks without a word:
+ * - its operand count ([operands]) and its stack effect ([stackEffect]);
+ * - where it can go, if it jumps: PyCompiler's successors (maxStack and the unbound locals' dataflow read them), the
+ *   builder's targets ([PyBuilder]'s body), and the loop headers ([PyDialect.backEdgeTargets]: a JUMP backwards);
+ * - the registers it reads and writes, if any (the builder's regsRead and regWritten);
+ * - its case in [PyInterpreter.run] (rare ones in a helper: the dispatch stays under 8,000 bytes, PyMethodSizeTest);
+ * - in the tier: a row of [PyGeneric] where its code is a runtime call, else its cases in the builder and PyCodegen;
+ * - the operand stack empty at every statement (exception handlers start with an empty one), and constants read from
+ *   the block's constants, never baked into code (blocks of one graph share a class).
  */
 object PyOp {
     const val NOP = 0
@@ -36,6 +47,7 @@ object PyOp {
     const val BITAND = 19
     const val BITOR = 20
     const val BITXOR = 21
+    const val MATMUL = 22
     // comparisons (a b -- bool)
     const val LT = 30
     const val LE = 31
@@ -80,11 +92,196 @@ object PyOp {
     /** k ( -- function) of the code constants[k], in this module */
     const val MAKE_FUNCTION = 79
 
-    const val COUNT = 80
+    // functions and scopes (docs/PYTHON_PLATFORM.md §11, M1)
+    /** n (f a1..am v1..vk names -- r): a call with keyword arguments, n = m + k, names a tuple of the k names */
+    const val CALL_KW = 80
+    /** a (f args [kwargs] -- r): a call with unpacking: args a list; kwargs (a = 1) a list of mappings */
+    const val CALL_EX = 81
+    /** (v -- cell) */
+    const val MAKE_CELL = 82
+    /** ( -- cell) a cell without a value */
+    const val NEW_CELL = 83
+    /** k ( -- cell) the cell of the function's free variable k */
+    const val LOAD_FREE = 84
+    /** k free (cell -- v) its value, or the error naming constants[k] (a free variable's where free is 1) */
+    const val CELL_GET = 85
+    /** (v cell -- ) */
+    const val CELL_SET = 86
+    /** k free (cell -- ) */
+    const val CELL_DELETE = 87
+    /** flag (attr fn -- fn): its defaults (1), keyword-only defaults (2), closure (8) */
+    const val SET_FUNCTION_ATTRIBUTE = 88
+    /** (list v -- list) */
+    const val LIST_APPEND = 89
+    /** (list iterable -- list) */
+    const val LIST_EXTEND = 90
+    /** (list -- tuple) */
+    const val LIST_TO_TUPLE = 91
+    /** (dict k v -- dict) */
+    const val MAP_ADD = 92
+    /** (dict mapping -- dict) */
+    const val DICT_UPDATE = 93
+    /** before after (seq -- items): before items, a list of the rest but after, after items, the first on top */
+    const val UNPACK_EX = 94
+    /** r ( -- ) local r without a value */
+    const val DELETE_FAST = 95
+    /** k ( -- ) */
+    const val DELETE_GLOBAL = 96
+    /** (obj key -- ) */
+    const val DELETE_SUBSCR = 97
+    /** k (obj -- ) */
+    const val DELETE_ATTR = 98
+    /** a (msg if a -- ) an AssertionError */
+    const val ASSERT_FAIL = 99
+    /** (v -- starred) a call's `*v`, which CALL_EX unpacks (its errors name the function) */
+    const val WRAP_STAR = 100
+
+    // classes (M2)
+    /** ( -- __build_class__) */
+    const val LOAD_BUILD_CLASS = 101
+    /** k ( -- v): a class body's name: its namespace, the globals, the builtins */
+    const val LOAD_NAME = 102
+    /** k (v -- ) into a class body's namespace */
+    const val STORE_NAME = 103
+    /** k ( -- ) */
+    const val DELETE_NAME = 104
+    /** k (cell -- v): a class body's free variable, its namespace's value where it has one */
+    const val LOAD_FROM_DICT_OR_DEREF = 105
+    /** k (v obj -- ) obj.name = v */
+    const val STORE_ATTR = 106
+    /** op (a b -- a op= b): augmented assignment of binary operator op (__iadd__..., a list in place) */
+    const val INPLACE = 107
+
+    // exceptions (M3): handlers are the code block's (CodeUnit.handlers), entered with the exception on the stack
+    /** (exc -- prev): exc becomes the exception handled, the one before (or None) on the stack, for POP_EXCEPT */
+    const val PUSH_EXC_INFO = 108
+    /** (prev -- ): the exception handled before the handler, again */
+    const val POP_EXCEPT = 109
+    /** (exc type -- bool): whether exc is an instance of type (a class or a tuple of classes, exceptions') */
+    const val CHECK_EXC_MATCH = 110
+    /** a (exc cause if a > 0 -- ): `raise` (a 0: the exception handled again), `raise exc`, `raise exc from cause` */
+    const val RAISE = 111
+    /** (exc -- ): the exception object raised again, as it was */
+    const val RERAISE = 112
+    /** k (mgr -- method): a context manager's __enter__ (k 0) or __exit__ (k 1), looked up on its type, bound */
+    const val LOAD_SPECIAL = 113
+    /** (exit exc -- result): a with's __exit__ called for exception exc (its type, it, its traceback) */
+    const val WITH_EXCEPT = 114
+    // except* (PyExceptions.ExcStar: what the clauses have not matched, what they raised)
+    /** (exc -- state) */
+    const val EXC_STAR_BEGIN = 115
+    /** (state type -- match): the part left that type matches, or None */
+    const val EXC_STAR_MATCH = 116
+    /** (state exc -- ): exc left a clause's body */
+    const val EXC_STAR_RAISED = 117
+    /** (state -- exc): what to raise, or None */
+    const val EXC_STAR_END = 118
+
+    // generators (M4): a generator's frame suspends at YIELD and is resumed with a value pushed (PyGenerator)
+    /** (v -- sent): v handed over, the frame suspended; resumed, the value sent on the stack (RESUME reads the mode) */
+    const val YIELD = 119
+    /** (sent -- sent): after a YIELD, an exception thrown in raised here */
+    const val RESUME = 120
+    /** (v -- iterator): what `yield from v` steps (a generator itself) */
+    const val GET_YIELD_FROM_ITER = 121
+    /** r t (sent -- yielded), or (sent -- result) to t: a step of `yield from` over the iterator in register r */
+    const val SEND = 122
+
+    // formatting (M5)
+    /** conv (v -- str): an f-string's field (conv 0, 1 !s, 2 !r, 3 !a) */
+    const val FORMAT_VALUE = 123
+    /** conv (v spec -- str): one with its spec */
+    const val FORMAT_SPEC = 124
+    /** n (s1..sn -- str): an f-string's parts joined */
+    const val BUILD_STRING = 125
+
+    // sets and slices (M5)
+    /** n (v1..vn -- set) */
+    const val BUILD_SET = 126
+    /** (set v -- set) */
+    const val SET_ADD = 127
+    /** (set iterable -- set) */
+    const val SET_UPDATE = 128
+    /** n (start stop [step] -- slice) */
+    const val BUILD_SLICE = 129
+    /** (value expression conversion spec -- interpolation): a t-string's field */
+    const val BUILD_INTERPOLATION = 130
+    /** (strings interpolations -- template): a t-string */
+    const val BUILD_TEMPLATE = 131
+    /** r ( -- local r): its value as it is (none for none: locals() leaves it out), never an UnboundLocalError */
+    const val LOAD_FAST_RAW = 132
+    /** k (values -- dict): locals() in a function, constants[k] its names (and which are cells) */
+    const val LOAD_LOCALS = 133
+
+    // match (M6): a pattern's tests (PyMatch)
+    /** (v -- bool) */
+    const val MATCH_SEQUENCE = 134
+    /** (v -- bool) */
+    const val MATCH_MAPPING = 135
+    /** (v -- len) */
+    const val GET_LEN = 136
+    /** (mapping keys -- values or None) */
+    const val MATCH_KEYS = 137
+    /** (mapping keys -- dict): a mapping pattern's **rest */
+    const val COPY_DICT_WITHOUT_KEYS = 138
+    /** npos (v cls names -- attributes or None) */
+    const val MATCH_CLASS = 139
+
+    // import (M7)
+    /** k (level fromlist -- module): the module constants[k] */
+    const val IMPORT_NAME = 140
+    /** k (module -- attribute): its attribute constants[k], or its submodule */
+    const val IMPORT_FROM = 141
+    /** (module -- ): its names into the namespace */
+    const val IMPORT_STAR = 142
+
+    // coroutines (M8): await is a SEND's loop over GET_AWAITABLE's iterator, as `yield from` over GET_YIELD_FROM_ITER's
+    /** k (v -- iterator): what `await v` steps (k 1, 2: an async with's __aenter__'s, __aexit__'s result) */
+    const val GET_AWAITABLE = 143
+    /** (v -- aiterator): what `async for` steps, its __aiter__'s */
+    const val GET_AITER = 144
+    /** (aiterator -- awaitable): its next value's, awaited after */
+    const val GET_ANEXT = 145
+    /** (exc -- ): the handler of an async for's next: its end where a StopAsyncIteration, else raised again */
+    const val END_ASYNC_FOR = 146
+    /** (v -- wrapped): an async generator's yielded value, told from an await's */
+    const val ASYNC_GEN_WRAP = 147
+
+    // annotations (M9, PEP 649): `__annotate__` functions, a class's names read through its `__classdict__`
+    /** (format -- ): NotImplementedError for a format an `__annotate__` does not give (above 2) */
+    const val ANNOTATE_CHECK = 148
+    /** ( -- ): the namespace's `__annotations__` dict made where it has none (`from __future__ import annotations`) */
+    const val SETUP_ANNOTATIONS = 149
+    /** k (dict -- v): name constants[k] in a class's namespace, else a global or a builtin */
+    const val LOAD_FROM_DICT_OR_GLOBALS = 150
+    /** k (dict cell -- v): name constants[k] in a class's namespace, else the cell's value */
+    const val LOAD_FROM_DICT_OR_CELL = 151
+    /** ( -- dict): a class body's namespace (its `__classdict__`) */
+    const val LOAD_NAMESPACE = 152
+
+    // type parameters (M9, PEP 695): a generic's <generic parameters of X> function makes them
+    /** kind (name -- tv): a TypeVar (0), a TypeVarTuple (1), a ParamSpec (2) */
+    const val MAKE_TYPEVAR = 153
+    /** kind (name fn -- tv): a TypeVar with a bound (1) or constraints (2) [fn] evaluates */
+    const val MAKE_TYPEVAR_BOUND = 154
+    /** (tv fn -- tv): its default, [fn] evaluates */
+    const val SET_TYPEPARAM_DEFAULT = 155
+    /** (name params fn -- alias): a `type` statement's alias (params None where not generic) */
+    const val MAKE_TYPEALIAS = 156
+    /** (params -- base): Generic[*params], a generic class's base */
+    const val SUBSCRIPT_GENERIC = 157
+
+    /** (locals -- ): a function's locals' snapshot, exec()'s and eval()'s where they are given none */
+    const val SET_EVAL_LOCALS = 158
+
+    const val COUNT = 200
 
     @JvmField val operands = IntArray(COUNT).also { o ->
         for (op in intArrayOf(LOAD_CONST, LOAD_FAST, LOAD_FAST_CHECK, STORE_FAST, LOAD_GLOBAL, STORE_GLOBAL, JUMP, POP_JUMP_IF_FALSE,
-            POP_JUMP_IF_TRUE, CALL, BUILD_LIST, BUILD_TUPLE, BUILD_MAP, LOAD_ATTR, UNPACK, MAKE_FUNCTION)) o[op] = 1
+            POP_JUMP_IF_TRUE, CALL, BUILD_LIST, BUILD_TUPLE, BUILD_MAP, LOAD_ATTR, UNPACK, MAKE_FUNCTION, CALL_KW, CALL_EX, LOAD_FREE,
+            SET_FUNCTION_ATTRIBUTE, DELETE_FAST, DELETE_GLOBAL, DELETE_ATTR, ASSERT_FAIL, LOAD_NAME, STORE_NAME, DELETE_NAME,
+            LOAD_FROM_DICT_OR_DEREF, STORE_ATTR, INPLACE, RAISE, LOAD_SPECIAL, FORMAT_VALUE, FORMAT_SPEC, BUILD_STRING, BUILD_SET, BUILD_SLICE, LOAD_FAST_RAW, LOAD_LOCALS, MATCH_CLASS, IMPORT_NAME, IMPORT_FROM, GET_AWAITABLE, LOAD_FROM_DICT_OR_GLOBALS, LOAD_FROM_DICT_OR_CELL, MAKE_TYPEVAR, MAKE_TYPEVAR_BOUND)) o[op] = 1
+        for (op in intArrayOf(CELL_GET, CELL_DELETE, UNPACK_EX, SEND)) o[op] = 2
         o[FOR_ITER] = 3
     }
 
@@ -100,10 +297,28 @@ object PyOp {
     fun length(op: Int) = 1 + operands[op]
 
     /** The change of the operand stack's depth the instruction [op] with operand [a] makes. */
-    fun stackEffect(op: Int, a: Int): Int = when (op) {
-        LOAD_CONST, LOAD_FAST, LOAD_FAST_CHECK, LOAD_GLOBAL, DUP, MAKE_FUNCTION -> 1
+    fun stackEffect(op: Int, a: Int, b: Int = 0): Int = when (op) {
+        CALL_KW, CALL_EX -> -1 - a
+        NEW_CELL, LOAD_FREE, LOAD_BUILD_CLASS, LOAD_NAME -> 1
+        STORE_NAME -> -1
+        STORE_ATTR -> -2
+        CELL_SET, DELETE_SUBSCR, MAP_ADD -> -2
+        CELL_DELETE, SET_FUNCTION_ATTRIBUTE, LIST_APPEND, LIST_EXTEND, DICT_UPDATE, DELETE_ATTR -> -1
+        UNPACK_EX -> a + b
+        ASSERT_FAIL -> -a
+        LOAD_CONST, LOAD_FAST, LOAD_FAST_CHECK, LOAD_GLOBAL, DUP, MAKE_FUNCTION, LOAD_FAST_RAW -> 1
         STORE_FAST, STORE_GLOBAL, POP, POP_JUMP_IF_FALSE, POP_JUMP_IF_TRUE, RETURN -> -1
-        in ADD..BITXOR, in LT..NOT_IN, SUBSCR -> -1
+        in ADD..MATMUL, in LT..NOT_IN, SUBSCR, INPLACE, POP_EXCEPT, CHECK_EXC_MATCH, RERAISE, WITH_EXCEPT, EXC_STAR_MATCH -> -1
+        EXC_STAR_RAISED -> -2
+        FORMAT_SPEC -> -1
+        BUILD_STRING, BUILD_SET, BUILD_SLICE -> 1 - a
+        SET_ADD, SET_UPDATE, BUILD_TEMPLATE, MATCH_KEYS, COPY_DICT_WITHOUT_KEYS -> -1
+        MATCH_CLASS -> -2
+        IMPORT_NAME, IMPORT_STAR, END_ASYNC_FOR, ANNOTATE_CHECK, LOAD_FROM_DICT_OR_CELL, MAKE_TYPEVAR_BOUND, SET_TYPEPARAM_DEFAULT, SET_EVAL_LOCALS -> -1
+        MAKE_TYPEALIAS -> -2
+        LOAD_NAMESPACE -> 1
+        BUILD_INTERPOLATION -> -3
+        RAISE -> -a
         CALL -> -a
         BUILD_LIST, BUILD_TUPLE -> 1 - a
         BUILD_MAP -> 1 - 2 * a

@@ -1,0 +1,32 @@
+['hello', 'world'] ['', '', 'hello', '', 'world', '\t\n'] ['a', 'b', '', 'c'] ['a', 'b,c'] ['a b', 'c'] ['a,b', 'c']
+['x'] [] [''] ['a', 'b  '] ['a', 'b'] ['one', 'two', 'three', 'four']
+['a\n', 'b\n'] [] ['a', 'b', 'c'] a,b xabyabz
+('key', '=', 'value=x') ('key=value', '=', 'x') ('abc', '', '') ('', '', 'abc')
+'hello  world' 'hello  world \t\n' '  hello  world' hi a>> a a
+[ abc  ] [**ab*] [abc..] [  abc] abc
+00042 -0042 +07 abc 003.14
+HELLO WORLD hello Hello World They'Re Bill'S Hello Hello world
+STRASSE strasse ǆ True
+3 9 -1 8 3 4 6 4 3 1 2
+2 3 2 2 3
+True True True True True True
+a+b+c ab-c |a|b|c| bba abc
+name name abc a   b   c ab      c
+'abc' True True False False False False True False False True True True
+'ABC' True True False False False False False True False True True True
+'Abc' True True False False False False False False True True True True
+'abc1' False True False False False False True False False True True True
+'123' False True True True True False False False False False True True
+'½' False True False False True False False False False False False True
+'²' False True True False True False False False False False False True
+'٣' False True True True True False False False False False False True
+' \t' False False False False False True False False False False True False
+'' False False False False False False False False False False True True
+'a b' False False False False False False True False False False True True
+'Title Case' False False False False False False False False True False True True
+'_id1' False False False False False False True False False True True True
+'1id' False True False False False False True False False False True True
+'é' True True False False False False True False False True False True
+'x\x00' False False False False False False True False False False True False
+xyzef Jeo {97: '1'} bbb
+ a |éüü --CBA--

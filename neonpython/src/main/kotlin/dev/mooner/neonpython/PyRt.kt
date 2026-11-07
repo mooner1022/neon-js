@@ -14,6 +14,8 @@ object PyRt {
 
     @JvmStatic fun typeError(msg: String) = PyException("TypeError", msg)
 
+    private val NO_KW = arrayOfNulls<Any?>(0)
+
     private fun t(v: Any?) = PyTypes.name(v)
 
     // ------------------------------------------------------------------ numbers
@@ -48,6 +50,30 @@ object PyRt {
 
     private fun unsupported(op: String, a: Any?, b: Any?) = typeError("unsupported operand type(s) for $op: '${t(a)}' and '${t(b)}'")
 
+    /**
+     * Whether [v] is an instance of a class: an object, or a builtin value of a subclass. Its class's special methods
+     * come first (PyDunder), then, for a value, its base type's paths (the `...Values` functions).
+     */
+    @JvmStatic fun special(v: Any?): Boolean = v is PyObject || v is PyValue && v.sub != null
+
+    /** a op b where no builtin path took them: an instance's special methods (PyDunder), else the TypeError. */
+    private fun other(op: Int, sym: String, a: Any?, b: Any?): Any? =
+        if (special(a) || special(b)) PyDunder.binary(a, b, op) else PyLiterals.complexOp(op, a, b) ?: values(op, a, b) ?: throw unsupported(sym, a, b)
+
+    /** a op b of builtin values for [PyDunder.binary]: concatenation and repetition; null where none applies. */
+    @JvmStatic fun values(op: Int, a: Any?, b: Any?): Any? = when (op) {
+        PyOp.ADD -> addValues(a, b)
+        PyOp.MUL -> mulValues(a, b)
+        PyOp.MOD -> if (a is PyStr) PyStr(PyFormat.percent(a.s, b)) else null
+        // a dict | a dict: a copy, updated
+        PyOp.BITOR -> if (a is PyDict && b is PyDict) PyDict().also { d -> d.map.putAll(a.map); d.map.putAll(b.map) }
+            else PyContainers.setOp(op, a, b) ?: PySets.binary(op, a, b) ?: PyTyping.or(a, b)
+        PyOp.BITAND, PyOp.SUB, PyOp.BITXOR -> PyContainers.setOp(op, a, b) ?: PySets.binary(op, a, b)
+        else -> null
+    }
+
+    private fun concat(kind: String, b: Any?) = typeError("can only concatenate $kind (not \"${t(b)}\") to $kind")
+
     @JvmStatic fun add(a: Any?, b: Any?): Any? {
         val x = small(a)
         val y = small(b)
@@ -59,10 +85,24 @@ object PyRt {
             if (a is Double || b is Double) return toDouble(a) + toDouble(b)
             return norm(big(a).add(big(b)))
         }
-        if (a is PyStr && b is PyStr) return PyStr(a.s + b.s)
-        if (a is PyList && b is PyList) return PyList(ArrayList<Any?>(a.items.size + b.items.size).apply { addAll(a.items); addAll(b.items) })
-        if (a is PyTuple && b is PyTuple) return PyTuple(a.items.copyOf(a.items.size + b.items.size).also { b.items.copyInto(it, a.items.size) })
-        throw unsupported("+", a, b)
+        if (special(a) || special(b)) return PyDunder.binary(a, b, PyOp.ADD)
+        return addValues(a, b) ?: PyLiterals.complexOp(PyOp.ADD, a, b) ?: throw unsupported("+", a, b)
+    }
+
+    /** a + b of a str, list or tuple: null where a is none of them, CPython's TypeError where b is not of a's kind. */
+    @JvmStatic fun addValues(a: Any?, b: Any?): Any? {
+        if (a is PyBytes) return PyLiterals.bytesAdd(a, b)
+        if (a is PyTemplate || b is PyTemplate) return PyLiterals.templateAdd(a, b)
+        if (a is PyStr) return if (b is PyStr) PyStr(a.s + b.s) else throw concat("str", b)
+        if (a is PyList) {
+            if (b !is PyList) throw concat("list", b)
+            return PyList(ArrayList<Any?>(a.items.size + b.items.size).apply { addAll(a.items); addAll(b.items) })
+        }
+        if (a is PyTuple) {
+            if (b !is PyTuple) throw concat("tuple", b)
+            return PyTuple(a.items.copyOf(a.items.size + b.items.size).also { b.items.copyInto(it, a.items.size) })
+        }
+        return null
     }
 
     @JvmStatic fun sub(a: Any?, b: Any?): Any? {
@@ -76,7 +116,7 @@ object PyRt {
             if (a is Double || b is Double) return toDouble(a) - toDouble(b)
             return norm(big(a).subtract(big(b)))
         }
-        throw unsupported("-", a, b)
+        return other(PyOp.SUB, "-", a, b)
     }
 
     @JvmStatic fun mul(a: Any?, b: Any?): Any? {
@@ -90,11 +130,22 @@ object PyRt {
             if (a is Double || b is Double) return toDouble(a) * toDouble(b)
             return norm(big(a).multiply(big(b)))
         }
-        if (a is PyStr && isInt(b)) return PyStr(a.s.repeat(count(b)))
-        if (isInt(a) && b is PyStr) return PyStr(b.s.repeat(count(a)))
-        if (a is PyList && isInt(b)) return PyList(ArrayList<Any?>().apply { repeat(count(b)) { addAll(a.items) } })
-        if (a is PyTuple && isInt(b)) return PyTuple(ArrayList<Any?>().apply { repeat(count(b)) { addAll(a.items) } }.toTypedArray())
-        throw unsupported("*", a, b)
+        if (special(a) || special(b)) return PyDunder.binary(a, b, PyOp.MUL)
+        return mulValues(a, b) ?: PyLiterals.complexOp(PyOp.MUL, a, b) ?: throw unsupported("*", a, b)
+    }
+
+    /** A str, list or tuple repeated (either operand the count): null where neither is one, the TypeError where the count is no int. */
+    @JvmStatic fun mulValues(a: Any?, b: Any?): Any? {
+        PyLiterals.bytesMul(a, b)?.let { return it }
+        val seq: Any?
+        val n: Any?
+        if (a is PyStr || a is PyList || a is PyTuple) { seq = a; n = b } else if (b is PyStr || b is PyList || b is PyTuple) { seq = b; n = a } else return null
+        if (!isInt(n)) throw typeError("can't multiply sequence by non-int of type '${t(n)}'")
+        return when (seq) {
+            is PyStr -> PyStr(seq.s.repeat(count(n)))
+            is PyList -> PyList(ArrayList<Any?>().apply { repeat(count(n)) { addAll(seq.items) } })
+            else -> PyTuple(ArrayList<Any?>().apply { repeat(count(n)) { addAll((seq as PyTuple).items) } }.toTypedArray())
+        }
     }
 
     /** A repetition count: negative counts as none. */
@@ -105,14 +156,14 @@ object PyRt {
     }
 
     @JvmStatic fun truediv(a: Any?, b: Any?): Any? {
-        if (!isNumber(a) || !isNumber(b)) throw unsupported("/", a, b)
+        if (!isNumber(a) || !isNumber(b)) return other(PyOp.TRUEDIV, "/", a, b)
         val d = toDouble(b)
         if (d == 0.0) throw PyException("ZeroDivisionError", "division by zero")
         return toDouble(a) / d
     }
 
     @JvmStatic fun floordiv(a: Any?, b: Any?): Any? {
-        if (!isNumber(a) || !isNumber(b)) throw unsupported("//", a, b)
+        if (!isNumber(a) || !isNumber(b)) return other(PyOp.FLOORDIV, "//", a, b)
         if (a is Double || b is Double) {
             val y = toDouble(b)
             if (y == 0.0) throw PyException("ZeroDivisionError", "division by zero")
@@ -127,8 +178,10 @@ object PyRt {
     }
 
     @JvmStatic fun mod(a: Any?, b: Any?): Any? {
-        if (a is PyStr) throw typeError("str formatting with % is not supported yet")
-        if (!isNumber(a) || !isNumber(b)) throw unsupported("%", a, b)
+        if (!isNumber(a) || !isNumber(b)) {
+            if (a is PyStr && a.sub == null) return PyStr(PyFormat.percent(a.s, b))
+            return other(PyOp.MOD, "%", a, b)
+        }
         if (a is Double || b is Double) {
             val y = toDouble(b)
             if (y == 0.0) throw PyException("ZeroDivisionError", "division by zero")
@@ -147,7 +200,7 @@ object PyRt {
     }
 
     @JvmStatic fun pow(a: Any?, b: Any?): Any? {
-        if (!isNumber(a) || !isNumber(b)) throw unsupported("** or pow()", a, b)
+        if (!isNumber(a) || !isNumber(b)) return other(PyOp.POW, "** or pow()", a, b)
         if (isInt(a) && isInt(b)) {
             val e = big(b)
             if (e.signum() >= 0) {
@@ -165,24 +218,48 @@ object PyRt {
         return Math.pow(x, y)
     }
 
-    private fun bitwise(op: String, a: Any?, b: Any?, f: (Long, Long) -> Long, g: (BigInteger, BigInteger) -> BigInteger): Any? {
+    /**
+     * `a op= b` (INPLACE, binary opcode [op]): two ints, a float's arithmetic and strs joined as `a op b`, small enough
+     * to be inlined where [op] is a constant; instances, lists and the errors' messages in [PyDunder.inplace].
+     */
+    @JvmStatic fun inplace(a: Any?, b: Any?, op: Int): Any? {
+        if (a is Long && b is Long || op <= PyOp.POW && (a is Double || b is Double) && isNumber(a) && isNumber(b)) return when (op) {
+            PyOp.ADD -> add(a, b)
+            PyOp.SUB -> sub(a, b)
+            PyOp.MUL -> mul(a, b)
+            PyOp.TRUEDIV -> truediv(a, b)
+            PyOp.FLOORDIV -> floordiv(a, b)
+            PyOp.MOD -> mod(a, b)
+            PyOp.POW -> pow(a, b)
+            PyOp.LSHIFT -> lshift(a, b)
+            PyOp.RSHIFT -> rshift(a, b)
+            PyOp.BITAND -> bitAnd(a, b)
+            PyOp.BITOR -> bitOr(a, b)
+            PyOp.BITXOR -> bitXor(a, b)
+            else -> PyDunder.inplace(a, b, op)
+        }
+        if (op == PyOp.ADD && a is PyStr && b is PyStr) return PyStr(a.s + b.s)
+        return PyDunder.inplace(a, b, op)
+    }
+
+    private fun bitwise(op: String, code: Int, a: Any?, b: Any?, f: (Long, Long) -> Long, g: (BigInteger, BigInteger) -> BigInteger): Any? {
         if (a is PyBool && b is PyBool) {
             val r = f(if (a.value) 1 else 0, if (b.value) 1 else 0)
             return PyBool.of(r != 0L)
         }
-        if (!isInt(a) || !isInt(b)) throw unsupported(op, a, b)
+        if (!isInt(a) || !isInt(b)) return other(code, op, a, b)
         val x = small(a)
         val y = small(b)
         if (x != null && y != null) return f(x, y)
         return norm(g(big(a), big(b)))
     }
 
-    @JvmStatic fun bitAnd(a: Any?, b: Any?) = bitwise("&", a, b, { x, y -> x and y }, BigInteger::and)
-    @JvmStatic fun bitOr(a: Any?, b: Any?) = bitwise("|", a, b, { x, y -> x or y }, BigInteger::or)
-    @JvmStatic fun bitXor(a: Any?, b: Any?) = bitwise("^", a, b, { x, y -> x xor y }, BigInteger::xor)
+    @JvmStatic fun bitAnd(a: Any?, b: Any?) = bitwise("&", PyOp.BITAND, a, b, { x, y -> x and y }, BigInteger::and)
+    @JvmStatic fun bitOr(a: Any?, b: Any?) = bitwise("|", PyOp.BITOR, a, b, { x, y -> x or y }, BigInteger::or)
+    @JvmStatic fun bitXor(a: Any?, b: Any?) = bitwise("^", PyOp.BITXOR, a, b, { x, y -> x xor y }, BigInteger::xor)
 
     @JvmStatic fun lshift(a: Any?, b: Any?): Any? {
-        if (!isInt(a) || !isInt(b)) throw unsupported("<<", a, b)
+        if (!isInt(a) || !isInt(b)) return other(PyOp.LSHIFT, "<<", a, b)
         val n = big(b)
         if (n.signum() < 0) throw PyException("ValueError", "negative shift count")
         if (n.bitLength() > 31) throw PyException("OverflowError", "too many digits in integer")
@@ -190,7 +267,7 @@ object PyRt {
     }
 
     @JvmStatic fun rshift(a: Any?, b: Any?): Any? {
-        if (!isInt(a) || !isInt(b)) throw unsupported(">>", a, b)
+        if (!isInt(a) || !isInt(b)) return other(PyOp.RSHIFT, ">>", a, b)
         val n = big(b)
         if (n.signum() < 0) throw PyException("ValueError", "negative shift count")
         if (n.bitLength() > 31) return if (big(a).signum() < 0) -1L else 0L
@@ -201,19 +278,21 @@ object PyRt {
         a is Long -> if (a == Long.MIN_VALUE) BigInteger.valueOf(a).negate() else -a
         a is Double -> -a
         isInt(a) -> norm(big(a).negate())
-        else -> throw typeError("bad operand type for unary -: '${t(a)}'")
+        a is PyComplex -> PyComplex(-a.real, -a.imag)
+        else -> PyDunder.unary(a, "__neg__", "-")
     }
 
     @JvmStatic fun pos(a: Any?): Any? = when {
         a is PyBool -> small(a)
         isNumber(a) -> a
-        else -> throw typeError("bad operand type for unary +: '${t(a)}'")
+        a is PyComplex -> a
+        else -> PyDunder.unary(a, "__pos__", "+")
     }
 
     @JvmStatic fun invert(a: Any?): Any? = when {
         a is Long -> a.inv()
         isInt(a) -> norm(big(a).not())
-        else -> throw typeError("bad operand type for unary ~: '${t(a)}'")
+        else -> PyDunder.unary(a, "__invert__", "~")
     }
 
     // ------------------------------------------------------------------ comparisons, truth, hashing
@@ -224,12 +303,38 @@ object PyRt {
         is Long -> v != 0L
         is Double -> v != 0.0
         is BigInteger -> v.signum() != 0
+        is PyValue -> if (v.sub == null) truthValues(v) else PyDunder.truthy(v)
+        is PyRange -> v.length > 0
+        is PyObject -> PyDunder.truthy(v)
+        is PyComplex -> v.real != 0.0 || v.imag != 0.0
+        is PyBytes -> v.b.isNotEmpty()
+        is PyDictView -> v.dict.size > 0
+        else -> true
+    }
+
+    /** A str's, list's, tuple's or dict's truth: not empty. */
+    @JvmStatic fun truthValues(v: Any?): Boolean = when (v) {
         is PyStr -> v.s.isNotEmpty()
         is PyList -> v.items.isNotEmpty()
         is PyTuple -> v.items.isNotEmpty()
         is PyDict -> v.size > 0
-        is PyRange -> v.length > 0
+        is PySet -> v.used > 0
         else -> true
+    }
+
+    /** len(v): a builtin value's length, or its class's __len__. */
+    @JvmStatic fun len(v: Any?): Long = if (special(v)) PyDunder.len(v) else lenValues(v)
+
+    @JvmStatic fun lenValues(v: Any?): Long = when (v) {
+        is PyList -> v.items.size.toLong()
+        is PyTuple -> v.items.size.toLong()
+        is PyStr -> v.length.toLong()
+        is PyDict -> v.size.toLong()
+        is PySet -> v.used.toLong()
+        is PyBytes -> v.b.size.toLong()
+        is PyDictView -> v.dict.size.toLong()
+        is PyRange -> v.length
+        else -> throw typeError("object of type '${t(v)}' has no len()")
     }
 
     @JvmStatic fun not(v: Any?): PyBool = PyBool.of(!truthy(v))
@@ -249,36 +354,60 @@ object PyRt {
     }
 
     @JvmStatic fun eq(a: Any?, b: Any?): Boolean {
-        if (a === b) return a !is Double || !a.isNaN()
+        if (a === b) return if (special(a)) PyDunder.eq(a, b) else a !is Double || !a.isNaN()
         if (isNumber(a) && isNumber(b)) return numCompare(a, b) == 0
+        if (special(a) || special(b)) return PyDunder.eq(a, b)
+        return eqValues(a, b)
+    }
+
+    /** a == b of builtin values (a subclass's instance as its base type's value); false for other kinds. */
+    @JvmStatic fun eqValues(a: Any?, b: Any?): Boolean {
+        if (isNumber(a) && isNumber(b)) return numCompare(a, b) == 0
+        if (a is PyComplex || b is PyComplex) return PyLiterals.complexEq(a, b)
+        PyContainers.viewEq(a, b)?.let { return it }
         return when (a) {
             is PyStr -> b is PyStr && a.s == b.s
             is PyList -> b is PyList && seqEquals(a.items, b.items)
             is PyTuple -> b is PyTuple && seqEquals(a.items.asList(), b.items.asList())
             is PyDict -> b is PyDict && a.size == b.size && a.map.all { (k, v) -> b.map.containsKey(k) && eq(v, b.map[k]) }
+            is PySet -> b is PySet && PySets.equal(a, b)
+            is PyBytes -> b is PyBytes && a.b.contentEquals(b.b)
+            is PySlice -> b is PySlice && a == b
+            is PyGenericAlias, is PyUnion, is PyParamSpecPart, is PyUnpacked -> a == b
             PyNone, null -> b === PyNone || b == null
             else -> false
         }
     }
 
+    /** Two sequences' items equal pairwise (an item is its own equal: containers compare by identity first). */
     @JvmStatic fun seqEquals(a: List<Any?>, b: List<Any?>): Boolean {
         if (a.size != b.size) return false
-        for (k in a.indices) if (!eq(a[k], b[k])) return false
+        for (k in a.indices) if (a[k] !== b[k] && !eq(a[k], b[k])) return false
         return true
     }
 
     /** a < b (op 0), <= (1), > (2), >= (3), as Python orders numbers, strs, lists and tuples. */
     @JvmStatic fun order(op: Int, a: Any?, b: Any?): Boolean {
-        val c: Int? = when {
+        if (special(a) || special(b)) return PyDunder.order(op, a, b)
+        return orderValues(op, a, b) ?: throw typeError("'${arrayOf("<", "<=", ">", ">=")[op]}' not supported between instances of '${t(a)}' and '${t(b)}'")
+    }
+
+    /** a < b (op 0)... of builtin values (a subclass's instance as its base type's value); null where they have no order. */
+    @JvmStatic fun orderValues(op: Int, a: Any?, b: Any?): Boolean? {
+        // (sets: subsets and supersets)
+        if (a is PySet && b is PySet) return when (op) {
+            0 -> a.used < b.used && PySets.isSubset(a, b)
+            1 -> PySets.isSubset(a, b)
+            2 -> b.used < a.used && PySets.isSubset(b, a)
+            else -> PySets.isSubset(b, a)
+        }
+        val c: Int = when {
             isNumber(a) && isNumber(b) -> numCompare(a, b) ?: return false
             a is PyStr && b is PyStr -> a.compareTo(b)
+            a is PyBytes && b is PyBytes -> PyLiterals.bytesCompare(a, b)
             a is PyList && b is PyList -> seqCompare(op, a.items, b.items) ?: return false
             a is PyTuple && b is PyTuple -> seqCompare(op, a.items.asList(), b.items.asList()) ?: return false
-            else -> null
-        }
-        if (c == null) {
-            val sym = arrayOf("<", "<=", ">", ">=")[op]
-            throw typeError("'$sym' not supported between instances of '${t(a)}' and '${t(b)}'")
+            else -> return null
         }
         return when (op) {
             0 -> c < 0
@@ -290,7 +419,7 @@ object PyRt {
 
     private fun seqCompare(op: Int, a: List<Any?>, b: List<Any?>): Int? {
         val n = minOf(a.size, b.size)
-        for (k in 0 until n) if (!eq(a[k], b[k])) return if (order(0, a[k], b[k])) -1 else 1
+        for (k in 0 until n) if (a[k] !== b[k] && !eq(a[k], b[k])) return if (order(0, a[k], b[k])) -1 else 1
         return a.size.compareTo(b.size)
     }
 
@@ -303,16 +432,46 @@ object PyRt {
             if (v >= -9.223372036854776E18 && v < 9.223372036854776E18) java.lang.Long.hashCode(v.toLong())
             else BigDecimal(v).toBigInteger().hashCode()
         } else v.hashCode()
-        is PyStr -> v.s.hashCode()
-        is PyTuple -> v.hashCode()
-        is PyList, is PyDict -> throw typeError("unhashable type: '${t(v)}'")
+        is PyStr -> if (v.sub == null) v.s.hashCode() else PyDunder.hash(v)
+        is PyTuple -> if (v.sub == null) v.hashCode() else PyDunder.hash(v)
+        is PyList, is PyDict -> if (special(v)) PyDunder.hash(v) else throw typeError("unhashable type: '${t(v)}'")
+        is PySet -> if (v.sub == null) (if (v.frozen) java.lang.Long.hashCode(v.frozenHash()) else throw typeError("unhashable type: '${t(v)}'")) else PyDunder.hash(v)
+        is PySlice -> java.lang.Long.hashCode(PyHash.hash(v))
+        is PyBytes -> v.hashCode()
+        // (equal to an int or a float, a complex with no imaginary part hashes as it)
+        is PyComplex -> if (v.imag == 0.0) hash(v.real) else java.lang.Long.hashCode(PyHash.hash(v))
+        is PyObject -> PyDunder.hash(v)
+        is PyGenericAlias, is PyUnion, is PyParamSpecPart, is PyUnpacked -> v.hashCode()
         else -> System.identityHashCode(v)
     }
 
-    @JvmStatic fun contains(container: Any?, v: Any?): Boolean = when (container) {
-        is PyList -> container.items.any { eq(it, v) }
-        is PyTuple -> container.items.any { eq(it, v) }
+    /** A str's or tuple's hash (a subclass's instance as its base type's value); lists and dicts have none. */
+    @JvmStatic fun hashValues(v: Any?): Int = when (v) {
+        is PyStr -> v.s.hashCode()
+        is PyTuple -> v.hashCode()
+        is PyList, is PyDict -> throw typeError("unhashable type: '${t(v)}'")
+        is PySet -> if (v.frozen) java.lang.Long.hashCode(v.frozenHash()) else throw typeError("unhashable type: '${t(v)}'")
+        else -> System.identityHashCode(v)
+    }
+
+    /** A dict key's hash: a TypeError hashing it says what it was for (CPython 3.14's message). */
+    @JvmStatic fun keyHash(v: Any?): Int = try {
+        hash(v)
+    } catch (e: PyException) {
+        if (e.matches(PyExceptions.type("TypeError"))) throw typeError("cannot use '${t(v)}' as a dict key (${e.message})") else throw e
+    }
+
+    @JvmStatic fun contains(container: Any?, v: Any?): Boolean =
+        if (special(container)) PyDunder.contains(container!!, v) else containsValues(container, v)
+
+    /** `v in container` of builtin values (a subclass's instance as its base type's value), else by iteration. */
+    @JvmStatic fun containsValues(container: Any?, v: Any?): Boolean = when (container) {
+        is PyList -> container.items.any { it === v || eq(it, v) }
+        is PyTuple -> container.items.any { it === v || eq(it, v) }
         is PyDict -> container.containsKey(v)
+        is PySet -> container.contains(v)
+        is PyBytes -> PyLiterals.bytesContains(container, v)
+        is PyDictView -> PyContainers.contains(container, v)
         is PyStr -> if (v is PyStr) container.s.contains(v.s) else throw typeError("'in <string>' requires string as left operand, not ${t(v)}")
         is PyRange -> v is Long && (if (container.step > 0) v >= container.start && v < container.stop else v <= container.start && v > container.stop) &&
             (v - container.start) % container.step == 0L
@@ -322,7 +481,7 @@ object PyRt {
             while (true) {
                 val x = it.next()
                 if (x === PyIterator.STOP) break
-                if (eq(x, v)) { found = true; break }
+                if (x === v || eq(x, v)) { found = true; break }
             }
             found
         }
@@ -330,9 +489,12 @@ object PyRt {
 
     // ------------------------------------------------------------------ str and repr
 
-    @JvmStatic fun str(v: Any?): String = if (v is PyStr) v.s else repr(v)
+    @JvmStatic fun str(v: Any?): String = if (v is PyStr && v.sub == null) v.s else if (special(v)) PyDunder.str(v!!) else repr(v)
 
-    @JvmStatic fun repr(v: Any?): String = when (v) {
+    @JvmStatic fun repr(v: Any?): String = if (v is PyValue && v.sub != null) PyDunder.repr(v) else reprValues(v)
+
+    /** repr of a builtin value (a subclass's instance as its base type's value), an object's through its class. */
+    @JvmStatic fun reprValues(v: Any?): String = when (v) {
         null, PyNone -> "None"
         is PyBool -> v.toString()
         is Long, is BigInteger -> v.toString()
@@ -341,7 +503,18 @@ object PyRt {
         is PyList -> v.items.joinToString(", ", "[", "]") { repr(it) }
         is PyTuple -> if (v.items.size == 1) "(" + repr(v.items[0]) + ",)" else v.items.joinToString(", ", "(", ")") { repr(it) }
         is PyDict -> v.map.entries.joinToString(", ", "{", "}") { repr(it.key.v) + ": " + repr(it.value) }
+        is PySet -> PySets.repr(v)
+        is PySlice -> v.toString()
+        is PyTemplate -> PyLiterals.templateRepr(v)
+        is PyDictView -> PyContainers.repr(v)
+        is PyModule -> v.repr()
+        is PyStream -> "<_io.TextIOWrapper name='${v.name}' mode='w' encoding='utf-8'>"
+        is PyInterpolation -> PyLiterals.interpolationRepr(v)
         is PyRange -> if (v.step == 1L) "range(${v.start}, ${v.stop})" else "range(${v.start}, ${v.stop}, ${v.step})"
+        is PyType -> v.repr()
+        is PyObject -> PyDunder.repr(v)
+        is PyUnion -> PyTyping.unionRepr(v)
+        is PyGenericAlias, is PyTypeParam, is PyParamSpecPart, is PyUnpacked, is PyTypeAlias, PyNoDefault, PyUnpackForm -> PyTyping.repr(v)
         else -> v.toString()
     }
 
@@ -372,6 +545,14 @@ object PyRt {
             }
         }
         digits = digits.trimStart('0').trimEnd('0').ifEmpty { "0" }
+        // Java writes two digits at least (4.9E-324) where one reads back the same (Python's 5e-324)
+        if (digits.length == 2) {
+            val one = java.math.BigDecimal(Math.abs(d)).round(java.math.MathContext(1, java.math.RoundingMode.HALF_EVEN))
+            if (one.toDouble() == Math.abs(d)) {
+                digits = one.unscaledValue().toString()
+                exp = one.precision() - one.scale() - 1
+            }
+        }
         val sign = if (d < 0) "-" else ""
         if (exp < -4 || exp >= 16) {
             val mant = if (digits.length == 1) digits else digits[0] + "." + digits.substring(1)
@@ -386,20 +567,36 @@ object PyRt {
         return sign + "0." + "0".repeat(-exp - 1) + digits
     }
 
+    /** A str as repr writes it: quoted, what is not printable (str.isprintable) escaped as \xhh, \uhhhh or \Uhhhhhhhh. */
     @JvmStatic fun strRepr(s: String): String {
         val q = if (s.contains('\'') && !s.contains('"')) '"' else '\''
         val sb = StringBuilder().append(q)
-        for (c in s) {
+        var i = 0
+        while (i < s.length) {
+            val c = s.codePointAt(i)
+            i += Character.charCount(c)
             when {
-                c == q || c == '\\' -> sb.append('\\').append(c)
-                c == '\n' -> sb.append("\\n")
-                c == '\r' -> sb.append("\\r")
-                c == '\t' -> sb.append("\\t")
-                c < ' ' || c == '\u007f' -> sb.append("\\x").append(Integer.toHexString(c.code).padStart(2, '0'))
-                else -> sb.append(c)
+                c == q.code || c == '\\'.code -> sb.append('\\').appendCodePoint(c)
+                c == '\n'.code -> sb.append("\\n")
+                c == '\r'.code -> sb.append("\\r")
+                c == '\t'.code -> sb.append("\\t")
+                printable(c) -> sb.appendCodePoint(c)
+                c < 0x100 -> sb.append("\\x").append(Integer.toHexString(c).padStart(2, '0'))
+                c < 0x10000 -> sb.append("\\u").append(Integer.toHexString(c).padStart(4, '0'))
+                else -> sb.append("\\U").append(Integer.toHexString(c).padStart(8, '0'))
             }
         }
         return sb.append(q).toString()
+    }
+
+    /** str.isprintable of one code point: not a control, format, surrogate, private, unassigned or separator (but ' '). */
+    @JvmStatic fun printable(c: Int): Boolean {
+        if (c == ' '.code) return true
+        return when (Character.getType(c).toByte()) {
+            Character.CONTROL, Character.FORMAT, Character.SURROGATE, Character.PRIVATE_USE, Character.UNASSIGNED,
+            Character.LINE_SEPARATOR, Character.PARAGRAPH_SEPARATOR, Character.SPACE_SEPARATOR -> false
+            else -> true
+        }
     }
 
     // ------------------------------------------------------------------ items, attributes, iteration
@@ -412,47 +609,125 @@ object PyRt {
         return k.toInt()
     }
 
-    @JvmStatic fun getItem(obj: Any?, key: Any?): Any? = when (obj) {
+    @JvmStatic fun getItem(obj: Any?, key: Any?): Any? =
+        if (obj is PyValue && obj.sub != null) PyDunder.getItem(obj, key) else getItemValues(obj, key)
+
+    /** obj[key] of builtin values (a subclass's instance as its base type's value), an object's through its class. */
+    @JvmStatic fun getItemValues(obj: Any?, key: Any?): Any? =
+        if (key is PySlice && (obj is PyList || obj is PyTuple || obj is PyStr || obj is PyRange)) sliceValues(obj, key) else when (obj) {
         is PyList -> obj.items[index(key, obj.items.size, "list")]
         is PyTuple -> obj.items[index(key, obj.items.size, "tuple")]
         is PyStr -> obj.at(index(key, obj.length, "string"))
-        is PyDict -> if (obj.containsKey(key)) obj[key] else throw PyException("KeyError", repr(key))
+        is PyDict -> if (obj.containsKey(key)) obj[key] else throw PyException.keyError(key)
+        is PyBytes -> PyLiterals.bytesItem(obj, key)
         is PyRange -> {
             val n = obj.length
             if (n > Int.MAX_VALUE) throw PyException("OverflowError", "range too large")
             obj.start + obj.step * index(key, n.toInt(), "range")
         }
+        is PyObject -> PyDunder.getItem(obj, key)
+        is PyType -> PyTyping.typeGetItem(obj, key)
+        is PyGenericAlias, is PyUnion -> PyTyping.aliasGetItem(obj, key)
+        is PyTypeAlias -> PyTyping.aliasTypeGetItem(obj, key)
         else -> throw typeError("'${t(obj)}' object is not subscriptable")
     }
 
     @JvmStatic fun setItem(obj: Any?, key: Any?, v: Any?) {
+        if (obj is PyValue && obj.sub != null) PyDunder.setItem(obj, key, v) else setItemValues(obj, key, v)
+    }
+
+    /** obj[key] = v of builtin values (a subclass's instance as its base type's value), an object's through its class. */
+    @JvmStatic fun setItemValues(obj: Any?, key: Any?, v: Any?) {
         when (obj) {
-            is PyList -> obj.items[index(key, obj.items.size, "list assignment")] = v
+            is PyList -> if (key is PySlice) assignSlice(obj, key, v) else obj.items[index(key, obj.items.size, "list assignment")] = v
             is PyDict -> obj[key] = v
+            is PyObject -> PyDunder.setItem(obj, key, v)
             else -> throw typeError("'${t(obj)}' object does not support item assignment")
         }
     }
 
-    @JvmStatic fun getAttr(obj: Any?, name: String): Any? {
-        val m = PyBuiltins.method(obj, name) ?: throw PyException("AttributeError", "'${t(obj)}' object has no attribute '$name'")
-        return PyBoundMethod(obj, m)
+    /** obj.name (PyClasses: types, super, instances, the attributes of every object). */
+    @JvmStatic fun getAttr(obj: Any?, name: String): Any? = when (obj) {
+        is PyType -> PyClasses.typeAttr(obj, name)
+        is PySuper -> PyClasses.superAttr(obj, name)
+        else -> PyClasses.getAttr(obj, name)
     }
 
-    @JvmStatic fun iter(v: Any?): PyIterator = when (v) {
+    @JvmStatic fun iter(v: Any?): PyIterator = if (v is PyValue && v.sub != null) PyDunder.iter(v) else iterValues(v)
+
+    /** iter(v) of builtin values (a subclass's instance as its base type's value), an object's through its class. */
+    /** seq[slice] of a list, a tuple, a str (by code point) or a range. */
+    @JvmStatic fun sliceValues(obj: Any?, s: PySlice): Any? {
+        when (obj) {
+            is PyList -> {
+                val (a, _, st, n) = s.indices(obj.items.size.toLong())
+                val out = ArrayList<Any?>(n.toInt())
+                var i = a
+                repeat(n.toInt()) { out.add(obj.items[i.toInt()]); i += st }
+                return PyList(out)
+            }
+            is PyTuple -> {
+                val (a, _, st, n) = s.indices(obj.items.size.toLong())
+                if (a == 0L && st == 1L && n == obj.items.size.toLong() && obj.sub == null) return obj
+                val out = arrayOfNulls<Any?>(n.toInt())
+                var i = a
+                for (k in 0 until n.toInt()) { out[k] = obj.items[i.toInt()]; i += st }
+                return if (n == 0L) PyTuple.EMPTY else PyTuple(out)
+            }
+            is PyStr -> {
+                val (a, _, st, n) = s.indices(obj.length.toLong())
+                if (obj.bmp && st == 1L) return PyStr(obj.s.substring(a.toInt(), (a + n).toInt()))
+                val cps = if (obj.bmp) null else obj.s.codePoints().toArray()
+                val sb = StringBuilder(n.toInt())
+                var i = a
+                repeat(n.toInt()) {
+                    if (cps == null) sb.append(obj.s[i.toInt()]) else sb.appendCodePoint(cps[i.toInt()])
+                    i += st
+                }
+                return PyStr(sb.toString())
+            }
+            is PyRange -> {
+                val (a, b, st, _) = s.indices(obj.length)
+                return PyRange(obj.start + a * obj.step, obj.start + b * obj.step, obj.step * st)
+            }
+            else -> return null
+        }
+    }
+
+    /** list[slice] = iterable: a slice of step 1 replaced (any length), an extended one item by item (its length). */
+    private fun assignSlice(l: PyList, s: PySlice, v: Any?) {
+        val (a, b, st, n) = s.indices(l.items.size.toLong())
+        val items = if (v === l) ArrayList(l.items) else try {
+            PyBuiltins.toList(v)
+        } catch (e: PyException) {
+            if (e.matches(PyExceptions.type("TypeError"))) throw typeError("must assign iterable to extended slice") else throw e
+        }
+        if (st == 1L) {
+            val end = maxOf(a, b).toInt()
+            l.items.subList(a.toInt(), end).clear()
+            l.items.addAll(a.toInt(), items)
+            return
+        }
+        if (items.size.toLong() != n) throw PyException("ValueError", "attempt to assign sequence of size ${items.size} to extended slice of size $n")
+        var i = a
+        for (x in items) { l.items[i.toInt()] = x; i += st }
+    }
+
+    @JvmStatic fun iterValues(v: Any?): PyIterator = when (v) {
         is PyIterator -> v
         is PyRange -> {
             var cur = v.start
             val step = v.step
             val stop = v.stop
-            PyIterator { if (if (step > 0) cur < stop else cur > stop) cur.also { cur += step } else PyIterator.STOP }
+            PyIterator { if (if (step > 0) cur < stop else cur > stop) cur.also { cur += step } else PyIterator.STOP }.also { it.type = PyLibrary.RANGE_ITERATOR }
         }
         is PyList -> {
             var k = 0
-            PyIterator { if (k < v.items.size) v.items[k++] else PyIterator.STOP }
+            PyIterator { if (k < v.items.size) v.items[k++] else PyIterator.STOP }.also { it.type = PyLibrary.LIST_ITERATOR }
         }
         is PyTuple -> {
             var k = 0
-            PyIterator { if (k < v.items.size) v.items[k++] else PyIterator.STOP }
+            PyIterator { if (k < v.items.size) v.items[k++] else PyIterator.STOP }.also { it.type = PyLibrary.TUPLE_ITERATOR }
         }
         is PyStr -> {
             var k = 0
@@ -463,11 +738,30 @@ object PyRt {
                     k += Character.charCount(cp)
                     PyStr(String(Character.toChars(cp)))
                 } else PyIterator.STOP
-            }
+            }.also { it.type = if (s.all { c -> c.code < 0x80 }) PyLibrary.STR_ASCII_ITERATOR else PyLibrary.STR_ITERATOR }
         }
-        is PyDict -> {
-            val it = ArrayList(v.map.keys).iterator()
-            PyIterator { if (it.hasNext()) it.next().v else PyIterator.STOP }
+        is PyDict -> PyContainers.iter(v, PyDictView.KEYS)
+        is PyDictView -> PyContainers.iter(v.dict, v.kind)
+        is PyObject -> PyDunder.iter(v)
+        is PyGenerator -> PyIterator { v.next() }
+        is PyAwaitIter -> PyIterator { v.send(PyContext.current(), PyNone).let { r -> if (r is PyGenerators.Done) PyIterator.STOP else r } }
+        is PyBytes -> {
+            var k = 0
+            PyIterator { if (k < v.b.size) (v.b[k++].toInt() and 0xFF).toLong() else PyIterator.STOP }.also { it.type = PyLibrary.BYTES_ITERATOR }
+        }
+        is PyTemplate -> PyLiterals.templateIter(v)
+        is PyGenericAlias -> PyTyping.iter(v)
+        is PyTypeParam -> PyTyping.typeParamIter(v)
+        is PySet -> {
+            // (in slot order; CPython's error where its size changes meanwhile)
+            var j = 0
+            val size0 = v.used
+            PyIterator {
+                if (v.used != size0) throw PyException("RuntimeError", "Set changed size during iteration")
+                val ks = v.keys
+                while (j < ks.size && (ks[j] == null || ks[j] === PySet.DUMMY)) j++
+                if (j < ks.size) ks[j++] else PyIterator.STOP
+            }.also { it.type = PyLibrary.SET_ITERATOR }
         }
         else -> throw typeError("'${t(v)}' object is not iterable")
     }
@@ -478,13 +772,26 @@ object PyRt {
     @JvmStatic fun isStop(v: Any?): Boolean = v === PyIterator.STOP
 
     /** The [n] items of [seq] (an unpacking assignment), or a ValueError. */
+    /** iter(seq) to unpack it: CPython's message where seq is no iterable at all (neither __iter__ nor __getitem__). */
+    @JvmStatic fun unpackIter(seq: Any?): PyIterator = try {
+        iter(seq)
+    } catch (e: PyException) {
+        val t = PyTypes.typeOf(seq)
+        if (e.matches(PyExceptions.type("TypeError")) && t.lookup("__iter__") == null && t.lookup("__getitem__") == null) {
+            throw typeError("cannot unpack non-iterable ${t.name} object")
+        }
+        throw e
+    }
+
     @JvmStatic fun unpack(seq: Any?, n: Int): Array<Any?> {
-        val items: List<Any?> = when (seq) {
-            is PyTuple -> seq.items.asList()
-            is PyList -> seq.items
+        // (a subclass's instance through its iteration, which its class may change)
+        val exact = seq is PyValue && seq.sub == null
+        val items: List<Any?> = when {
+            exact && seq is PyTuple -> seq.items.asList()
+            exact && seq is PyList -> seq.items
             else -> {
                 val out = ArrayList<Any?>()
-                val it = iter(seq)
+                val it = unpackIter(seq)
                 while (true) {
                     val x = it.next()
                     if (x === PyIterator.STOP) break
@@ -497,7 +804,7 @@ object PyRt {
         if (items.size < n) throw PyException("ValueError", "not enough values to unpack (expected $n, got ${items.size})")
         if (items.size > n) {
             // (Python 3.14 counts a list's or a tuple's items; an iterator's it stopped taking)
-            val got = if (seq is PyTuple || seq is PyList) ", got ${items.size}" else ""
+            val got = if (exact && (seq is PyTuple || seq is PyList)) ", got ${items.size}" else ""
             throw PyException("ValueError", "too many values to unpack (expected $n$got)")
         }
         return items.toTypedArray()
@@ -536,7 +843,7 @@ object PyRt {
         PyOp.GT -> order(2, a, b)
         PyOp.GE -> order(3, a, b)
         PyOp.EQ -> eq(a, b)
-        PyOp.NE -> !eq(a, b)
+        PyOp.NE -> ne(a, b)
         PyOp.IS -> same(a, b)
         PyOp.IS_NOT -> !same(a, b)
         PyOp.IN -> contains(b, a)
@@ -548,7 +855,7 @@ object PyRt {
     @JvmStatic fun le(a: Any?, b: Any?): Boolean = order(1, a, b)
     @JvmStatic fun gt(a: Any?, b: Any?): Boolean = order(2, a, b)
     @JvmStatic fun ge(a: Any?, b: Any?): Boolean = order(3, a, b)
-    @JvmStatic fun ne(a: Any?, b: Any?): Boolean = !eq(a, b)
+    @JvmStatic fun ne(a: Any?, b: Any?): Boolean = if (a is PyObject || b is PyObject) PyDunder.ne(a, b) else !eq(a, b)
     @JvmStatic fun isIn(a: Any?, b: Any?): Boolean = contains(b, a)
     @JvmStatic fun notIn(a: Any?, b: Any?): Boolean = !contains(b, a)
 
@@ -602,7 +909,7 @@ object PyRt {
     /** The global [name] of [f]'s module, else the builtin, else a NameError. */
     @JvmStatic fun loadGlobal(f: dev.mooner.neonjs.vm.VmFrame, name: Any?): Any? {
         val pf = f as PyFrame
-        return pf.globals[name] ?: pf.ctx.builtins[name] ?: throw PyException("NameError", "name '$name' is not defined")
+        return pf.globals[name] ?: pf.ctx.builtins[name] ?: throw PyException.nameError(name)
     }
 
     @JvmStatic fun storeGlobal(f: dev.mooner.neonjs.vm.VmFrame, name: Any?, v: Any?) {
@@ -620,14 +927,15 @@ object PyRt {
         val ctx = (f as PyFrame).ctx
         return when (fn) {
             is PyFunction -> PyInterpreter.call(ctx, fn, args)
-            is PyBuiltin -> fn.impl(ctx, args)
+            is PyBuiltin -> fn.frameImpl.let { fi -> if (fi != null) fi(f, args) else fn.impl(ctx, args) }
             is PyBoundMethod -> {
                 val all = arrayOfNulls<Any?>(args.size + 1)
                 all[0] = fn.self
                 args.copyInto(all, 1)
                 fn.fn.impl(ctx, all)
             }
-            else -> throw typeError("'${t(fn)}' object is not callable")
+            is PyType -> PyTypes.call(ctx, fn, args, null)
+            else -> PyCalls.callWith(ctx, fn, args, NO_KW, NO_KW)
         }
     }
 }

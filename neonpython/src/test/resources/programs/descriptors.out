@@ -1,0 +1,14 @@
+1
+10 10
+deleting
+False
+3 7 14
+D 4 property
+got <class 'property'> <class 'staticmethod'> <class 'classmethod'>
+unset
+3 3 _a _b Typed
+from descriptor
+instance
+unset
+1 MISSING
+Base:base Derived:derived Derived:derived

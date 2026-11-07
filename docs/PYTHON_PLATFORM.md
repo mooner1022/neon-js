@@ -597,6 +597,306 @@ language, layer by layer: default and
 keyword arguments, closures, exceptions (`try`, `raise`), classes and the object model (§3.4), generators (the core's
 suspensions), comprehensions, slices, f-strings, modules.
 
+## 11. The whole language (plan, 2026-11-06)
+
+The goal now is all of Python 3.14's syntax, with its semantics. It must run the same in the interpreter, the tier's
+baselines and its speculating code, and be checked against CPython 3.14: programs' output, and the type, message and
+line of their errors.
+
+The standard library is not the goal (§3.7 and Y2 come after). What the syntax needs is: the builtins, the exception
+classes, the types behind literals, and modules for `import` to import. This is §6's Y1, about 15–20K lines, done as
+milestones. Each milestone is commits gated by the quick check and pushed when it is done.
+
+### 11.1 Order
+
+| | what | needs |
+|---|---|---|
+| M0 | this plan; room for opcodes; runtime calls as table rows in the dialect; a size test of the interpreter's dispatch | — |
+| M1 | functions and scopes: defaults, keyword arguments, `*args`/`**kwargs`, keyword-only and positional-only parameters, `lambda`, closures and `nonlocal`, decorators, starred unpacking (calls, literals, targets), `:=`, `del`, `assert`, `global` done right | — |
+| M2 | the object model: type objects (the builtins' too), `class`, instances, the MRO, `super()`, the special methods (operators, containers, iteration, calls, `str`/`repr`/`hash`/`bool`/`len`), `property`/`staticmethod`/`classmethod`, `isinstance`/`type`/`getattr`…, class decorators, `__init_subclass__`/`__set_name__` | M1 (`super()` needs the `__class__` cell) |
+| M3 | exceptions: the hierarchy as classes, `try`/`except`/`else`/`finally`, `raise … from`, chaining, `with` (several items, parenthesized), `except*` and `ExceptionGroup`, `except A, B:` (PEP 758), `return`/`break` in `finally` (PEP 765's warning) | M2 |
+| M4 | generators: `yield`, `yield from`, `send`/`throw`/`close`, generator expressions, list/set/dict comprehensions (done; M4b, the tier's suspensions, done: their code compiled, suspending at YIELD) | M3 (a generator's `close` is an exception) |
+| M5 | literals and strings: f-strings as PEP 701 tokenizes them, the format-spec mini-language, `%` and `str.format`, t-strings (PEP 750, `string.templatelib`), bytes, complex, sets, slices and `slice`, `...` | M2 |
+| M6 | `match` (every pattern; or-patterns binding the same names, checked when compiling) | M2 |
+| M7 | `import`: module objects, a host-given loader (no file system unless the host gives one), a minimal `sys` | M2 |
+| M8 | `async def`, `await`, `async for`/`async with`, async generators and comprehensions (driven with `send` in tests: no asyncio; done, their code compiled as generators' is) | M4 |
+| M9 | deferred annotations (PEP 649/749: `__annotate__`; done, M9a), type parameters and `type` aliases (PEP 695) with `list[int]`'s GenericAlias (done, M9b), what is left: private names' mangling, `__static_attributes__` and `__firstlineno__` (done, M9c) | M2 |
+
+### 11.2 Decisions (the expensive ones to change later)
+
+- **Exceptions are objects.** A raised exception is an instance of a BaseException class. The JVM carries it in a
+  `PyException`, whose `type`, `message` and `line` stay a view for the host and the tests. A sandbox's termination
+  (the core's `TerminationException`) is never a Python exception, so no `except` catches it, in the interpreter or
+  in the tier's code (its catch entries' `CATCH_VALUE`).
+- **Every value has a type object** (`PyType`), the builtins' values too, and attributes are looked up through the
+  type's MRO with descriptors: functions bind, and `property`, `staticmethod` and `classmethod` work as descriptors.
+  - A user class's instance is an object of the class with a dict.
+  - Builtin values stay what they are (Long, Double, `PyStr`, `PyList`…). An instance of a user subclass of list,
+    dict, set, tuple or str is that value with its class set (and a dict).
+  - Subclasses of int and float come later.
+- **Calls.** `CALL` keeps its fast path for exactly the positional arguments a function takes (§10.2's speed rests
+  on it). Keyword arguments are `CALL_KW` (their names a tuple constant), and `*` and `**` are `CALL_EX`. One routine
+  binds arguments to parameters, with CPython's messages.
+- **Scopes.** A symbol table is built before compiling: local, global, nonlocal, free and cell variables.
+  - Class bodies are dicts, and the functions in them do not see their names; `__class__` serves `super()`.
+  - Comprehensions are nested functions, as before 3.12. PEP 709's inlining shows only in `locals()` inside a
+    comprehension and in tracebacks' frames.
+- **Generators keep their frames' slots,** as JavaScript's do (docs/IR_NEUTRALITY.md §9). The interpreter suspends
+  at a yield, and the tier's code through the core's suspensions; `yield from` and `await` loop over sends.
+- **Exceptions in compiled code** go through the core's handlers (`CodeUnit.handlers`), whose entries have an empty
+  operand stack. So the operand stack stays empty at every statement, and what a `try`, `with` or `for` needs across
+  its body is kept in registers.
+- **New instructions follow a checklist** (on `PyOp`). A plain runtime call is a row of the dialect's table
+  (`PyGeneric`); control flow is written by hand.
+
+Made with the object model (M2):
+
+- **Comparisons give bools.** `<`, `==` and the rest are JVM booleans in the tier's code (the BOOL kind), so a user
+  `__eq__` or `__lt__` that returns something else than a bool gives its truth value. CPython would give the object
+  itself; that is seen only where a comparison's result is a value (`print(a == b)`), as with numpy's arrays.
+- **No subclasses of int and float yet.** Their values are Longs and Doubles, which hold no class. A subclass of
+  list, dict, tuple or str (set when sets come, M5) is that value with its class set: `PyValue.sub`, the class and
+  the instance's dict, null for the type's own values. `PyRt` checks it once per operation (`special`): an instance
+  of a subclass goes through its class's special methods, then its base type's paths (the `...Values` functions);
+  the type's own values never pay more than that check. The four types' `__new__` and `__init__` make and fill a
+  subclass's instances (`list(x)` itself keeps its direct path), and their special methods are in their dicts as
+  builtins for `super()` and explicit calls.
+- **A class body is a code unit,** run with the class's namespace (a dict) as its locals: LOAD_NAME, STORE_NAME and
+  LOAD_FROM_DICT_OR_DEREF read and write that dict, and its `__class__` cell goes to `type.__new__` as
+  `__classcell__`, as in CPython.
+- **`super()` without arguments** is compiled as `super(__class__, <first parameter>)` where `super` is the
+  builtin's name in that function. A function without parameters, or outside a class, gets CPython's RuntimeError.
+- **Special methods are looked up on the type,** and only a class's own count: dispatch (`PyDunder`) skips the
+  builtins' methods (object's `__eq__`, `__repr__`…), which `PyRt`'s paths for builtin values stand for. `PyRt`
+  tries its fast paths first and calls `PyDunder` only where an operand is an instance. Containers compare items by
+  identity first, as CPython's do. Whether a class overrides `__getattribute__`, `__setattr__` or `__delattr__` is
+  a flag of its type (`PyType.hooks`), set when the class is made or given one; a base given one later does not
+  flag its existing subclasses.
+Made with exceptions (M3):
+
+- **An exception the runtime raises is a name and a message** (`PyException("TypeError", ...)`, as before), and its
+  object is made where Python code first sees it: an except clause, a finally (`PyExceptions.objectOf`; KeyError keeps
+  its key, NameError its name). `raise` throws the object's own `PyException`, the same one each time it is raised
+  again, so it keeps the line where it was first raised, as CPython's traceback does. Runtime code that catches an
+  exception tests its class (`PyException.matches`), never its name.
+- **The exception handled is the context's** (`PyContext.handled`): PUSH_EXC_INFO sets it entering a handler and
+  keeps the one before in a register; POP_EXCEPT puts it back, also when the handler is left by an exception (each
+  handler body is in a range whose handler does it). An exception raised meanwhile gets it as `__context__`, when it
+  is raised or (the runtime's) when its object is made.
+- **A finally body is copied**, as CPython copies it: once for the normal way out, once for an exception, and once
+  for each `return`, `break` and `continue` leaving through it. The ranges such leaving goes through are closed
+  around the copied code (a range is segments), so that what leaving runs is not handled by the try it leaves.
+- **`raise` ends a block** in the tier's graphs: the exception made by a runtime call, then `Ir.THROW`. A catch entry's
+  `Ir.CATCH_VALUE` is `PyExceptions.catchValue`, which lets a sandbox's termination and the JVM's errors through.
+- **OSError's errno subclasses** use Linux's numbers for the network errors (Android's), where they differ by platform.
+- No warnings yet: PEP 765's SyntaxWarning for a `return`, `break` or `continue` in a finally is not printed.
+- **`with`** looks __exit__ up first, then __enter__, on the manager's type (LOAD_SPECIAL), and keeps the bound
+  __exit__ in a register; storing the target is inside the range __exit__ handles, as in CPython. Leaving the body by
+  `return`, `break` or `continue` calls __exit__ with three Nones (a with is an fblock).
+- **`except*`** keeps its state in a register (`PyExceptions.ExcStar`: what the clauses have not matched, the match
+  a clause handles, what the clauses raised anew and raised again). Each clause splits what is left (a naked
+  exception that matches goes into a group of its own); at the end what was raised anew comes first, then what is
+  left and what was raised again, rebuilt in the raised group's shape by the leaves' identity, as CPython's
+  `_PyExc_PrepReraiseStar` does; one exception alone is raised as it is.
+Made with generators (M4):
+
+- **A generator's frame is interpreted for now** (`PyGenerator`, its code flagged `CodeUnit.GENERATOR`, never handed to
+  the JIT; the tier's suspensions are the next step). It keeps JavaScript's conventions, so that the tier's resume
+  entries read it as the interpreter leaves it: YIELD writes the value to the frame (`suspendValue`), its pc the
+  instruction after and its sp after the pop, and returns SUSPENDED; resuming pushes the value sent at sp and sets
+  the frame's mode, which the instruction after reads (RESUME raises a thrown exception there, inside the yield's
+  try; SEND, in `yield from`, passes it on to the iterator's throw, or closes it for GeneratorExit).
+- **A generator has its own exception handled** across its yields (PyGenerator.handled); the callers' are on a stack
+  under it (`PyContext.handledStack`), and the nearest is what a bare `raise` raises again and what an exception gets
+  as its context while the generator has none (`currentHandled`).
+- **Comprehensions are functions** taking their first iterable's iterator (`.0`), made where they are; list and dict
+  comprehensions append to a register, a generator expression is a generator. Set comprehensions come with sets (M5).
+
+Made with literals and strings (M5):
+
+- **Floats are formatted from their exact binary value**, rounded half to even (`BigDecimal`, as CPython's
+  dtoa): `f"{2.675:.2f}"` is `2.67`, never Java's `String.format` (which gives `2.68`). The mini-language is
+  CPython's for ints, floats and strs (`PyFormat`), str.format and `%` too; a class's `__format__` comes first.
+- **Sets are CPython's table** (`PySet`: open addressing with its linear and perturbed probes, its dummies, its
+  growth at 3/5 full, pop's finger, the paths of update, intersection and difference), laid out by CPython's hashes
+  where they are not randomized (`PyHash`: ints, floats, None, tuples, frozensets, slices), so that a set of ints or
+  tuples iterates and prints as CPython's does. A str's hash is the JVM's: CPython randomizes them, so no program can
+  rely on the order of a set of strs. `hash()` gives CPython's values for those types.
+
+Made with import (M7):
+
+- **A host gives the modules** (`PyModuleLoader.find(name)`: a module's source, its path, whether it is a package);
+  NeonPy never reads a file system. A context without a loader imports its builtin modules only: `sys` (its
+  modules, path, argv, stdout and stderr writing to the context's `out` and `err`, exit, exc_info, the recursion
+  limit, version), `builtins`, `string` and `string.templatelib`, `__future__`. The registry comes before the
+  loader. Other standard modules (math, re...) are not the syntax's: §3.7.
+- **import is importlib's**: sys.modules first; a module put there before its body runs (a circular import meets it
+  partially initialized, with CPython's message), taken out where its body raises; a submodule an attribute of its
+  package; relative imports from `__package__`; `from m import x` an attribute or a submodule; `import a.b as x`
+  IMPORT_NAME then IMPORT_FROM, as 3.12 compiles it. A module's attributes are its dict (PEP 562's `__getattr__`
+  after). `__spec__` and `__loader__` are None.
+
+Made with coroutines (M8):
+
+- **Coroutines and async generators are generators' frames** (`PyGenBase`: `PyGenerator`, `PyCoroutine`,
+  `PyAsyncGenerator`, by the code's kind, `PyCodeInfo.kind`), compiled as generators' are (M4b). `await` is `yield
+  from`'s SEND loop over GET_AWAITABLE's iterator (a coroutine itself, else what its type's `__await__` gives). What a
+  suspended frame awaits (CPython's `_PyGen_yf`: its pc at the jump back to a SEND) is `cr_await`, and a coroutine
+  that has one cannot be awaited again.
+- **An async generator's yields are wrapped** (ASYNC_GEN_WRAP), so that the awaitables stepping it (`__anext__` and
+  `asend`, `athrow` and `aclose`: `PyAsyncGenASend`, `PyAsyncGenAThrow`, their states and messages genobject.c's)
+  tell a value it yields, which ends the awaitable (StopIteration(value)), from one an await in it passes up to the
+  driver. aclose throws GeneratorExit in without closing what it awaits (`MODE_THROW_ALL`, CPython's
+  `close_on_genexit` 0), so its finally bodies can await.
+- **`async for`'s handler covers only the awaiting of the next value** (GET_ANEXT and its SEND loop), not the target
+  or the body: END_ASYNC_FOR ends the loop at a StopAsyncIteration and raises anything else again, never making it
+  the exception handled. `async with` is `with` with `__aenter__` and `__aexit__` (`__aexit__` looked up first) and
+  each call awaited, where `return`, `break` and `continue` leave its body too. LOAD_SPECIAL's messages are 3.14's:
+  the type's qualified name, and the hint where the type has the other protocol's two methods.
+- **An asynchronous comprehension is a coroutine** (comprehensions are functions here), called and then awaited
+  where it is; an async generator expression is an async generator, which any function may make (its first
+  iterable's `__aiter__` called there: GET_AITER, the one async instruction outside coroutines' code, a runtime call
+  in the tier). The symbol table decides which comprehensions are asynchronous and rejects `await`, `async for`,
+  `async with` and asynchronous comprehensions where CPython's does; `yield from` in an async function and a `return`
+  with a value in an async generator are the compiler's errors, as in CPython.
+- **No event loop**: the tests drive coroutines with send() and throw(). There are no finalizers, so no "never
+  awaited" warning, and an async generator dropped while suspended is not closed (CPython's would aclose it).
+
+Made with annotations (M9a):
+
+- **Annotations are evaluated when asked for** (PEP 649, 749): a function's, a class's and a module's annotations
+  are the code of an `__annotate__(format, /)` (an annotation scope: function-like, its parameter `.format` to its
+  own names), which gives their dict for formats 1 and 2 and raises NotImplementedError above (ANNOTATE_CHECK).
+  `__annotations__` calls it once and keeps the dict, with CPython's getters and setters of functions, types (the
+  class's `__annotate_func__` and `__annotations_cache__` in its dict; none for builtin types) and modules (kept in
+  the module's dict once its body has run). A function's is made before it, around its def (its parameters are
+  not visible there); a class's at the end of its body; a module's first (its code compiled after the body's, a
+  constant filled then). A function's local annotations are never evaluated, only checked for their errors.
+- **An annotation scope in a class reads the class's names first**, through the class's `__classdict__` cell
+  (LOAD_FROM_DICT_OR_GLOBALS, LOAD_FROM_DICT_OR_CELL), which type.__new__ points at the class's dict
+  (`__classdictcell__`), so a lazily evaluated annotation sees the class as it is then.
+- **A module's annotations, and a class's in a compound statement, are conditional**: each records that its
+  statement ran (`__conditional_annotations__`, a global or the class's cell) and the `__annotate__` gives only
+  those.
+- **`from __future__ import annotations`** (PEP 563): annotations are strings, the expression as CPython's
+  compiler writes it back (`PyUnparse`, Python/ast_unparse.c's precedences, constants and f-string rebuilding); a
+  module's and a class's go into their `__annotations__` dict as they run (SETUP_ANNOTATIONS), a function's
+  `__annotate__` gives them.
+
+Made with type expressions and type parameters (M9b):
+
+- **What CPython does in C, and the typing.py code the syntax calls**: types.GenericAlias (`list[int]`),
+  typing.Union (`int | str`), TypeVar, TypeVarTuple, ParamSpec, TypeAliasType and typing.Generic with its
+  subscription and `__init_subclass__` (typing._GenericAlias, `K[int]`), natively (`PyTyping`). Not the rest of the
+  typing module (Optional, Callable, Protocol, Literal, TypedDict, ForwardRef: `K['fwd']` keeps the str, `T | 'x'`
+  makes no ForwardRef) and no `typing` module to import; messages name these types by their C `tp_name`
+  (`PyType.tpName`: 'typing.TypeVar' object is not callable).
+- **A generic's `<generic parameters of X>` is a function** made and called where the def, class or alias is (a
+  def's defaults evaluated outside, its arguments): it makes the type parameters (their bounds, constraints and
+  defaults, like a `type` alias's value, lazily evaluated `(.format=1, /)` functions), then the function, class
+  (its bases evaluated inside, Generic[...] after them; its body stores `__type_params__`) or alias. It and the
+  scopes in it are function-like and, in a class, read the class's names as annotation scopes do; qualnames skip
+  it. The tier compiles it as any function (its instructions are runtime calls).
+- **Class statements resolve their bases by `__mro_entries__`** (PEP 560) and keep `__orig_bases__`; substitution of
+  type variables in aliases and unions follows `_Py_subs_parameters` (defaults, a TypeVarTuple's arguments),
+  Generic's typing's `_generic_class_getitem` (a ParamSpec's list).
+
+Made with what was left (M9c):
+
+- **Private names are mangled** (`__x` in a class as `_C__x`, CPython's _Py_Mangle): each scope knows the class it
+  is in (`Scope.private`; a generic class's type parameters' scope mangles only them), the symbol table records
+  names mangled and the compiler mangles names, attributes and annotation keys as it emits them; keyword arguments
+  of calls and class patterns' keywords are never mangled, nor dunders, dotted names, or in a class named only
+  underscores. A function's `__name__` and qualname keep the name as written.
+- **A class statement stores `__firstlineno__`** (its first decorator's line, else its own) **and
+  `__static_attributes__`**: the names of its and its functions' stores to attributes of a name `self`, sorted,
+  as written (not an augmented assignment's, nor an annotation's without a value). type() makes neither.
+  `__dict__` and `__weakref__` are not in a class's dict, nor `__doc__` where it has none (CPython's type.__new__
+  adds them).
+- **`__debug__` is the constant True**, and binding it anywhere (a name, a parameter, a keyword argument, an
+  attribute, an import, a target) CPython's compile error.
+- **compile(), exec() and eval()** compile at run time (`PyEval`): a module's code in name mode (LOAD_NAME,
+  STORE_NAME, so that separate locals are a class body's), an eval's returning its expression; their default
+  namespaces the caller's, a function's locals a snapshot the call site takes (SET_EVAL_LOCALS, as `locals()`'s:
+  compiled code has no registers to read), dir()'s too. A compile error is CPython's SyntaxError object: the
+  parser's with its line's text, the compiler's without, the symbol table's with its message as its only argument.
+  'single' compiles as 'exec' (no display of expression values); no AST (PyCF_ONLY_AST).
+
+- **A statement gives its temporaries back** when it ends, so that the registers of one try or with serve the next:
+  the tier's code keeps every register a handler may read in a home at the start of each block a handler covers
+  (GraphBuilder), so a function's size grows with its handlers times those registers. (The core could keep only the
+  registers the block's own handler reads: a change for the core's branch.)
+
+- **Augmented assignment is its own instruction,** `INPLACE op`: `__iadd__` and the rest, lists changed in place,
+  CPython's `+=` messages. `PyRt.inplace` keeps numbers and strs as cheap as `a op b`, and the speculating tier
+  builds it as the binary operator where the interpreter saw only ints or only floats.
+
+Made with the tier's suspensions (M4b):
+
+- **A generator's code is compiled on the core's suspensions** (docs/IR_NEUTRALITY.md §9), as JavaScript's
+  generators are: the builder ends a block at YIELD with SUSPEND, whose state is the interpreter's at the RESUME
+  after it, and goes on where the generator resumes (RESUME_SLOTs, then the value it was resumed with, which RESUME
+  checks for a throw); `PyGenerators.suspend` leaves the frame as the interpreter's YIELD does. SEND is a step of the
+  iterator in its register and the value on the stack (what it yields, or Done's result), a branch on Done. A
+  generator's frame is an interpreted one (`Graph.startsInterpreted`), so that compiled code and the interpreter each
+  resume what the other suspended: each resumption runs the code's compiled code at the frame's pc where it has an
+  entry there, the interpreter otherwise and after an exit. `-Dneonjs.jit.suspendable=false` leaves them interpreted.
+- **Inlining a generator into the loop consuming it** (no resumption, no iterator protocol per value) is what would
+  make generator-heavy code fast next; until then the protocol costs more than a small body.
+
+### 11.3 How each milestone is checked
+
+- **Programs.** Programs under `src/test/resources/programs/` whose output CPython 3.14 recorded (`python -I x.py >
+  x.out`), each run in the four modes. Errors are checked in `errorsAreCPythons`, and every block must be the tier's
+  code (`noBlockFallsBackToTheInterpreter`).
+- **Grammar and semantics** are read from CPython, not recalled: `ast.dump`, `dis` and `symtable` of the snippet,
+  and its messages as it prints them.
+- **Speed.** §10.2's programs are measured again after M1 (calls) and M2 (attributes and operators), and a change is
+  written down in the milestone's commit.
+- **Size.** The interpreter's dispatch stays under HotSpot's 8,000-byte limit on methods it compiles; a test checks
+  it.
+
+### 11.4 CPython's own tests (the sweep after M9, 2026-11-06)
+
+CPython 3.14's `Lib/test` files for the syntax were run on NeonPy with small stand-ins for what they import
+(unittest, test.support, warnings, textwrap, typing, math, weakref, collections…), and on CPython with the same
+stand-ins, so that only NeonPy's differences count. test_syntax's doctests ran through a small doctest that
+compares each example's output, or its exception's last line. A corpus of 239 malformed sources compares the
+SyntaxError's type, message and line.
+
+| test | NeonPy | CPython (same stand-ins) | what is left |
+|---|---|---|---|
+| test_grammar | 70/75 | 70/75 | (the stand-ins' warnings) |
+| test_syntax (doctests) | 482/510 | 483/510 | one needs the ast module |
+| test_named_expressions | 74/74 | 74/74 | |
+| test_keywordonlyarg, test_decorators, test_augassign | 11/11, 16/16, 7/7 | the same | |
+| test_except_star | 60/60 | 60/60 | |
+| test_positional_only_arg, test_dictcomps | 26/28, 9/10 | the same | |
+| test_scope | 36/41 | 37/41 | `__del__` run as objects die |
+| test_raise | 32/37 | 33/37 | traceback objects (`tb_next`) |
+| test_exception_group | 28/52 | 33/52 | tracebacks, RecursionError on deep groups, split copying notes, a repr check's order |
+| test_opcodes | 6/8 | 7/8 | open() |
+| test_type_aliases | not run | | needs typing's constructors (`TypeVar('T')`, `TypeAliasType(...)`) |
+| the error corpus | 239/239 | | |
+
+How the errors are made, so that later syntax keeps them:
+
+- **The tokenizer's errors are CPython's lexer's** (brackets on a stack, string prefixes, numbers'
+  verify_end_of_number, tabs measured twice for TabError, escapes' positions as the decoder counts them). It
+  tokenizes the whole source first, which gives CPython's rule that a later tokenizer error wins over a parser's.
+  A bracket left open is the parser's to report: "'(' was never closed" when the parse reaches the end (an error
+  no speculation takes back, `PySyntaxError.fatal`), or fails having looked past the bracket's line.
+- **Where the parse fails without one of CPython's invalid_ rules, the message is "invalid syntax";** "expected
+  'X'" only at the grammar's forced tokens (`&&':'` after def, else, try, finally; `&&'('` after a def's name),
+  "expected ':'" at a header's line end (the invalid_*_stmt rules).
+- **CPython's invalid_ rules are checks at the points the parser fails or ends an expression,** each trying what
+  the rule matches with `speculate` (the tokens put back after; the checks off inside, as CPython's
+  expression_without_invalid has them off): two expressions in brackets "Perhaps you forgot a comma?" (by token
+  levels), `=` where a named expression is expected, the first target's last element for "cannot assign to X
+  here", arguments, parameters, imports, patterns, displays. A rule that only CPython's second pass would try (the
+  first one failed) is tried only where the parse has failed: an assignment's targets after one does not parse,
+  a match subject's error only where the line is no statement either.
+
 ## References (checked in this review)
 
 - Chicory: [docs](https://docsearch.algolia.com/mcp/docs/repo/dylibso/chicory), [porting the Chicory compiler to Android (2025-07)](https://hn.jakechampion.name/reader/https://blog.evacchi.dev/posts/2025/07/11/wasm-the-hard-way-porting-the-chicory-compiler-to-android), [mcpx4j Android support](https://docs.mcp.run/blog/2025/07/11/android-support-mcpx4j), [Endive](https://bytecodealliance.org/articles/endive-and-the-next-chapter-of-webassembly-on-the-jvm)

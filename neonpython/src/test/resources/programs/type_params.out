@@ -1,0 +1,59 @@
+(T, Ts, P) ['TypeVar', 'TypeVarTuple', 'ParamSpec'] ['T', 'Ts', 'P']
+5 f f {'x': T, 'a': typing.Unpack[Ts], 'return': T}
+T None () False False True False typing.NoDefault typing typing TypeVar
+None None None
+made
+  eval <class 'int'>
+  eval <class 'str'>
+<class 'int'> <class 'int'> (<class 'int'>, <class 'str'>) None <class 'str'> <class 'str'>
+*tuple[int] [<class 'int'>] True False True
+  eval <class 'int'>
+  eval <class 'str'>
+<class 'int'> B (<class 'int'>, <class 'str'>) <class 'str'>
+NotImplementedError: 
+NameError: name 'Later' is not defined
+defined later
+True
+(1, 2) (1,) {'k': 2}
+NameError: name 'Q' is not defined
+  decorating (T,)
+functions.<locals>.K.m 3 (T,)
+(T,) coroutine
+() ()
+(1,)
+TypeError: __type_params__ must be set to a tuple
+TypeError: __type_params__ must be set to a tuple
+P.args P.kwargs ParamSpecArgs True True P
+T | None None | T T | int Union (T, <class 'int'>) T | 1
+[typing.Unpack[Ts]] _UnpackGenericAlias typing.Unpack (Ts,)
+True True False True
+Ts False False True None
+<class 'int'>
+1
+AttributeError: attribute '__bound__' of 'typing.TypeVar' objects is not writable
+TypeError: 'typing.TypeVar' object is not callable
+AttributeError: 'typing.TypeVar' object has no attribute 'nope'
+TypeError: 'typing.TypeVar' object is not iterable
+list[int] dict[str, int] dict[str, int] (T,) (T, U)
+int | None (T,) str | int (T, U)
+(Ts,) tuple[int, str] tuple[int, str, bytes] tuple[int]
+TypeError: Too many arguments for list[T]; actual 2, expected 1
+TypeError: Too few arguments for dict[T, T]; actual 0, expected at least 1
+TypeError: Too many arguments for tuple[T, U]; actual 3, expected 2
+Alias TypeAliasType typing Alias int | str ()
+__main__ () Alias Alias Alias | None Union
+TypeError: Only generic type aliases are subscriptable
+TypeError: 'typing.TypeAliasType' object is not callable
+AttributeError: attribute '__value__' of 'typing.TypeAliasType' objects is not writable
+AttributeError: 'typing.TypeAliasType' object has no attribute 'other' and no __dict__ for setting new attributes
+TypeError: isinstance() arg 2 must be a type, a tuple of types, or a union
+True True
+NameError: name 'LaterAlias' is not defined
+later
+(T, Ts) (T, typing.Unpack[Ts]) Gen[int, str, bytes] dict[T, tuple[typing.Unpack[Ts]]]
+GenericAlias True (<class 'int'>,) ()
+(T,) dict[T, tuple[typing.Unpack[Ts]]] Gen
+NotImplementedError: 
+list[Rec]
+<class 'int'> list[int] <class 'int'> __main__
+a soft keyword

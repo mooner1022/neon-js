@@ -1,0 +1,38 @@
+generator count True 0 1 2
+stop counted 3 ('counted 3',)
+exhausted [0, 1, 2, 3] 10 [0, 1, 4, 9]
+for 0
+for 1
+[0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
+0 10 15 16
+accumulated 16
+careful caught ValueError('bad')
+careful finally
+ready recovered ready
+careful finally
+None False
+generator ignored GeneratorExit
+closed with a value None
+through KeyError('k')
+finished after throw
+inner got hello
+outer got inner result
+inner 1 inner 2 inner caught 10 [20, 0, 1]
+[1, 2, 'counter done']
+inner closed
+outer closed
+raised again KeyError('in generator') None
+context ValueError('while handling')
+generator raised StopIteration StopIteration()
+generator already executing
+enter
+1
+exit GeneratorExit
+enter
+exit None
+[1, 2]
+made generator
+source runs
+[10, 20] []
+10 3 ['b']
+['from a lambda']

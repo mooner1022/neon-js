@@ -1,0 +1,64 @@
+{'b': <class 'str'>, 'a': <class 'int'>, 'c': <class 'float'>, 'd': 'fwd', 'e': <class 'bool'>, 'return': <class 'list'>}
+__annotate__ functions.<locals>.f.__annotate__ True True
+NotImplementedError NotImplementedError()
+NotImplementedError NotImplementedError()
+TypeError: functions.<locals>.f.__annotate__() missing 1 required positional argument: 'format'
+TypeError: '>' not supported between instances of 'str' and 'int'
+True
+None {} {}
+NameError: name 'Later' is not defined
+{'x': 'now defined', 'return': 'now defined'}
+  eval default
+  eval kd
+  decorated
+defined
+  eval a
+  eval k
+  eval ret
+{'a': 'a', 'k': 'k', 'return': 'ret'}
+{'a': 'a', 'k': 'k', 'return': 'ret'}
+{'z': 1} None
+{}
+{'from': 1}
+{'from': 1} None
+TypeError: __annotate__ must be callable or None
+TypeError: __annotations__ must be set to a dict object
+TypeError: __annotate__ cannot be deleted
+TypeError: __annotate__ returned non-dict of type 'list'
+{'y': 'enclosing x'}
+<class 'float'> <class 'float'> functions.<locals>.outer.<locals>.inner.__annotate__
+True
+{'args': 1}
+{'p': <class 'int'>, 'return': <class 'str'>}
+1
+{'x': <class 'int'>} {'y': <class 'str'>} {}
+{'x': <class 'int'>} Base.__annotate__ None
+['__annotate_func__', '__annotations_cache__'] ['__annotate_func__', '__annotations_cache__']
+False a {'p': 'P', 'return': None}
+False False
+AttributeError: type object 'int' has no attribute '__annotations__'
+AttributeError: type object 'int' has no attribute '__annotate__'
+{}
+{'a': <class 'str'>, 'b': 'fwd', 'c': <class 'str'>} {'p': <class 'str'>, 'return': <class 'str'>}
+{'a': <class 'float'>, 'b': <class 'bytes'>}
+made
+  eval 1
+{'a': 1, 'b': 'changed after'}
+{'a': 1, 'b': 'changed after'}
+{'a': <class 'int'>, 'c': <class 'float'>, 'e': <class 'list'>, 'f': <class 'dict'>, 'k': <class 'complex'>, 'z': <class 'bool'>}
+{'x': <class 'int'>}
+{'a': 1} None
+AttributeError: __annotations__
+{}
+AttributeError: __annotations__
+{'n': 1}
+TypeError: __annotate__ must be callable or None
+TypeError: cannot delete __annotate__ attribute
+{'z': 2} {'x': <class 'int'>}
+NameError: name '__annotations__' is not defined
+{'a': ['local T', 'local T'], 'b': 'local T'}
+['__annotate__', '__conditional_annotations__', 'annotated_names']
+{'mod_a': <class 'int'>, 'mod_b': 'string annotation', 'mod_d': <class 'float'>}
+['__annotate__', '__annotations__', '__conditional_annotations__', 'annotated_names']
+True __annotate__
+{'mod_a': <class 'int'>, 'mod_b': 'string annotation', 'mod_d': <class 'float'>}

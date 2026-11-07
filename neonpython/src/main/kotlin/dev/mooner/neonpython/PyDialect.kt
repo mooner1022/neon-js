@@ -25,6 +25,7 @@ import dev.mooner.neonjs.jit.opt.OpTable
 import dev.mooner.neonjs.jit.opt.Phi
 import dev.mooner.neonjs.jit.opt.Rep
 import dev.mooner.neonjs.jit.opt.Resumer
+import dev.mooner.neonjs.jit.opt.T2
 import dev.mooner.neonjs.jit.opt.Value
 import dev.mooner.neonjs.vm.VmFrame
 import org.objectweb.asm.ClassWriter
@@ -85,28 +86,34 @@ object PyDialect : Dialect {
     }
 }
 
-/** The graph's operations that are no bytecode's (numbers below the core's 1000, past [PyOp]'s). */
+/** The graph's operations that are no bytecode's (from 500: below the core's 1000, well past [PyOp]'s, which grow). */
 object PyIr {
     /** a: the argument a function's parameter a is (its register at the start). */
-    const val ARG = 100
+    const val ARG = 500
     /** (v) v, or an UnboundLocalError where it is the dead value (register a's: LOAD_FAST_CHECK). */
-    const val CHECK_BOUND = 101
+    const val CHECK_BOUND = 501
     /** (seq) its a items in an Object[] (UNPACK), then ITEM a of them. */
-    const val UNPACK_ARRAY = 102
-    const val ITEM = 103
+    const val UNPACK_ARRAY = 502
+    const val ITEM = 503
 
     // the speculating tier's (each exits where its state, the instruction's operands on the stack, says)
     /** (v) v as an int of 64 bits (a Long), or an exit. */
-    const val CHECK_INT = 104
+    const val CHECK_INT = 504
     /** (v) v as a float (a Double), or an exit. */
-    const val CHECK_FLOAT = 105
+    const val CHECK_FLOAT = 505
     /** (a b) or (a): bytecode operation a (ADD, SUB, MUL, FLOORDIV, MOD, BITAND, BITOR, BITXOR, NEG) of ints; an exit where the result leaves 64 bits or a division by zero would raise. */
-    const val INT_OP = 106
+    const val INT_OP = 506
     /** (a b) or (a): operation a (ADD, SUB, MUL, NEG) of floats. */
-    const val FLOAT_OP = 107
+    const val FLOAT_OP = 507
     /** (a b): comparison a (LT..NE) of ints, of floats. */
-    const val INT_CMP = 108
-    const val FLOAT_CMP = 109
+    const val INT_CMP = 508
+    const val FLOAT_CMP = 509
+    /** (seq) UNPACK_EX's a + 1 + b items in an Object[] (a before the starred target, b after), then ITEM of them. */
+    const val UNPACK_EX_ARRAY = 510
+    /** (sub sent) SEND's step of register a's iterator: what it yields, or PyGenerators.Done with its result. */
+    const val SEND_STEP = 511
+    /** (step) the value on the stack after SEND: what the step yields, or its result where it is done. */
+    const val SEND_VALUE = 512
 }
 
 /**
@@ -185,17 +192,19 @@ object PyKinds : KindSystem {
 
 /** What the passes know of Python's operations: most may run code and throw; a few only compute or allocate. */
 object PyOps : OpTable {
-    private val infos = arrayOfNulls<OpInfo>(PyIr.FLOAT_CMP + 1).also { t ->
-        for (op in 0 until PyOp.COUNT) if (PyOp.names[op] != null) t[op] = OpInfo(PyOp.name(op), OpInfo.ANYTHING)
+    private val infos = arrayOfNulls<OpInfo>(PyIr.SEND_VALUE + 1).also { t ->
+        for (op in 0 until PyOp.COUNT) if (PyOp.names[op] != null) t[op] = OpInfo(PyOp.name(op), PyGeneric.of(op)?.flags ?: OpInfo.ANYTHING)
         t[PyOp.IS] = OpInfo("IS", OpInfo.REMOVABLE)
         t[PyOp.IS_NOT] = OpInfo("IS_NOT", OpInfo.REMOVABLE)
         t[PyOp.BUILD_LIST] = OpInfo("BUILD_LIST", OpInfo.REMOVABLE or OpInfo.ALLOCATES)
         t[PyOp.BUILD_TUPLE] = OpInfo("BUILD_TUPLE", OpInfo.REMOVABLE or OpInfo.ALLOCATES)
-        t[PyOp.MAKE_FUNCTION] = OpInfo("MAKE_FUNCTION", OpInfo.REMOVABLE or OpInfo.ALLOCATES)
         t[PyIr.ARG] = OpInfo("Arg", OpInfo.REMOVABLE)
         t[PyIr.CHECK_BOUND] = OpInfo("CheckBound", OpInfo.THROWS)
         t[PyIr.UNPACK_ARRAY] = OpInfo("UnpackArray", OpInfo.ANYTHING)
         t[PyIr.ITEM] = OpInfo("Item", OpInfo.REMOVABLE)
+        t[PyIr.UNPACK_EX_ARRAY] = OpInfo("UnpackExArray", OpInfo.ANYTHING)
+        t[PyIr.SEND_STEP] = OpInfo("SendStep", OpInfo.ANYTHING)
+        t[PyIr.SEND_VALUE] = OpInfo("SendValue", OpInfo.REMOVABLE)
         // a check's result is its input unboxed; arithmetic of numbers only computes (an exit goes with it)
         t[PyIr.CHECK_INT] = OpInfo("CheckInt", OpInfo.REMOVABLE or OpInfo.UNBOXES, OpInfo.HOIST_ALWAYS)
         t[PyIr.CHECK_FLOAT] = OpInfo("CheckFloat", OpInfo.REMOVABLE or OpInfo.UNBOXES, OpInfo.HOIST_ALWAYS)
@@ -232,7 +241,13 @@ object PyOps : OpTable {
  */
 class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
     GraphBuilder(cb, Graph(cb, PyOps, PyKinds, null, PyDialect), stressExits = false, speculate = speculate) {
-    override fun unbuildable(): String? = null
+    // (a generator's and a coroutine's code suspends at its yields, its frames interpreted ones from their start)
+    override fun unbuildable(): String? =
+        if (cb.flags and CodeUnit.GENERATOR != 0 && !T2.suspendable(cb)) "python: a generator's code (not suspendable)" else null
+
+    init {
+        g.startsInterpreted = cb.flags and CodeUnit.GENERATOR != 0
+    }
     override fun root(): Body = PyBody(cb)
 
     override fun entry(start: Block): Array<Value> = Array(cb.numRegs) { r ->
@@ -249,7 +264,8 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
                 PyOp.JUMP -> intArrayOf(bc[pc + 1])
                 PyOp.POP_JUMP_IF_FALSE, PyOp.POP_JUMP_IF_TRUE -> if (bc[pc + 1] == next) intArrayOf(next) else intArrayOf(bc[pc + 1], next)
                 PyOp.FOR_ITER -> intArrayOf(bc[pc + 3], next)
-                PyOp.RETURN -> IntArray(0)
+                PyOp.SEND -> intArrayOf(bc[pc + 2], next)
+                PyOp.RETURN, PyOp.RAISE, PyOp.RERAISE -> IntArray(0)
                 else -> null
             }
         }
@@ -257,12 +273,12 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
         override fun supported(pc: Int): Boolean = bc[pc] in 0 until PyOp.COUNT && PyOp.names[bc[pc]] != null
 
         override fun regsRead(pc: Int): IntArray = when (bc[pc]) {
-            PyOp.LOAD_FAST, PyOp.LOAD_FAST_CHECK, PyOp.FOR_ITER -> intArrayOf(bc[pc + 1])
+            PyOp.LOAD_FAST, PyOp.LOAD_FAST_CHECK, PyOp.FOR_ITER, PyOp.LOAD_FAST_RAW, PyOp.SEND -> intArrayOf(bc[pc + 1])
             else -> IntArray(0)
         }
 
         override fun regWritten(pc: Int): Int = when (bc[pc]) {
-            PyOp.STORE_FAST -> bc[pc + 1]
+            PyOp.STORE_FAST, PyOp.DELETE_FAST -> bc[pc + 1]
             PyOp.FOR_ITER -> bc[pc + 2]
             else -> -1
         }
@@ -304,7 +320,9 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
             val bits = profiled(pc)
             val int = bits == PyProfile.INT
             if (!int && bits != PyProfile.FLOAT) return false
-            val kind = when (op) {
+            // (augmented assignment of numbers is the binary operator's)
+            val o = if (op == PyOp.INPLACE) a else op
+            val kind = when (o) {
                 PyOp.ADD, PyOp.SUB, PyOp.MUL, PyOp.NEG -> if (int) PyIr.INT_OP else PyIr.FLOAT_OP
                 PyOp.FLOORDIV, PyOp.MOD, PyOp.BITAND, PyOp.BITOR, PyOp.BITXOR -> if (int) PyIr.INT_OP else return false
                 in PyOp.LT..PyOp.NE -> if (int) PyIr.INT_CMP else PyIr.FLOAT_CMP
@@ -312,15 +330,15 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
             }
             // (the state before the instruction, its operands on the stack: where the interpreter does it again)
             val state = state(pc)
-            val inputs = if (op == PyOp.NEG) arrayOf(number(pop(), int, state)) else {
+            val inputs = if (o == PyOp.NEG) arrayOf(number(pop(), int, state)) else {
                 val r = pop()
                 val l = pop()
                 arrayOf(number(l, int, state), number(r, int, state))
             }
-            val i = add(cur, Inst(kind, inputs, op, 0, 0, pc, stmt))
+            val i = add(cur, Inst(kind, inputs, o, 0, 0, pc, stmt))
             i.hasResult = true
             // (an int's arithmetic may leave 64 bits, a division divide by zero: exits; the rest cannot)
-            if (kind == PyIr.INT_OP && op != PyOp.BITAND && op != PyOp.BITOR && op != PyOp.BITXOR) i.state = state
+            if (kind == PyIr.INT_OP && o != PyOp.BITAND && o != PyOp.BITOR && o != PyOp.BITXOR) i.state = state
             stack.add(i)
             return true
         }
@@ -332,22 +350,46 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
 
         override fun buildOp(at: At): Boolean = with(at) {
             if (speculated()) return false
+            // raising: the exception made (a runtime call, PyGeneric's row), then thrown, the block's end
+            if (op == PyOp.RAISE || op == PyOp.RERAISE) {
+                val t = inst(op, popN(PyGeneric.of(op)!!.popped(a)), result = true)
+                pop()
+                add(cur, Inst(Ir.THROW, arrayOf(t), 0, 0, 0, pc, stmt))
+                end()
+                return true
+            }
+            // (a runtime call: its row in PyGeneric)
+            PyGeneric.of(op)?.let { gen ->
+                inst(op, popN(gen.popped(a)), result = gen.result)
+                return false
+            }
             when (op) {
                 PyOp.NOP -> {}
                 PyOp.LOAD_CONST -> stack.add(constant(a))
-                PyOp.LOAD_FAST -> stack.add(regs[a]!!)
+                PyOp.LOAD_FAST, PyOp.LOAD_FAST_RAW -> stack.add(regs[a]!!)
                 PyOp.LOAD_FAST_CHECK -> {
                     val v = regs[a]!!
-                    // only the dead value is none, and a phi may be it (an instruction's result never is)
-                    if (v is Phi || v is Const && v.value == null) inst(PyIr.CHECK_BOUND, arrayOf(v), result = true)
+                    // only the dead value is none, and a phi may be it (an instruction's result never is), or what a
+                    // resumed generator's frame holds (its slot read where it resumes)
+                    if (v is Phi || v is Const && v.value == null || v is Inst && v.op == Ir.RESUME_SLOT) {
+                        inst(PyIr.CHECK_BOUND, arrayOf(v), result = true)
+                    }
                     else stack.add(v)
                 }
                 PyOp.STORE_FAST -> {
                     regs[a] = pop()
                     home(a)
                 }
-                PyOp.LOAD_GLOBAL, PyOp.MAKE_FUNCTION -> inst(op, NO_VALUES, result = true)
-                PyOp.STORE_GLOBAL -> inst(op, arrayOf(pop()), result = false)
+                PyOp.DELETE_FAST -> {
+                    regs[a] = dead()
+                    home(a)
+                }
+                PyOp.UNPACK_EX -> {
+                    val arr = inst(PyIr.UNPACK_EX_ARRAY, arrayOf(pop()), result = true)
+                    pop()
+                    // the first item on top
+                    for (k in a + bb downTo 0) stack.add(add(cur, Inst(PyIr.ITEM, arrayOf(arr), k, 0, 0, pc, stmt)).also { it.hasResult = true })
+                }
                 PyOp.POP -> pop()
                 PyOp.DUP -> {
                     val v = pop()
@@ -360,7 +402,7 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
                     val l = pop()
                     inst(op, arrayOf(l, r), result = true)
                 }
-                PyOp.NEG, PyOp.POS, PyOp.NOT, PyOp.INVERT, PyOp.LOAD_ATTR, PyOp.GET_ITER -> inst(op, arrayOf(pop()), result = true)
+                PyOp.NEG, PyOp.POS, PyOp.NOT, PyOp.INVERT, PyOp.GET_ITER -> inst(op, arrayOf(pop()), result = true)
                 PyOp.CALL -> {
                     val inputs = popN(a + 1)
                     inst(op, inputs, result = true)
@@ -381,8 +423,13 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
                 }
                 PyOp.POP_JUMP_IF_FALSE, PyOp.POP_JUMP_IF_TRUE -> {
                     val v = pop()
-                    end()
                     val next = pc + len
+                    // (a test that goes on either way still asks for the value's truth: __bool__ may run, or raise)
+                    if (a == next && v !is Const) {
+                        inst(PyOp.NOT, arrayOf(v), result = true)
+                        pop()
+                    }
+                    end()
                     if (a == next) goto(cur, blockAt[next]!!)
                     else add(cur, Inst(Ir.BRANCH, arrayOf(v), op, 0, 0, pc, stmt)).targets = listOf(blockAt[a]!!, blockAt[next]!!)
                     return true
@@ -401,6 +448,17 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
                     end()
                     return true
                 }
+                // a generator's yield: it suspends, and resumes in a block of its own with the value it is resumed with
+                PyOp.YIELD -> suspend(PyOp.YIELD, pop(), received = true)
+                // `yield from` and await: a step of register a's iterator, the value on the stack (what it yields, on to
+                // the YIELD; its result, to bb where it is done)
+                PyOp.SEND -> {
+                    val step = add(cur, Inst(PyIr.SEND_STEP, arrayOf(regs[a]!!, pop()), a, bb, 0, pc, stmt)).also { it.hasResult = true }
+                    stack.add(add(cur, Inst(PyIr.SEND_VALUE, arrayOf(step), 0, 0, 0, pc, stmt)).also { it.hasResult = true })
+                    end()
+                    add(cur, Inst(Ir.BRANCH, arrayOf(step), PyOp.SEND, 0, 0, pc, stmt)).targets = listOf(blockAt[bb]!!, blockAt[pc + len]!!)
+                    return true
+                }
                 else -> throw JitBailout("python: no graph for ${PyOp.name(op)}")
             }
             false
@@ -417,6 +475,7 @@ class PyBuilder(cb: CodeUnit, speculate: Boolean = false) :
 }
 
 private const val PY_RT = "dev/mooner/neonpython/PyRt"
+private const val PY_GEN = "dev/mooner/neonpython/PyGenerators"
 private const val PY_BOOL = "dev/mooner/neonpython/PyBool"
 private const val FRAME = "dev/mooner/neonjs/vm/VmFrame"
 private const val FRAME_D = "Ldev/mooner/neonjs/vm/VmFrame;"
@@ -446,9 +505,63 @@ class PyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, clas
         }
     }
 
+    /** A runtime call ([PyGeneric]): its arguments as its row says, its result an Object. */
+    private fun generic(i: Inst, gen: Generic) {
+        if (gen.throws) storePc(i)
+        var next = 0
+        for (c in gen.args) when (c) {
+            'f' -> frame()
+            'k' -> constant(i.a)
+            'a' -> iconst(i.a)
+            'b' -> iconst(i.b)
+            'v' -> load(i.inputs[next++], ANY_KIND)
+            'n' -> {
+                objects(i.inputs, from = next)
+                next = i.inputs.size
+            }
+        }
+        mv.visitMethodInsn(INVOKESTATIC, gen.owner, gen.method, gen.descriptor, false)
+        if (gen.result) done(i, ANY_KIND)
+    }
+
     override fun inst(i: Inst) {
         val op = i.op
+        PyGeneric.of(op)?.let {
+            generic(i, it)
+            return
+        }
         when (op) {
+            Ir.CATCH_VALUE -> {
+                // a catch entry: the JVM's exception on the stack becomes the Python exception object caught
+                frame()
+                mv.visitMethodInsn(INVOKESTATIC, Generic.EXC, "catchValue", "(Ljava/lang/Throwable;$FRAME_D)$OBJ", false)
+                done(i, ANY_KIND)
+            }
+            Ir.SET_HOME -> {
+                val k = homeKind[i.a]!!
+                load(i.inputs[0], k)
+                mv.visitVarInsn(ks.rep(k).store, homeLocal[i.a]!!)
+            }
+            Ir.LOAD_HOME -> {
+                val k = homeKind[i.a] ?: ANY_KIND
+                val l = homeLocal[i.a]
+                // (never set: the register's dead value)
+                if (l == null) mv.visitInsn(ACONST_NULL) else mv.visitVarInsn(ks.rep(k).load, l)
+                done(i, if (l == null) ANY_KIND else k)
+            }
+            PyIr.SEND_STEP -> {
+                storePc(i)
+                frame()
+                load(i.inputs[0], ANY_KIND)
+                load(i.inputs[1], ANY_KIND)
+                mv.visitMethodInsn(INVOKESTATIC, PY_GEN, "send", "($FRAME_D$OBJ$OBJ)$OBJ", false)
+                done(i, ANY_KIND)
+            }
+            PyIr.SEND_VALUE -> {
+                load(i.inputs[0], ANY_KIND)
+                mv.visitMethodInsn(INVOKESTATIC, PY_GEN, "sendValue", "($OBJ)$OBJ", false)
+                done(i, ANY_KIND)
+            }
             PyIr.ARG -> {
                 frame()
                 mv.visitFieldInsn(GETFIELD, FRAME, "args", OBJS)
@@ -505,32 +618,6 @@ class PyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, clas
                 py(UNARY[op]!!, "($OBJ)$OBJ")
                 done(i, ANY_KIND)
             }
-            PyOp.LOAD_ATTR -> {
-                storePc(i)
-                load(i.inputs[0], ANY_KIND)
-                constant(i.a)
-                py("loadAttr", "($OBJ$OBJ)$OBJ")
-                done(i, ANY_KIND)
-            }
-            PyOp.LOAD_GLOBAL -> {
-                storePc(i)
-                frame()
-                constant(i.a)
-                py("loadGlobal", "($FRAME_D$OBJ)$OBJ")
-                done(i, ANY_KIND)
-            }
-            PyOp.STORE_GLOBAL -> {
-                frame()
-                constant(i.a)
-                load(i.inputs[0], ANY_KIND)
-                py("storeGlobal", "($FRAME_D$OBJ$OBJ)V")
-            }
-            PyOp.MAKE_FUNCTION -> {
-                frame()
-                constant(i.a)
-                py("makeFunction", "($FRAME_D$OBJ)$OBJ")
-                done(i, ANY_KIND)
-            }
             PyOp.CALL -> {
                 storePc(i)
                 frame()
@@ -564,6 +651,14 @@ class PyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, clas
                 load(i.inputs[0], ANY_KIND)
                 iconst(i.a)
                 py("item", "(${OBJ}I)$OBJ")
+                done(i, ANY_KIND)
+            }
+            PyIr.UNPACK_EX_ARRAY -> {
+                storePc(i)
+                load(i.inputs[0], ANY_KIND)
+                iconst(i.a)
+                iconst(i.b)
+                mv.visitMethodInsn(INVOKESTATIC, Generic.CALLS, "unpackEx", "(${OBJ}II)$OBJS", false)
                 done(i, ANY_KIND)
             }
             PyIr.CHECK_INT, PyIr.CHECK_FLOAT -> {
@@ -703,6 +798,11 @@ class PyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, clas
                 getstatic("dev/mooner/neonpython/PyIterator", "STOP", OBJ)
                 IF_ACMPEQ // done: to the loop's exit
             }
+            PyOp.SEND -> {
+                load(v, ANY_KIND)
+                mv.visitTypeInsn(INSTANCEOF, "$PY_GEN\$Done")
+                IFNE // done: to the target, its result on the stack
+            }
             else -> {
                 if (kindOf(v) == PyKinds.BOOL) load(v, PyKinds.BOOL)
                 else {
@@ -715,7 +815,15 @@ class PyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, clas
     }
 
     override fun switchIndex(i: Inst) = throw JitBailout("python: no switch")
-    override fun otherTerminator(i: Inst): Boolean = false
+    override fun otherTerminator(i: Inst): Boolean {
+        if (i.op != Ir.THROW) return false
+        // (RAISE's or RERAISE's exception, made by its runtime call)
+        storePc(i)
+        load(i.inputs[0], ANY_KIND)
+        mv.visitTypeInsn(CHECKCAST, "java/lang/Throwable")
+        mv.visitInsn(ATHROW)
+        return true
+    }
 
     override fun pushConst(c: Const, want: Byte) {
         val v = c.value
@@ -776,7 +884,11 @@ class PyCodegen(g: Graph, mv: MethodVisitor, kinds: Kinds, cw: ClassWriter, clas
     override fun inlinedRecord(em: Emit, site: InlineSite, state: FrameState, inner: Int, value: (Value) -> Unit, array: (Array<Value>) -> Unit) =
         throw JitBailout("python: no inlining")
     override fun stressExit(em: Emit) = throw JitBailout("python: no stress exits")
-    override fun suspendCall(em: Emit, i: Inst, value: (Value) -> Unit) = throw JitBailout("python: no suspensions yet")
+    /** A YIELD's suspension: PyGenerators.suspend(frame, pc, sp, value), as the interpreter's YIELD leaves the frame. */
+    override fun suspendCall(em: Emit, i: Inst, value: (Value) -> Unit) {
+        if (i.inputs.isEmpty()) em.mv.visitInsn(ACONST_NULL) else value(i.inputs[0])
+        em.mv.visitMethodInsn(INVOKESTATIC, PY_GEN, "suspend", "(${FRAME_D}II$OBJ)$OBJ", false)
+    }
     override fun siteLocals(site: InlineSite): List<Value> = emptyList()
     override fun newEmitter(m: MethodVisitor, first: Int): Emit = object : JvmEmitter(m) {
         var top = first

@@ -1,0 +1,134 @@
+coroutine add basics.<locals>.add <coroutine object basics.<locals>.add
+False False True True True
+False False None True
+3
+RuntimeError: cannot reuse already awaited coroutine
+None
+  yielded 1
+  yielded 2
+('one', 'two')
+  yielded 10
+  yielded 20
+None
+  yielded from gen
+gen result!
+  yielded 112
+(112, ['y', 'z'])
+basics.<locals>.K.m True
+TypeError: 'int' object can't be awaited
+TypeError: 'NoneType' object can't be awaited
+TypeError: 'generator' object can't be awaited
+TypeError: __await__() returned non-iterator of type 'int'
+TypeError: __await__() returned a coroutine
+TypeError: 'NoneType' object is not callable
+RuntimeError: cannot reuse already awaited coroutine
+RuntimeError: coroutine is being awaited already
+True generator
+False None
+coroutine_wrapper True False True
+wrapper done 1 (1,)
+RuntimeError: cannot reuse already awaited coroutine
+TypeError: 'coroutine_wrapper' object can't be awaited
+TypeError: cannot 'yield from' a coroutine object in a non-coroutine generator
+TypeError: 'coroutine' object is not iterable
+TypeError: 'coroutine' object is not an iterator
+TypeError: 'coroutine' object is not iterable
+TypeError: can't send non-None value to a just-started coroutine
+TypeError: coroutine.send() takes exactly one argument (0 given)
+None
+ValueError: coroutine already executing
+RuntimeError: coroutine raised StopIteration StopIteration(7) True
+caught boom
+KeyError: 'k'
+RuntimeError: cannot reuse already awaited coroutine
+None
+cleanup ran
+None False
+RuntimeError: coroutine ignored GeneratorExit
+7
+inner closed
+outer closed
+got KeyError('from __await__')
+  yielded fin
+1
+outside: None
+handled: ValueError
+raised again: ValueError('v')
+enter a
+  yielded entering a
+body A
+exit a None None
+  yielded exiting a
+done
+enter a
+  yielded entering a
+enter b
+  yielded entering b
+body A B
+exit b None None
+  yielded exiting b
+exit a None None
+  yielded exiting a
+AB
+enter s
+  yielded entering s
+exit s ZeroDivisionError division by zero
+  yielded exiting s
+after
+enter r
+  yielded entering r
+exit r KeyError 'k'
+  yielded exiting r
+KeyError 'k'
+enter 0
+  yielded entering 0
+exit 0 None None
+  yielded exiting 0
+enter 1
+  yielded entering 1
+exit 1 None None
+  yielded exiting 1
+1
+("ValueError('from exit')", "KeyError('body')")
+TypeError: 'int' object does not support the asynchronous context manager protocol (missed __aexit__ method)
+TypeError: 'async_with_errors.<locals>.OnlyEnter' object does not support the asynchronous context manager protocol (missed __aexit__ method)
+TypeError: 'async_with_errors.<locals>.Sync' object does not support the asynchronous context manager protocol (missed __aexit__ method) but it supports the context manager protocol. Did you mean to use 'with'?
+TypeError: 'async_with_errors.<locals>.Async' object does not support the context manager protocol (missed __exit__ method) but it supports the asynchronous context manager protocol. Did you mean to use 'async with'?
+TypeError: 'async with' received an object from __aenter__ that does not implement __await__: int
+TypeError: 'async with' received an object from __aexit__ that does not implement __await__: int
+  yielded tick 1
+  yielded tick 2
+  yielded tick 3
+else ran
+6
+  yielded tick 1
+  yielded tick 2
+x 2
+  yielded tick 3
+3
+[11, 22]
+  yielded tick 1
+StopAsyncIteration from body
+  yielded tick 1
+TypeError: cannot unpack non-iterable int object
+  yielded tick 1
+  yielded tick 1
+  yielded tick 2
+  yielded tick 2
+  yielded tick 1
+  yielded tick 2
+[(1, 1), (1, 2), ('caught', 1), (2, 1), (2, 2), ('caught', 2)]
+TypeError: 'async for' requires an object with __aiter__ method, got list
+TypeError: 'async for' received an object from __aiter__ that does not implement __anext__: int
+TypeError: 'async for' received an invalid object from __anext__: int / TypeError("'int' object can't be awaited") True
+  yielded 0
+  yielded 1
+  yielded 4
+  yielded 0
+  yielded 2
+  yielded 0
+  yielded -1
+([0, 1, 4], [0, 2], {0: 0, 1: -1})
+  yielded tick 1
+  yielded tick 2
+[0, 1, 0, 2]

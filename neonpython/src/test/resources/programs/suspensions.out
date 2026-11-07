@@ -1,0 +1,27 @@
+199990000 [199990000, 199990001, 199990002]
+0 1
+5 14 30 55 [4, 9, 16]
+[10, 101, 10202, 104080805] [4, 7, 14, 27, 54, 107, 214, 427] 3833
+a b c ([1, 2, 3], (10, 20, 30), 12)
+finally
+1 caught v after
+1
+finally
+1 2
+finally
+KeyError 'k'
+sub finally
+sub1 sub2 x outer got result
+sub1 sub caught into sub
+sub finally
+outer got result end
+sub finally
+closed True
+[('waiting', 0), ('waiting', 1), ('waiting', 2), ('waiting', 3), ('result', 10)]
+[('waiting', 0), (0, 'sent'), ('waiting', 1), (1, 'sent'), ('waiting', 2), (2, 'sent'), 'done']
+328350 [1, 3, 5, 7, 9]
+returned 1
+UnboundLocalError cannot access local variable 'x' where it is not associated with a value
+UnboundLocalError cannot access local variable 'x' where it is not associated with a value
+returned deleted
+UnboundLocalError cannot access local variable 'x' where it is not associated with a value

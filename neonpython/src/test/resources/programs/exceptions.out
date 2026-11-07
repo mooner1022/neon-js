@@ -1,0 +1,39 @@
+['body', 'body end', 'else', 'finally', 'after']
+['body', 'except bad', 'finally', 'after']
+lookup KeyError lookup IndexError arith arith value other
+value other
+ZeroDivisionError: division by zero ('division by zero',)
+IndexError: list index out of range ('list index out of range',)
+KeyError: 'missing' ('missing',)
+KeyError: (1, 2) ((1, 2),)
+ValueError: invalid literal for int() with base 10: 'x' ("invalid literal for int() with base 10: 'x'",)
+NameError: name 'undefined_name' is not defined ("name 'undefined_name' is not defined",)
+AttributeError: 'int' object has no attribute 'nope' ("'int' object has no attribute 'nope'",)
+TypeError: can only concatenate str (not "int") to str ('can only concatenate str (not "int") to str',)
+TypeError: 'NoneType' object is not callable ("'NoneType' object is not callable",)
+undefined_name NameError("name 'undefined_name' is not defined")
+nope 1
+in clause KeyError('k')
+e is gone: name 'e' is not defined
+inner finally
+outer caught t
+handling
+reraised KeyError('k') ('k',)
+ValueError('second') KeyError('first')
+KeyError('a') None False
+None KeyError('a') True
+ZeroDivisionError('division by zero') None True
+finally runs
+try 2 swallowed
+loop 0
+loop finally 0
+loop finally 1
+loop 2
+loop finally 2
+loop finally 3
+[0, 'inner', 'outer', 'inner', 'outer']
+handled 0
+1
+cleanup
+returned 'x'
+None
