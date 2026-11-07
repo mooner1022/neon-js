@@ -1178,18 +1178,29 @@ Then:
 - types' layouts as CPython's, and `match` by the types' flags (CPython's `test_patma` passes, but for its line-event
   tracing tests);
 - the builtin types immutable, metaclass attribute hooks, and classes' `__dict__` and `__weakref__` descriptors;
-- the CJK codecs.
+- the CJK codecs;
+- the builtin types' operator methods in their dicts, and what CPython's `test_descr` found.
+  - `test_descr`: 33 of 162 still fail.
+  - `test_dataclasses` and `test_collections`: one each.
+  - `test_copy`: passes.
 
-Next:
-- what CPython's `test_descr` finds:
-  - one member_descriptor type;
-  - classmethod's and staticmethod's `__dict__`;
-  - a bound method's `__get__`;
-  - `super()` with one argument;
-  - `complex()`'s keywords;
-- the built-in error handlers, which are quadratic on a long string outside the BMP;
-- `_elementtree`, if ElementTree's speed matters;
-- `C1` on a core branch.
+The stdlib work stops here (2026-11-07): the next step is `C1` on a core branch. Known gaps, left until code needs
+them:
+- From `test_descr`:
+  - a metaclass's own `mro()`;
+  - type's `__doc__` descriptor;
+  - pow's wrapper messages;
+  - subclassing super;
+  - a metaclass's `__getattribute__` for class attributes.
+- The built-in error handlers turn the whole string into code points on each call, which is quadratic on a long string
+  outside the BMP.
+- mappingproxy refuses a mapping that is not a dict.
+- operator.length_hint ignores `__length_hint__`.
+- fractions: a negative base to a fractional power (complex results), and true division of huge ints.
+- pydoc is not bundled.
+- `_elementtree` is not ported: ElementTree is the pure one, about six times slower than CPython's C one.
+- CPython's test modules not yet run on NeonPy: `test_json`, `test_datetime`, `test_typing`, `test_re`,
+  `test_math`, `test_float`, `test_int`, `test_list`, `test_dict` and others.
 
 ## References (checked in this review)
 
