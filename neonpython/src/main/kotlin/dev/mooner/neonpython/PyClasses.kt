@@ -741,6 +741,11 @@ object PyClasses {
             obj.value = v
             return
         }
+        // (a property's __doc__ is writable, as CPython's member is: urllib.parse sets its fields')
+        if (obj is PyProperty && obj.sub == null && name == "__doc__") {
+            obj.doc = v
+            return
+        }
         when (obj) {
             is PyObject -> {
                 if (!obj.type.hasDict && obj.dict == null) {

@@ -284,10 +284,18 @@ object PyLiterals {
         prop(ct, "real") { (it as PyComplex).real }
         prop(ct, "imag") { (it as PyComplex).imag }
         m(ct, "conjugate") { a -> val c = a[0] as PyComplex; PyComplex(c.real, -c.imag) }
+        // (an int's: a plain int, a bool's and a subclass's instance's value; numbers.Rational's numerator and denominator)
+        fun plainInt(v: Any?): Any? = when (v) {
+            is PyBool -> if (v.value) 1L else 0L
+            is PyNumSub -> v.num
+            else -> v
+        }
         for (t in arrayOf(PyTypes.INT, PyTypes.BOOL)) {
-            prop(t, "real") { if (it is PyBool) (if (it.value) 1L else 0L) else it }
+            prop(t, "real") { plainInt(it) }
             prop(t, "imag") { 0L }
-            m(t, "conjugate") { a -> a[0].let { if (it is PyBool) (if (it.value) 1L else 0L) else it } }
+            prop(t, "numerator") { plainInt(it) }
+            prop(t, "denominator") { 1L }
+            m(t, "conjugate") { a -> plainInt(a[0]) }
         }
         prop(PyTypes.FLOAT, "real") { it }
         prop(PyTypes.FLOAT, "imag") { 0.0 }
