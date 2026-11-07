@@ -23,8 +23,11 @@ PORTS = """
 __future__.py
 _ast_unparse.py
 _collections_abc.py
+_colorize.py
+_compat_pickle.py
 _py_abc.py
 _py_warnings.py
+_pydatetime.py _pydatetime
 _pyio.py
 _pyio.py _io
 _strptime.py
@@ -33,12 +36,16 @@ abc.py
 annotationlib.py
 ast.py
 bisect.py
+calendar.py
 codecs.py
+codeop.py
 collections/__init__.py
 contextlib.py
 contextvars.py
 copy.py
 copyreg.py
+dataclasses.py
+datetime.py
 encodings/__init__.py
 encodings/_win_cp_codecs.py
 encodings/aliases.py
@@ -135,12 +142,19 @@ functools.py
 genericpath.py
 glob.py
 heapq.py
+inspect.py
 io.py
+json/__init__.py
+json/decoder.py
+json/encoder.py
+json/scanner.py
 keyword.py
 linecache.py
+locale.py
 numbers.py
 operator.py
 os.py
+pickle.py
 posixpath.py
 random.py
 re/__init__.py
@@ -158,6 +172,7 @@ tempfile.py
 textwrap.py
 token.py
 tokenize.py
+traceback.py
 types.py
 typing.py
 warnings.py

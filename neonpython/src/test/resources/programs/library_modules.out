@@ -1,0 +1,69 @@
+pickle -> ({'k': [1, 2.5, None, (3,)], 's': {'x'}}, P(x=1, y=2, tags=[]))
+pickle slots -> (1, 2)
+len -> (obj, /)
+sorted -> (iterable, /, *, key=None, reverse=False)
+print -> (*args, sep=' ', end='\n', file=None, flush=False)
+max !! ValueError no signature found for builtin <built-in function max>
+getattr !! ValueError no signature found for builtin <built-in function getattr>
+sqrt -> (x, /)
+log !! ValueError no signature found for builtin <built-in function log>
+sleep -> (object, /)
+stat -> (path, *, dir_fd=None, follow_symlinks=True)
+str.join -> (self, iterable, /)
+list.append -> (self, object, /)
+dict.get -> (self, key, default=None, /)
+str.split -> (sep=None, maxsplit=-1)
+list.sort -> (*, key=None, reverse=False)
+int.to_bytes -> (self, /, length=1, byteorder='big', *, signed=False)
+dict.fromkeys -> (iterable, value=None, /)
+object.__init__ -> (self, /, *args, **kwargs)
+chain.from_iterable -> (iterable, /)
+dumps -> ('{"a": [1, 2.5, null, true], "b": "\\u00e9\\"\\n"}', '[\n  1,\n  2\n]', '{"a":2,"b":1}')
+dumps ascii -> ('"\\u00e9\\ud83d\\ude00"', '"é"', 'Infinity', '1e+100', '0.1')
+loads -> ({'a': [1, 2500.0, None, True, False], 'b': 'é😀'}, 1, 'x', nan)
+loads error !! JSONDecodeError Expecting value: line 1 column 7 (char 6)
+loads error2 !! JSONDecodeError Expecting ',' delimiter: line 1 column 6 (char 5)
+dumps error !! TypeError Object of type set is not JSON serializable
+hooks -> (['a'], '1.5', '"obj"')
+roundtrip -> {'k': [{'x': 0}, {'x': 1}, {'x': 2}]}
+datetime -> (datetime.datetime(2024, 2, 29, 13, 45, 30, 123456), 'datetime.datetime(2024, 2, 29, 13, 45, 30, 123456)', '2024-02-29 13:45:30.123456', '2024-02-29T13:45:30.123456', datetime.date(2024, 2, 29), datetime.time(13, 45, 30, 123456), 3, datetime.IsoCalendarDate(year=2024, week=9, weekday=4))
+arith -> (datetime.datetime(2024, 3, 2, 0, 45, 30, 123456), datetime.timedelta(days=59, seconds=49530, microseconds=123456), datetime.timedelta(days=-1, seconds=5), datetime.timedelta(microseconds=2))
+strftime -> ('2024-02-29 13:45:30.123456 Thu Feb 060 PM', 'Friday January 05')
+fromiso -> (datetime.datetime(2024, 2, 29, 13, 45, 30, tzinfo=datetime.timezone(datetime.timedelta(seconds=32400))), datetime.date(2024, 3, 1), datetime.time(12, 30))
+tz -> (datetime.datetime(2024, 2, 29, 13, 45, 30, 123456, tzinfo=datetime.timezone(datetime.timedelta(seconds=32400), 'KST')), datetime.timedelta(seconds=32400), datetime.datetime(2024, 2, 29, 4, 45, 30, 123456, tzinfo=datetime.timezone.utc), 'KST', datetime.timezone.utc)
+timestamp -> (datetime.datetime(1970, 1, 1, 0, 0, tzinfo=datetime.timezone.utc), 946684800.0)
+strptime -> 2024-02-29 13:45:00
+errors !! ValueError day 29 must be in range 1..28 for month 2 in year 2023
+compare -> (True, [datetime.time(1, 0), datetime.time(3, 0)], True)
+calendar -> (True, (calendar.THURSDAY, 29), calendar.THURSDAY, ['   February 2024', 'Mo Tu We Th Fr Sa Su', '          1  2  3  4'], 'Monday')
+dataclass -> (P(x=1, y=2, tags=[]), True, True, {'x': 1, 'y': 2, 'tags': []}, (1, 2, []), P(x=1, y=5, tags=[]), ['x', 'y', 'tags'])
+frozen -> (F(a='x', b=1.5), True, True)
+frozen set !! FrozenInstanceError cannot assign to field 'a'
+kw_only -> (K(a=1, b=3), 6, 11)
+kw_only bad !! TypeError K.__init__() takes 2 positional arguments but 3 were given
+slots -> (S(v=1), ('v',), False)
+missing !! TypeError P.__init__() missing 1 required positional argument: 'x'
+is_dataclass -> (True, True, False)
+make -> M(q=1, r='z')
+signature -> ("(a, b: int = 2, *args, c, d='x', **kw) -> str", '(self, x, /, y=1)', '(x, /, y=1)', '(z)', '(x: int, y: int = 0, tags: list = <factory>) -> None')
+params -> [('a', 'POSITIONAL_OR_KEYWORD', <class 'inspect._empty'>), ('b', 'POSITIONAL_OR_KEYWORD', 2), ('args', 'VAR_POSITIONAL', <class 'inspect._empty'>), ('c', 'KEYWORD_ONLY', <class 'inspect._empty'>), ('d', 'KEYWORD_ONLY', 'x'), ('kw', 'VAR_KEYWORD', <class 'inspect._empty'>)]
+bind -> {'a': 1, 'c': 3}
+bind bad !! TypeError missing a required argument: 'c'
+predicates -> (True, True, True, False, False, True, True)
+members -> ['cm', 'm', 'p']
+getdoc -> ("g's doc.", 'a\nb')
+getsource lib -> def indent(text, prefix, predicate=None):
+getfile -> True
+getmodule -> textwrap
+unwrap -> True
+currentframe -> <lambda>
+stack -> ['<lambda>', 't']
+builtin sig -> (obj, /)
+getfullargspec -> FullArgSpec(args=['a', 'b'], varargs='args', varkw='kw', defaults=(2,), kwonlyargs=['c', 'd'], kwonlydefaults={'d': 'x'}, annotations={'return': <class 'str'>, 'b': <class 'int'>})
+closurevars -> ClosureVars(nonlocals={}, globals={}, builtins={}, unbound=set())
+format_exception -> ZeroDivisionError: division by zero
+format_exc -> ZeroDivisionError: division by zero
+extract_tb -> [('tracebacks', 121), ('boom', 116)]
+TracebackException -> ('ZeroDivisionError', ['ZeroDivisionError: division by zero\n'])
+print_exc -> ZeroDivisionError: division by zero
+exception only -> ['ValueError: v\n']
