@@ -12,7 +12,8 @@ import sys
 # The C modules NeonPy has (its types' methods and its functions)
 MODULES = ['builtins', 'math', 'time', '_struct', 'posix', 'itertools', '_collections', '_codecs', '_sre', '_string',
            '_thread', '_weakref', 'gc', 'sys', '_operator', '_imp', '_contextvars', '_tokenize', '_random', '_sha2',
-           '_md5', '_sha1', 'errno', 'binascii', 'zlib', 'unicodedata', '_blake2', '_sha3', '_csv']
+           '_md5', '_sha1', 'errno', 'binascii', 'zlib', 'unicodedata', '_blake2', '_sha3', '_csv',
+           '_socket', 'select', '_signal', '_posixsubprocess', 'atexit']
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(os.path.dirname(TOOLS), 'src/main/kotlin/dev/mooner/neonpython/PySignatures.kt')
