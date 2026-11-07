@@ -1055,6 +1055,30 @@ stand-ins until the real `unittest` imports: from then on CPython's own).
   `\d`, `\w`, `\s` and ignore-case use it, and so do `int()`, `float()` and `complex()` (other scripts' digits),
   `str.format`'s field numbers and widths, `repr` and identifiers: the lexer checks a name past ASCII as CPython's
   does and normalizes it to NFKC with `unicodedata`'s tables. ASCII is answered without the table.
+- **`pyexpat` is Expat 2.8.1 (the one CPython 3.14.6 bundles) ported to Kotlin**, with pyexpat.c over it, so
+  CPython's `xml` (ElementTree, minidom, sax) and `plistlib` run unchanged.
+  - The oracle is Windows CPython, which links that Expat (Linux's links 2.8.2).
+  - `_elementtree` is not ported, so ElementTree is the pure one (about six times CPython's C on a large document;
+    pyexpat itself is as fast as CPython's).
+  - Expat's allocation tracker counts its main allocations at x86-64 sizes: close to C's, not the same.
+  - Its hash tables iterate in insertion order, which only an ExternalEntityRefHandler's context string shows.
+  - The xmlparser's attributes are properties.
+  - `EXPAT_*_DEBUG` is not read.
+  - `http.client` and `urllib.request` are bundled because `xml.sax.saxutils` imports them. The network they would
+    reach is refused.
+- **One dict hash for every kind of key:** a key's Python hash (hash()'s, CPython's numeric and str and tuple
+  hashes) folded to an Int.
+  - Equal keys of different kinds meet: 1.5 and `Fraction(3, 2)`, bytes and a memoryview, a str and a class whose
+    `__hash__` returns its hash.
+  - A `__hash__`'s int is kept as slot_tp_hash keeps it, reduced only past 64 bits.
+- **A builtin type's methods are CPython's descriptors:** method_descriptor, wrapper_descriptor for a slot (by
+  typeobject.c's slot names, and the few slots CPython defines as methods), and method-wrapper bound.
+  - Called unbound, they check their self with CPython's errors.
+  - A static or class method's builtin is builtin_function_or_method.
+- **A list changed under its own operation behaves as CPython's**, never as a JVM exception:
+  - a slice assignment's indices are clamped to the list as it is after its value is read;
+  - remove, index, count, `in` and `==` read the size again at each step;
+  - `list.sort` sorts the items aside with the list empty, and raises "list modified during sort" if it was changed.
 
 ### 12.3 Progress (2026-11-07, later)
 
@@ -1097,7 +1121,17 @@ Since then:
   - sys.getsizeof's sizes;
   - object.__dir__ and object.__sizeof__.
 
-Next: `xml` (it needs `pyexpat`), `str`'s Unicode tables from CPython, and `C1` on a core branch.
+Then:
+- `pyexpat` (Expat ported), with `xml`, `plistlib`, `http.client` and `urllib.request`;
+- `str`'s Unicode tables from CPython;
+- one dict hash for every kind of key;
+- lists safe under their own changes.
+
+Next:
+- the CJK codecs;
+- `_elementtree`, if ElementTree's speed matters;
+- `zoneinfo` with tzdata;
+- `C1` on a core branch.
 
 ## References (checked in this review)
 
