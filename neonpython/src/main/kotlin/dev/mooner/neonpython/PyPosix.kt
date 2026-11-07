@@ -20,8 +20,9 @@ class PyScandir(@JvmField val names: Iterator<String>, @JvmField val make: (Stri
  * `posix` (docs/PYTHON_PLATFORM.md §12, S4), what `os` is made of, over the context's file system ([PyFileSystem]:
  * none by default) and its own working directory (`/` to begin with), file descriptors and environment: nothing of the
  * host's is seen but what the host gives. Linux's names and numbers (errno, O_*), as on Android. File descriptors 0,
- * 1 and 2 are the context's input (empty), output and error output. What a sandbox has no use for (processes,
- * signals, users, terminals) is not here, so `os` says it has none.
+ * 1 and 2 are the context's input (empty), output and error output; pipes and sockets are in memory ([PyPipeEnd]).
+ * What a sandbox has no use for (users, terminals, starting processes) is not here, so `os` says it has none; no
+ * process being started, waitpid finds no child (subprocess needs it), and signals are _signal's ([PySignal]).
  */
 object PyPosix {
     private val NO_ARGS = arrayOfNulls<Any?>(0)
@@ -60,6 +61,10 @@ object PyPosix {
         @JvmField var nextFd = 3
         /** The environment (what putenv and unsetenv change: os.environ's own mapping is os.py's). */
         @JvmField val env = LinkedHashMap<String, String>(ctx.environ)
+        /** socket.setdefaulttimeout's (ns; -1: none), what a socket made is given. */
+        @JvmField var socketTimeout = -1L
+        /** The signals' dispositions, mask and wakeup descriptor ([PySignal]), made when _signal is first imported. */
+        @JvmField var signals: PySignal.State? = null
 
         init {
             fds[0] = Fd(null, "<stdin>", PyFileSystem.O_RDONLY, std = 0)
@@ -68,10 +73,17 @@ object PyPosix {
         }
     }
 
-    /** An open file: its channel (none for the standard ones), what it was opened as, how it is to be inherited. */
-    class Fd(@JvmField val channel: SeekableByteChannel?, @JvmField val path: String, @JvmField val flags: Int, @JvmField val std: Int = -1) {
+    /**
+     * An open file: its channel (none for the standard ones), what it was opened as, how it is to be inherited; or
+     * one end of a pipe or socket in memory ([end]: os.pipe's, _socket's).
+     */
+    class Fd(@JvmField val channel: SeekableByteChannel?, @JvmField val path: String, @JvmField val flags: Int, @JvmField val std: Int = -1,
+             @JvmField val end: PyPipeEnd? = null) {
         @JvmField var inheritable = false
+        /** O_NONBLOCK clear (an end's is the end's: the descriptors dup made share it). */
         @JvmField var blocking = true
+        /** How many descriptors are open on its file (dup's share this): the file closed with the last. */
+        @JvmField var shared = intArrayOf(1)
         /** A standard output's: the bytes written to it made text (a character split between writes kept for the next). */
         @JvmField val decoder = if (std > 0) Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPLACE)
             .onUnmappableCharacter(CodingErrorAction.REPLACE) else null
@@ -234,7 +246,52 @@ object PyPosix {
         else -> throw PyRt.typeError("'${PyTypes.name(v)}' object cannot be interpreted as an integer")
     }
 
-    private fun file(st: State, fd: Int): Fd = st.fds[fd] ?: throw error(PyErrno.EBADF)
+    @JvmStatic
+    internal fun file(st: State, fd: Int): Fd = st.fds[fd] ?: throw error(PyErrno.EBADF)
+
+    /** A new descriptor for [end] (a pipe's or socket's), opened as [flags]. */
+    @JvmStatic
+    internal fun open(st: State, end: PyPipeEnd, flags: Int): Int {
+        val fd = st.nextFd++
+        st.fds[fd] = Fd(null, if (end.isSocket) "<socket>" else "<pipe>", flags, end = end)
+        return fd
+    }
+
+    /** dup(fd): a new descriptor on [fd]'s file (EBADF where none is open), not inheritable. */
+    @JvmStatic
+    internal fun dup(st: State, fd: Int): Int {
+        val f = file(st, fd)
+        val n = st.nextFd++
+        st.fds[n] = Fd(f.channel, f.path, f.flags, f.std, f.end).also {
+            it.shared = f.shared
+            f.shared[0]++
+            it.blocking = f.blocking
+        }
+        return n
+    }
+
+    /** close(fd): EBADF where none is open; the file closed with its last descriptor. */
+    @JvmStatic
+    internal fun close(ctx: PyContext, st: State, fd: Int) {
+        release(ctx, st.fds.remove(fd) ?: throw error(PyErrno.EBADF))
+    }
+
+    private fun release(ctx: PyContext, f: Fd) {
+        if (f.std > 0) flushStd(ctx, f)
+        if (--f.shared[0] > 0) return
+        f.channel?.close()
+        f.end?.let { PySocket.close(it) }
+    }
+
+    /** Whether [f] blocks (O_NONBLOCK clear): an end's is its end's. */
+    @JvmStatic
+    internal fun blocking(f: Fd): Boolean = f.end?.blocking ?: f.blocking
+
+    @JvmStatic
+    internal fun setBlocking(f: Fd, blocking: Boolean) {
+        val e = f.end
+        if (e != null) e.blocking = blocking else f.blocking = blocking
+    }
 
     // ------------------------------------------------------------------ stat
 
@@ -247,9 +304,10 @@ object PyPosix {
         return PySys.struct(STAT_RESULT, visible, hidden)
     }
 
-    /** What fstat says of a descriptor: its file's, a standard one a pipe's. */
+    /** What fstat says of a descriptor: its file's, a standard one a pipe's, a socket's (S_IFSOCK, rwx for all). */
     private fun fdStat(st: State, fd: Int): PyFileStat {
         val f = file(st, fd)
+        if (f.end?.isSocket == true) return PyFileStat(0xC000 or 0x1FF, 0, nlink = 1)
         if (f.channel == null) return PyFileStat(0x1000 or 0x180, 0, nlink = 1)
         return try {
             st.fs.stat(f.path, true).let { s -> PyFileStat(s.mode, f.channel.size(), s.atimeNs, s.mtimeNs, s.ctimeNs, s.ino, s.dev, s.nlink, s.uid, s.gid) }
@@ -454,18 +512,25 @@ object PyPosix {
         }
         def("close") { a, kw ->
             val v = clinic("close", a, kw, listOf("fd"), 1)
-            val fd = fdArg(v[0])
-            val f = st.fds.remove(fd) ?: throw error(PyErrno.EBADF)
-            if (f.std > 0) flushStd(ctx, f)
-            f.channel?.close()
+            close(ctx, st, fdArg(v[0]))
             PyNone
         }
         def("closerange") { a, kw ->
             val v = clinic("closerange", a, kw, listOf("fd_low", "fd_high"), 2, posOnly = 2)
             val lo = fdArg(v[0]).coerceAtLeast(0)
             val hi = fdArg(v[1])
-            for (fd in st.fds.keys.filter { it in lo until hi }) st.fds.remove(fd)?.channel?.close()
+            for (fd in st.fds.keys.filter { it in lo until hi }) st.fds.remove(fd)?.let { release(ctx, it) }
             PyNone
+        }
+        def("dup") { a, kw ->
+            val v = clinic("dup", a, kw, listOf("fd"), 1, posOnly = 1)
+            dup(st, fdArg(v[0])).toLong()
+        }
+        // (a pipe in memory: what is written to its write end waits, 64 KiB of it, until read from its read end)
+        def("pipe") { a, kw ->
+            clinic("pipe", a, kw, emptyList(), 0)
+            val (r, w) = PySocket.pipe()
+            PyTuple(arrayOf(open(st, r, PyFileSystem.O_RDONLY).toLong(), open(st, w, PyFileSystem.O_WRONLY).toLong()))
         }
         def("read") { a, kw ->
             val v = clinic("read", a, kw, listOf("fd", "length"), 2, posOnly = 2)
@@ -535,10 +600,10 @@ object PyPosix {
             file(st, fdArg(v[0])).inheritable = PyRt.truthy(v[1])
             PyNone
         }
-        def("get_blocking") { a, kw -> PyBool.of(file(st, fdArg(clinic("get_blocking", a, kw, listOf("fd"), 1, posOnly = 1)[0])).blocking) }
+        def("get_blocking") { a, kw -> PyBool.of(blocking(file(st, fdArg(clinic("get_blocking", a, kw, listOf("fd"), 1, posOnly = 1)[0])))) }
         def("set_blocking") { a, kw ->
             val v = clinic("set_blocking", a, kw, listOf("fd", "blocking"), 2, posOnly = 2)
-            file(st, fdArg(v[0])).blocking = PyRt.truthy(v[1])
+            setBlocking(file(st, fdArg(v[0])), PyRt.truthy(v[1]))
             PyNone
         }
         def("get_terminal_size") { a, kw ->
@@ -584,6 +649,33 @@ object PyPosix {
             st.env.remove(k)
             PyNone
         }
+        // (no process is ever started (_posixsubprocess refuses): none to wait for; a status read as Linux's macros do)
+        def("waitpid") { a, kw ->
+            val v = clinic("waitpid", a, kw, listOf("pid", "options"), 2, posOnly = 2)
+            intArg(v[0])
+            intArg(v[1])
+            throw error(PyErrno.ECHILD)
+        }
+        def("wait") { a, kw -> clinic("wait", a, kw, emptyList(), 0); throw error(PyErrno.ECHILD) }
+        def("waitstatus_to_exitcode") { a, kw ->
+            val s = statusArg("waitstatus_to_exitcode", a, kw)
+            when {
+                s and 0x7F == 0 -> ((s shr 8) and 0xFF).toLong()
+                ((s and 0x7F) + 1).toByte() / 2 > 0 -> -(s and 0x7F).toLong()
+                s and 0xFF == 0x7F -> throw PyException("ValueError", "process stopped by delivery of signal ${(s shr 8) and 0xFF}")
+                else -> throw PyException("ValueError", "invalid wait status: $s")
+            }
+        }
+        for ((name, test) in listOf<Pair<String, (Int) -> Any>>(
+            "WIFEXITED" to { s -> PyBool.of(s and 0x7F == 0) },
+            "WEXITSTATUS" to { s -> ((s shr 8) and 0xFF).toLong() },
+            "WIFSIGNALED" to { s -> PyBool.of(((s and 0x7F) + 1).toByte() / 2 > 0) },
+            "WTERMSIG" to { s -> (s and 0x7F).toLong() },
+            "WIFSTOPPED" to { s -> PyBool.of(s and 0xFF == 0x7F) },
+            "WSTOPSIG" to { s -> ((s shr 8) and 0xFF).toLong() },
+            "WCOREDUMP" to { s -> PyBool.of(s and 0x80 != 0) },
+            "WIFCONTINUED" to { s -> PyBool.of(s == 0xFFFF) },
+        )) def(name) { a, kw -> test(statusArg(name, a, kw)) }
         // (no process to leave: SystemExit, which the host sees as the program's end)
         def("_exit") { a, kw ->
             val v = clinic("_exit", a, kw, listOf("status"), 1)
@@ -598,6 +690,13 @@ object PyPosix {
         "amd64", "x86_64" -> "x86_64"
         "aarch64", "arm64" -> "aarch64"
         else -> a
+    }
+
+    /** A wait status (`status`, a C int). */
+    private fun statusArg(fn: String, a: Array<Any?>, kw: PyDict?): Int {
+        val n = intArg(clinic(fn, a, kw, listOf("status"), 1)[0])
+        if (n > Int.MAX_VALUE || n < Int.MIN_VALUE) throw PyException("OverflowError", "Python int too large to convert to C int")
+        return n.toInt()
     }
 
     private fun envText(fn: String, v: Any?): String {
@@ -639,6 +738,7 @@ object PyPosix {
 
     private fun read(f: Fd, n: Int): ByteArray {
         if (f.std == 0) return ByteArray(0)
+        f.end?.let { return PySocket.readFd(it, n) }
         val ch = f.channel ?: throw error(PyErrno.EBADF)
         if (f.flags and PyFileSystem.O_ACCMODE == PyFileSystem.O_WRONLY) throw error(PyErrno.EBADF)
         val buf = ByteBuffer.allocate(minOf(n, 1 shl 24))
@@ -656,8 +756,10 @@ object PyPosix {
     @JvmStatic
     fun writeStd(ctx: PyContext, fd: Int, b: ByteArray): Int = write(ctx, file(state(ctx), fd), b)
 
-    private fun write(ctx: PyContext, f: Fd, b: ByteArray): Int {
+    @JvmStatic
+    internal fun write(ctx: PyContext, f: Fd, b: ByteArray): Int {
         if (f.std == 0) throw error(PyErrno.EBADF)
+        f.end?.let { return PySocket.writeFd(it, b) }
         if (f.std > 0) {
             // (a standard output: its bytes as text, a character split between writes waiting for the next)
             val all = if (f.pending.isEmpty()) b else f.pending + b

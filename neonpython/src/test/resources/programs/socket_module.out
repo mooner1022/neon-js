@@ -1,0 +1,374 @@
+-- constants
+364 813002 True
+1 2 10 1 2 2048
+1 2 6 1 2 2
+<AddressFamily.AF_UNIX: 1> <SocketKind.SOCK_DGRAM: 2> <MsgFlag.MSG_PEEK: 2> 30 7
+True True True socket
+True _socket (<class 'socket.socket'>, <class '_socket.socket'>, <class 'object'>)
+True 4096
+-- pair_basics
+1 1 1 0 socket
+<socket.socket fd=A, family=1, type=1, proto=0>
+names = ('', '')
+send = 5
+recv 2 = b'he'
+recv 100 = b'llo'
+blocking = (True, None, None, True)
+nonblocking = (False, 0.0, False)
+recv empty -> BlockingIOError (11, 'Resource temporarily unavailable')
+[Errno 11] Resource temporarily unavailable 11 Resource temporarily unavailable
+timeout set = (True, 0.05, False)
+timed out TimeoutError('timed out') None True True
+timeout none = (True, None, True)
+timeout 0 = (False, 0.0, False)
+blocking again = (True, None, True)
+settimeout neg -> ValueError ('Timeout value out of range',)
+settimeout str -> TypeError ("'str' object cannot be interpreted as an integer or float",)
+settimeout nan -> ValueError ('Invalid value NaN (not a number)',)
+settimeout int = (None, 3.0, None)
+-- pair_data
+sendall = None
+recv_into = (3, b'abc\x00\x00\x00\x00\x00\x00\x00')
+recv_into n = (2, b'xyc\x00\x00\x00\x00\x00\x00\x00')
+rest = b'z'
+recv_into memoryview = (4, b'1234')
+recv last = b'5'
+recv_into kw = (2, 1, b'w')
+peek = (2, b'p', b'pp')
+recv 0 = b''
+memoryview, bytearray = (2, 2, b'mvba')
+chunks = (3, 3, 5, b'onet', b'woth', b'ree')
+recvfrom = (2, (b'rf', None))
+recvfrom_into = (3, (3, None))
+dontwait -> BlockingIOError (11, 'Resource temporarily unavailable')
+os.write = 6
+os.read = (b'via', b' os')
+fstat 0o140777 0 True
+sendto -> OSError (106, 'Transport endpoint is already connected')
+big nonblocking = (True, True, True, True)
+-- misuse
+recv neg -> ValueError ('negative buffersize in recv',)
+recv str -> TypeError ("'str' object cannot be interpreted as an integer",)
+recv none -> TypeError ('recv() takes at least 1 argument (0 given)',)
+recv 3 -> TypeError ('recv() takes at most 2 arguments (3 given)',)
+recv kw -> TypeError ('socket.recv() takes no keyword arguments',)
+send str -> TypeError ("a bytes-like object is required, not 'str'",)
+send none -> TypeError ('send() takes at least 1 argument (0 given)',)
+sendall str -> TypeError ("a bytes-like object is required, not 'str'",)
+recv_into bytes -> TypeError ('recv_into() argument 1 must be read-write bytes-like object, not bytes',)
+recv_into neg -> ValueError ('negative buffersize in recv_into',)
+recv_into big -> ValueError ('buffer too small for requested bytes',)
+recv_into none -> TypeError ("recv_into() missing required argument 'buffer' (pos 1)",)
+recv_into badkw -> TypeError ("recv_into() got an unexpected keyword argument 'x'",)
+sendto 1 -> TypeError ('sendto() takes 2 or 3 arguments (1 given)',)
+settimeout none -> TypeError ('socket.settimeout() takes exactly one argument (0 given)',)
+gettimeout 1 -> TypeError ('socket.gettimeout() takes no arguments (1 given)',)
+shutdown bad -> OSError (22, 'Invalid argument')
+shutdown str -> TypeError ("'str' object cannot be interpreted as an integer",)
+getsockopt 4 -> TypeError ('getsockopt() takes at most 3 arguments (4 given)',)
+setsockopt 2 -> TypeError ('setsockopt() takes exactly 3 arguments (2 given)',)
+connect none -> TypeError ('socket.connect() takes exactly one argument (0 given)',)
+listen 2 -> TypeError ('listen() takes at most 1 argument (2 given)',)
+dup none -> TypeError ('_socket.dup() takes exactly one argument (0 given)',)
+dup neg -> OSError (9, 'Bad file descriptor')
+close str -> TypeError ("'str' object cannot be interpreted as an integer",)
+socketpair kw -> TypeError ('socketpair() takes no keyword arguments',)
+socketpair 4 -> TypeError ('socketpair() takes at most 3 arguments (4 given)',)
+socket kw -> TypeError ("socket() got an unexpected keyword argument 'foo'",)
+socket 5 -> TypeError ('socket() takes at most 4 arguments (5 given)',)
+socket float -> TypeError ("'float' object cannot be interpreted as an integer",)
+-- options
+get = [1, 0, 0, 0, 1, 0, 0, 0]
+bufs = (212992, 212992)
+buflen = (b'\x00\x00\x00\x00\x00\x00\x00\x00', b'\x01\x00\x00\x00', b'\x01\x00', b'\x01\x00\x00\x00', 1)
+buflen 2000 -> OSError ('getsockopt buflen out of range',)
+set = (None, 1)
+set bool = (None, 1)
+set neg = (None, 1)
+set bytes = (None, 0)
+set short -> OSError (22, 'Invalid argument')
+set none -> TypeError ("a bytes-like object is required, not 'NoneType'",)
+set none 4 -> OSError (14, 'Bad address')
+set str -> TypeError ("a bytes-like object is required, not 'str'",)
+set big -> TypeError ("a bytes-like object is required, not 'int'",)
+set type -> OSError (92, 'Protocol not available')
+set bufs = (None, None, 8192, 2304)
+linger = (None, b'\x01\x00\x00\x00\x05\x00\x00\x00', 1)
+linger int -> OSError (22, 'Invalid argument')
+unknown -> OSError (92, 'Protocol not available')
+tcp level -> OSError (95, 'Operation not supported')
+bad level -> OSError (95, 'Operation not supported')
+-- dups
+dup = (True, <AddressFamily.AF_UNIX: 1>, <SocketKind.SOCK_STREAM: 1>, 'socket', 2, b'dd')
+after dup closed = (5, b'still')
+_socket.dup = (True, None)
+fromfd = (<AddressFamily.AF_UNIX: 1>, <SocketKind.SOCK_STREAM: 1>, 0, 2, b'ff', None)
+fileno= = (<AddressFamily.AF_UNIX: 1>, <SocketKind.SOCK_STREAM: 1>, 0, True)
+_socket fileno= = (1, 1, 0, True, True)
+fileno= closed -> OSError (9, 'Bad file descriptor')
+fileno= neg -> ValueError ('negative file descriptor',)
+fileno= float -> TypeError ("'float' object cannot be interpreted as an integer",)
+fileno= stdout -> OSError (88, 'Socket operation on non-socket')
+fileno= pipe -> OSError (88, 'Socket operation on non-socket')
+detach = (True, -1, '<socket.socket [closed] fd=-1, family=1, ')
+-- shutdowns
+shut wr: recv = (b'before', b'', b'')
+shut wr: send -> BrokenPipeError (32, 'Broken pipe')
+shut wr: peer sends = (4, b'back')
+shut rd: recv = b''
+shut rd: peer sends -> BrokenPipeError (32, 'Broken pipe')
+peer closed: recv = (b'', b'')
+peer closed: send -> BrokenPipeError (32, 'Broken pipe')
+peer closed: select = True
+reset 0 = b'pen'
+reset 1 = b'din'
+reset 2 = b'g'
+reset 3 -> ConnectionResetError (104, 'Connection reset by peer')
+reset 4 = b''
+reset: send -> BrokenPipeError (32, 'Broken pipe')
+reset: SO_ERROR = (104, 0, b'')
+-- closed
+fileno = -1
+repr = '<socket.socket [closed] fd=-1, family=1, type=1, proto=0>'
+recv -> OSError (9, 'Bad file descriptor')
+send -> OSError (9, 'Bad file descriptor')
+close again = None
+settimeout -> OSError (9, 'Bad file descriptor')
+gettimeout = (1.0, True)
+setblocking -> OSError (9, 'Bad file descriptor')
+getsockopt -> OSError (9, 'Bad file descriptor')
+shutdown -> OSError (9, 'Bad file descriptor')
+getsockname -> OSError (9, 'Bad file descriptor')
+detach = -1
+os.read -> OSError (9, 'Bad file descriptor')
+attrs = (<AddressFamily.AF_UNIX: 1>, <SocketKind.SOCK_STREAM: 1>, 0)
+dup -> OSError (9, 'Bad file descriptor')
+_socket.close -> OSError (9, 'Bad file descriptor')
+-- kinds
+inet -> OSError (95, 'Operation not supported')
+bad family -> OSError (97, 'Address family not supported by protocol')
+dgram = [(<AddressFamily.AF_UNIX: 1>, <SocketKind.SOCK_DGRAM: 2>), (<AddressFamily.AF_UNIX: 1>, <SocketKind.SOCK_DGRAM: 2>)]
+seqpacket = [(<AddressFamily.AF_UNIX: 1>, <SocketKind.SOCK_SEQPACKET: 5>), (<AddressFamily.AF_UNIX: 1>, <SocketKind.SOCK_SEQPACKET: 5>)]
+bad type -> OSError (22, 'Invalid argument')
+bad proto -> OSError (93, 'Protocol not supported')
+nonblock = [(<SocketKind.SOCK_STREAM: 1>, False, 0.0), (<SocketKind.SOCK_STREAM: 1>, False, 0.0)]
+_socketpair = [('socket', 1, 1, 0), ('socket', 1, 1, 0)]
+dgram recv = (b'on', b'two22', 1)
+dgram empty -> BlockingIOError (11, 'Resource temporarily unavailable')
+dgram recvfrom = (1, (b'q', None))
+dgram peer closed: recv -> BlockingIOError (11, 'Resource temporarily unavailable')
+dgram peer closed: send -> ConnectionRefusedError (111, 'Connection refused')
+seqpacket recv = (b'packet', b'packet two')
+seqpacket peer closed = b''
+-- unconnected
+<socket.socket fd=S, family=2, type=1, proto=0, laddr=('0.0.0.0', 0)>
+fresh = (<AddressFamily.AF_INET: 2>, <SocketKind.SOCK_STREAM: 1>, 0, None, True)
+getsockname = ('0.0.0.0', 0)
+getpeername -> OSError (107, 'Transport endpoint is not connected')
+recv -> OSError (107, 'Transport endpoint is not connected')
+send -> BrokenPipeError (32, 'Broken pipe')
+shutdown -> OSError (107, 'Transport endpoint is not connected')
+getsockopt = [1, 0, 2, 6]
+bufs = (16384, 131072)
+tcp = [0, 7200, 75, 9]
+nodelay = (None, 1)
+ip tos = (None, 16)
+ipv6 on 4 -> OSError (95, 'Operation not supported')
+select = True
+fstat = '0o140777'
+os.read = b''
+udp send -> OSError (89, 'Destination address required')
+udp recv -> BlockingIOError (11, 'Resource temporarily unavailable')
+udp select = True
+<socket.socket fd=X, family=1, type=1, proto=0>
+unix -> OSError (22, 'Invalid argument')
+unix send -> OSError (107, 'Transport endpoint is not connected')
+unix getpeername -> OSError (107, 'Transport endpoint is not connected')
+inet6 = (('::', 0, 0, 0), 0)
+bad family -> OSError (97, 'Address family not supported by protocol')
+bad type -> OSError (22, 'Invalid argument')
+bad proto -> OSError (93, 'Protocol not supported')
+inet seqpacket -> OSError (94, 'Socket type not supported')
+protos = [(6, 6, None), (17, 17, None), (0, 17, None), (1, 0, None)]
+nonblock type = (<SocketKind.SOCK_STREAM: 1>, 0.0, False, None)
+_socket.socket() = (2, 1, 0, None)
+-- defaults
+default = None
+applied = (2.5, False, True)
+neg -> ValueError ('Timeout value out of range',)
+str -> TypeError ("'str' object cannot be interpreted as an integer or float",)
+with = (True, None, -1)
+pickle -> TypeError ("cannot pickle 'socket' object",)
+makefile r = ('BufferedReader', 12, b'line1\n', b'line2\n', None)
+makefile w = (2, None, b'wf', None)
+io refs = (0, False)
+inheritable = (False, None, True)
+-- pipes
+pipe = (1, True, '0o10600', 0)
+select empty = True
+select data = True
+read = (b'ab', b'c')
+write read end -> OSError (9, 'Bad file descriptor')
+read write end -> OSError (9, 'Bad file descriptor')
+read nonblocking -> BlockingIOError (11, 'Resource temporarily unavailable')
+eof = (b'', True)
+no reader -> BrokenPipeError (32, 'Broken pipe')
+select no reader = True
+full = (True, ([], [], []))
+full small -> BlockingIOError (11, 'Resource temporarily unavailable')
+-- selecting
+empty = ([], [], [])
+pair = True
+data = True
+fds = True
+timeout = (([], [], []), True)
+neg -> ValueError ('timeout must be non-negative',)
+str timeout -> TypeError ('timeout must be a float or None',)
+nan -> ValueError ('Invalid value NaN (not a number)',)
+none list -> TypeError ('arguments 1-3 must be sequences',)
+str item -> TypeError ('argument must be an int, or have a fileno() method.',)
+float item -> TypeError ('argument must be an int, or have a fileno() method.',)
+neg fd -> ValueError ('file descriptor cannot be a negative integer (-1)',)
+big fd -> ValueError ('filedescriptor out of range in select()',)
+tuple, iterator = (True, True)
+dup = True
+fileno object = True
+fileno str -> TypeError ('fileno() returned a non-integer',)
+fileno neg -> ValueError ('file descriptor cannot be a negative integer (-3)',)
+3 args = True
+2 args -> TypeError ('select expected at least 3 arguments, got 2',)
+5 args -> TypeError ('select expected at most 4 arguments, got 5',)
+kw -> TypeError ('select.select() takes no keyword arguments',)
+none timeout = True
+stdout = ([], [1, 2], [])
+closed -> ValueError ('file descriptor cannot be a negative integer (-1)',)
+closed fd -> OSError (9, 'Bad file descriptor')
+-- selector
+key = (True, 1, 'data')
+nothing = []
+ready = [(True, 1)]
+timeout = ([], True)
+modify = [2]
+map = 0
+-- signals
+45 [('ITIMER_PROF', 2), ('ITIMER_REAL', 0), ('ITIMER_VIRTUAL', 1), ('NSIG', 65), ('SIGABRT', 6), ('SIGALRM', 14)] 65
+2 <Signals.SIGTERM: 15> 0 1 <Handlers.SIG_DFL: 0> 33
+[<Handlers.SIG_DFL: 0>, <Handlers.SIG_IGN: 1>] [<Sigmasks.SIG_BLOCK: 0>, <Sigmasks.SIG_UNBLOCK: 1>, <Sigmasks.SIG_SETMASK: 2>]
+[2, 13, 25, 32, 33]
+True None 1
+62 [<Signals.SIGHUP: 1>, <Signals.SIGINT: 2>, <Signals.SIGQUIT: 3>] set
+['Hangup', 'Interrupt', 'Killed', 'Terminated', 'Child exited', None, 'Real-time signal 0', 'Real-time signal 30']
+strsignal 0 -> ValueError ('signal number out of range',)
+default_int_handler -> KeyboardInterrupt ()
+default_int_handler 1 -> TypeError ('default_int_handler expected 2 arguments, got 1',)
+set = <Handlers.SIG_DFL: 0>
+get = True
+again = True
+ign = <Handlers.SIG_IGN: 1>
+dfl = <Handlers.SIG_IGN: 1>
+int 1 = (<Handlers.SIG_DFL: 0>, <Handlers.SIG_IGN: 1>)
+int 0 = <Handlers.SIG_IGN: 1>
+int 2 -> TypeError ('signal handler must be signal.SIG_IGN, signal.SIG_DFL, or a callable object',)
+bad handler -> TypeError ('signal handler must be signal.SIG_IGN, signal.SIG_DFL, or a callable object',)
+kill -> OSError (22, 'Invalid argument')
+stop -> OSError (22, 'Invalid argument')
+0 -> ValueError ('signal number out of range',)
+65 -> ValueError ('signal number out of range',)
+32 -> OSError (22, 'Invalid argument')
+34 = (<Handlers.SIG_DFL: 0>, True)
+str -> TypeError ("'str' object cannot be interpreted as an integer",)
+kw -> TypeError ('_signal.signal() takes no keyword arguments',)
+args -> TypeError ('signal expected 2 arguments, got 1',)
+getsignal 0 -> ValueError ('signal number out of range',)
+getsignal kill = <Handlers.SIG_DFL: 0>
+-- delivering
+raise = ('after', [(10, 'frame', 'raising')])
+raise ign = None
+raise int -> KeyboardInterrupt ()
+raise 0 = None
+raise 65 -> OSError (22, 'Invalid argument')
+raise -1 -> OSError (22, 'Invalid argument')
+raise chld = None
+raise boom -> ValueError ('from handler 12',)
+siginterrupt = (None, None)
+siginterrupt 0 -> ValueError ('signal number out of range',)
+siginterrupt kill -> OSError (22, 'Invalid argument')
+siginterrupt 1 -> TypeError ('siginterrupt expected 2 arguments, got 1',)
+-- wakeups
+first = -1
+blocking fd the fd A must be in non-blocking mode
+set = -1
+again = True
+closed fd -> OSError (9, 'Bad file descriptor')
+str -> TypeError ("'str' object cannot be interpreted as an integer",)
+socket -> TypeError ("'socket' object cannot be interpreted as an integer",)
+badkw -> TypeError ("set_wakeup_fd() got an unexpected keyword argument 'foo'",)
+2 args -> TypeError ('set_wakeup_fd() takes exactly 1 positional argument (2 given)',)
+byte = (b'\n', [(10, 'frame', 'wakeups')])
+ignored: no byte -> BlockingIOError (11, 'Resource temporarily unavailable')
+sigint = (b'\x02', (2, 'frame', 'wakeups'))
+reset = True
+pipe = (None, -1, True, None, None)
+stdout -> ValueError ('the fd 1 must be in non-blocking mode',)
+-- masks
+mask = set()
+block = set()
+blocked = {<Signals.SIGUSR1: 10>}
+raised blocked = ([], {<Signals.SIGUSR1: 10>})
+unblock = ({<Signals.SIGUSR1: 10>}, [(10, 'frame', 'pthread_sigmask')], set())
+setmask = set()
+bad how -> OSError (22, 'Invalid argument')
+bad signal -> ValueError ('signal number 0 out of range [1; 64]',)
+kill = (set(), set())
+str -> TypeError ("'str' object cannot be interpreted as an integer",)
+none -> TypeError ("'NoneType' object is not iterable",)
+alarm 0 = 0
+getitimer = (0.0, 0.0)
+getitimer bad -> ItimerError (22, 'Invalid argument')
+setitimer 0 = (0.0, 0.0)
+setitimer neg -> ItimerError (22, 'Invalid argument')
+setitimer str -> TypeError ("'str' object cannot be interpreted as an integer or float",)
+ItimerError = ((<class 'signal.ItimerError'>, <class 'OSError'>, <class 'Exception'>, <class 'BaseException'>, <class 'object'>), 'signal')
+-- addresses
+htons = (256, 13330, 16777216, 2018915346, 256)
+htons big -> OverflowError ('Python int too large for C uint16_t',)
+htonl big -> OverflowError ('Python int too large for C uint32_t',)
+ntohl neg -> ValueError ('Cannot convert negative int',)
+htons float -> TypeError ("'float' object cannot be interpreted as an integer",)
+inet_aton = [b'\x7f\x00\x00\x01', b'\x00\x00\x00\x01', b'\x01\x00\x00\x02', b'\x01\x02\x00\x03', b'\x7f\x00\x00\x01', b'\x08\x00\x00\x01', b'\xff\xff\xff\xff', b'\x01\x02\x03\x04']
+inet_aton 'x' -> OSError ('illegal IP address string passed to inet_aton',)
+inet_aton '256.1.1.1' -> OSError ('illegal IP address string passed to inet_aton',)
+inet_aton ' 1.2.3.4' -> OSError ('illegal IP address string passed to inet_aton',)
+inet_aton '1.2.3.4.5' -> OSError ('illegal IP address string passed to inet_aton',)
+inet_aton '1..2' -> OSError ('illegal IP address string passed to inet_aton',)
+inet_aton '' -> OSError ('illegal IP address string passed to inet_aton',)
+inet_aton '0x' -> OSError ('illegal IP address string passed to inet_aton',)
+inet_aton '4294967296' -> OSError ('illegal IP address string passed to inet_aton',)
+inet_aton bytes -> TypeError ('inet_aton() argument must be str, not bytes',)
+inet_ntoa = ('127.0.0.1', '1.2.3.4')
+inet_ntoa bad -> OSError ('packed IP wrong length for inet_ntoa',)
+inet_pton = (b'\x01\x02\x03\x04', b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01', b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x02\x03\x04')
+inet_pton4 '1.2.3' -> OSError ('illegal IP address string passed to inet_pton',)
+inet_pton4 '01.2.3.4' -> OSError ('illegal IP address string passed to inet_pton',)
+inet_pton4 '1.2.3.256' -> OSError ('illegal IP address string passed to inet_pton',)
+inet_pton4 '1.2.3.4 ' -> OSError ('illegal IP address string passed to inet_pton',)
+inet_pton6 '1:::2' -> OSError ('illegal IP address string passed to inet_pton',)
+inet_pton6 '1::2::3' -> OSError ('illegal IP address string passed to inet_pton',)
+inet_pton6 '12345::' -> OSError ('illegal IP address string passed to inet_pton',)
+inet_pton6 ':1' -> OSError ('illegal IP address string passed to inet_pton',)
+inet_pton6 '1:2:3:4:5:6:7:8:9' -> OSError ('illegal IP address string passed to inet_pton',)
+inet_pton6 'g::' -> OSError ('illegal IP address string passed to inet_pton',)
+inet_pton family -> OSError (97, 'Address family not supported by protocol')
+inet_pton bytes -> TypeError ('inet_pton() argument 2 must be str, not bytes',)
+inet_ntop = ['2001:db8::1', '::ffff:1.2.3.4', 'fe80::1:2', '1:0:0:1::1', '::', '1::', '::1.2.3.4', '1:2:3:4:5:6:7:8', '0:0:1::', '1::']
+inet_ntop4 = '97.98.99.100'
+inet_ntop bad -> ValueError ('invalid length of packed IP address string',)
+inet_ntop family -> ValueError ('unknown address family 99',)
+CMSG = (20, 24, 16, 16, 24)
+CMSG neg -> OverflowError ('CMSG_LEN() argument out of range',)
+-- waits
+waitpid -> ChildProcessError (10, 'No child processes')
+wait statuses = [(True, 0, False, 0, False, 0, False, False), (True, 1, False, 0, False, 1, False, False), (False, 0, True, 9, False, 0, False, False), (False, 0, True, 11, False, 0, True, False), (False, 19, False, 127, True, 19, False, False), (False, 255, False, 127, False, 255, True, True)]
+exit codes = [0, 1, -9, -11]
+stopped -> ValueError ('process stopped by delivery of signal 19',)
+invalid -> ValueError ('invalid wait status: 65535',)

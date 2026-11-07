@@ -250,7 +250,7 @@ object PyTime {
     // ------------------------------------------------------------------ conversions (Python/pytime.c)
 
     private const val ROUND_FLOOR = 0
-    private const val ROUND_UP = 3
+    internal const val ROUND_UP = 3
 
     /** PyFloat_Check: a float, a float subclass's instance's value. */
     private fun floatOf(v: Any?): Double? = when {
@@ -277,8 +277,9 @@ object PyTime {
     /** _PyTime_FromSecondsObject with _PyTime_ROUND_TIMEOUT: a timeout's seconds as nanoseconds (_thread's locks'). */
     @JvmStatic internal fun timeoutNs(v: Any?): Long = fromSecondsObject(v, ROUND_UP)
 
-    /** _PyTime_FromSecondsObject: seconds as nanoseconds, a float's rounded by [mode]. */
-    private fun fromSecondsObject(v: Any?, mode: Int): Long {
+    /** _PyTime_FromSecondsObject: seconds as nanoseconds, a float's rounded by [mode] (socket's and select's timeouts too). */
+    @JvmStatic
+    internal fun fromSecondsObject(v: Any?, mode: Int): Long {
         floatOf(v)?.let { d ->
             if (d.isNaN()) throw valueError("Invalid value NaN (not a number)")
             val x = round(d * 1e9, mode)

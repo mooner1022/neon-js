@@ -540,6 +540,8 @@ object PyClasses {
                 }
                 "__module__" -> obj.ownerModule?.let { PyStr(it) } ?: PyNone
                 "__self__" -> obj.ownerModule?.let { PyImport.importModule(PyContext.current(), it) } ?: PyNone
+                // (no docstrings are kept: None, as CPython's builtins without one have; signal.py copies them)
+                "__doc__" -> PyNone
                 else -> null
             }
             // (a staticmethod's or classmethod's, the function's: CPython copies its attributes, and __wrapped__)
@@ -793,6 +795,11 @@ object PyClasses {
                 else -> (obj.dict ?: PyDict().also { obj.dict = it })[PyStr(name)] = v
             }
             is PyValue -> {
+                // (a property's __doc__ is writable: selectors sets its SelectorKey fields')
+                if (obj is PyProperty && name == "__doc__") {
+                    obj.doc = v
+                    return
+                }
                 val s = obj.sub ?: throw PyException("AttributeError", "'${type.tpName ?: type.name}' object has no attribute '$name' and no __dict__ for setting new attributes")
                 if (!s.cls.hasDict) throw PyException("AttributeError", "'${s.cls.tpName ?: s.cls.name}' object has no attribute '$name' and no __dict__ for setting new attributes")
                 if (name == "__dict__") {
