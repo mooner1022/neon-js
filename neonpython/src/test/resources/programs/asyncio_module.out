@@ -1,0 +1,36 @@
+gen state -> ('GEN_CREATED', True, 'g', True)
+gen suspended -> ('GEN_SUSPENDED', True)
+gen closed -> ('GEN_CLOSED', None)
+coro -> ('c', True, 'CORO_CREATED')
+coro closed -> (None, 'CORO_CLOSED')
+legacy flags -> (True, 0, True, False)
+code set -> ('renamed', 'h', [2])
+code set error !! TypeError __code__ must be set to a code object
+code del !! TypeError __code__ must be set to a code object
+gather -> (['B', 'A', 'C'], ['c', 'a', 'b'])
+sleep0 -> None
+wait_for -> TimeoutError
+timeout -> timed out
+taskgroup -> ('X', 'Y')
+taskgroup error -> ['boom']
+cancel -> (True, True)
+gather exceptions -> ['ValueError', 'Z']
+queue -> [0, 1, 2, 3, 4]
+lock -> [('in', 1), ('out', 1), ('in', 2), ('out', 2)]
+event -> None
+event result -> None
+event awaited woke
+semaphore -> 2
+call order -> ['soon', 'early', 'at', 'late']
+future -> None
+future awaited 42
+sock -> b'ping'
+streams -> (b'line1\n', b'reply')
+clock -> (True, False, '_UnixSelectorEventLoop')
+legacy -> None
+legacy awaited legacy
+agen [0, 1, 2]
+iscoroutine True True False
+run twice -> again
+run nested !! RuntimeError asyncio.run() cannot be called from a running event loop
+no loop !! RuntimeError no running event loop

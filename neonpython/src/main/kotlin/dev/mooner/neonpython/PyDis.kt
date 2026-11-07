@@ -125,6 +125,7 @@ object PyDis {
         var qualname = info.qualname
         var filename = c.filename
         var first = info.firstLine
+        var flags = info.coFlags
         for ((k, v) in kw.map) {
             val n = (k.v as PyStr).s
             when (n) {
@@ -132,7 +133,15 @@ object PyDis {
                 "co_qualname" -> qualname = (v as? PyStr ?: throw PyRt.typeError("replace() argument 'co_qualname' must be str, not ${PyTypes.name(v)}")).s
                 "co_filename" -> filename = (v as? PyStr ?: throw PyRt.typeError("replace() argument 'co_filename' must be str, not ${PyTypes.name(v)}")).s
                 "co_firstlineno" -> first = (PyRt.indexValue(v) as? Long ?: throw PyRt.typeError("'${PyTypes.name(v)}' object cannot be interpreted as an integer")).toInt()
-                "co_argcount", "co_posonlyargcount", "co_kwonlyargcount", "co_nlocals", "co_stacksize", "co_flags", "co_code",
+                // (CO_ITERABLE_COROUTINE alone: what the bytecode does not say, types.coroutine's)
+                "co_flags" -> {
+                    val n2 = (PyRt.indexValue(v) as? Long ?: throw PyRt.typeError("'${PyTypes.name(v)}' object cannot be interpreted as an integer")).toInt()
+                    if ((n2 xor info.coFlags) and PyEval.CO_ITERABLE_COROUTINE.inv() != 0) {
+                        throw PyException("ValueError", "code.replace(): NeonPy's code objects keep their bytecode (co_flags)")
+                    }
+                    flags = n2
+                }
+                "co_argcount", "co_posonlyargcount", "co_kwonlyargcount", "co_nlocals", "co_stacksize", "co_code",
                 "co_consts", "co_names", "co_varnames", "co_freevars", "co_cellvars", "co_linetable", "co_exceptiontable" -> {
                     if (!PyRt.eq(PyEval.codeAttr(c, n), v) && n != "co_linetable" && n != "co_exceptiontable") {
                         throw PyException("ValueError", "code.replace(): NeonPy's code objects keep their bytecode ($n)")
@@ -141,7 +150,7 @@ object PyDis {
                 else -> throw PyRt.typeError("replace() got an unexpected keyword argument '$n'")
             }
         }
-        if (name == cb.name && qualname == info.qualname && filename == c.filename && first == info.firstLine) return c
+        if (name == cb.name && qualname == info.qualname && filename == c.filename && first == info.firstLine && flags == info.coFlags) return c
         // (a copy of the unit sharing its bytecode, its own info and code object)
         val copy = CodeUnit(name)
         copy.flags = cb.flags
@@ -155,6 +164,7 @@ object PyDis {
         copy.lineTable = cb.lineTable
         copy.dialect = cb.dialect
         val ni = info.copyWith(name, qualname, filename, first)
+        ni.coFlags = flags
         copy.dialectData = ni
         return PyCode(copy, c.mode, filename).also { ni.codeObject = it }
     }

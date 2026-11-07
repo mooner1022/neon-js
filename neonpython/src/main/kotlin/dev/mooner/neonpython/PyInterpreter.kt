@@ -47,6 +47,9 @@ class PyContext(
     @JvmField val sysModule: PyModule = PyImport.sys(this)
     /** The exception being handled (PyExceptions: PUSH_EXC_INFO sets it, POP_EXCEPT puts the one before back), or null. */
     @JvmField var handled: PyBaseException? = null
+    /** sys.set_asyncgen_hooks's: what an asynchronous generator's first __anext__/asend/athrow/aclose calls, and its finalizer. */
+    @JvmField var asyncgenFirstiter: Any? = null
+    @JvmField var asyncgenFinalizer: Any? = null
     /** The callers' exceptions handled, under the generators running (each its own [handled]: PyGenBase.resume). */
     @JvmField val handledStack = ArrayList<PyBaseException?>()
     /** The innermost frame running (sys._getframe), the chain out through PyFrame.back. */

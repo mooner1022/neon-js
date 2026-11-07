@@ -31,7 +31,9 @@ object PySys {
         val t = PyType(name, arrayOf(PyTypes.TUPLE))
         t.mro = PyTypes.c3(t, t.bases)
         t.module = module
-        t.tpName = "$module.$name"
+        // (its tp_name: a builtins type's its name alone)
+        val qual = if (module == "builtins") name else "$module.$name"
+        t.tpName = qual
         t.subclassable = false
         // (a tuple: no __dict__ for attributes of one's own)
         t.hasDict = false
@@ -43,7 +45,7 @@ object PySys {
         val unnamed = fields.count { it == null }
         val visible = fields.size
         val real = visible + hidden.size
-        t.newImpl = if (!constructable) { _, _, _, _ -> throw PyRt.typeError("cannot create '$module.$name' instances") } else { _, cls, a, kw ->
+        t.newImpl = if (!constructable) { _, _, _, _ -> throw PyRt.typeError("cannot create '$qual' instances") } else { _, cls, a, kw ->
             // structseq_new(sequence, dict=None): the visible fields from the sequence, the hidden ones from the rest
             // of it, else from dict by name, else None
             val names = listOf("sequence", "dict")
@@ -63,15 +65,15 @@ object PySys {
             } catch (e: PyException) {
                 throw PyRt.typeError("constructor requires a sequence")
             }
-            val dict = v[1]?.takeIf { it !== PyNone }?.let { it as? PyDict ?: throw PyRt.typeError("$module.$name() takes a dict as second arg, if any") }
+            val dict = v[1]?.takeIf { it !== PyNone }?.let { it as? PyDict ?: throw PyRt.typeError("$qual() takes a dict as second arg, if any") }
             val len = items.size
             if (len < visible) {
-                throw PyRt.typeError(if (visible == real) "$module.$name() takes a $visible-sequence ($len-sequence given)"
-                    else "$module.$name() takes an at least $visible-sequence ($len-sequence given)")
+                throw PyRt.typeError(if (visible == real) "$qual() takes a $visible-sequence ($len-sequence given)"
+                    else "$qual() takes an at least $visible-sequence ($len-sequence given)")
             }
             if (len > real) {
-                throw PyRt.typeError(if (visible == real) "$module.$name() takes a $visible-sequence ($len-sequence given)"
-                    else "$module.$name() takes an at most $real-sequence ($len-sequence given)")
+                throw PyRt.typeError(if (visible == real) "$qual() takes a $visible-sequence ($len-sequence given)"
+                    else "$qual() takes an at most $real-sequence ($len-sequence given)")
             }
             val extra = Array<Any?>(hidden.size) { j ->
                 val i = visible + j
@@ -90,7 +92,7 @@ object PySys {
         }
         t.def("__repr__", PyBuiltin("__repr__") { _, a ->
             val items = (a[0] as PyTuple).items
-            PyStr((0 until visible).joinToString(", ", "$module.$name(", ")") { "${members[it]}=${PyRt.repr(items[it])}" })
+            PyStr((0 until visible).joinToString(", ", "$qual(", ")") { "${members[it]}=${PyRt.repr(items[it])}" })
         })
         t.def("__reduce__", PyBuiltin("__reduce__") { _, a ->
             val v = a[0] as PyTuple
@@ -111,6 +113,7 @@ object PySys {
     fun struct(t: PyType, values: Array<Any?>, hidden: Array<Any?>): PyTuple = struct(t, *values).also { it.sub!!.state = hidden }
 
     @JvmField val VERSION_INFO = structType("version_info", listOf("major", "minor", "micro", "releaselevel", "serial"))
+    private val ASYNCGEN_HOOKS = structType("asyncgen_hooks", listOf("firstiter", "finalizer"), module = "builtins", constructable = true)
     private val FLAGS = structType("flags", listOf("debug", "inspect", "interactive", "optimize", "dont_write_bytecode",
         "no_user_site", "no_site", "ignore_environment", "verbose", "bytes_warning", "quiet", "hash_randomization", "isolated",
         "dev_mode", "utf8_mode", "warn_default_encoding", "safe_path", "int_max_str_digits"), listOf("gil", "thread_inherit_context", "context_aware_warnings"))
@@ -223,6 +226,35 @@ object PySys {
         d[PyStr("int_info")] = struct(INT_INFO, 30L, 4L, DEFAULT_MAX_STR_DIGITS.toLong(), STR_DIGITS_CHECK_THRESHOLD.toLong())
         d[PyStr("hash_info")] = struct(HASH_INFO, 64L, (1L shl 61) - 1, 314159L, 0L, 1000003L, PyStr("siphash13"), 64L, 128L, 0L)
         d[PyStr("thread_info")] = struct(THREAD_INFO, PyNone, PyNone, PyNone)
+        // (the finalizer is kept, not called: no asynchronous generator is finalized when collected, §12.2)
+        def("get_asyncgen_hooks") { a ->
+            if (a.isNotEmpty()) throw PyRt.typeError("sys.get_asyncgen_hooks() takes no arguments (${a.size} given)")
+            struct(ASYNCGEN_HOOKS, ctx.asyncgenFirstiter ?: PyNone, ctx.asyncgenFinalizer ?: PyNone)
+        }
+        fun setHooks(a: Array<Any?>, kw: PyDict?): Any? {
+            if (a.size > 2) throw PyRt.typeError("function takes at most 2 arguments (${a.size} given)")
+            val v = arrayOfNulls<Any?>(2)
+            val set = BooleanArray(2)
+            for (i in a.indices) { v[i] = a[i]; set[i] = true }
+            if (kw != null) for ((k, x) in kw.map) {
+                val i = when ((k.v as PyStr).s) {
+                    "firstiter" -> 0
+                    "finalizer" -> 1
+                    else -> throw PyRt.typeError("this function got an unexpected keyword argument '${(k.v as PyStr).s}'")
+                }
+                if (set[i]) throw PyRt.typeError("argument for function given by name ('${(k.v as PyStr).s}') and position (${i + 1})")
+                v[i] = x
+                set[i] = true
+            }
+            val names = arrayOf("firstiter", "finalizer")
+            for (i in 0..1) if (set[i] && v[i] !== PyNone && !PyCalls.isCallable(v[i])) {
+                throw PyRt.typeError("callable ${names[i]} expected, got ${PyTypes.name(v[i])}")
+            }
+            if (set[1]) ctx.asyncgenFinalizer = v[1].takeIf { it !== PyNone }
+            if (set[0]) ctx.asyncgenFirstiter = v[0].takeIf { it !== PyNone }
+            return PyNone
+        }
+        d[PyStr("set_asyncgen_hooks")] = PyBuiltin("set_asyncgen_hooks", { _, a -> setHooks(a, null) }, { _, a, kw -> setHooks(a, kw) })
         d[PyStr("maxunicode")] = 0x10FFFFL
         d[PyStr("api_version")] = 1013L
         d[PyStr("copyright")] = PyStr(COPYRIGHT)

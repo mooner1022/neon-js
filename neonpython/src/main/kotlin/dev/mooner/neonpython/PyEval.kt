@@ -321,9 +321,27 @@ object PyEval {
         return f
     }
 
-    /** f.__code__: its function's code object (the same each time). */
+    /** f.__code__: its function's code object (the same each time), or the one assigned to it. */
     @JvmStatic
-    fun functionCode(f: PyFunction): Any? = codeOf(f.code)
+    fun functionCode(f: PyFunction): Any? = f.codeObject ?: codeOf(f.code)
+
+    /**
+     * f.__code__ = v: a code object with the function's bytecode (code.replace()'s of its own, types.coroutine's
+     * with CO_ITERABLE_COROUTINE); NeonPy's functions keep theirs (docs/PYTHON_PLATFORM.md §12.2).
+     */
+    @JvmStatic
+    fun setFunctionCode(f: PyFunction, v: Any?) {
+        val c = v as? PyCode ?: throw PyRt.typeError("__code__ must be set to a code object")
+        val info = c.code.dialectData as PyCodeInfo
+        if (info.freeNames.size != f.info.freeNames.size) {
+            throw PyException("ValueError", "${f.name}() requires a code object with ${f.info.freeNames.size} free vars, not ${info.freeNames.size}")
+        }
+        if (c.code.code !== f.code.code) throw PyException("ValueError", "__code__: NeonPy's functions keep their bytecode, a code object replace() made of theirs given")
+        f.codeObject = if (c.code === f.code) null else c
+        f.iterableCoroutine = info.coFlags and CO_ITERABLE_COROUTINE != 0
+    }
+
+    const val CO_ITERABLE_COROUTINE = 0x100
 
     /** The code object of [cb], made once (a function's __code__, a frame's f_code). */
     @JvmStatic

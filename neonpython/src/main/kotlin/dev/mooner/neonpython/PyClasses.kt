@@ -593,7 +593,8 @@ object PyClasses {
                     if (!name.startsWith(p)) null else when (name.substring(3)) {
                         "running" -> PyBool.of(if (obj is PyAsyncGenerator) obj.runningAsync else obj.state == PyGenBase.RUNNING)
                         "suspended" -> PyBool.of(obj.state == PyGenBase.SUSPENDED)
-                        "frame" -> PyNone
+                        "frame" -> if (obj.state == PyGenBase.FINISHED) PyNone else PyFrames.frameOf(obj.frame)
+                        "code" -> PyEval.functionCode(obj.fn)
                         "yieldfrom" -> if (p == "gi_") obj.yieldFrom() ?: PyNone else null
                         "await" -> if (p != "gi_") obj.yieldFrom() ?: PyNone else null
                         else -> null
@@ -701,6 +702,10 @@ object PyClasses {
         }
         if (obj is PyFunction && name == "__type_params__") {
             PyTyping.setFunctionTypeParams(obj, v)
+            return
+        }
+        if (obj is PyFunction && name == "__code__") {
+            PyEval.setFunctionCode(obj, v)
             return
         }
         if (obj is PyFunction && (name == "__defaults__" || name == "__kwdefaults__")) {
@@ -847,6 +852,7 @@ object PyClasses {
             return
         }
         if (obj is PyFunction && (name == "__name__" || name == "__qualname__")) throw PyRt.typeError("$name must be set to a string object")
+        if (obj is PyFunction && name == "__code__") throw PyRt.typeError("__code__ must be set to a code object")
         if (obj is PyFunction && (name == "__defaults__" || name == "__kwdefaults__")) {
             setDefaults(obj, name, PyNone)
             return

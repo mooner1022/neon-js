@@ -203,6 +203,12 @@ class PyFunction(@JvmField val code: CodeUnit, @JvmField val globals: PyDict, @J
     @JvmField var qualname: String = info.qualname
     @JvmField var defaults: PyTuple? = null
     @JvmField var kwdefaults: PyDict? = null
+    /**
+     * The code object assigned to its __code__ (one replace() made of its own: the bytecode is the same), and whether
+     * its flags have CO_ITERABLE_COROUTINE (types.coroutine's): its generators awaitable.
+     */
+    @JvmField var codeObject: Any? = null
+    @JvmField var iterableCoroutine = false
     @JvmField var closure: Array<Any?>? = null
     /** Its __name__ and __qualname__, the same object each time. */
     @JvmField var nameObj: PyStr? = null

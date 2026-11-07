@@ -139,6 +139,17 @@ class PyCoroutine(frame: PyFrame, fn: PyFunction) : PyGenBase(frame, fn) {
  */
 class PyAsyncGenerator(frame: PyFrame, fn: PyFunction) : PyGenBase(frame, fn) {
     override val what get() = "async generator"
+    /** Whether sys's asyncgen hooks have seen it (ag_hooks_inited): its first awaitable calls firstiter. */
+    @JvmField var hooksInited = false
+
+    /** async_gen_init_hooks: once, the firstiter hook called with it (an error out of it the awaitable's making's). */
+    fun initHooks() {
+        if (hooksInited) return
+        hooksInited = true
+        val ctx = PyContext.current()
+        val first = ctx.asyncgenFirstiter ?: return
+        PyCalls.callWith(ctx, first, arrayOf(this), arrayOfNulls(0), arrayOfNulls(0))
+    }
     /** Whether one of its awaitables is stepping it (CPython's ag_running_async). */
     @JvmField var runningAsync = false
     /** Whether it has been closed or has finished (ag_closed). */
@@ -177,6 +188,8 @@ class PyCoroWrapper(@JvmField val coro: PyCoroutine) : PyAwaitIter(PyGenerators.
  */
 class PyAsyncGenASend(@JvmField val gen: PyAsyncGenerator, @JvmField val sendval: Any?) : PyAwaitIter(PyGenerators.ASEND) {
     @JvmField var state = INIT
+
+    init { gen.initHooks() }
 
     private fun begin() {
         if (state == CLOSED) throw PyException("RuntimeError", "cannot reuse already awaited __anext__()/asend()")
@@ -234,6 +247,8 @@ class PyAsyncGenASend(@JvmField val gen: PyAsyncGenerator, @JvmField val sendval
  */
 class PyAsyncGenAThrow(@JvmField val gen: PyAsyncGenerator, @JvmField val args: Array<Any?>?) : PyAwaitIter(PyGenerators.ATHROW) {
     @JvmField var state = INIT
+
+    init { gen.initHooks() }
 
     private val closing get() = args == null
 
@@ -593,6 +608,8 @@ object PyGenerators {
     @JvmStatic
     fun awaitableIter(ctx: PyContext, v: Any?): Any? {
         if (v is PyCoroutine) return v
+        // (a generator-based coroutine's, types.coroutine's: the generator itself)
+        if (v is PyGenerator && v.fn.iterableCoroutine) return v
         val t = PyTypes.typeOf(v)
         val m = t.lookup("__await__") ?: throw PyRt.typeError("'${t.name}' object can't be awaited")
         val r = callSpecial(ctx, m, v)
