@@ -186,6 +186,18 @@ object PySignatures {
         m["_contextvars.Token.__new__"] = "(\$type, *args, **kwargs)"
         m["_contextvars.Token.__repr__"] = "(\$self, /)"
         m["_contextvars.copy_context"] = "(\$module, /)"
+        m["_csv.Dialect.__new__"] = "(\$type, *args, **kwargs)"
+        m["_csv.field_size_limit"] = "(\$module, /, new_limit=<unrepresentable>)"
+        m["_csv.get_dialect"] = "(\$module, /, name)"
+        m["_csv.list_dialects"] = "(\$module, /)"
+        m["_csv.reader"] = "(\$module, iterable, /, dialect='excel', **fmtparams)"
+        m["_csv.reader.__iter__"] = "(\$self, /)"
+        m["_csv.reader.__next__"] = "(\$self, /)"
+        m["_csv.register_dialect"] = "(\$module, name, /, dialect='excel', **fmtparams)"
+        m["_csv.unregister_dialect"] = "(\$module, /, name)"
+        m["_csv.writer"] = "(\$module, fileobj, /, dialect='excel', **fmtparams)"
+        m["_csv.writer.writerow"] = "(\$self, row, /)"
+        m["_csv.writer.writerows"] = "(\$self, rows, /)"
         m["_imp._fix_co_filename"] = "(\$module, code, path, /)"
         m["_imp._frozen_module_names"] = "(\$module, /)"
         m["_imp._override_frozen_modules_for_tests"] = "(\$module, override, /)"
@@ -396,6 +408,8 @@ object PySignatures {
         m["_thread._get_name"] = "(\$module, /)"
         m["_thread._is_main_interpreter"] = "(\$module, /)"
         m["_thread._local"] = "()"
+    }
+    private fun part1(m: HashMap<String, String>) {
         m["_thread._local.__delattr__"] = "(\$self, name, /)"
         m["_thread._local.__getattribute__"] = "(\$self, name, /)"
         m["_thread._local.__new__"] = "(\$type, *args, **kwargs)"
@@ -408,8 +422,6 @@ object PySignatures {
         m["_thread.exit"] = "(\$module, /)"
         m["_thread.exit_thread"] = "(\$module, /)"
         m["_thread.get_ident"] = "(\$module, /)"
-    }
-    private fun part1(m: HashMap<String, String>) {
         m["_thread.get_native_id"] = "(\$module, /)"
         m["_thread.interrupt_main"] = "(\$module, signum=signal.SIGINT, /)"
         m["_thread.lock"] = "()"
@@ -798,6 +810,8 @@ object PySignatures {
         m["builtins.bytes.center"] = "(\$self, width, fillchar=b' ', /)"
         m["builtins.bytes.count"] = "(\$self, sub[, start[, end]], /)"
         m["builtins.bytes.decode"] = "(\$self, /, encoding='utf-8', errors='strict')"
+    }
+    private fun part2(m: HashMap<String, String>) {
         m["builtins.bytes.endswith"] = "(\$self, suffix[, start[, end]], /)"
         m["builtins.bytes.expandtabs"] = "(\$self, /, tabsize=8)"
         m["builtins.bytes.find"] = "(\$self, sub[, start[, end]], /)"
@@ -810,8 +824,6 @@ object PySignatures {
         m["builtins.bytes.isdigit"] = "(\$self, /)"
         m["builtins.bytes.islower"] = "(\$self, /)"
         m["builtins.bytes.isspace"] = "(\$self, /)"
-    }
-    private fun part2(m: HashMap<String, String>) {
         m["builtins.bytes.istitle"] = "(\$self, /)"
         m["builtins.bytes.isupper"] = "(\$self, /)"
         m["builtins.bytes.join"] = "(\$self, iterable_of_bytes, /)"
@@ -1200,6 +1212,8 @@ object PySignatures {
         m["builtins.reversed.__next__"] = "(\$self, /)"
         m["builtins.reversed.__reduce__"] = "(\$self, /)"
         m["builtins.reversed.__setstate__"] = "(\$self, object, /)"
+    }
+    private fun part3(m: HashMap<String, String>) {
         m["builtins.round"] = "(\$module, /, number, ndigits=None)"
         m["builtins.set"] = "(iterable=(), /)"
         m["builtins.set.__and__"] = "(\$self, value, /)"
@@ -1212,8 +1226,6 @@ object PySignatures {
         m["builtins.set.__init__"] = "(\$self, /, *args, **kwargs)"
         m["builtins.set.__ior__"] = "(\$self, value, /)"
         m["builtins.set.__isub__"] = "(\$self, value, /)"
-    }
-    private fun part3(m: HashMap<String, String>) {
         m["builtins.set.__iter__"] = "(\$self, /)"
         m["builtins.set.__ixor__"] = "(\$self, value, /)"
         m["builtins.set.__le__"] = "(\$self, value, /)"
@@ -1602,6 +1614,8 @@ object PySignatures {
         m["posix.abort"] = "(\$module, /)"
         m["posix.access"] = "(\$module, /, path, mode, *, dir_fd=None, effective_ids=False,\n       follow_symlinks=True)"
         m["posix.chdir"] = "(\$module, /, path)"
+    }
+    private fun part4(m: HashMap<String, String>) {
         m["posix.chmod"] = "(\$module, /, path, mode, *, dir_fd=None,\n      follow_symlinks=(os.name != 'nt'))"
         m["posix.chown"] = "(\$module, /, path, uid, gid, *, dir_fd=None, follow_symlinks=True)"
         m["posix.chroot"] = "(\$module, /, path)"
@@ -1614,8 +1628,6 @@ object PySignatures {
         m["posix.device_encoding"] = "(\$module, /, fd)"
         m["posix.dup"] = "(\$module, fd, /)"
         m["posix.dup2"] = "(\$module, /, fd, fd2, inheritable=True)"
-    }
-    private fun part4(m: HashMap<String, String>) {
         m["posix.eventfd"] = "(\$module, /, initval, flags=EFD_CLOEXEC)"
         m["posix.eventfd_read"] = "(\$module, /, fd)"
         m["posix.eventfd_write"] = "(\$module, /, fd, value)"

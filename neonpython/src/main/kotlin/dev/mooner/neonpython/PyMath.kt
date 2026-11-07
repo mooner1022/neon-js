@@ -159,7 +159,7 @@ object PyMath {
     }
 
     /** The closest of [candidates] to [name], as CPython's _Py_CalculateSuggestions finds it (Python/suggestions.c). */
-    private fun suggestion(candidates: List<String>, name: String): String? {
+    internal fun suggestion(candidates: List<String>, name: String): String? {
         val n = name.toByteArray(Charsets.UTF_8)
         var best: String? = null
         var bestDistance = Int.MAX_VALUE

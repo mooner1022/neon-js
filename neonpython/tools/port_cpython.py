@@ -98,6 +98,7 @@ contextlib.py
 contextvars.py
 copy.py
 copyreg.py
+csv.py
 dataclasses.py
 datetime.py
 decimal.py

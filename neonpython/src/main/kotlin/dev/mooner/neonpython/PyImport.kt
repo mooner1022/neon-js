@@ -432,12 +432,16 @@ object PyImport {
                 PyUnicodedata.fill(d)
                 return mod().also { d[PyStr("__doc__")] = PyStr(PyUnicodedata.DOC) }
             }
+            "_csv" -> {
+                PyCsv.fill(ctx, d)
+                return mod().also { d[PyStr("__doc__")] = PyStr(PyCsv.DOC) }
+            }
             else -> return null
         }
     }
 
     /** The modules NeonPy makes itself (sys.builtin_module_names). */
-    @JvmField val BUILTIN_NAMES = listOf("sys", "builtins", "_thread", "_weakref", "gc", "_collections", "itertools", "_contextvars", "_sre", "_string", "_typing", "math", "errno", "posix", "_random", "_sha2", "_md5", "_sha1", "_operator", "_imp", "_dis", "_codecs", "_struct", "time", "_tokenize", "atexit", "binascii", "zlib", "_socket", "select", "_signal", "_posixsubprocess", "unicodedata", "_blake2", "_sha3")
+    @JvmField val BUILTIN_NAMES = listOf("sys", "builtins", "_thread", "_weakref", "gc", "_collections", "itertools", "_contextvars", "_sre", "_string", "_typing", "math", "errno", "posix", "_random", "_sha2", "_md5", "_sha1", "_operator", "_imp", "_dis", "_codecs", "_struct", "time", "_tokenize", "atexit", "binascii", "zlib", "_socket", "select", "_signal", "_posixsubprocess", "unicodedata", "_blake2", "_sha3", "_csv")
 
     /** The features `from __future__ import` knows (CPython 3.14's). */
     @JvmField val FUTURES = listOf("nested_scopes", "generators", "division", "absolute_import", "with_statement", "print_function",

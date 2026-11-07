@@ -1,0 +1,150 @@
+names -> ['Dialect', 'Error', 'QUOTE_ALL', 'QUOTE_MINIMAL', 'QUOTE_NONE', 'QUOTE_NONNUMERIC', 'QUOTE_NOTNULL', 'QUOTE_STRINGS', 'Reader', 'Writer', '_dialects', 'field_size_limit', 'get_dialect', 'list_dialects', 'reader', 'register_dialect', 'unregister_dialect', 'writer']
+constants -> (0, 1, 2, 3, 4, 5)
+version -> ('1.0', 'CSV parsing and writing.\n')
+types -> ('reader', 'writer', '_csv', (<class '_csv.Error'>, <class 'Exception'>, <class 'BaseException'>, <class 'object'>))
+excel -> (',', '"', None, True, False, '\r\n', 0, False)
+excel-tab -> ('\t', '"', None, True, False, '\r\n', 0, False)
+unix -> (',', '"', None, True, False, '\n', 1, False)
+no instances !! TypeError "cannot create '_csv.reader' instances"
+no instances 2 !! TypeError "cannot create '_csv.writer' instances"
+delimiter=1 !! TypeError '"delimiter" must be a unicode character, not int'
+delimiter='' !! TypeError '"delimiter" must be a unicode character, not a string of length 0'
+delimiter='ab' !! TypeError '"delimiter" must be a unicode character, not a string of length 2'
+quotechar=b'"' !! TypeError '"quotechar" must be a unicode character or None, not bytes'
+escapechar='xy' !! TypeError '"escapechar" must be a unicode character or None, not a string of length 2'
+lineterminator=None !! TypeError '"lineterminator" must be a string, not NoneType'
+quoting=True !! TypeError '"quoting" must be an integer, not bool'
+quoting=6 !! TypeError 'bad "quoting" value'
+quoting=1099511627776 !! OverflowError 'Python int too large to convert to C int'
+quoting=1.0 !! TypeError '"quoting" must be an integer, not float'
+delimiter='\n' !! ValueError 'bad delimiter value'
+escapechar='\r' !! ValueError 'bad escapechar value'
+quotechar=' ' -> (',', ' ', None, True, False, '\r\n', 0, False)
+space sis !! ValueError 'bad quotechar value'
+quotechar None -> (',', None, None, True, False, '\r\n', 3, False)
+quotechar None quoting !! TypeError 'quotechar must be set if quoting enabled'
+lineterminator !! ValueError 'bad delimiter or lineterminator value'
+same chars !! ValueError 'bad delimiter or quotechar value'
+same chars 2 !! ValueError 'bad escapechar or quotechar value'
+unknown !! Error 'unknown dialect'
+typo !! TypeError "this function got an unexpected keyword argument 'delimeter'. Did you mean 'delimiter'?"
+bad keyword !! TypeError "this function got an unexpected keyword argument 'foo'"
+too many !! TypeError 'function takes at most 9 arguments (10 given)'
+by name and position !! TypeError "argument for function given by name ('delimiter') and position (2)"
+csv.Dialect() !! Error '"delimiter" must be a unicode character, not NoneType'
+class -> (';', '"', None, True, False, '\r\n', 1, False)
+instance -> (';', '"', None, True, False, '\r\n', 1, False)
+name, override -> (',', '"', None, True, False, '\n', 0, False)
+other object -> (',', '"', None, True, False, '\r\n', 0, False)
+reused -> (True, True, False)
+subclass -> ('D', ('|', '"', None, True, False, '\r\n', 0, False), True)
+immutable !! AttributeError "attribute 'delimiter' of '_csv.Dialect' objects is not writable"
+immutable 2 !! AttributeError 'readonly attribute'
+no dict !! AttributeError "'_csv.Dialect' object has no attribute 'x' and no __dict__ for setting new attributes"
+pickle !! TypeError "cannot pickle 'Dialect' instances"
+register -> None
+get -> ('|', '"', '\\', True, False, '\r\n', 3, False)
+list -> ['excel', 'excel-tab', 'unix', 'pipes']
+use -> [['a', 'b|c', 'd']]
+unregister -> None
+unregister again !! Error 'unknown dialect'
+get unknown !! Error 'unknown dialect'
+bad name !! TypeError 'dialect name must be a string'
+bad args !! TypeError 'register_dialect expected at least 1 argument, got 0'
+unhashable !! TypeError "cannot use 'list' as a dict key (unhashable type: 'list')"
+limit -> (131072, 131072, 4)
+within -> [['abcd', 'efgh']]
+over -> ['Error: field larger than field limit (4) (line 1)']
+over quoted -> ['Error: field larger than field limit (4) (line 2)']
+bad limit !! TypeError 'limit must be an integer'
+big limit !! OverflowError 'Python int too large to convert to C ssize_t'
+reset -> 4
+simple -> [['a', 'b', 'c'], ['1', '2', '3']]
+no line ends -> [['a', 'b'], ['c']]
+empty lines -> [[], [], [], ['', '']]
+quoted -> [['a', 'b,c', 'd"e', '']]
+multiline -> [['a\r\nb', 'c'], ['d']]
+quote mid field -> [['a"b"c', 'de']]
+unterminated -> [['abc\n']]
+doublequote off -> [['a"b"']]
+skipinitialspace -> [['a', 'b', 'c']]
+space delimiter -> [['a', 'b', 'c']]
+non-BMP -> [['\U0001f600', '\xe9', 'x']]
+non-BMP delimiter -> [['a', 'b']]
+newline in field -> ["Error: new-line character seen in unquoted field - do you need to open the file with newline=''? (line 1)"]
+bytes -> ['Error: iterator should return strings, not bytes (the file should be opened in text mode) (line 0)']
+not iterable !! TypeError "'int' object is not iterable"
+unquoted -> [['a,b', 'c\\d']]
+quoted -> [['a"b', 'c']]
+escaped newline -> [['a\nb', 'c']]
+escaped newline, field goes on -> [['a\nbc']]
+at end of line -> [['a\nb']]
+quote none -> [['a"b', '"c"']]
+after quote -> [['ab', 'c']]
+after quote strict -> ['Error: \',\' expected after \'"\' (line 1)']
+after quote strict semi -> ["Error: ';' expected after ''' (line 1)"]
+end of data -> ['Error: unexpected end of data (line 2)']
+line_num -> [(['a', 'b'], 1), (['c\nd'], 3), (['e'], 4)]
+nonnumeric -> [[1.0, '2', 3.5, -1000.0, 4.0, '']]
+nonnumeric bad !! ValueError "could not convert string to float: 'abc'"
+strings -> [[1.0, '2', None, '']]
+notnull -> [['1', '2', None, '']]
+none -> [['1', '"2"', '', '""']]
+quoting 0 -> ('a,1,2.5,,,True,100000000000000000000,"b,c","d""e","f\ng",num,b\'x\'\r\n', [66])
+quoting 0 empty -> ('\r\n""\r\n""\r\n,\r\n', [2, 4, 4, 3])
+quoting 1 -> ('"a","1","2.5","","","True","100000000000000000000","b,c","d""e","f\ng","num","b\'x\'"\r\n', [84])
+quoting 1 empty -> ('\r\n""\r\n""\r\n"",""\r\n', [2, 4, 4, 7])
+quoting 2 -> ('"a",1,2.5,"","",True,100000000000000000000,"b,c","d""e","f\ng",num,"b\'x\'"\r\n', [74])
+quoting 2 empty -> ('\r\n""\r\n""\r\n"",""\r\n', [2, 4, 4, 7])
+quoting 3 -> ('a,1,2.5,,,True,100000000000000000000,b\\,c,d\\"e,f\\\ng,num,b\'x\'\r\n', [62])
+quoting 3 empty -> ('\r\n,\r\n', [2, 'Error: single empty field record must be quoted', 'Error: single empty field record must be quoted', 3])
+quoting 4 -> ('"a",1,2.5,,"",True,100000000000000000000,"b,c","d""e","f\ng",num,b\'x\'\r\n', [70])
+quoting 4 empty -> ('\r\n""\r\n"",\r\n', [2, 4, 'Error: single empty field record must be quoted', 5])
+quoting 5 -> ('"a","1","2.5",,"","True","100000000000000000000","b,c","d""e","f\ng","num","b\'x\'"\r\n', [82])
+quoting 5 empty -> ('\r\n""\r\n"",\r\n', [2, 4, 'Error: single empty field record must be quoted', 5])
+space delimiter -> ('"" a\r\n""\r\n', [6, 4])
+space delimiter strings -> ('"" "a"\r\n', [8, 'Error: empty field must be quoted if delimiter is a space and skipinitialspace is true'])
+need to escape -> ('c\r\n', ['Error: need to escape, but no escapechar set', 3])
+doublequote off -> ('', ['Error: need to escape, but no escapechar set'])
+doublequote off escaped -> ('a\\"b\r\n', [6])
+lineterminator -> ('"a|b",c|', [8])
+unix -> ('"a","1",""\n', [11])
+not iterable -> ('', ['Error: iterable expected, not int'])
+returns -> (5, None, ['a;b\r\n', 'c\r\n', 'd;e\r\n'], ';')
+one argument !! TypeError 'writer.writerow() takes exactly one argument (0 given)'
+no write !! TypeError 'argument 1 must have a "write" method'
+roundtrip 0 -> ('a,"b,c","d""e","f\ng","h\r\ni",, j \r\n1,2.5\r\n""\r\n\r\n', True)
+roundtrip 1 -> ('"a","b,c","d""e","f\ng","h\r\ni",""," j "\r\n"1","2.5"\r\n""\r\n\r\n', True)
+roundtrip 2 -> ('"a","b,c","d""e","f\ng","h\r\ni",""," j "\r\n"1","2.5"\r\n""\r\n\r\n', True)
+roundtrip none -> ('a\\,b,c\\"d,e\\\\f,g\\\nh\r\n', [['a,b', 'c"d', 'e\\f', 'g\nh']])
+roundtrip notnull -> ('"a",,"1",""\r\n', [['a', None, '1', '']])
+fieldnames -> ['name', 'age']
+rows -> [{'name': 'ann', 'age': '30'}, {'name': 'bob', 'age': '?'}, {'name': 'cy', 'age': '40', 'rest': ['x', 'y']}]
+line_num -> 5
+given fieldnames -> [{'a': '1', 'b': '2'}]
+empty -> []
+header -> 5
+rows -> (5, None)
+extra !! ValueError "dict contains fields not in fieldnames: 'z'"
+value -> 'a,b\r\n1,-\r\n-,"x,y"\r\n,2.5\r\n'
+ignore -> '"1"\r\n'
+bad extrasaction !! ValueError "extrasaction (no) must be 'raise' or 'ignore'"
+sniff 0 -> (',', '"', False, False, 0)
+has_header 0 -> True
+sniff 1 -> (';', '"', False, False, 0)
+has_header 1 -> True
+sniff 2 -> ('\t', '"', False, False, 0)
+has_header 2 -> True
+sniff 3 -> ('|', "'", False, False, 0)
+has_header 3 -> True
+sniff 4 -> (',', '"', True, False, 0)
+has_header 4 -> True
+sniff 5 !! Error 'Could not determine delimiter'
+has_header 5 !! Error 'Could not determine delimiter'
+delimiters -> ';'
+read sniffed -> [['name', 'age', 'city'], ['Smith, J', '42', 'New York'], ['Doe', '37', 'Boston']]
+bytes -> b'id,text\r\n1,"line1\nline2"\r\n2,"say ""hi"""\r\n3,\xc3\xa9\r\n'
+read -> [['id', 'text'], ['1', 'line1\nline2'], ['2', 'say "hi"'], ['3', '\xe9']]
+dict read -> [{'id': '1', 'text': 'line1\nline2'}, {'id': '2', 'text': 'say "hi"'}, {'id': '3', 'text': '\xe9'}]
+binary !! Error 'iterator should return strings, not bytes (the file should be opened in text mode)'
+dict file -> ('k,v\na,1\nb,\n', 0, [{'k': 'a', 'v': '1'}, {'k': 'b', 'v': ''}])
