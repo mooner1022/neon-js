@@ -8,4 +8,4 @@ pluginManagement {
 
 rootProject.name = "neonjs"
 
-include("neon-vm", "neonjs-core", "neonjs-intl", "neonjs-net", "neonjs-node", "neonjs-android", "neonjs-android-d8", "neonjs-cli", "neonjs-test262")
+include("neon-vm", "neonjs-core", "neonjs-intl", "neonjs-net", "neonjs-node", "neonjs-android", "neonjs-android-d8", "neonjs-cli", "neonjs-test262", "neonwasm")

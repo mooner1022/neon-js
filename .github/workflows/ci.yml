@@ -17,6 +17,10 @@ env:
   WPT_COMMIT: d6713be63025929a1e8d8af45baaff0744b5e50d
   # Node.js v26.11.1, whose own tests neonjs-node is tested against (third_party/node locally)
   NODE_COMMIT: 364593d0631def13e3043dd84f77ebca2c767ce5
+  # WebAssembly/spec at its tag wg-2.0, whose core tests neonwasm is tested against (third_party/wasm-spec locally)
+  WASM_SPEC_COMMIT: fffc6e12fa454e475455a7b58d3b5dc343980c10
+  # the wasm-tools release that converts them (tools/wasm-spec.sh)
+  WASM_TOOLS_VERSION: 1.263.0
 
 jobs:
   jvm:
@@ -30,6 +34,10 @@ jobs:
           distribution: temurin
           java-version: 25
       - uses: gradle/actions/setup-gradle@v6
+      - name: WebAssembly spec tests, converted by wasm-tools (neonwasm's SpecTest)
+        run: |
+          curl -sSfL "https://github.com/bytecodealliance/wasm-tools/releases/download/v$WASM_TOOLS_VERSION/wasm-tools-$WASM_TOOLS_VERSION-x86_64-linux.tar.gz" | tar xz -C "$RUNNER_TEMP"
+          WASM_TOOLS="$RUNNER_TEMP/wasm-tools-$WASM_TOOLS_VERSION-x86_64-linux/wasm-tools" tools/wasm-spec.sh
       - name: Build and unit tests
         run: ./gradlew build :neonjs-test262:installDist
       - name: Maven publications (POMs, sources and javadoc jars; unsigned snapshots)
