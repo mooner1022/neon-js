@@ -336,6 +336,11 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 storeName("__conditional_annotations__")
             }
             if (future && scope.annotationsUsed) emit(PyOp.SETUP_ANNOTATIONS)
+            // (its docstring its __doc__, as CPython's STORE_NAME: not an eval's string, not an interactive statement's)
+            if (doc != null && !evalMode && !interactive) {
+                loadConst(PyStr(doc))
+                storeName("__doc__")
+            }
         }
         if (isClass) {
             // a class's __module__, __qualname__ and __doc__, first in its namespace

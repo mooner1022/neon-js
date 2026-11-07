@@ -61,6 +61,8 @@ object PyClasses {
     init {
         PyTypes.OBJECT.def("__new__", OBJECT_NEW)
         PyTypes.OBJECT.def("__init__", OBJECT_INIT)
+        // (no docstrings are kept of the builtins: object's None, which the builtin types and their instances inherit)
+        PyTypes.OBJECT.dict[PyStr("__doc__")] = PyNone
         PyDunder.defineObjectMethods()
     }
 
@@ -157,6 +159,8 @@ object PyClasses {
         }
         // (its __slots__: member descriptors, and whether its instances have a __dict__)
         PySlots.process(t)
+        // (a class without a docstring has __doc__ None, not a base's: CPython's type_new)
+        if (!t.dict.containsKey(PyStr("__doc__"))) t.dict[PyStr("__doc__")] = PyNone
         // (a class that defines __eq__ and not __hash__ is unhashable)
         if (t.dict.containsKey(PyStr("__eq__")) && !t.dict.containsKey(PyStr("__hash__"))) t.dict[PyStr("__hash__")] = PyNone
         t.hooks = hooksOf(t)
@@ -466,6 +470,12 @@ object PyClasses {
         if (name == "__call__" && (obj is PyFunction || obj is PyBuiltin || obj is PyBoundMethod || obj is PyMethod)) {
             return PyBuiltin("__call__", { ctx, a -> PyCalls.callWith(ctx, obj, a, NO_ARGS, NO_ARGS) },
                 { ctx, a, kw -> PyCalls.callWith(ctx, obj, a, kw.map.keys.map { it.v }.toTypedArray(), kw.map.values.toTypedArray()) })
+        }
+        // (a builtin value's own __doc__, a function's, a property's, a descriptor's: CPython's type gives it by a
+        // descriptor, which object's None and a subclass's None in their dicts do not shadow)
+        if (name == "__doc__" && obj !is PyObject) {
+            instanceDict(obj)?.get(PyStr(name))?.let { return it }
+            special(obj, name)?.let { return it }
         }
         val type = PyTypes.typeOf(obj)
         val d = type.lookup(name)

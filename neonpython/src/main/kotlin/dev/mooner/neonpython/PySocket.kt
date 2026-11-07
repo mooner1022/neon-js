@@ -55,7 +55,8 @@ class PySocketObj(type: PyType) : PyObject(type) {
  * `_socket` and `select` for a sandbox (docs/PYTHON_PLATFORM.md §3.8, §12.2), CPython's socket.py and selectors.py
  * over them: no network unless the host gives one, and none is given. Linux's names and numbers. A socket is made
  * (socket.socket()) but what would reach a network is refused with PermissionError(EPERM): connect, bind, listen,
- * accept, sendto and recvfrom on such a socket, the name lookups (getaddrinfo, gethostbyname, gethostname...). What
+ * accept, sendto and recvfrom on such a socket, the name lookups (getaddrinfo, gethostbyname...; gethostname() is
+ * `localhost`, as uname() says, so getfqdn() is too). What
  * stays in the program works: socketpair()'s ends are connected in memory ([PyPipeEnd]), as os.pipe()'s are, with
  * Linux's semantics (buffers, shutdown, EPIPE, ECONNRESET, timeouts, non-blocking descriptors); select waits on them.
  * One thread runs: a wait nothing else could end raises at once (as `_thread`'s lock does), a wait with a timeout
@@ -1092,7 +1093,7 @@ object PySocket {
         refusedFn("getprotobyname", listOf("protocolname"), 1)
         refusedFn("if_nametoindex", listOf("oname"), 1)
         refusedFn("if_indextoname", listOf("if_index"), 1)
-        noArgs("gethostname") { throw refused() }
+        noArgs("gethostname") { PyStr("localhost") }
         noArgs("if_nameindex") { throw refused() }
     }
 

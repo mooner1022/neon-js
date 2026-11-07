@@ -1,0 +1,15 @@
+structure -> ['multipart/mixed', 'multipart/alternative', 'text/plain', 'text/html', 'application/octet-stream']
+headers -> ('Héllo wörld, a subject long enough to be folded when it is written out by the generator', 'carol', 'Alice')
+folded -> ['Subject: =?utf-8?q?H=C3=A9llo_w=C3=B6rld=2C?= a subject long enough to be', ' folded when it is written out by the generator']
+parsed -> ('Héllo wörld, a subject long enough to be folded when it is written out by the generator', 'Plain body\nwith ünïcode\n', True)
+attachments -> [('a.bin', b'\x00\x01binary')]
+compat -> ('=?utf-8?b?w6k=?=', [(b'\xc3\xa9', 'utf-8')], 'body\n', 'utf-8')
+make_header -> pöstal x
+mime -> ['Content-Type: multipart/mixed; boundary="BOUNDARY"', 'MIME-Version: 1.0', 'Subject: mime', '', '--BOUNDARY', 'Content-Type: text/plain; charset="utf-8"', 'MIME-Version: 1.0', 'Content-Transfer-Encoding: base64', '', 'dGV4dCBwYXJ0', '', '--BOUNDARY', 'Content-Type: application/octet-stream; Name="d.bin"', 'MIME-Version: 1.0', 'Content-Transfer-Encoding: base64', '', 'ZGF0YQ==', '', '--BOUNDARY--']
+parseaddr -> (('Name', 'a@b.c'), '=?utf-8?b?TsOkbcOp?= <a@b.c>', [('', 'a@b'), ('C', 'c@d')])
+dates -> ((1995, 11, 20, 19, 12, 8, 0, 1, -1, -18000), 'Thu, 01 Jan 1970 00:00:00 GMT', 816912728)
+quote -> ('a\\"b', 'x', "utf-8''%C3%A9")
+msgid -> True
+charset -> (3, 'iso-8859-1')
+docs -> ('A package for parsing, handling, and generating email messages.', '', True)
+class docs -> ("A's doc", None, None, None, None, None)

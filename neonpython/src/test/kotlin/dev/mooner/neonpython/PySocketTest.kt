@@ -57,7 +57,7 @@ class PySocketTest {
         assertEquals(lines(
             "connect !! $refused", "connect_ex -> 1", "bind !! $refused", "listen !! $refused", "accept !! $refused",
             "sendto !! $refused", "recvfrom !! $refused", "recvfrom_into !! $refused", "getaddrinfo !! $refused",
-            "gethostbyname !! $refused", "gethostname !! $refused", "getfqdn !! $refused", "getservbyname !! $refused",
+            "gethostbyname !! $refused", "gethostname -> localhost", "getfqdn -> localhost", "getservbyname !! $refused",
             "if_nameindex !! $refused", "create_connection !! $refused",
             "create_server !! $refused (while attempting to bind on address ('127.0.0.1', 0))",
             "raw !! $refused", "netlink !! $refused",
