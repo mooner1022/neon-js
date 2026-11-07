@@ -328,10 +328,13 @@ object PySlots {
         val baseDict = bases.any { dictLayout(it) }
         val baseWeakref = bases.any { weakrefLayout(it) }
         val raw = t.dict[PyStr("__slots__")]
+        // (where it adds them, its own __dict__ and __weakref__ descriptors: weak references never over a base of items)
+        val items0 = layout(builtinBase(t))[ITEMSIZE] == 0L
         if (raw == null) {
             t.hasDict = true
             t.hasWeakref = true
             t.slotCount = inherited
+            PyAttrDescrs.defineInstanceDescriptors(t, !baseDict, !baseWeakref && items0)
             return
         }
         val items: List<Any?> = if (raw is PyStr) listOf(raw) else PyBuiltins.toList(raw)
@@ -367,6 +370,7 @@ object PySlots {
         if (own.isNotEmpty()) t.slotOwner = t
         t.hasDict = baseDict || addDict
         t.hasWeakref = baseWeakref || addWeakref
+        PyAttrDescrs.defineInstanceDescriptors(t, addDict, addWeakref)
     }
 
     /** object.__getstate__: its dict (None where empty or none), and where it has slots set, (that, {slot: value}). */

@@ -682,6 +682,24 @@ object PyClasses {
         }
     }
 
+    /** An instance's dict, made where it has none yet (a class's `__dict__` descriptor's). */
+    @JvmStatic
+    fun ownDict(obj: Any?): Any? = when (obj) {
+        is PyObject -> obj.dict ?: PyDict().also { obj.dict = it }
+        is PyValue -> obj.sub?.let { s -> s.dict ?: PyDict().also { s.dict = it } } ?: PyNone
+        else -> PyNone
+    }
+
+    /** An instance's dict replaced (`o.__dict__ = d`, and `del o.__dict__` with an empty one). */
+    @JvmStatic
+    fun replaceDict(obj: Any?, v: Any?) {
+        val d = dictValue(v)
+        when (obj) {
+            is PyObject -> obj.dict = d
+            is PyValue -> obj.sub?.dict = d
+        }
+    }
+
     @JvmStatic fun instanceDict(obj: Any?): PyDict? = when (obj) {
         is PyObject -> obj.dict
         is PyValue -> obj.sub?.dict

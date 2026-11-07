@@ -9,6 +9,9 @@ class PyAttrDescr(type: PyType, @JvmField val owner: PyType, @JvmField val name:
     /** What reads and sets the attribute where it is not the instance's generic getattr's (type's own, whose lookups would come back here). */
     @JvmField var getter: ((Any?) -> Any?)? = null
     @JvmField var setter: ((Any?, Any?) -> Unit)? = null
+    @JvmField var deleter: ((Any?) -> Unit)? = null
+    /** Its __doc__ (CPython's getset's), or null for None. */
+    @JvmField var doc: String? = null
 }
 
 object PyAttrDescrs {
@@ -73,6 +76,29 @@ object PyAttrDescrs {
         def("__type_params__", false, { c -> (c.dict[PyStr("__type_params__")] as? PyTuple) ?: PyTuple.EMPTY }) { c, v -> PyClasses.setAttr(c, "__type_params__", v) }
     }
 
+    /**
+     * A class's own `__dict__` and `__weakref__` getset descriptors, where it adds a dict or weak references to its
+     * bases' layout (CPython's subtype_getsets), unless its namespace has the name: the instance's dict, read, replaced
+     * and emptied; its first weak reference (or None), read only.
+     */
+    @JvmStatic
+    fun defineInstanceDescriptors(t: PyType, dict: Boolean, weakref: Boolean) {
+        if (dict && !t.dict.containsKey(PyStr("__dict__"))) {
+            val d = PyAttrDescr(GETSET, t, "__dict__", false)
+            d.doc = "dictionary for instance variables"
+            d.getter = { o -> PyClasses.ownDict(o) }
+            d.setter = { o, v -> PyClasses.replaceDict(o, v) }
+            d.deleter = { o -> PyClasses.replaceDict(o, PyDict()) }
+            t.dict[PyStr("__dict__")] = d
+        }
+        if (weakref && !t.dict.containsKey(PyStr("__weakref__"))) {
+            val d = PyAttrDescr(GETSET, t, "__weakref__", true)
+            d.doc = "list of weak references to the object"
+            d.getter = { o -> PyWeakrefs.firstRef(o) ?: PyNone }
+            t.dict[PyStr("__weakref__")] = d
+        }
+    }
+
     /** [t]'s descriptor of attribute [name], or null. */
     @JvmStatic
     fun of(t: PyType, name: String): PyAttrDescr? {
@@ -111,7 +137,8 @@ object PyAttrDescrs {
             t.def("__delete__", PyBuiltin("__delete__") { _, a ->
                 val d = self(a)
                 if (d.readonly) throw readonly(d)
-                PyClasses.delAttr(target(d, a[1]), d.name)
+                val del = d.deleter
+                if (del != null) del(target(d, a[1])) else PyClasses.delAttr(target(d, a[1]), d.name)
                 PyNone
             })
             t.def("__repr__", PyBuiltin("__repr__") { _, a ->
@@ -120,9 +147,9 @@ object PyAttrDescrs {
             })
             fun prop(n: String, get: (PyAttrDescr) -> Any?) = t.def(n, PyProperty(PyBuiltin(n) { _, a -> get(self(a)) }, null, null, null).also { it.name = n })
             prop("__name__") { PyStr(it.name) }
-            prop("__qualname__") { PyStr("${it.owner.name}.${it.name}") }
+            prop("__qualname__") { PyStr("${it.owner.qualname}.${it.name}") }
             prop("__objclass__") { it.owner }
-            prop("__doc__") { PyNone }
+            prop("__doc__") { d -> d.doc?.let { PyStr(it) } ?: PyNone }
             // (no attributes of their own: they are every context's)
             t.def("__setattr__", PyBuiltin("__setattr__") { _, a ->
                 throw PyException("AttributeError", "'${t.name}' object has no attribute '${(a[1] as PyStr).s}' and no __dict__ for setting new attributes")

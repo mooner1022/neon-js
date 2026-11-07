@@ -58,6 +58,10 @@ object PyWeakrefs {
         if (!weakrefable(v)) throw PyRt.typeError("cannot create weak reference to '${PyTypes.name(v)}' object")
     }
 
+    /** [v]'s first weak reference still alive (its `__weakref__`), or null. */
+    @JvmStatic
+    fun firstRef(v: Any?): Any? = refsOf(PyContext.current(), v).firstOrNull()
+
     /** The context's weak references to [v] still alive: their objects (getweakrefs). */
     private fun refsOf(ctx: PyContext, v: Any?): List<PyObject> =
         ctx.weakrefs[IdKey(v)]?.mapNotNull { it.get() }?.filter { (it as? PyWeakRef)?.ref?.get() === v || (it as? PyWeakProxy)?.ref?.get() === v } ?: emptyList()
