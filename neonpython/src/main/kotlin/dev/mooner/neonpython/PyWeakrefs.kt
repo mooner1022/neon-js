@@ -46,9 +46,10 @@ object PyWeakrefs {
     /** Whether CPython takes a weak reference to [v]: an instance of a class (not of object, not a builtin exception's), a function, a class, a set, a generator, a module. */
     @JvmStatic
     fun weakrefable(v: Any?): Boolean = when (v) {
-        is PyBaseException -> v.type.heap
+        is PyBaseException -> v.type.heap && v.type.hasWeakref
         is PyObject -> v.type !== PyTypes.OBJECT && v.type.hasWeakref
-        is PyValue -> v.sub?.cls?.hasWeakref ?: (v is PySet)
+        // (a class over a value of items, int's, bytes's, tuple's, takes none: CPython's layout has no room for them)
+        is PyValue -> v.sub?.cls?.let { PySlots.weakrefable(it) } ?: (v is PySet)
         is PyFunction, is PyBuiltin, is PyType, is PyMethod, is PyGenBase, is PyModule, is PyCode -> true
         else -> false
     }

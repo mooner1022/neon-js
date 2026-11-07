@@ -35,6 +35,11 @@ class PyType(@JvmField var name: String, bases: Array<PyType>, @JvmField val dic
     @JvmField var newImpl: ((PyContext, PyType, Array<Any?>, PyDict?) -> Any?)? = null
     /** Whether its __abstractmethods__ were set non-empty: object.__new__ refuses to make an instance (abc's ABCMeta sets them). */
     @JvmField var isAbstract = false
+    /**
+     * Its Py_TPFLAGS_SEQUENCE (0x20) and Py_TPFLAGS_MAPPING (0x40), what `match` takes it as (PySlots.collection: -1
+     * until it is first asked for a builtin type; a class's from its MRO when it is made, then set by abc's register).
+     */
+    @JvmField var collection = -1
     /** The builtin types deriving from it directly (bool from int): every context's. */
     @JvmField val builtinSubclasses = java.util.concurrent.CopyOnWriteArrayList<PyType>()
     /** A class's classes deriving from it directly, while they live (a builtin type's are each context's: [PyContext.subclassRefs]). */

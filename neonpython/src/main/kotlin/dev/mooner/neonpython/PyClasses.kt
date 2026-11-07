@@ -764,6 +764,12 @@ object PyClasses {
             "__qualname__" -> return PyStr(t.qualname)
             "__mro__" -> return PyTuple(arrayOf(*t.mro))
             "__bases__" -> return PyTuple(arrayOf(*t.bases))
+            // (its layout, as CPython 3.14 gives it: copyreg, dataclasses and inspect read them)
+            "__flags__" -> return PySlots.layout(t)[PySlots.FLAGS]
+            "__weakrefoffset__" -> return PySlots.layout(t)[PySlots.WEAKREFOFFSET]
+            "__dictoffset__" -> return PySlots.layout(t)[PySlots.DICTOFFSET]
+            "__basicsize__" -> return PySlots.layout(t)[PySlots.BASICSIZE]
+            "__itemsize__" -> return PySlots.layout(t)[PySlots.ITEMSIZE]
         }
         if (meta === PyTypes.TYPE) (PyTypes.TYPE.dict[PyStr(name)] as? PyAttrDescr)?.getter?.let { return it(t) }
         // (its own abstract methods, where they were set: not a base's, not type's)
@@ -834,10 +840,12 @@ object PyClasses {
             return
         }
         if (!to.heap || !from.heap) throw PyRt.typeError("__class__ assignment only supported for mutable types or ModuleType subclasses")
+        // (CPython's layout test, and NeonPy's own: one kind of instance, a dict for both or neither)
         fun base(t: PyType) = t.mro.first { !it.heap }
-        if (base(to) !== base(from) || to.slotOwner !== from.slotOwner || to.hasDict != from.hasDict) {
+        if (base(to) !== base(from) || to.hasDict != from.hasDict || !PySlots.compatibleForAssignment(to, from)) {
             throw PyRt.typeError("__class__ assignment: '${to.name}' object layout differs from '${from.name}'")
         }
+        PySlots.moveSlots(obj, from, to)
         if (obj is PyObject) obj.type = to else (obj as PyValue).sub!!.cls = to
     }
 

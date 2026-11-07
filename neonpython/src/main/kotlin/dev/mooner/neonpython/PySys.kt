@@ -486,27 +486,22 @@ object PySys {
      * for the builtin kinds as it lays them out (the JVM's sizes are not the program's to see).
      */
     /**
-     * CPython's pre-header of a class's instances: its managed dict and weak references' pointers (16), where it has
-     * them, a class (not a builtin type, nor a module's, which have a tp_name) over a builtin base without weak
-     * references of its own (object, list...; array's and set's keep theirs, and a subclass's dict, in the object).
+     * CPython's pre-header of a class's instances: its managed dict's and weak references' pointers (16), where its
+     * layout has them (PySlots.layout: a class adding a dict or weak references to a base without its own).
      */
-    private fun preheader(t: PyType): Long =
-        if (t.heap && t.tpName == null && (t.hasDict || t.hasWeakref) && t.mro.first { !it.heap || it.tpName != null } in MANAGED_BASES) 16L else 0L
-
-    private val MANAGED_BASES = setOf(PyTypes.OBJECT, PyTypes.INT, PyTypes.FLOAT, PyTypes.COMPLEX, PyTypes.STR, PyTypes.BYTES,
-        PyTypes.BYTEARRAY, PyTypes.TUPLE, PyTypes.LIST, PyTypes.DICT)
+    private fun preheader(t: PyType): Long = if (PySlots.preheader(t)) 16L else 0L
 
     /** object.__sizeof__: sys.getsizeof's size less a collected object's header (an instance's, its dict pointers too). */
     @JvmStatic
     fun objectSize(ctx: PyContext, v: Any?): Long {
         val n = baseSize(v)
+        // (a subclass's instance is the collector's, whatever its base's are)
+        (v as? PyValue)?.sub?.let { return n - 16L - preheader(it.cls) }
         return n - when (v) {
             is PyList, is PyDict, is PySet, is PyTuple, is PyFunction, is PyBuiltin, is PyBoundMethod, is PyIterator -> 16L
             is PyObject -> if (v.type === PyTypes.OBJECT) 0L else 16L + preheader(v.type)
-            else -> 0L
-        } - when (val sub = (v as? PyValue)?.sub) {
-            null -> 0L
-            else -> preheader(sub.cls)
+            // (a value of a collected kind: property's, staticmethod's...)
+            else -> if (v is PyValue && PySlots.collected(PyTypes.typeOf(v))) 16L else 0L
         }
     }
 
@@ -534,6 +529,8 @@ object PySys {
             is PyStr -> {
                 val max = v.s.codePoints().max().orElse(0)
                 val n = v.s.codePointCount(0, v.s.length).toLong()
+                // (a subclass's str is not a compact one: a PyUnicodeObject, its characters apart)
+                if (v.sub != null) return 64L + (n + 1) * (if (max < 256) 1 else if (max < 65536) 2 else 4) + subclassPart(v.sub!!)
                 when {
                     max < 128 -> 41L + n
                     // (a one-character Latin-1 str is a cached one, its UTF-8 kept with it)
@@ -556,10 +553,15 @@ object PySys {
             is PyType -> if (v.heap) 1720L else 416L
             is PyObject -> if (v.type === PyTypes.OBJECT) 16L else 32L + 8L * v.type.slotCount + preheader(v.type)
             is PyIterator -> 48L
+            // (an int's, a float's, a complex's or bytes's subclass: its value's size)
+            is PyNumSub -> baseSize(v.num)
             else -> 56L
         }
-        // (a subclass's instance: its pre-header and its slots too)
         val sub = (v as? PyValue)?.sub ?: return n
-        return n + preheader(sub.cls) + 8L * sub.cls.slotCount
+        return n + subclassPart(sub)
     }
+
+    /** What a subclass's instance adds to its value's size: a GC header where its base's have none, its pre-header, its slots. */
+    private fun subclassPart(sub: PySub): Long =
+        (if (PySlots.collected(PySlots.builtinBase(sub.cls))) 0L else 16L) + preheader(sub.cls) + 8L * sub.cls.slotCount
 }
