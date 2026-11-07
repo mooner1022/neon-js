@@ -21,6 +21,9 @@ env:
   WASM_SPEC_COMMIT: fffc6e12fa454e475455a7b58d3b5dc343980c10
   # the wasm-tools release that converts them (tools/wasm-spec.sh)
   WASM_TOOLS_VERSION: 1.263.0
+  # WebAssembly/wasi-testsuite's prod/testsuite-base (prebuilt preview 1 tests), which neonwasm's WASI is tested
+  # against (third_party/wasi-testsuite locally)
+  WASI_TESTSUITE_COMMIT: 9d84631e427729802085c3d172d0a63cd360a1fa
 
 jobs:
   jvm:
@@ -38,6 +41,8 @@ jobs:
         run: |
           curl -sSfL "https://github.com/bytecodealliance/wasm-tools/releases/download/v$WASM_TOOLS_VERSION/wasm-tools-$WASM_TOOLS_VERSION-x86_64-linux.tar.gz" | tar xz -C "$RUNNER_TEMP"
           WASM_TOOLS="$RUNNER_TEMP/wasm-tools-$WASM_TOOLS_VERSION-x86_64-linux/wasm-tools" tools/wasm-spec.sh
+      - name: WASI testsuite (neonwasm's WasiTestsuiteTest)
+        run: tools/wasi-testsuite.sh
       - name: Build and unit tests
         run: ./gradlew build :neonjs-test262:installDist
       - name: Maven publications (POMs, sources and javadoc jars; unsigned snapshots)

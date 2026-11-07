@@ -71,8 +71,9 @@ stress_modes() {
 
 quick() {
   test262_checkout
-  step "WebAssembly spec tests (neonwasm)"
+  step "WebAssembly spec tests and WASI testsuite (neonwasm)"
   tools/wasm-spec.sh
+  tools/wasi-testsuite.sh
   step "unit tests (neon-vm, neonjs-core, neonwasm), Test262 runner"
   gradle :neon-vm:test :neonjs-core:test :neonwasm:test :neonjs-test262:installDist
   step "Test262, 1 test in $SAMPLE"
@@ -128,6 +129,7 @@ codegen() {
 full() {
   test262_checkout
   tools/wasm-spec.sh
+  tools/wasi-testsuite.sh
   step "build, all unit tests, Test262 runner"
   gradle build :neonjs-test262:installDist
   step "Test262 (CI's runs)"

@@ -16,7 +16,9 @@ its own part of *full* on every pull request.
 The script checks Test262 out at CI's revision (`TEST262_COMMIT` in `.github/workflows/ci.yml`) into
 `third_party/test262` when it is missing, and the WebAssembly spec tests at theirs (`WASM_SPEC_COMMIT`) into
 `third_party/wasm-spec`, which `tools/wasm-spec.sh` converts into `build/wasm-spec` with `wasm-tools` (`cargo install
-wasm-tools --locked`; without it neonwasm's `SpecTest` is skipped, docs/NEONWASM.md). `GRADLE_ARGS` passes arguments to every `./gradlew` run (a toolchain's path,
+wasm-tools --locked`; without it neonwasm's `SpecTest` is skipped, docs/NEONWASM.md), and the WASI testsuite at its
+revision (`WASI_TESTSUITE_COMMIT`) into `third_party/wasi-testsuite` (`tools/wasi-testsuite.sh`; its programs come
+prebuilt). `GRADLE_ARGS` passes arguments to every `./gradlew` run (a toolchain's path,
 say), `SAMPLE` changes the part of Test262 (`SAMPLE=5`: one test in five), `THREADS` the runner's threads.
 
 ## Quick
