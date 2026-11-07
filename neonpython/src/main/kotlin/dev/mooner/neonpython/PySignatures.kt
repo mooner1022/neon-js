@@ -60,6 +60,12 @@ object PySignatures {
         m["_codecs.utf_7_encode"] = "(\$module, str, errors=None, /)"
         m["_codecs.utf_8_decode"] = "(\$module, data, errors=None, final=False, /)"
         m["_codecs.utf_8_encode"] = "(\$module, str, errors=None, /)"
+        m["_codecs_cn.getcodec"] = "(\$self, object, /)"
+        m["_codecs_hk.getcodec"] = "(\$self, object, /)"
+        m["_codecs_iso2022.getcodec"] = "(\$self, object, /)"
+        m["_codecs_jp.getcodec"] = "(\$self, object, /)"
+        m["_codecs_kr.getcodec"] = "(\$self, object, /)"
+        m["_codecs_tw.getcodec"] = "(\$self, object, /)"
         m["_collections.OrderedDict.__delitem__"] = "(\$self, key, /)"
         m["_collections.OrderedDict.__eq__"] = "(\$self, value, /)"
         m["_collections.OrderedDict.__ge__"] = "(\$self, value, /)"
@@ -222,6 +228,34 @@ object PySignatures {
         m["_md5.md5.digest"] = "(\$self, /)"
         m["_md5.md5.hexdigest"] = "(\$self, /)"
         m["_md5.md5.update"] = "(\$self, obj, /)"
+        m["_multibytecodec.MultibyteIncrementalDecoder.__getattribute__"] = "(\$self, name, /)"
+        m["_multibytecodec.MultibyteIncrementalDecoder.__init__"] = "(\$self, /, *args, **kwargs)"
+        m["_multibytecodec.MultibyteIncrementalDecoder.__new__"] = "(\$type, *args, **kwargs)"
+        m["_multibytecodec.MultibyteIncrementalDecoder.decode"] = "(\$self, /, input, final=False)"
+        m["_multibytecodec.MultibyteIncrementalDecoder.getstate"] = "(\$self, /)"
+        m["_multibytecodec.MultibyteIncrementalDecoder.reset"] = "(\$self, /)"
+        m["_multibytecodec.MultibyteIncrementalDecoder.setstate"] = "(\$self, state, /)"
+        m["_multibytecodec.MultibyteIncrementalEncoder.__getattribute__"] = "(\$self, name, /)"
+        m["_multibytecodec.MultibyteIncrementalEncoder.__init__"] = "(\$self, /, *args, **kwargs)"
+        m["_multibytecodec.MultibyteIncrementalEncoder.__new__"] = "(\$type, *args, **kwargs)"
+        m["_multibytecodec.MultibyteIncrementalEncoder.encode"] = "(\$self, /, input, final=False)"
+        m["_multibytecodec.MultibyteIncrementalEncoder.getstate"] = "(\$self, /)"
+        m["_multibytecodec.MultibyteIncrementalEncoder.reset"] = "(\$self, /)"
+        m["_multibytecodec.MultibyteIncrementalEncoder.setstate"] = "(\$self, state, /)"
+        m["_multibytecodec.MultibyteStreamReader.__getattribute__"] = "(\$self, name, /)"
+        m["_multibytecodec.MultibyteStreamReader.__init__"] = "(\$self, /, *args, **kwargs)"
+        m["_multibytecodec.MultibyteStreamReader.__new__"] = "(\$type, *args, **kwargs)"
+        m["_multibytecodec.MultibyteStreamReader.read"] = "(\$self, sizeobj=None, /)"
+        m["_multibytecodec.MultibyteStreamReader.readline"] = "(\$self, sizeobj=None, /)"
+        m["_multibytecodec.MultibyteStreamReader.readlines"] = "(\$self, sizehintobj=None, /)"
+        m["_multibytecodec.MultibyteStreamReader.reset"] = "(\$self, /)"
+        m["_multibytecodec.MultibyteStreamWriter.__getattribute__"] = "(\$self, name, /)"
+        m["_multibytecodec.MultibyteStreamWriter.__init__"] = "(\$self, /, *args, **kwargs)"
+        m["_multibytecodec.MultibyteStreamWriter.__new__"] = "(\$type, *args, **kwargs)"
+        m["_multibytecodec.MultibyteStreamWriter.reset"] = "(\$self, /)"
+        m["_multibytecodec.MultibyteStreamWriter.write"] = "(\$self, strobj, /)"
+        m["_multibytecodec.MultibyteStreamWriter.writelines"] = "(\$self, lines, /)"
+        m["_multibytecodec.__create_codec"] = "(\$module, arg, /)"
         m["_operator._compare_digest"] = "(\$module, a, b, /)"
         m["_operator.abs"] = "(\$module, a, /)"
         m["_operator.add"] = "(\$module, a, b, /)"
@@ -374,6 +408,8 @@ object PySignatures {
         m["_signal.sigpending"] = "(\$module, /)"
         m["_signal.sigtimedwait"] = "(\$module, sigset, timeout, /)"
         m["_signal.sigwait"] = "(\$module, sigset, /)"
+    }
+    private fun part1(m: HashMap<String, String>) {
         m["_signal.sigwaitinfo"] = "(\$module, sigset, /)"
         m["_signal.strsignal"] = "(\$module, signalnum, /)"
         m["_signal.struct_siginfo.__new__"] = "(\$type, *args, **kwargs)"
@@ -408,8 +444,6 @@ object PySignatures {
         m["_socket.socket.close"] = "(\$self, /)"
         m["_socket.socket.connect"] = "(\$self, object, /)"
         m["_socket.socket.connect_ex"] = "(\$self, object, /)"
-    }
-    private fun part1(m: HashMap<String, String>) {
         m["_socket.socket.detach"] = "(\$self, /)"
         m["_socket.socket.fileno"] = "(\$self, /)"
         m["_socket.socket.getblocking"] = "(\$self, /)"
@@ -776,6 +810,8 @@ object PySignatures {
         m["builtins.RuntimeError.__new__"] = "(\$type, *args, **kwargs)"
         m["builtins.RuntimeWarning.__new__"] = "(\$type, *args, **kwargs)"
         m["builtins.StopAsyncIteration.__new__"] = "(\$type, *args, **kwargs)"
+    }
+    private fun part2(m: HashMap<String, String>) {
         m["builtins.StopIteration.__init__"] = "(\$self, /, *args, **kwargs)"
         m["builtins.SyntaxError.__init__"] = "(\$self, /, *args, **kwargs)"
         m["builtins.SyntaxError.__str__"] = "(\$self, /)"
@@ -810,8 +846,6 @@ object PySignatures {
         m["builtins.bool.__and__"] = "(\$self, value, /)"
         m["builtins.bool.__invert__"] = "(\$self, /)"
         m["builtins.bool.__new__"] = "(\$type, *args, **kwargs)"
-    }
-    private fun part2(m: HashMap<String, String>) {
         m["builtins.bool.__or__"] = "(\$self, value, /)"
         m["builtins.bool.__rand__"] = "(\$self, value, /)"
         m["builtins.bool.__repr__"] = "(\$self, /)"
@@ -1178,6 +1212,8 @@ object PySignatures {
         m["builtins.int.__sub__"] = "(\$self, value, /)"
         m["builtins.int.__truediv__"] = "(\$self, value, /)"
         m["builtins.int.__trunc__"] = "(\$self, /)"
+    }
+    private fun part3(m: HashMap<String, String>) {
         m["builtins.int.__xor__"] = "(\$self, value, /)"
         m["builtins.int.as_integer_ratio"] = "(\$self, /)"
         m["builtins.int.bit_count"] = "(\$self, /)"
@@ -1212,8 +1248,6 @@ object PySignatures {
         m["builtins.list.__reversed__"] = "(\$self, /)"
         m["builtins.list.__rmul__"] = "(\$self, value, /)"
         m["builtins.list.__setitem__"] = "(\$self, key, value, /)"
-    }
-    private fun part3(m: HashMap<String, String>) {
         m["builtins.list.__sizeof__"] = "(\$self, /)"
         m["builtins.list.append"] = "(\$self, object, /)"
         m["builtins.list.clear"] = "(\$self, /)"
@@ -1580,6 +1614,8 @@ object PySignatures {
         m["itertools.cycle"] = "(iterable, /)"
         m["itertools.cycle.__getattribute__"] = "(\$self, name, /)"
         m["itertools.cycle.__iter__"] = "(\$self, /)"
+    }
+    private fun part4(m: HashMap<String, String>) {
         m["itertools.cycle.__new__"] = "(\$type, *args, **kwargs)"
         m["itertools.cycle.__next__"] = "(\$self, /)"
         m["itertools.dropwhile"] = "(predicate, iterable, /)"
@@ -1614,8 +1650,6 @@ object PySignatures {
         m["itertools.permutations.__sizeof__"] = "(\$self, /)"
         m["itertools.product"] = "(*iterables, repeat=1)"
         m["itertools.product.__getattribute__"] = "(\$self, name, /)"
-    }
-    private fun part4(m: HashMap<String, String>) {
         m["itertools.product.__iter__"] = "(\$self, /)"
         m["itertools.product.__new__"] = "(\$type, *args, **kwargs)"
         m["itertools.product.__next__"] = "(\$self, /)"
@@ -1982,6 +2016,8 @@ object PySignatures {
         m["sys.displayhook"] = "(\$module, object, /)"
         m["sys.exc_info"] = "(\$module, /)"
         m["sys.excepthook"] = "(\$module, exctype, value, traceback, /)"
+    }
+    private fun part5(m: HashMap<String, String>) {
         m["sys.exception"] = "(\$module, /)"
         m["sys.exit"] = "(\$module, status=None, /)"
         m["sys.get_asyncgen_hooks"] = "(\$module, /)"
@@ -2016,8 +2052,6 @@ object PySignatures {
         m["time.mktime"] = "(\$self, object, /)"
         m["time.monotonic"] = "(\$self, /)"
         m["time.monotonic_ns"] = "(\$self, /)"
-    }
-    private fun part5(m: HashMap<String, String>) {
         m["time.perf_counter"] = "(\$self, /)"
         m["time.perf_counter_ns"] = "(\$self, /)"
         m["time.process_time"] = "(\$self, /)"
