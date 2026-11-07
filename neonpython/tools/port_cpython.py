@@ -247,6 +247,10 @@ html/entities.py
 html/parser.py
 http/__init__.py
 http/client.py
+importlib/resources/__init__.py
+importlib/resources/_common.py importlib_resources_common
+importlib/resources/_functional.py
+importlib/resources/abc.py
 inspect.py
 io.py
 ipaddress.py
@@ -311,7 +315,7 @@ tomllib/_re.py
 tomllib/_types.py
 traceback.py
 types.py
-typing.py
+typing.py typing
 unittest/__init__.py
 unittest/__main__.py
 unittest/_log.py
@@ -359,6 +363,10 @@ xml/sax/xmlreader.py
 zipfile/__init__.py
 zipfile/_path/__init__.py
 zipfile/_path/glob.py
+zoneinfo/__init__.py
+zoneinfo/_common.py
+zoneinfo/_tzpath.py zoneinfo_tzpath
+zoneinfo/_zoneinfo.py zoneinfo_zoneinfo
 """
 
 # The lib's files that are NeonPy's, not CPython's (made by another tool): their INDEX notes

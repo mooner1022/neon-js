@@ -1,0 +1,38 @@
+key -> ('Asia/Seoul', 'Asia/Seoul', "zoneinfo.ZoneInfo(key='Asia/Seoul')", True)
+seoul -> ('2026-11-08T12:00:00+09:00', datetime.timedelta(seconds=32400), 'KST', datetime.timedelta(0), '2026-11-08T03:00:00+00:00')
+ny winter -> 2026-01-15 09:00 EST -0500
+ny summer -> 2026-07-15 09:00 EDT -0400
+gap -> -1 day, 19:00:00
+fold -> (datetime.timedelta(days=-1, seconds=72000), datetime.timedelta(days=-1, seconds=68400))
+convert -> 2026-06-01T13:00:00+01:00
+history -> (datetime.timedelta(seconds=36000), datetime.timedelta(seconds=36000))
+far future -> EDT
+utc -> (datetime.timedelta(0), datetime.timedelta(days=-1, seconds=68400))
+lord howe -> (datetime.timedelta(seconds=39600), datetime.timedelta(seconds=37800))
+missing !! ZoneInfoNotFoundError 'No time zone found with key Mars/Olympus'
+bad key !! ValueError ZoneInfo keys must refer to subdirectories of TZPATH, got: ../etc/passwd
+abs key !! ValueError ZoneInfo keys may not be absolute paths, got: /usr/share/zoneinfo/UTC
+empty !! ValueError ZoneInfo keys must be normalized relative paths, got: 
+type !! TypeError expected str, bytes or os.PathLike object, not int
+tzpath -> ('/usr/share/zoneinfo', '/usr/lib/zoneinfo', '/usr/share/lib/zoneinfo', '/etc/zoneinfo')
+available -> (True, True, True, True, False, ['Africa/Abidjan', 'Africa/Accra', 'Africa/Addis_Ababa'])
+pickle -> True
+copy -> (True, True)
+no_cache -> (False, 'Asia/Seoul')
+cleared -> False
+from_file -> ('Tokyo!', datetime.timedelta(seconds=32400), "zoneinfo.ZoneInfo(key='Tokyo!')")
+isfile -> (True, True, True)
+reset !! ZoneInfoNotFoundError 'No time zone found with key Asia/Seoul'
+reset back -> ('/usr/share/zoneinfo', 'Asia/Seoul')
+files -> ('PosixPath', 'json', True, True)
+module -> ('json', True)
+iterdir -> True
+read -> ('r"""JSON (JavaScript', b'r""', 'r""')
+multi !! TypeError 'encoding' argument required with multiple path names
+multi enc -> True
+is_resource -> (True, False)
+contents -> ['__init__.py', '_encoded_words.py', '_header_value_parser.py', '_parseaddr.py']
+as_file -> ('PosixPath', '__init__.py', True)
+missing !! ModuleNotFoundError No module named 'nope_pkg'
+missing res -> ('FileNotFoundError', 2, True)
+abc -> ('Traversable', True)

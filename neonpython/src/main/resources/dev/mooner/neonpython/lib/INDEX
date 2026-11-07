@@ -223,6 +223,10 @@ html/entities.py
 html/parser.py
 http/__init__.py
 http/client.py
+importlib/resources/__init__.py
+importlib/resources/_common.py  # a module's resources its file's directory (NeonPy's modules have no spec, no loader's reader)
+importlib/resources/_functional.py
+importlib/resources/abc.py
 inspect.py
 io.py
 ipaddress.py
@@ -287,7 +291,7 @@ tomllib/_re.py
 tomllib/_types.py
 traceback.py
 types.py
-typing.py
+typing.py  # abc's class checks let through from _py_abc too (NeonPy's abc is the pure one)
 unittest/__init__.py
 unittest/__main__.py
 unittest/_log.py
@@ -335,6 +339,10 @@ xml/sax/xmlreader.py
 zipfile/__init__.py
 zipfile/_path/__init__.py
 zipfile/_path/glob.py
+zoneinfo/__init__.py
+zoneinfo/_common.py
+zoneinfo/_tzpath.py  # the default TZPATH Linux CPython's, without sysconfig (/usr/share/zoneinfo: the bundled database)
+zoneinfo/_zoneinfo.py  # ZoneInfo's repr C _zoneinfo's (its tp_name, zoneinfo.ZoneInfo)
 _ast.py  # NeonPy's: generated from CPython's Parser/Python.asdl by neonpython/tools/gen_ast.py
 dis.py  # NeonPy's: NeonPy's bytecode listed (_dis), CPython's names other modules read
 importlib/__init__.py  # NeonPy's: importlib's API over NeonPy's import (_imp), CPython's checks and messages

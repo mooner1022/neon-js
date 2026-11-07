@@ -551,15 +551,27 @@ internal class PyDirectoryFs(root: Path, private val readOnly: Boolean) : PyFile
 
 /** [PyFileSystem.withLibrary]: the bundled library read-only at its root, the rest [fs]'s. */
 internal class PyLibraryFs(private val fs: PyFileSystem) : PyFileSystem by fs {
-    private val root = PyStdlib.ROOT
-    private val ancestors = setOf("/usr", "/usr/lib")
+    /** A read-only tree of NeonPy's: the bundled library's, the time zone database's. */
+    private class Mount(val root: String, val isDirectory: (String) -> Boolean, val bytes: (String) -> ByteArray?, val listing: (String) -> List<String>)
 
-    /** [path]'s place in the library ("" its root), or null where it is not under it. */
-    private fun rel(path: String): String? = when {
-        path == root -> ""
-        path.startsWith("$root/") -> path.substring(root.length + 1)
-        else -> null
+    private val mounts = listOf(
+        Mount(PyStdlib.ROOT, PyStdlib::isDirectory, PyStdlib::bytes, PyStdlib::listing),
+        Mount(PyTzdata.ROOT, PyTzdata::isDirectory, PyTzdata::bytes, PyTzdata::listing),
+    )
+
+    /** The directories above the mounts, and the names each has of them. */
+    private val ancestors = mapOf("/usr" to listOf("lib", "share"), "/usr/lib" to listOf("python3.14"), "/usr/share" to listOf("zoneinfo"))
+
+    /** [path]'s mount and its place in it ("" its root), or null where it is under none. */
+    private fun find(path: String): Pair<Mount, String>? {
+        for (m in mounts) {
+            if (path == m.root) return m to ""
+            if (path.startsWith(m.root + "/")) return m to path.substring(m.root.length + 1)
+        }
+        return null
     }
+
+    private fun rel(path: String): String? = find(path)?.second
 
     private fun dirStat() = PyFileStat(PyFileStat.S_IFDIR or 0x1ED, 4096, nlink = 2)
 
@@ -573,23 +585,22 @@ internal class PyLibraryFs(private val fs: PyFileSystem) : PyFileSystem by fs {
             }
             return fs.stat(path, follow)
         }
-        if (r == "" || PyStdlib.isDirectory(r)) return dirStat()
-        val b = PyStdlib.bytes(r) ?: throw PyFsException(PyErrno.ENOENT)
-        return PyFileStat(PyFileStat.S_IFREG or 0x1A4, b.size.toLong(), ino = r.hashCode().toLong() and 0xFFFFFFFFL)
+        val m = find(path)!!.first
+        if (r == "" || m.isDirectory(r)) return dirStat()
+        val b = m.bytes(r) ?: throw PyFsException(PyErrno.ENOENT)
+        return PyFileStat(PyFileStat.S_IFREG or 0x1A4, b.size.toLong(), ino = (m.root + r).hashCode().toLong() and 0xFFFFFFFFL)
     }
 
     override fun list(path: String): List<String> {
         val r = rel(path)
         if (r == null) {
             val own = fs.runCatching { list(path) }
-            return when (path) {
-                "/usr" -> (own.getOrDefault(emptyList()) + "lib").distinct()
-                "/usr/lib" -> (own.getOrDefault(emptyList()) + "python3.14").distinct()
-                else -> own.getOrThrow()
-            }
+            val names = ancestors[path] ?: return own.getOrThrow()
+            return (own.getOrDefault(emptyList()) + names).distinct()
         }
-        if (r != "" && !PyStdlib.isDirectory(r)) throw PyFsException(if (PyStdlib.bytes(r) != null) PyErrno.ENOTDIR else PyErrno.ENOENT)
-        return PyStdlib.listing(r)
+        val m = find(path)!!.first
+        if (r != "" && !m.isDirectory(r)) throw PyFsException(if (m.bytes(r) != null) PyErrno.ENOTDIR else PyErrno.ENOENT)
+        return m.listing(r)
     }
 
     override fun open(path: String, flags: Int, mode: Int): SeekableByteChannel {
@@ -597,8 +608,9 @@ internal class PyLibraryFs(private val fs: PyFileSystem) : PyFileSystem by fs {
         if (flags and PyFileSystem.O_ACCMODE != PyFileSystem.O_RDONLY || flags and (PyFileSystem.O_CREAT or PyFileSystem.O_TRUNC) != 0) {
             throw PyFsException(PyErrno.EROFS)
         }
-        if (r == "" || PyStdlib.isDirectory(r)) throw PyFsException(PyErrno.EISDIR)
-        val b = PyStdlib.bytes(r) ?: throw PyFsException(PyErrno.ENOENT)
+        val m = find(path)!!.first
+        if (r == "" || m.isDirectory(r)) throw PyFsException(PyErrno.EISDIR)
+        val b = m.bytes(r) ?: throw PyFsException(PyErrno.ENOENT)
         return PyBytesChannel(null, b, b.size, readable = true, writable = false, append = false)
     }
 
