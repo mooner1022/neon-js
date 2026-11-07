@@ -1,7 +1,6 @@
 package dev.mooner.neonpython
 
 import java.math.BigInteger
-import java.security.MessageDigest
 
 /** A _random.Random (or a subclass's instance): the Mersenne Twister's state. */
 class PyMersenne(t: PyType) : PyObject(t) {
@@ -9,13 +8,10 @@ class PyMersenne(t: PyType) : PyObject(t) {
     @JvmField var index = PyRandom.N + 1
 }
 
-/** A _sha2 (or _md5, _sha1) hash object: its algorithm's digest so far. */
-class PyHashObject(t: PyType, @JvmField val name: String, @JvmField val md: MessageDigest, @JvmField val blockSize: Int) : PyObject(t)
-
 /**
  * `_random` (docs/PYTHON_PLATFORM.md §12, S2): Modules/_randommodule.c, the Mersenne Twister (MT19937) as CPython
- * seeds and draws from it, so a seeded random.Random gives CPython's numbers; and `_sha2` (and `_md5`, `_sha1`), whose
- * sha512 random.seed takes for str and bytes seeds, over the platform's MessageDigest.
+ * seeds and draws from it, so a seeded random.Random gives CPython's numbers (random.seed's sha512 of a str or bytes
+ * seed is `_sha2`'s, PyHashlib).
  */
 object PyRandom {
     const val N = 624
@@ -227,77 +223,5 @@ object PyRandom {
     fun fill(d: PyDict) {
         d[PyStr("Random")] = RANDOM
         d[PyStr("__doc__")] = PyStr("Module implements the Mersenne Twister random number generator.")
-    }
-
-    // ------------------------------------------------------------------ hashes
-
-    /** One hash constructor and its type (_sha2.sha256 and SHA256Type...). */
-    private class Algo(val name: String, val java: String, val type: PyType, val blockSize: Int)
-
-    private val algos = HashMap<String, Algo>()
-
-    private fun algo(module: String, name: String, java: String, typeName: String, blockSize: Int): Algo = algos.getOrPut(name) {
-        val t = PyTypes.newBuiltin(typeName, subclassable = false).also { it.module = module; it.tpName = "$module.$typeName"; it.dispatchBuiltins = true }
-        t.newImpl = { _, _, _, _ -> throw PyRt.typeError("cannot create '$module.$typeName' instances") }
-        fun h(a: Array<Any?>) = a[0] as PyHashObject
-        t.def("update", PyBuiltin("update") { _, a ->
-            if (a.size != 2) throw PyRt.typeError("update() takes exactly one argument (${a.size - 1} given)")
-            h(a).md.update(data(a[1]))
-            PyNone
-        })
-        t.def("digest", PyBuiltin("digest") { _, a -> PyBytes((h(a).md.clone() as MessageDigest).digest()) })
-        t.def("hexdigest", PyBuiltin("hexdigest") { _, a ->
-            PyStr((h(a).md.clone() as MessageDigest).digest().joinToString("") { "%02x".format(it.toInt() and 0xFF) })
-        })
-        t.def("copy", PyBuiltin("copy") { _, a -> h(a).let { PyHashObject(it.type, it.name, it.md.clone() as MessageDigest, it.blockSize) } })
-        t.def("name", PyProperty(PyBuiltin("name") { _, a -> PyStr(h(a).name) }, null, null, null).also { it.name = "name" })
-        t.def("digest_size", PyProperty(PyBuiltin("digest_size") { _, a -> h(a).md.digestLength.toLong() }, null, null, null).also { it.name = "digest_size" })
-        t.def("block_size", PyProperty(PyBuiltin("block_size") { _, a -> h(a).blockSize.toLong() }, null, null, null).also { it.name = "block_size" })
-        Algo(name, java, t, blockSize)
-    }
-
-    private fun data(v: Any?): ByteArray {
-        if (v is PyStr) throw PyRt.typeError("Strings must be encoded before hashing")
-        return PyByteSeqs.content(v) ?: throw PyRt.typeError("object supporting the buffer API required")
-    }
-
-    /** name(data=b'', *, usedforsecurity=True, string=None): a hash object of [a]'s algorithm, data hashed. */
-    private fun constructor(a: Algo): PyBuiltin {
-        fun make(pos: Array<Any?>, kw: PyDict?): Any? {
-            if (pos.size > 1) throw PyRt.typeError("${a.name}() takes at most 1 positional argument (${pos.size} given)")
-            var data = pos.getOrNull(0)
-            var string: Any? = null
-            kw?.map?.forEach { (k, v) ->
-                when (val n = (k.v as PyStr).s) {
-                    "data" -> if (pos.isNotEmpty()) throw PyRt.typeError("argument for ${a.name}() given by name ('data') and position (1)") else data = v
-                    "string" -> string = v
-                    "usedforsecurity" -> {}
-                    else -> throw PyRt.typeError("${a.name}() got an unexpected keyword argument '$n'")
-                }
-            }
-            if (data != null && data !== PyNone && string != null && string !== PyNone) {
-                throw PyRt.typeError("'data' and 'string' are mutually exclusive and support for 'string' keyword parameter is slated for removal in a future version.")
-            }
-            val src = data?.takeIf { it !== PyNone } ?: string?.takeIf { it !== PyNone }
-            val h = PyHashObject(a.type, a.name, MessageDigest.getInstance(a.java), a.blockSize)
-            if (src != null) h.md.update(data(src))
-            return h
-        }
-        return PyBuiltin(a.name, { _, p -> make(p, null) }, { _, p, kw -> make(p, kw) }).also { it.method = false }
-    }
-
-    /** _sha2, _md5 or _sha1 ([module]): their constructors and types. */
-    @JvmStatic
-    fun fillHash(module: String, d: PyDict) {
-        val list = when (module) {
-            "_sha2" -> listOf(algo(module, "sha224", "SHA-224", "SHA224Type", 64), algo(module, "sha256", "SHA-256", "SHA256Type", 64),
-                algo(module, "sha384", "SHA-384", "SHA384Type", 128), algo(module, "sha512", "SHA-512", "SHA512Type", 128))
-            "_md5" -> listOf(algo(module, "md5", "MD5", "md5", 64))
-            else -> listOf(algo(module, "sha1", "SHA-1", "SHA1Type", 64))
-        }
-        for (a in list) {
-            d[PyStr(a.name)] = constructor(a)
-            d[PyStr(a.type.name)] = a.type
-        }
     }
 }

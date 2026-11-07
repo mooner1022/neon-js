@@ -8,6 +8,18 @@ package dev.mooner.neonpython
  */
 object PySignatures {
     private fun part0(m: HashMap<String, String>) {
+        m["_blake2.blake2b"] = "(data=b'', *, digest_size=_blake2.blake2b.MAX_DIGEST_SIZE,\n        key=b'', salt=b'', person=b'', fanout=1, depth=1, leaf_size=0,\n        node_offset=0, node_depth=0, inner_size=0, last_node=False,\n        usedforsecurity=True, string=None)"
+        m["_blake2.blake2b.__new__"] = "(\$type, *args, **kwargs)"
+        m["_blake2.blake2b.copy"] = "(\$self, /)"
+        m["_blake2.blake2b.digest"] = "(\$self, /)"
+        m["_blake2.blake2b.hexdigest"] = "(\$self, /)"
+        m["_blake2.blake2b.update"] = "(\$self, data, /)"
+        m["_blake2.blake2s"] = "(data=b'', *, digest_size=_blake2.blake2s.MAX_DIGEST_SIZE,\n        key=b'', salt=b'', person=b'', fanout=1, depth=1, leaf_size=0,\n        node_offset=0, node_depth=0, inner_size=0, last_node=False,\n        usedforsecurity=True, string=None)"
+        m["_blake2.blake2s.__new__"] = "(\$type, *args, **kwargs)"
+        m["_blake2.blake2s.copy"] = "(\$self, /)"
+        m["_blake2.blake2s.digest"] = "(\$self, /)"
+        m["_blake2.blake2s.hexdigest"] = "(\$self, /)"
+        m["_blake2.blake2s.update"] = "(\$self, data, /)"
         m["_codecs._unregister_error"] = "(\$module, errors, /)"
         m["_codecs.ascii_decode"] = "(\$module, data, errors=None, /)"
         m["_codecs.ascii_encode"] = "(\$module, str, errors=None, /)"
@@ -303,6 +315,36 @@ object PySignatures {
         m["_sha2.sha256"] = "(\$module, /, data=b'', *, usedforsecurity=True, string=None)"
         m["_sha2.sha384"] = "(\$module, /, data=b'', *, usedforsecurity=True, string=None)"
         m["_sha2.sha512"] = "(\$module, /, data=b'', *, usedforsecurity=True, string=None)"
+        m["_sha3.sha3_224.__new__"] = "(\$type, *args, **kwargs)"
+        m["_sha3.sha3_224.copy"] = "(\$self, /)"
+        m["_sha3.sha3_224.digest"] = "(\$self, /)"
+        m["_sha3.sha3_224.hexdigest"] = "(\$self, /)"
+        m["_sha3.sha3_224.update"] = "(\$self, data, /)"
+        m["_sha3.sha3_256.__new__"] = "(\$type, *args, **kwargs)"
+        m["_sha3.sha3_256.copy"] = "(\$self, /)"
+        m["_sha3.sha3_256.digest"] = "(\$self, /)"
+        m["_sha3.sha3_256.hexdigest"] = "(\$self, /)"
+        m["_sha3.sha3_256.update"] = "(\$self, data, /)"
+        m["_sha3.sha3_384.__new__"] = "(\$type, *args, **kwargs)"
+        m["_sha3.sha3_384.copy"] = "(\$self, /)"
+        m["_sha3.sha3_384.digest"] = "(\$self, /)"
+        m["_sha3.sha3_384.hexdigest"] = "(\$self, /)"
+        m["_sha3.sha3_384.update"] = "(\$self, data, /)"
+        m["_sha3.sha3_512.__new__"] = "(\$type, *args, **kwargs)"
+        m["_sha3.sha3_512.copy"] = "(\$self, /)"
+        m["_sha3.sha3_512.digest"] = "(\$self, /)"
+        m["_sha3.sha3_512.hexdigest"] = "(\$self, /)"
+        m["_sha3.sha3_512.update"] = "(\$self, data, /)"
+        m["_sha3.shake_128.__new__"] = "(\$type, *args, **kwargs)"
+        m["_sha3.shake_128.copy"] = "(\$self, /)"
+        m["_sha3.shake_128.digest"] = "(\$self, /, length)"
+        m["_sha3.shake_128.hexdigest"] = "(\$self, /, length)"
+        m["_sha3.shake_128.update"] = "(\$self, data, /)"
+        m["_sha3.shake_256.__new__"] = "(\$type, *args, **kwargs)"
+        m["_sha3.shake_256.copy"] = "(\$self, /)"
+        m["_sha3.shake_256.digest"] = "(\$self, /, length)"
+        m["_sha3.shake_256.hexdigest"] = "(\$self, /, length)"
+        m["_sha3.shake_256.update"] = "(\$self, data, /)"
         m["_sre.ascii_iscased"] = "(\$module, character, /)"
         m["_sre.ascii_tolower"] = "(\$module, character, /)"
         m["_sre.compile"] = "(\$module, /, pattern, flags, code, groups, groupindex,\n        indexgroup)"
@@ -366,6 +408,8 @@ object PySignatures {
         m["_thread.exit"] = "(\$module, /)"
         m["_thread.exit_thread"] = "(\$module, /)"
         m["_thread.get_ident"] = "(\$module, /)"
+    }
+    private fun part1(m: HashMap<String, String>) {
         m["_thread.get_native_id"] = "(\$module, /)"
         m["_thread.interrupt_main"] = "(\$module, signum=signal.SIGINT, /)"
         m["_thread.lock"] = "()"
@@ -408,8 +452,6 @@ object PySignatures {
         m["_weakref.CallableProxyType.__iadd__"] = "(\$self, value, /)"
         m["_weakref.CallableProxyType.__iand__"] = "(\$self, value, /)"
         m["_weakref.CallableProxyType.__ifloordiv__"] = "(\$self, value, /)"
-    }
-    private fun part1(m: HashMap<String, String>) {
         m["_weakref.CallableProxyType.__ilshift__"] = "(\$self, value, /)"
         m["_weakref.CallableProxyType.__imatmul__"] = "(\$self, value, /)"
         m["_weakref.CallableProxyType.__imod__"] = "(\$self, value, /)"
@@ -768,6 +810,8 @@ object PySignatures {
         m["builtins.bytes.isdigit"] = "(\$self, /)"
         m["builtins.bytes.islower"] = "(\$self, /)"
         m["builtins.bytes.isspace"] = "(\$self, /)"
+    }
+    private fun part2(m: HashMap<String, String>) {
         m["builtins.bytes.istitle"] = "(\$self, /)"
         m["builtins.bytes.isupper"] = "(\$self, /)"
         m["builtins.bytes.join"] = "(\$self, iterable_of_bytes, /)"
@@ -810,8 +854,6 @@ object PySignatures {
         m["builtins.complex.__eq__"] = "(\$self, value, /)"
         m["builtins.complex.__format__"] = "(\$self, format_spec, /)"
         m["builtins.complex.__ge__"] = "(\$self, value, /)"
-    }
-    private fun part2(m: HashMap<String, String>) {
         m["builtins.complex.__getnewargs__"] = "(\$self, /)"
         m["builtins.complex.__gt__"] = "(\$self, value, /)"
         m["builtins.complex.__hash__"] = "(\$self, /)"
@@ -1170,6 +1212,8 @@ object PySignatures {
         m["builtins.set.__init__"] = "(\$self, /, *args, **kwargs)"
         m["builtins.set.__ior__"] = "(\$self, value, /)"
         m["builtins.set.__isub__"] = "(\$self, value, /)"
+    }
+    private fun part3(m: HashMap<String, String>) {
         m["builtins.set.__iter__"] = "(\$self, /)"
         m["builtins.set.__ixor__"] = "(\$self, value, /)"
         m["builtins.set.__le__"] = "(\$self, value, /)"
@@ -1212,8 +1256,6 @@ object PySignatures {
         m["builtins.slice.__le__"] = "(\$self, value, /)"
         m["builtins.slice.__lt__"] = "(\$self, value, /)"
         m["builtins.slice.__ne__"] = "(\$self, value, /)"
-    }
-    private fun part3(m: HashMap<String, String>) {
         m["builtins.slice.__new__"] = "(\$type, *args, **kwargs)"
         m["builtins.slice.__reduce__"] = "(\$self, /)"
         m["builtins.slice.__repr__"] = "(\$self, /)"
@@ -1572,6 +1614,8 @@ object PySignatures {
         m["posix.device_encoding"] = "(\$module, /, fd)"
         m["posix.dup"] = "(\$module, fd, /)"
         m["posix.dup2"] = "(\$module, /, fd, fd2, inheritable=True)"
+    }
+    private fun part4(m: HashMap<String, String>) {
         m["posix.eventfd"] = "(\$module, /, initval, flags=EFD_CLOEXEC)"
         m["posix.eventfd_read"] = "(\$module, /, fd)"
         m["posix.eventfd_write"] = "(\$module, /, fd, value)"
@@ -1614,8 +1658,6 @@ object PySignatures {
         m["posix.getxattr"] = "(\$module, /, path, attribute, *, follow_symlinks=True)"
         m["posix.grantpt"] = "(\$module, fd, /)"
         m["posix.initgroups"] = "(\$module, username, gid, /)"
-    }
-    private fun part4(m: HashMap<String, String>) {
         m["posix.isatty"] = "(\$module, fd, /)"
         m["posix.kill"] = "(\$module, pid, signal, /)"
         m["posix.killpg"] = "(\$module, pgid, signal, /)"

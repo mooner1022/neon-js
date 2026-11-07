@@ -206,7 +206,9 @@ gettext.py
 glob.py
 graphlib.py
 gzip.py
+hashlib.py
 heapq.py
+hmac.py
 html/__init__.py
 html/entities.py
 html/parser.py
@@ -245,6 +247,7 @@ re/_constants.py
 re/_parser.py
 reprlib.py
 sched.py
+secrets.py
 selectors.py
 shlex.py
 shutil.py

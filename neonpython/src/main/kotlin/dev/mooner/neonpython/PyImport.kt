@@ -87,18 +87,25 @@ object PyImport {
     @JvmStatic
     fun importModule(ctx: PyContext, name: String): Any? {
         val key = PyStr(name)
-        if (ctx.modules.containsKey(key)) return ctx.modules[key]
+        if (ctx.modules.containsKey(key)) return present(ctx, key, name)
         val parent = name.substringBeforeLast('.', "")
         var pm: Any? = null
         if (parent.isNotEmpty()) {
             pm = importModule(ctx, parent)
             // (its package's import may have imported it)
-            if (ctx.modules.containsKey(key)) return ctx.modules[key]
+            if (ctx.modules.containsKey(key)) return present(ctx, key, name)
             if (pm !is PyModule || !pm.isPackage) throw notFound(name, "No module named '$name'; '$parent' is not a package")
         }
         val m = builtinModule(ctx, name) ?: load(ctx, name, parent)
         if (pm is PyModule) pm.dict[PyStr(name.substringAfterLast('.'))] = ctx.modules[key] ?: m
         return ctx.modules[key] ?: m
+    }
+
+    /** sys.modules' entry for [name]: None there stops its import (CPython's _find_and_load). */
+    private fun present(ctx: PyContext, key: PyStr, name: String): Any? {
+        val m = ctx.modules[key]
+        if (m === PyNone) throw notFound(name, "import of $name halted; None in sys.modules")
+        return m
     }
 
     /** importlib.reload: [m]'s source found again and its body run in its dict (a builtin module's nothing). */
@@ -359,9 +366,9 @@ object PyImport {
                 PyOperator.fill(d)
                 return mod()
             }
-            "_sha2", "_md5", "_sha1" -> {
-                PyRandom.fillHash(name, d)
-                return mod()
+            "_sha2", "_md5", "_sha1", "_blake2", "_sha3" -> {
+                PyHashlib.fill(name, d)
+                return mod().also { if (name == "_blake2") d[PyStr("__doc__")] = PyStr("_blake2b provides BLAKE2b for hashlib\n") }
             }
             "_struct" -> {
                 PyStruct.fill(ctx, d)
@@ -408,7 +415,7 @@ object PyImport {
     }
 
     /** The modules NeonPy makes itself (sys.builtin_module_names). */
-    @JvmField val BUILTIN_NAMES = listOf("sys", "builtins", "_thread", "_weakref", "gc", "_collections", "itertools", "_contextvars", "_sre", "_string", "_typing", "math", "errno", "posix", "_random", "_sha2", "_md5", "_sha1", "_operator", "_imp", "_dis", "_codecs", "_struct", "time", "_tokenize", "atexit", "binascii", "zlib", "_socket", "select", "_signal", "_posixsubprocess", "unicodedata")
+    @JvmField val BUILTIN_NAMES = listOf("sys", "builtins", "_thread", "_weakref", "gc", "_collections", "itertools", "_contextvars", "_sre", "_string", "_typing", "math", "errno", "posix", "_random", "_sha2", "_md5", "_sha1", "_operator", "_imp", "_dis", "_codecs", "_struct", "time", "_tokenize", "atexit", "binascii", "zlib", "_socket", "select", "_signal", "_posixsubprocess", "unicodedata", "_blake2", "_sha3")
 
     /** The features `from __future__ import` knows (CPython 3.14's). */
     @JvmField val FUTURES = listOf("nested_scopes", "generators", "division", "absolute_import", "with_statement", "print_function",

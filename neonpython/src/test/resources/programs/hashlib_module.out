@@ -1,0 +1,206 @@
+available -> ['blake2b', 'blake2s', 'md5', 'sha1', 'sha224', 'sha256', 'sha384', 'sha3_224', 'sha3_256', 'sha3_384', 'sha3_512', 'sha512', 'shake_128', 'shake_256']
+guaranteed -> ['blake2b', 'blake2s', 'md5', 'sha1', 'sha224', 'sha256', 'sha384', 'sha3_224', 'sha3_256', 'sha3_384', 'sha3_512', 'sha512', 'shake_128', 'shake_256']
+all -> ['algorithms_available', 'algorithms_guaranteed', 'blake2b', 'blake2s', 'file_digest', 'md5', 'new', 'sha1', 'sha224', 'sha256', 'sha384', 'sha3_224', 'sha3_256', 'sha3_384', 'sha3_512', 'sha512', 'shake_128', 'shake_256']
+no OpenSSL -> (False, False, None)
+_blake2 -> (['BLAKE2B_MAX_DIGEST_SIZE', 'BLAKE2B_MAX_KEY_SIZE', 'BLAKE2B_PERSON_SIZE', 'BLAKE2B_SALT_SIZE', 'BLAKE2S_MAX_DIGEST_SIZE', 'BLAKE2S_MAX_KEY_SIZE', 'BLAKE2S_PERSON_SIZE', 'BLAKE2S_SALT_SIZE', '_GIL_MINSIZE', 'blake2b', 'blake2s'], '_blake2b provides BLAKE2b for hashlib\n')
+_sha3 -> (['_GIL_MINSIZE', 'implementation', 'sha3_224', 'sha3_256', 'sha3_384', 'sha3_512', 'shake_128', 'shake_256'], 'HACL')
+_md5 -> (['MD5Type', '_GIL_MINSIZE', 'md5'], <class '_md5.md5'>, <class '_sha1.sha1'>, <class '_sha2.SHA512Type'>)
+types -> [<class '_blake2.blake2b'>, <class '_blake2.blake2s'>, <class '_md5.md5'>, <class '_sha1.sha1'>, <class '_sha2.SHA224Type'>, <class '_sha2.SHA256Type'>, <class '_sha2.SHA384Type'>, <class '_sha3.sha3_224'>, <class '_sha3.sha3_256'>, <class '_sha3.sha3_384'>, <class '_sha3.sha3_512'>, <class '_sha2.SHA512Type'>, <class '_sha3.shake_128'>, <class '_sha3.shake_256'>]
+blake2b bc3e9fc77d95b4c6f273efe5ba1b8e102e0d4bacddcc9816677fa04df0957056 ba80a53f981c4d0d6a2797b69f12f6e94c212f14
+blake2s 7d67f2f61e9f0451019bf263bd1df35bf22606d9bc806ce7cc435a051ec321f8 508c5e8c327c14e2e1a72ba34eeb452f37458b20
+md5 93de127c31ac9b2f5f830b52cbb4ac49aa955a28219fd3b6fd85cebf5914bcdf 900150983cd24fb0d6963f7d28e17f7290015098
+sha1 1fb4787855d67b03c7ee94da7e1b468d7908acadbc51898f9916d782c783c875 a9993e364706816aba3e25717850c26c9cd0d89d
+sha224 7321261ab0e2b968103675649849aec0336bf7f099b7fbba7f63682388aa342a 23097d223405d8228642a477bda255b32aadbce4
+sha256 25478bec3c50bb631f6792855a76a0df9bac14aebbc80d4715d11c7291beec0f ba7816bf8f01cfea414140de5dae2223b00361a3
+sha384 2619d34adfcc4b646e4619c6bf8a57c4fdf153fd7d297329d192188e17fa220b cb00753f45a35e8bb5a03d699ac65007272c32ab
+sha3_224 df51695201e48d1c1c0fee1a1d6f32f5b7aaef6789548c68b246420cf7856144 e642824c3f8cf24ad09234ee7d3c766fc9a3a516
+sha3_256 cea425aca7eb89e0a02b9008a7564477f0fb0f030dbaa0c42308535582744829 3a985da74fe225b2045c172d6bd390bd855f086e
+sha3_384 6a6db3725fbfb95601cd01f1ee218d6d05c1aa129a05f0924c785afce3a677d9 ec01498288516fc926459f58e2c6ad8df9b473cb
+sha3_512 51eb55e686a91b2582b8a8c0a98ba2556b124774c78eafa9a11e626e22e4f972 b751850b1a57168a5693cd924b6b096e08f62182
+sha512 57ec46585768e3c87c2d2afa95138eea4c872600174d41bb9358be8c259eed72 ddaf35a193617abacc417349ae20413112e6fa4e
+shake_128 eec529040364594f4999b3febdf760258d4d89899d6731dc761199d7af71dd13 5881092dd818bf5cf8a3ddb793fbcba74097d5c5
+shake_256 1130d57b10a07d9d566a13169f3beb2d04b7b75b4448c11daa16430f84238162 483366601360a8771c6863080cc4114d8db44530
+blake2b -> ('blake2b', 64, 128, 'blake2b', '_blake2')
+blake2s -> ('blake2s', 32, 64, 'blake2s', '_blake2')
+md5 -> ('md5', 16, 64, 'md5', '_md5')
+sha1 -> ('sha1', 20, 64, 'sha1', '_sha1')
+sha224 -> ('sha224', 28, 64, 'SHA224Type', '_sha2')
+sha256 -> ('sha256', 32, 64, 'SHA256Type', '_sha2')
+sha384 -> ('sha384', 48, 128, 'SHA384Type', '_sha2')
+sha3_224 -> ('sha3_224', 28, 144, 'sha3_224', '_sha3')
+sha3_256 -> ('sha3_256', 32, 136, 'sha3_256', '_sha3')
+sha3_384 -> ('sha3_384', 48, 104, 'sha3_384', '_sha3')
+sha3_512 -> ('sha3_512', 64, 72, 'sha3_512', '_sha3')
+sha512 -> ('sha512', 64, 128, 'SHA512Type', '_sha2')
+shake_128 -> ('shake_128', 0, 168, 'shake_128', '_sha3')
+shake_256 -> ('shake_256', 0, 136, 'shake_256', '_sha3')
+sha3_224 bits -> (448, 1152, b'\x06')
+sha3_256 bits -> (512, 1088, b'\x06')
+sha3_384 bits -> (768, 832, b'\x06')
+sha3_512 bits -> (1024, 576, b'\x06')
+shake_128 bits -> (256, 1344, b'\x1f')
+shake_256 bits -> (512, 1088, b'\x1f')
+blake2b sizes -> (16, 16, 64, 64)
+blake2s sizes -> (8, 8, 32, 32)
+constants -> (64, 8, 2048, 2048, 2048)
+blake2b 47a6c301ef4f4a950e35dfde94aa9b21624dd54df5ee19c908b975c332091bb3 f55331165572b332bef140e85f6687adc602bf1a
+blake2s 3dd4e3d5c4792d8b505084e24c31ff7938b3e270eafaf6a0b65e57f27a2ee720 544b0f997145bb5bdefff0324388a399758eac09919eb04173612b57d759109a
+keyed -> 'e65ee8b2acdf09e7eff5eabd1ab7808595abc8c4'
+tree -> '58da46857b3ffc8d9c21bfbb70b06a5a68147816b7e0e84cc7488b69be5ab103'
+blake2b digest_size 0 !! ValueError 'digest_size for Blake2b must be between 1 and 64 bytes, here it is 0'
+blake2b digest_size 65 !! ValueError 'digest_size for Blake2b must be between 1 and 64 bytes, here it is 65'
+blake2b digest_size big !! OverflowError 'Python int too large to convert to C int'
+blake2b digest_size str !! TypeError "'str' object cannot be interpreted as an integer"
+blake2b key long !! ValueError 'maximum key length is 64 bytes'
+blake2b key str !! TypeError "a bytes-like object is required, not 'str'"
+blake2b salt long !! ValueError 'maximum salt length is 16 bytes'
+blake2b person long !! ValueError 'maximum person length is 16 bytes'
+blake2b fanout !! ValueError 'fanout must be between 0 and 255'
+blake2b depth !! ValueError 'depth must be between 1 and 255'
+blake2b leaf_size !! OverflowError 'leaf_size is too large'
+blake2b leaf_size negative !! ValueError 'Cannot convert negative int'
+blake2b leaf_size huge !! OverflowError 'Python int too large for C unsigned long'
+blake2b node_offset -> 'blake2b'
+blake2b node_offset huge !! OverflowError 'Python int too large for C unsigned long long'
+blake2b node_depth !! ValueError 'node_depth must be between 0 and 255'
+blake2b inner_size !! ValueError 'inner_size must be between 0 and is 64'
+blake2b two positional !! TypeError 'blake2b() takes at most 1 positional argument (2 given)'
+blake2b unknown keyword !! TypeError "blake2b() got an unexpected keyword argument 'datax'. Did you mean 'data'?"
+blake2s digest_size 0 !! ValueError 'digest_size for Blake2s must be between 1 and 32 bytes, here it is 0'
+blake2s digest_size 65 !! ValueError 'digest_size for Blake2s must be between 1 and 32 bytes, here it is 65'
+blake2s digest_size big !! OverflowError 'Python int too large to convert to C int'
+blake2s digest_size str !! TypeError "'str' object cannot be interpreted as an integer"
+blake2s key long !! ValueError 'maximum key length is 32 bytes'
+blake2s key str !! TypeError "a bytes-like object is required, not 'str'"
+blake2s salt long !! ValueError 'maximum salt length is 8 bytes'
+blake2s person long !! ValueError 'maximum person length is 8 bytes'
+blake2s fanout !! ValueError 'fanout must be between 0 and 255'
+blake2s depth !! ValueError 'depth must be between 1 and 255'
+blake2s leaf_size !! OverflowError 'leaf_size is too large'
+blake2s leaf_size negative !! ValueError 'Cannot convert negative int'
+blake2s leaf_size huge !! OverflowError 'Python int too large for C unsigned long'
+blake2s node_offset !! OverflowError 'node_offset is too large'
+blake2s node_offset huge !! OverflowError 'Python int too large for C unsigned long long'
+blake2s node_depth !! ValueError 'node_depth must be between 0 and 255'
+blake2s inner_size !! ValueError 'inner_size must be between 0 and is 32'
+blake2s two positional !! TypeError 'blake2s() takes at most 1 positional argument (2 given)'
+blake2s unknown keyword !! TypeError "blake2s() got an unexpected keyword argument 'datax'. Did you mean 'data'?"
+md5 None !! TypeError 'object supporting the buffer API required'
+md5 string None !! TypeError 'object supporting the buffer API required'
+md5 data and string !! TypeError "'data' and 'string' are mutually exclusive and support for 'string' keyword parameter is slated for removal in a future version."
+md5 string -> '92eb5ffee6ae2fec3ad71c777531578f'
+md5 str !! TypeError 'Strings must be encoded before hashing'
+md5 int !! TypeError 'object supporting the buffer API required'
+md5 by name and position !! TypeError "argument for md5() given by name ('data') and position (1)"
+md5 update () !! TypeError 'md5.update() takes exactly one argument (0 given)'
+md5 update kw !! TypeError 'md5.update() takes no keyword arguments'
+md5 update str !! TypeError 'Strings must be encoded before hashing'
+md5 update strided !! BufferError 'memoryview: underlying buffer is not C-contiguous'
+md5 copy 1 !! TypeError 'copy() takes no arguments'
+md5 setattr name !! AttributeError "attribute 'name' of '_md5.md5' objects is not writable"
+md5 setattr foo !! AttributeError "'_md5.md5' object has no attribute 'foo' and no __dict__ for setting new attributes"
+md5 subclass !! TypeError "type '_md5.md5' is not an acceptable base type"
+md5 pickle !! TypeError "cannot pickle '_md5.md5' object"
+sha256 None !! TypeError 'object supporting the buffer API required'
+sha256 string None !! TypeError 'object supporting the buffer API required'
+sha256 data and string !! TypeError "'data' and 'string' are mutually exclusive and support for 'string' keyword parameter is slated for removal in a future version."
+sha256 string -> '3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d'
+sha256 str !! TypeError 'Strings must be encoded before hashing'
+sha256 int !! TypeError 'object supporting the buffer API required'
+sha256 by name and position !! TypeError "argument for sha256() given by name ('data') and position (1)"
+sha256 update () !! TypeError 'SHA256Type.update() takes exactly one argument (0 given)'
+sha256 update kw !! TypeError 'SHA256Type.update() takes no keyword arguments'
+sha256 update str !! TypeError 'Strings must be encoded before hashing'
+sha256 update strided !! BufferError 'memoryview: underlying buffer is not C-contiguous'
+sha256 copy 1 !! TypeError 'copy() takes no arguments'
+sha256 setattr name !! AttributeError "attribute 'name' of '_sha2.SHA256Type' objects is not writable"
+sha256 setattr foo !! AttributeError "'_sha2.SHA256Type' object has no attribute 'foo' and no __dict__ for setting new attributes"
+sha256 subclass !! TypeError "type '_sha2.SHA256Type' is not an acceptable base type"
+sha256 pickle !! TypeError "cannot pickle '_sha2.SHA256Type' object"
+blake2b None !! TypeError 'object supporting the buffer API required'
+blake2b string None !! TypeError 'object supporting the buffer API required'
+blake2b data and string !! TypeError "'data' and 'string' are mutually exclusive and support for 'string' keyword parameter is slated for removal in a future version."
+blake2b string -> 'c029c24b2c89db037fbf8b04930569fd8422f7c0d62f36c8dae35d03332139e546a1126f6c75be43685598f48cefff1d05a3c74d804fcd5c0a53734cfb0bb862'
+blake2b str !! TypeError 'Strings must be encoded before hashing'
+blake2b int !! TypeError 'object supporting the buffer API required'
+blake2b by name and position !! TypeError "argument for blake2b() given by name ('data') and position (1)"
+blake2b update () !! TypeError 'blake2b.update() takes exactly one argument (0 given)'
+blake2b update kw !! TypeError 'blake2b.update() takes no keyword arguments'
+blake2b update str !! TypeError 'Strings must be encoded before hashing'
+blake2b update strided !! BufferError 'memoryview: underlying buffer is not C-contiguous'
+blake2b copy 1 !! TypeError 'blake2b.copy() takes no arguments (1 given)'
+blake2b setattr name !! AttributeError "attribute 'name' of '_blake2.blake2b' objects is not writable"
+blake2b setattr foo !! AttributeError "'_blake2.blake2b' object has no attribute 'foo' and no __dict__ for setting new attributes"
+blake2b subclass !! TypeError "type '_blake2.blake2b' is not an acceptable base type"
+blake2b pickle !! TypeError "cannot pickle '_blake2.blake2b' object"
+sha3_256 None !! TypeError 'object supporting the buffer API required'
+sha3_256 string None !! TypeError 'object supporting the buffer API required'
+sha3_256 data and string !! TypeError "'data' and 'string' are mutually exclusive and support for 'string' keyword parameter is slated for removal in a future version."
+sha3_256 string -> 'b039179a8a4ce2c252aa6f2f25798251c19b75fc1508d9d511a191e0487d64a7'
+sha3_256 str !! TypeError 'Strings must be encoded before hashing'
+sha3_256 int !! TypeError 'object supporting the buffer API required'
+sha3_256 by name and position !! TypeError "argument for sha3_224() given by name ('data') and position (1)"
+sha3_256 update () !! TypeError 'sha3_256.update() takes exactly one argument (0 given)'
+sha3_256 update kw !! TypeError 'sha3_256.update() takes no keyword arguments'
+sha3_256 update str !! TypeError 'Strings must be encoded before hashing'
+sha3_256 update strided !! BufferError 'memoryview: underlying buffer is not C-contiguous'
+sha3_256 copy 1 !! TypeError 'sha3_256.copy() takes no arguments (1 given)'
+sha3_256 setattr name !! AttributeError "attribute 'name' of '_sha3.sha3_256' objects is not writable"
+sha3_256 setattr foo !! AttributeError "'_sha3.sha3_256' object has no attribute 'foo' and no __dict__ for setting new attributes"
+sha3_256 subclass !! TypeError "type '_sha3.sha3_256' is not an acceptable base type"
+sha3_256 pickle !! TypeError "cannot pickle '_sha3.sha3_256' object"
+shake_128 None !! TypeError 'object supporting the buffer API required'
+shake_128 string None !! TypeError 'object supporting the buffer API required'
+shake_128 data and string !! TypeError "'data' and 'string' are mutually exclusive and support for 'string' keyword parameter is slated for removal in a future version."
+shake_128 string -> 'f0ffa343'
+shake_128 str !! TypeError 'Strings must be encoded before hashing'
+shake_128 int !! TypeError 'object supporting the buffer API required'
+shake_128 by name and position !! TypeError "argument for sha3_224() given by name ('data') and position (1)"
+shake_128 update () !! TypeError 'shake_128.update() takes exactly one argument (0 given)'
+shake_128 update kw !! TypeError 'shake_128.update() takes no keyword arguments'
+shake_128 update str !! TypeError 'Strings must be encoded before hashing'
+shake_128 update strided !! BufferError 'memoryview: underlying buffer is not C-contiguous'
+shake_128 copy 1 !! TypeError 'shake_128.copy() takes no arguments (1 given)'
+shake_128 setattr name !! AttributeError "attribute 'name' of '_sha3.shake_128' objects is not writable"
+shake_128 setattr foo !! AttributeError "'_sha3.shake_128' object has no attribute 'foo' and no __dict__ for setting new attributes"
+shake_128 subclass !! TypeError "type '_sha3.shake_128' is not an acceptable base type"
+shake_128 pickle !! TypeError "cannot pickle '_sha3.shake_128' object"
+shake digest () !! TypeError "digest() missing required argument 'length' (pos 1)"
+shake digest -1 !! ValueError 'Cannot convert negative int'
+shake digest 2**29 !! ValueError 'length is too large'
+shake digest 2**64 !! OverflowError 'Python int too large for C unsigned long'
+shake digest float !! TypeError "'float' object cannot be interpreted as an integer"
+shake digest length= -> b'H3f'
+shake digest 2 !! TypeError 'digest() takes at most 1 argument (2 given)'
+sha3 digest 1 !! TypeError 'sha3_256.digest() takes no arguments (1 given)'
+md5 digest 1 !! TypeError 'md5.digest() takes no arguments (1 given)'
+new nope !! ValueError 'unsupported hash type nope'
+new SHA256 -> '2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881'
+new blake2b -> '4adf4367f96e584f'
+hmac md5 -> '80070713463e7749b90c2dc24911e275'
+hmac.digest md5 -> 'd318fd033415c0f938b087d5645e0045'
+hmac sha1 -> 'de7c9b85b8b78aa6bc8a7a36f70a90701c9db4d9'
+hmac.digest sha1 -> 'b2e64fb68e7096463a9d23749f90679809fdb8fa'
+hmac sha256 -> 'f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8'
+hmac.digest sha256 -> 'e2adadca233bc31c6e6126c865132c3e945f9dedd44797a1e5acc3c037bc21fc'
+hmac sha512 -> 'b42af09057bac1e2d41708e48a902e09b5ff7f12ab428a4fe86653c73dd248fb82f948a549f7b791a5b41915ee4d1ec3935357e4e2317250d0372afa2ebeeb3a'
+hmac.digest sha512 -> 'b5245971beb52a5a986812c4666a05c735bf5bb7aba32eae2192adad605df4112d6c285d1c46cf81ccb7ab8c2c3b7b3c6793216909b5add05223ed21f24cdb1e'
+hmac sha3_256 -> '8c6e0683409427f8931711b10ca92a506eb1fafa48fadd66d76126f47ac2c333'
+hmac.digest sha3_256 -> '4beeb04d637f2720b7472094d5aec0e1a6d78e52b0e4efc9870196be1593f4f2'
+hmac blake2b -> '92294f92c0dfb9b00ec9ae8bd94d7e7d8a036b885a499f149dfe2fd2199394aaaf6b8894a1730cccb2cd050f9bcf5062a38b51b0dab33207f8ef35ae2c9df51b'
+hmac.digest blake2b -> '98de2352941a17672c6e5b8cb66ea726051e57b595399111f3a2baf3cb29ce1a78de179931c4d66f03fe4738c74bd6bd8d9ea717de572c6afd2cfa43f936eb82'
+hmac blake2s -> 'f93215bb90d4af4c3061cd932fb169fb8bb8a91d0b4022baea1271e1323cd9a0'
+hmac.digest blake2s -> '156efbc76a887f37f943e93ae54e5498a34694ef0552923cff9825a1aff31835'
+hmac <built-in function sha224> -> '88ff8b54675d39b8f72322e65ff945c52d96379988ada25639747e69'
+hmac.digest <built-in function sha224> -> '2c5cc29e6df0855d603751dbaf428c53b2d39b8c4326cacd75d9a2fc'
+hmac <class '_sha3.sha3_384'> -> 'aa739ad9fcdf9be4a04f06680ade7a1bd1e01a0af64accb04366234cf9f6934a0f8589772f857681fcde8acc256091a2'
+hmac.digest <class '_sha3.sha3_384'> -> '335717ae2e35d6478b00d92e9041ec106fd7c6852ff688967826019d45f15bbc82293b5a12cd6404e16ae5de0742dad5'
+hmac object -> ('hmac-sha256', 32, 64, '9c196e32dc0175f86f4b1cb89289d6619de6bee699e4c378e68309ed97a1a6ab', '9c196e32dc0175f86f4b1cb89289d6619de6bee699e4c378e68309ed97a1a6ab')
+hmac no digestmod !! TypeError "Missing required argument 'digestmod'."
+hmac str key !! TypeError "key: expected bytes or bytearray, but got 'str'"
+compare_digest -> (True, False)
+file_digest BytesIO -> 'bdc1952c4f87e1fa055b0f6583cfbc34a4657a8e1bf5d6d7606036c0a7c7223d'
+file_digest constructor -> 'b473c9004c60629c24c4daaa3c63d9d90d05690f1ff8e558d9e3024f8e2d02e0'
+file_digest reader -> 'bbfec7b9ef29840479ea99cc0e25cc8c285ea303'
+file_digest text -> ' is not a file-like object in binary reading mode.'
+buffers -> ['bef57ec7f53a6d40beb640a780a639c83bc29ac8a9816f1fc6c5c6dcd93c4721', 'e642824c3f8cf24ad09234ee7d3c766fc9a3a5168d0c94ad73b46fdf', '2418bf14c80b4f3db00619216d4c7dd0943b8dd7fc75d71e5f8057e1f017f87fbe0a737c5d38109630c4743916e5c13400d9624c77e5e77f9c93a74539d5cad1']
