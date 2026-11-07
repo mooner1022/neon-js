@@ -5,7 +5,7 @@ _collections_abc.py
 _colorize.py
 _compat_pickle.py
 _markupbase.py
-_py_abc.py
+_py_abc.py  # C _abc's collection flags: a new ABC's __abc_tpflags__, a registered class's (what match takes for a sequence or a mapping)
 _py_warnings.py
 _pydatetime.py  # IsoCalendarDate's repr C _datetime's (its module named)
 _pydecimal.py  # a trapped signal raised with its condition in a list, int()'s errors' messages, as C _decimal's

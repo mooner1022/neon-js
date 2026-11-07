@@ -1,4 +1,4 @@
-from _weakrefset import WeakSet
+from _weakrefset import WeakSet; from _collections import _abc_init_tpflags, _abc_register_tpflags
 
 
 def get_cache_token():
@@ -33,7 +33,7 @@ class ABCMeta(type):
     _abc_invalidation_counter = 0
 
     def __new__(mcls, name, bases, namespace, /, **kwargs):
-        cls = super().__new__(mcls, name, bases, namespace, **kwargs)
+        cls = super().__new__(mcls, name, bases, namespace, **kwargs); _abc_init_tpflags(cls)
         # Compute set of abstract method names
         abstracts = {name
                      for name, value in namespace.items()
@@ -65,7 +65,7 @@ class ABCMeta(type):
         if issubclass(cls, subclass):
             # This would create a cycle, which is bad for the algorithm below
             raise RuntimeError("Refusing to create an inheritance cycle")
-        cls._abc_registry.add(subclass)
+        cls._abc_registry.add(subclass); _abc_register_tpflags(cls, subclass)
         ABCMeta._abc_invalidation_counter += 1  # Invalidate negative cache
         return subclass
 

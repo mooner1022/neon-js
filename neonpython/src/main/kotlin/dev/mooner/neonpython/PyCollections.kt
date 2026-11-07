@@ -365,6 +365,15 @@ object PyCollections {
         d[PyStr("_deque_reverse_iterator")] = DEQUE_REVERSE_ITER
         d[PyStr("defaultdict")] = DEFAULTDICT
         d[PyStr("_tuplegetter")] = TUPLEGETTER
+        // (NeonPy's own: C _abc's collection flags, which the pure abc (_py_abc's rules file) sets through them)
+        d[PyStr("_abc_init_tpflags")] = PyBuiltin("_abc_init_tpflags") { _, a ->
+            PySlots.abcInit(a.getOrNull(0))
+            PyNone
+        }
+        d[PyStr("_abc_register_tpflags")] = PyBuiltin("_abc_register_tpflags") { c, a ->
+            PySlots.abcRegister(c, a.getOrNull(0), a.getOrNull(1))
+            PyNone
+        }
         d[PyStr("_count_elements")] = PyBuiltin("_count_elements") { c, a ->
             if (a.size != 2) throw PyRt.typeError("_count_elements expected 2 arguments, got ${a.size}")
             val m = a[0]

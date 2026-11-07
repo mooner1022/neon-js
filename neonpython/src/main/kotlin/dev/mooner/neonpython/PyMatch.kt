@@ -2,18 +2,23 @@ package dev.mooner.neonpython
 
 /**
  * `match` (PEP 634; docs/PYTHON_PLATFORM.md §11, M6): the tests the patterns compile to, as CPython's MATCH_*
- * instructions do them. Sequences are lists, tuples, ranges and arrays (and their subclasses), never strs, bytes or
- * dicts; mappings are dicts; a class pattern's positional sub-patterns name attributes by __match_args__ (the subject
- * itself for the builtin types that match themselves).
+ * instructions do them. Sequences and mappings are what their types' Py_TPFLAGS_SEQUENCE and Py_TPFLAGS_MAPPING say
+ * (PySlots.collection): lists, tuples, ranges, memoryviews, arrays and deques, never strs, bytes or bytearrays; dicts
+ * and mappingproxies; collections.abc's Sequence's and Mapping's classes, and those registered with them. A class
+ * pattern's positional sub-patterns name attributes by __match_args__ (the subject itself for the builtin types that
+ * match themselves).
  */
 object PyMatch {
     private val NO_ARGS = arrayOfNulls<Any?>(0)
 
     /** MATCH_SEQUENCE */
-    @JvmStatic fun matchSequence(v: Any?): Any? = PyBool.of(v is PyList || v is PyTuple || v is PyRange || v is PyArrayObj)
+    @JvmStatic
+    fun matchSequence(v: Any?): Any? =
+        PyBool.of((v is PyList && v.sub == null) || (v is PyTuple && v.sub == null) || PySlots.collection(PyTypes.typeOf(v)) and PySlots.SEQUENCE != 0)
 
     /** MATCH_MAPPING */
-    @JvmStatic fun matchMapping(v: Any?): Any? = PyBool.of(v is PyDict)
+    @JvmStatic
+    fun matchMapping(v: Any?): Any? = PyBool.of((v is PyDict && v.sub == null) || PySlots.collection(PyTypes.typeOf(v)) and PySlots.MAPPING != 0)
 
     /** GET_LEN */
     @JvmStatic fun getLen(v: Any?): Any? = PyRt.len(v)
@@ -22,15 +27,15 @@ object PyMatch {
     @JvmStatic
     fun matchKeys(v: Any?, keys: Any?): Any? {
         val ks = (keys as PyTuple).items
-        val d = v as PyDict
+        val d = v as? PyDict
         val seen = PySet(false)
         val out = arrayOfNulls<Any?>(ks.size)
         val missing = Any()
-        val get = if (d.sub != null) PyRt.getAttr(d, "get") else null
+        val get = if (d == null || d.sub != null) PyRt.getAttr(v, "get") else null
         for ((i, k) in ks.withIndex()) {
             if (seen.contains(k)) throw PyException("ValueError", "mapping pattern checks duplicate key (${PyRt.repr(k)})")
             seen.addKey(k)
-            val x = if (get == null) (if (d.containsKey(k)) d[k] else missing)
+            val x = if (get == null) (if (d!!.containsKey(k)) d[k] else missing)
                 else PyCalls.callWith(PyContext.current(), get, arrayOf(k, missing), NO_ARGS, NO_ARGS)
             if (x === missing) return PyNone
             out[i] = x
@@ -38,11 +43,11 @@ object PyMatch {
         return PyTuple(out)
     }
 
-    /** COPY_DICT_WITHOUT_KEYS: a mapping pattern's **rest. */
+    /** COPY_DICT_WITHOUT_KEYS: a mapping pattern's **rest (a dict of the mapping's items, by its keys() where it is not a dict). */
     @JvmStatic
     fun copyWithoutKeys(v: Any?, keys: Any?): Any? {
         val d = PyDict()
-        d.map.putAll((v as PyDict).map)
+        if (v is PyDict) d.map.putAll(v.map) else PyContainers.update(d, v)
         for (k in (keys as PyTuple).items) d.map.remove(PyDict.Key(k))
         return d
     }
@@ -58,7 +63,8 @@ object PyMatch {
     @JvmStatic
     fun matchClass(v: Any?, cls: Any?, names: Any?, npos: Int): Any? {
         if (cls !is PyType) throw PyRt.typeError("called match pattern must be a class")
-        if (!PyTypes.typeOf(v).isSubtype(cls)) return PyNone
+        // (isinstance's test: an ABC's, a runtime-checkable protocol's __instancecheck__ too)
+        if (!PyTypes.isInstance(v, cls)) return PyNone
         val kw = (names as PyTuple).items
         val attrs = ArrayList<String>()
         val out = ArrayList<Any?>()
@@ -81,12 +87,12 @@ object PyMatch {
                 }
             }
         }
-        for (k in kw) {
-            val n = (k as PyStr).s
-            if (n in attrs) throw PyRt.typeError("${cls.name}() got multiple sub-patterns for attribute '$n'")
-            attrs.add(n)
-        }
+        for (k in kw) attrs.add((k as PyStr).s)
+        // (each attribute checked against those before it as it is taken, as CPython's match_class_attr: a missing one
+        // fails the match before a later one is looked at)
+        val seen = HashSet<String>()
         for (n in attrs) {
+            if (!seen.add(n)) throw PyRt.typeError("${cls.tpName ?: cls.name}() got multiple sub-patterns for attribute '$n'")
             val x = try {
                 PyRt.getAttr(v, n)
             } catch (e: PyException) {

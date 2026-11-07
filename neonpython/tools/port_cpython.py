@@ -29,7 +29,7 @@ _collections_abc.py
 _colorize.py
 _compat_pickle.py
 _markupbase.py
-_py_abc.py
+_py_abc.py _py_abc
 _py_warnings.py
 _pydatetime.py _pydatetime
 _pydecimal.py _pydecimal
