@@ -6,6 +6,9 @@ import java.util.zip.GZIPInputStream
 /** A unicodedata.UCD: a database other than the module's own (ucd_3_2_0, Unicode 3.2.0, idna's and stringprep's). */
 class PyUcd(t: PyType, @JvmField val version: String) : PyObject(t)
 
+/** A PyCapsule: its [name] (what its repr shows), and what it holds for the C API it stands for (or null). */
+class PyCapsuleObj(@JvmField val name: String, @JvmField val pointer: Any?) : PyObject(PyUnicodedata.CAPSULE)
+
 /**
  * `unicodedata` as CPython 3.14 has it (Modules/unicodedata.c): Unicode 16.0.0, and `ucd_3_2_0`, the 3.2.0 database
  * idna and stringprep read. Its data is CPython's own, not the JVM's or Android's (whose Unicode versions differ):
@@ -714,7 +717,8 @@ object PyUnicodedata {
         t.hasDict = false
         t.newImpl = { _, _, _, _ -> throw PyRt.typeError("cannot create 'PyCapsule' instances") }
         t.def("__repr__", PyBuiltin("__repr__") { _, a ->
-            PyStr("<capsule object \"unicodedata._ucnhash_CAPI\" at 0x${Integer.toHexString(System.identityHashCode(a[0])).padStart(16, '0').uppercase()}>")
+            val name = (a[0] as? PyCapsuleObj)?.name ?: "unicodedata._ucnhash_CAPI"
+            PyStr("<capsule object \"$name\" at 0x${Integer.toHexString(System.identityHashCode(a[0])).padStart(16, '0').uppercase()}>")
         })
     }
 
@@ -801,6 +805,6 @@ object PyUnicodedata {
         d[PyStr("unidata_version")] = PyStr(VERSION)
         d[PyStr("UCD")] = UCD
         d[PyStr("ucd_3_2_0")] = PyUcd(UCD, "3.2.0")
-        d[PyStr("_ucnhash_CAPI")] = PyObject(CAPSULE)
+        d[PyStr("_ucnhash_CAPI")] = PyCapsuleObj("unicodedata._ucnhash_CAPI", null)
     }
 }

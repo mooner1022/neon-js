@@ -276,7 +276,7 @@ object PyCodecs {
     private val TRANSLATE_ERROR get() = PyExceptions.type("UnicodeTranslateError")
 
     /** A UnicodeEncodeError or UnicodeDecodeError as the codecs make one: (encoding, object, start, end, reason). */
-    private fun newError(type: PyType, encoding: String, obj: Any, start: Int, end: Int, reason: String): PyBaseException {
+    internal fun newError(type: PyType, encoding: String, obj: Any, start: Int, end: Int, reason: String): PyBaseException {
         val o = PyBaseException(type)
         val args = arrayOf<Any?>(PyStr(encoding), obj, start.toLong(), end.toLong(), PyStr(reason))
         o.args = PyTuple(args)

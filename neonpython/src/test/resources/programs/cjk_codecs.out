@@ -1,0 +1,100 @@
+gb2312 gb2312 ('52b0849e9236', 'f1019a79ca75') 76e9f2c29d2f
+gbk gbk ('754623d1056f', 'e8fbe3bf108e') 041141403fb8
+gb18030 gb18030 ('440c149a3df0', 'ccec97591af5') 52afb1c969b7
+hz hz ('4ab353f346b3', 'f1019a79ca75') 2f7c15fe40ad
+big5 big5 ('3ec3c4c4e919', 'deecda95e489') 4c04ab7af3c8
+cp950 cp950 ('dd849a91333f', '88610db0fb2f') 0c037c654092
+big5hkscs big5hkscs ('b651e8fd3900', '4c871d91d027') 292e10637381
+cp932 cp932 ('1fd52678712c', '7085f3cd021c') b724c2330e17
+shift_jis shift_jis ('8e895481e357', '7096e25a68c4') e82a828c66c1
+euc_jp euc_jp ('d527c476ac3e', 'e10cab3ad2f0') 8673f1aab8e6
+shift_jis_2004 shift_jis_2004 ('6eda379fb072', '4e1053671761') 4f46aa8e5c36
+euc_jis_2004 euc_jis_2004 ('a48da83d6f70', '7dcf23f1fdfa') fadbdde0ac8a
+euc_jisx0213 euc_jisx0213 ('ae37472a5151', '4638e0845c55') 0b39c85ab70c
+shift_jisx0213 shift_jisx0213 ('7a9c976a60a7', '5bde9f4f7e19') fd4e29a2b94e
+euc_kr euc_kr ('1e44a6d3023a', '2a472f0afcd4') 16d0ce9c17bc
+cp949 cp949 ('e7f78caedd7e', '2a472f0afcd4') de5ca0c66f1e
+johab johab ('7c7bc29c6e6c', '2a472f0afcd4') 95385c7e6465
+iso2022_kr iso2022_kr ('fe645a66756b', 'a45fedcfc488') 2f7c15fe40ad
+iso2022_jp iso2022_jp ('83daf2325011', '378c9ab325a6') 2f7c15fe40ad
+iso2022_jp_1 iso2022_jp_1 ('fa394ea6299d', '2108e4e9f88a') 2f7c15fe40ad
+iso2022_jp_2 iso2022_jp_2 ('b9f4d0a030ef', '319eab0fcb18') 2f7c15fe40ad
+iso2022_jp_2004 iso2022_jp_2004 ('0e5a406b863e', '7b5f42218b70') 2f7c15fe40ad
+iso2022_jp_3 iso2022_jp_3 ('80bb108da30a', 'be09c4dc7aa6') 2f7c15fe40ad
+iso2022_jp_ext iso2022_jp_ext ('1c1f9aa90179', '9ed98fd47cd8') 2f7c15fe40ad
+gb2312 b'\xd6\xd0\xce\xc4\xb2\xe2\xca\xd4' True
+gbk b'\xd6\xd0\xce\xc4\xb2\xe2\xca\xd4' True
+gb18030 b'\xd6\xd0\xce\xc4\xb2\xe2\xca\xd4' True
+hz b'~{VPND2bJT~}' True
+iso2022_jp_2 b'\x1b$BCfJ8\x1b$(A2bJT\x1b(B' True
+big5 b'\xc1c\xc5\xe9\xa4\xa4\xa4\xe5' True
+cp950 b'\xc1c\xc5\xe9\xa4\xa4\xa4\xe5' True
+big5hkscs b'\xc1c\xc5\xe9\xa4\xa4\xa4\xe5' True
+shift_jis b'\x93\xfa\x96{\x8c\xea\x82\xcc\x83e\x83L\x83X\x83g' True
+cp932 b'\x93\xfa\x96{\x8c\xea\x82\xcc\x83e\x83L\x83X\x83g' True
+euc_jp b'\xc6\xfc\xcb\xdc\xb8\xec\xa4\xce\xa5\xc6\xa5\xad\xa5\xb9\xa5\xc8' True
+iso2022_jp b'\x1b$BF|K\\8l$N%F%-%9%H\x1b(B' True
+shift_jis_2004 b'\x93\xfa\x96{\x8c\xea\x82\xcc\x83e\x83L\x83X\x83g' True
+euc_jisx0213 b'\xc6\xfc\xcb\xdc\xb8\xec\xa4\xce\xa5\xc6\xa5\xad\xa5\xb9\xa5\xc8' True
+euc_kr b'\xc7\xd1\xb1\xb9\xbe\xee' True
+cp949 b'\xc7\xd1\xb1\xb9\xbe\xee' True
+johab b'\xd0e\x8a\x82\xb4\xe1' True
+iso2022_kr b'\x1b$)C\x0eGQ19>n\x0f' True
+gb18030 4-byte -> (b'\x810\x810\x841\xa49\x900\x810\xe32\x9a5', '\x80\U00020000')
+euc_kr make-up -> (b'\xa4\xd4\xa4\xa1\xa4\xbf\xa4\xa2', '\uac02')
+jisx0213 pair -> (b'\xa4\xf7', '\u304b\u309a')
+hkscs pair -> (b'\x88b\x88\xa5', '\xca\u0304\xea\u030c')
+hkscs plane 2 -> '\u43f0\u31c0\u79d4'
+jisx0213 2000 -> (b'\x8f\xfd\xbb', b'?', b'?')
+iso2022_jp_2 sets -> b'\x1b$(D+1\x1b$B&A\x1b$(CGQ\x1b$BCfF|\x1b(B'
+cp932 compat -> ('\x80\uf8f0\uf8f1', b'\x81`\x81_')
+hz escapes -> ('~ \u4e2dx', b'~{VP~}~~~{VP~}a~{VP~}a~{VP~}a~{VP~}~')
+codec object -> ((b'\xd6\xd0\xce\xc4\xb2\xe2\xca\xd4', 4), ('\u4e2d', 2), (b'12', 2))
+shift_jis strict !! UnicodeEncodeError "'shift_jis' codec can't encode character '\\u20ac' in position 1: illegal multibyte sequence"
+shift_jis ignore -> b'ab'
+shift_jis replace -> b'a??b?'
+shift_jis backslashreplace -> b'a\\u20ac\\U0001f600b\\u0e01'
+shift_jis xmlcharrefreplace -> b'a&#8364;&#128512;b&#3585;'
+shift_jis namereplace -> b'a\\N{EURO SIGN}\\N{GRINNING FACE}b\\N{THAI CHARACTER KO KAI}'
+iso2022_jp replace -> b'\x1b$BF|K\\\x1b(B?x'
+shift_jis dec strict !! UnicodeDecodeError "'shift_jis' codec can't decode byte 0x81 in position 1: illegal multibyte sequence"
+shift_jis dec ignore -> 'a\uff23'
+shift_jis dec replace -> 'a\ufffd\ufffd\uff23\ufffd'
+shift_jis dec backslashreplace -> 'a\\x81\\xff\uff23\\x81'
+shift_jis dec surrogateescape -> 'a\udc81\udcff\uff23\udc81'
+surrogateescape back -> b'a\x81\xff\x82b\x81'
+custom encode -> b'a\xa2\xe6[2]b[4]'
+custom decode -> 'a<1><2><3>b<5>'
+seen [('UnicodeEncodeError', 2, 3, 'illegal multibyte sequence'), ('UnicodeEncodeError', 4, 5, 'illegal multibyte sequence'), ('UnicodeDecodeError', 1, 2, 'illegal multibyte sequence'), ('UnicodeDecodeError', 2, 3, 'illegal multibyte sequence'), ('UnicodeDecodeError', 3, 4, 'illegal multibyte sequence'), ('UnicodeDecodeError', 5, 6, 'incomplete multibyte sequence')]
+bytes from handler -> b'a?!?!b?!'
+position out of bounds !! IndexError 'position 1000000 from error handler out of bounds'
+not a tuple !! TypeError 'decoding error handler must return (str, int) tuple'
+unknown handler !! LookupError "unknown error handler name 'cjk.none'"
+bytewise [('', (b'\x1b', 4342338)), ('', (b'\x1b$', 4342338)), ('', (b'', 4342466)), ('', (b'F', 4342466)), ('\u65e5', (b'', 4342466)), ('', (b'K', 4342466))] True (b'', 4342338)
+pending -> ('a', (b'\x93', 0), '\u65e5', (b'', 0))
+final !! UnicodeDecodeError "'shift_jis' codec can't decode byte 0x93 in position 0: incomplete multibyte sequence"
+after error -> (b'\x93', 0)
+encoder -> (b'\x1b$BF|', 4375040, b'\x1b(Ba', b'\x1b$BK\\', b'\x1b(B')
+encoder pair -> (b'', 2340545283, b'\xa4\xf7', b'', b'\xa4\xab')
+setstate -> (b'', None, b'\xa4\xf7')
+decoder setstate -> ((b'\x810', 0), None, '\x80')
+errors attribute -> ('strict', None, 'replace', '\ufffd')
+reset -> (None, (b'', 0))
+read(1) -> ['l', 'i', 'n', 'e', '1', ' ', '\u65e5', '\u672c', '\u8a9e']
+readline -> '\u306e\u30c6\u30ad\u30b9\u30c8\n'
+readlines -> ['line2 \u65e5\u672c\u8a9e\n']
+read all -> 'line1 \u65e5\u672c\u8a9e\u306e\u30c6\u30ad\u30b9\u30c8\nline2 \u65e5\u672c\u8a9e\n\ufffd'
+writer -> b'\x1b$)C\x0eGQ19>n\x0fa\x0eGQ'
+writer pending -> (None, b'', None, b'\x82\xa9')
+written -> b'\x93\xfa\x96{\x8c\xea\x82\xcc\x83e\x83L\x83X\x83g\nabc\n\x93\xfa\x96{\x8c\xea\n'
+tell -> [0, 17, 21, 28]
+seek -> 'abc\n\u65e5\u672c\u8a9e\n'
+iso2022 read(3) -> ['\u65e5\u672c\u8a9e', '\u306e\u30c6\u30ad', '\u30b9\u30c8\u65e5', '\u672c\u8a9e\u306e', '\u30c6\u30ad\u30b9', '\u30c8']
+strict !! UnicodeDecodeError "'gbk' codec can't decode byte 0xff in position 2: incomplete multibyte sequence"
+header -> '=?iso-2022-jp?b?GyRCRnxLXDhsGyhC?='
+decode_header -> [(b'\x1b$BF|K\\8l\x1b(B', 'iso-2022-jp')]
+mime -> 'Content-Type: text/plain; charset="iso-2022-jp"\nMIME-Version: 1.0\nContent-Transfer-Encoding: 7bit\n\n\x1b$BF|K\\8l$N%F%-%9%H\x1b(B'
+xml shift_jis !! ValueError 'multi-byte encodings are not supported'
+tostring gbk -> b"<?xml version='1.0' encoding='gbk'?>\n<a>\xd6\xd0\xce\xc4\xb2\xe2\xca\xd4</a>"
+aliases -> ['shift_jis', 'cp932', 'euc_jp', 'iso2022_jp', 'gb2312', 'cp949', 'big5hkscs', 'hz']
+iterdecode -> '\ud55c\uad6d\uc5b4'

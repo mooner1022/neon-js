@@ -769,7 +769,7 @@ object PyExpat {
         d[PyStr("XML_PARAM_ENTITY_PARSING_NEVER")] = Expat.XML_PARAM_ENTITY_PARSING_NEVER.toLong()
         d[PyStr("XML_PARAM_ENTITY_PARSING_UNLESS_STANDALONE")] = Expat.XML_PARAM_ENTITY_PARSING_UNLESS_STANDALONE.toLong()
         d[PyStr("XML_PARAM_ENTITY_PARSING_ALWAYS")] = Expat.XML_PARAM_ENTITY_PARSING_ALWAYS.toLong()
-        d[PyStr("expat_CAPI")] = PyObject(PyUnicodedata.CAPSULE)
+        d[PyStr("expat_CAPI")] = PyCapsuleObj("pyexpat.expat_CAPI", null)
     }
 
     /** The errors module's names, by code. */
