@@ -138,7 +138,7 @@ object PyBuiltins {
                 val b = longOf(base, "base")
                 val v = args.getOrNull(0) ?: throw PyRt.typeError("int() missing string argument")
                 // (bytes and bytearray too: their ASCII digits)
-                val text = bytesText(v) ?: (v as? PyStr) ?: ((v as? PyNumSub)?.num as? PyStr)
+                val text = bytesText(v) ?: ((v as? PyStr) ?: ((v as? PyNumSub)?.num as? PyStr))?.let { asciiDigits(it) }
                     ?: throw PyRt.typeError("int() can't convert non-string with explicit base")
                 if (b != 0L && (b < 2 || b > 36)) throw PyException("ValueError", "int() base must be >= 2 and <= 36, or 0")
                 return@type parseInt(text, b.toInt(), PyRt.repr(v))
@@ -158,7 +158,7 @@ object PyBuiltins {
                     if (v.isInfinite()) throw PyException("OverflowError", "cannot convert float infinity to integer")
                     PyRt.norm(java.math.BigDecimal(v).toBigInteger())
                 }
-                is PyStr -> parseInt(v, 10)
+                is PyStr -> parseInt(asciiDigits(v), 10, PyRt.repr(v))
                 else -> throw PyRt.typeError("int() argument must be a string, a bytes-like object or a real number, not '${PyTypes.name(v)}'")
             }
         }
@@ -718,17 +718,23 @@ object PyBuiltins {
     /** float() of a str's (or a bytes-like object's) text [s]: its float, else ValueError with [v]'s repr. */
     private fun floatText(s: String, v: Any?): Double =
         // (a bytes-like object's: ASCII only, as _PyOS_ascii_strtod reads it; a str's through Unicode's digits and spaces)
-        (if (v is PyStr) PyLiterals.parseFloat(s) else if (s.any { it.code >= 128 }) null else PyLiterals.parseFloat(s))
+        (if (v is PyStr || s.none { it.code >= 128 }) parseFloat(s) else null)
             ?: throw PyException("ValueError", "could not convert string to float: ${PyRt.repr(v)}")
 
     /** The text of bytes or a bytearray as int() reads it (Latin-1: its ASCII digits), or null for anything else. */
     private fun bytesText(v: Any?): PyStr? =
         if (v is PyBytes || v is PyByteArray || v is PyNumSub && v.num is PyBytes) PyStr(String(PyByteSeqs.content(v)!!, Charsets.ISO_8859_1)) else null
 
+    /** A str as int() reads it: its whitespace and decimal digits past ASCII ASCII's (the rest cut, '?'). */
+    private fun asciiDigits(v: PyStr) = PyStr(PyUnicodeType.decimalAndSpaceToAscii(v.s))
+
+    /** Py_ISSPACE: what int(), float() and complex() strip (after the transform, ASCII's whitespace). */
+    @JvmStatic fun isAsciiSpace(c: Char) = c == ' ' || c in '\t'..'\r'
+
     /** int(s, base): Python's int literal syntax (sign, underscores between digits, a prefix where base is 0 or matches). */
     @JvmStatic fun parseInt(v: PyStr, base: Int, shown: String? = null): Any {
         fun bad(): Nothing = throw PyException("ValueError", "invalid literal for int() with base $base: ${shown ?: PyRt.repr(v)}")
-        var s = v.s.trim { PyLiterals.isPySpace(it) }
+        var s = v.s.trim(::isAsciiSpace)
         var neg = false
         if (s.startsWith("+") || s.startsWith("-")) { neg = s[0] == '-'; s = s.substring(1) }
         var b = base
@@ -757,6 +763,48 @@ object PyBuiltins {
         }
         val r = BigInteger(digits, b)
         return PyRt.norm(if (neg) r.negate() else r)
+    }
+
+    /**
+     * float(s) (PyFloat_FromString): its whitespace and decimal digits past ASCII ASCII's, underscores only between
+     * digits, ASCII's whitespace around, then a float as PyOS_string_to_double reads one; null where it is not one.
+     */
+    @JvmStatic fun parseFloat(str: String): Double? {
+        val s = underscores(PyUnicodeType.decimalAndSpaceToAscii(str))?.trim(::isAsciiSpace) ?: return null
+        return if (s.isEmpty()) null else asciiDouble(s)
+    }
+
+    /** _Py_string_to_number_with_underscores: [s] without its underscores, each after a digit and before one; null
+     *  where one is not, or where there is a NUL. */
+    @JvmStatic fun underscores(s: String): String? {
+        if ('_' !in s) return s
+        val sb = StringBuilder(s.length)
+        var prev = 0.toChar()
+        for (ch in s) {
+            if (ch == 0.toChar()) return null
+            if (ch == '_') {
+                if (prev !in '0'..'9') return null
+            } else {
+                sb.append(ch)
+                if (prev == '_' && ch !in '0'..'9') return null
+            }
+            prev = ch
+        }
+        return if (prev == '_') null else sb.toString()
+    }
+
+    private val ASCII_FLOAT = Regex("[+-]?([0-9]+\\.?[0-9]*|\\.[0-9]+)([eE][+-]?[0-9]+)?")
+
+    /** PyOS_string_to_double over all of [s]: a sign, digits with a point and an exponent, or inf, infinity or nan in
+     *  any case; null where it is not that. */
+    @JvmStatic fun asciiDouble(s: String): Double? {
+        val neg = s.startsWith('-')
+        when (if (neg || s.startsWith('+')) s.substring(1).lowercase() else s.lowercase()) {
+            "inf", "infinity" -> return if (neg) Double.NEGATIVE_INFINITY else Double.POSITIVE_INFINITY
+            // (its sign bit set where the text has '-', as C's strtod gives it)
+            "nan" -> return if (neg) -Double.NaN else Double.NaN
+        }
+        return if (ASCII_FLOAT.matches(s)) s.toDouble() else null
     }
 
     @JvmStatic fun toList(v: Any?): ArrayList<Any?> {
@@ -809,6 +857,6 @@ object PyBuiltins {
             if (v is PyStr) v.s else throw PyRt.typeError("sequence item $i: expected str instance, ${PyTypes.name(v)} found")
         })
     }
-    private val STR_UPPER = PyBuiltin("upper") { _, a -> PyStr((a[0] as PyStr).s.uppercase()) }
-    private val STR_LOWER = PyBuiltin("lower") { _, a -> PyStr((a[0] as PyStr).s.lowercase()) }
+    private val STR_UPPER = PyBuiltin("upper") { _, a -> PyStr(PyUnicodeType.upper((a[0] as PyStr).s)) }
+    private val STR_LOWER = PyBuiltin("lower") { _, a -> PyStr(PyUnicodeType.lower((a[0] as PyStr).s)) }
 }

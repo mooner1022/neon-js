@@ -259,7 +259,7 @@ class PyParser(private val src: String) {
 
     private fun functionDef(decorators: List<Expr>, async: Boolean, start: PyToken): Stmt {
         next() // def
-        val name = expectName().text
+        val name = expectName().id
         val lb = tok
         val tps = try {
             typeParams()
@@ -280,7 +280,7 @@ class PyParser(private val src: String) {
 
     private fun classDef(decorators: List<Expr>, start: PyToken): Stmt {
         next() // class
-        val name = expectName().text
+        val name = expectName().id
         val tps = typeParams()
         var bases: List<Expr> = emptyList()
         var keywords: List<Keyword> = emptyList()
@@ -303,16 +303,16 @@ class PyParser(private val src: String) {
             out.add(when {
                 atOp("*") -> {
                     next()
-                    val n = expectName().text
+                    val n = expectName().id
                     TypeVarTuple(n, if (atOp("=")) { next(); starExpression() } else null).at(t)
                 }
                 atOp("**") -> {
                     next()
-                    val n = expectName().text
+                    val n = expectName().id
                     ParamSpec(n, if (atOp("=")) { next(); expression() } else null).at(t)
                 }
                 else -> {
-                    val n = expectName().text
+                    val n = expectName().id
                     val bound = if (atOp(":")) { next(); expression() } else null
                     TypeVar(n, bound, if (atOp("=")) { next(); expression() } else null).at(t)
                 }
@@ -340,7 +340,7 @@ class PyParser(private val src: String) {
         var slash = false
         fun param(starred: Boolean = false): Arg {
             val t = tok
-            val n = expectName().text
+            val n = expectName().id
             val ann = if (annotations && atOp(":")) { next(); if (starred) starExpression() else expression() } else null
             return Arg(n, ann).at(t)
         }
@@ -517,7 +517,7 @@ class PyParser(private val src: String) {
             error("cannot use ${if (star) "except*" else "except"} statement with ${targetWhat(e!!)}", t = t)
         }
         p = save
-        return expectName().text
+        return expectName().id
     }
 
     private fun simpleStatement(): Stmt {
@@ -538,8 +538,8 @@ class PyParser(private val src: String) {
             }
             "global", "nonlocal" -> {
                 next()
-                val names = arrayListOf(expectName().text)
-                while (atOp(",")) { next(); names.add(expectName().text) }
+                val names = arrayListOf(expectName().id)
+                while (atOp(",")) { next(); names.add(expectName().id) }
                 return if (t.text == "global") Global(names).at(t) else Nonlocal(names).at(t)
             }
             "del" -> {
@@ -588,7 +588,7 @@ class PyParser(private val src: String) {
                 if (n.kind == Kind.NAME && n.text !in KEYWORDS && (peek(2).kind == Kind.OP && (peek(2).text == "=" || peek(2).text == "["))) {
                     next()
                     val nt = next()
-                    val name = Name(nt.text, Ctx.Store).at(nt)
+                    val name = Name(nt.id, Ctx.Store).at(nt)
                     val tps = typeParams()
                     expectOp("=")
                     return TypeAlias(name, tps, expression()).at(t)
@@ -601,8 +601,8 @@ class PyParser(private val src: String) {
     private fun endOfSimple() = at(Kind.NEWLINE) || atOp(";") || at(Kind.END)
 
     private fun dottedName(): String {
-        val sb = StringBuilder(expectName().text)
-        while (atOp(".")) { next(); sb.append('.').append(expectName().text) }
+        val sb = StringBuilder(expectName().id)
+        while (atOp(".")) { next(); sb.append('.').append(expectName().id) }
         return sb.toString()
     }
 
@@ -618,13 +618,13 @@ class PyParser(private val src: String) {
      */
     private fun importTarget(): String {
         val n = peek()
-        if (atIdentifier() && (n.kind == Kind.NEWLINE || n.kind == Kind.OP && n.text in setOf(",", ")", ";"))) return next().text
+        if (atIdentifier() && (n.kind == Kind.NEWLINE || n.kind == Kind.OP && n.text in setOf(",", ")", ";"))) return next().id
         val t = tok
         val save = p
         var e: Expr? = null
         if (invalidRules && speculate { e = expression() }) error("cannot use ${targetWhat(e!!)} as import target", t = t)
         p = save
-        return expectName().text
+        return expectName().id
     }
 
     private fun importFrom(): Stmt {
@@ -648,7 +648,7 @@ class PyParser(private val src: String) {
         if (paren) next()
         while (true) {
             val at = tok
-            val n = expectName().text
+            val n = expectName().id
             names.add(Alias(n, if (atName("as")) { next(); importTarget() } else null).at(at))
             if (!atOp(",")) break
             next()
@@ -925,7 +925,7 @@ class PyParser(private val src: String) {
         if (atIdentifier() && peek().kind == Kind.OP && peek().text == ":=") {
             val t = next()
             // (the target made before := is taken: its end is the name's)
-            val target = Name(t.text, Ctx.Store).at(t)
+            val target = Name(t.id, Ctx.Store).at(t)
             next()
             return NamedExpr(target, expression()).at(t)
         }
@@ -1144,7 +1144,7 @@ class PyParser(private val src: String) {
             e = when {
                 atOp(".") -> {
                     next()
-                    Attribute(e, expectName().text).at(e.line, e.col)
+                    Attribute(e, expectName().id).at(e.line, e.col)
                 }
                 atOp("(") -> {
                     next()
@@ -1208,7 +1208,7 @@ class PyParser(private val src: String) {
                     error("cannot assign to ${t.text}")
                 }
                 atIdentifier() && peek().kind == Kind.OP && peek().text == "=" -> {
-                    val n = next().text
+                    val n = next().id
                     next()
                     // (CPython's invalid_arguments: no value, or a generator expression's)
                     if (atOp(",") || atOp(")")) error("expected argument value expression", t = t)
@@ -1327,7 +1327,7 @@ class PyParser(private val src: String) {
                         error()
                     }
                     in KEYWORDS -> error()
-                    else -> { next(); Name(t.text).at(t) }
+                    else -> { next(); Name(t.id).at(t) }
                 }
             }
             Kind.OP -> when (t.text) {
@@ -1580,9 +1580,11 @@ class PyParser(private val src: String) {
             // (CPython's invalid_fstring_conversion_character)
             if (atOp(":") || atOp("}")) error("$what: missing conversion character")
             if (c.kind != Kind.NAME) error("$what: invalid conversion character")
-            if (c.text !in setOf("s", "r", "a")) error("$what: invalid conversion character '${c.text}': expected 's', 'r', or 'a'")
+            // (its identifier, as CPython's Name: NFKC-normalized)
+            val id = c.id
+            if (id !in setOf("s", "r", "a")) error("$what: invalid conversion character '$id': expected 's', 'r', or 'a'")
             next()
-            conversion = c.text[0].code
+            conversion = id[0].code
         }
         var spec: Expr? = null
         if (atOp(":")) {
@@ -1716,7 +1718,7 @@ class PyParser(private val src: String) {
     private fun maybeStarPattern(): Pattern {
         if (atOp("*")) {
             val t = next()
-            val n = expectName().text
+            val n = expectName().id
             return MatchStar(if (n == "_") null else n).at(t)
         }
         return pattern()
@@ -1737,7 +1739,7 @@ class PyParser(private val src: String) {
             if (invalidRules && speculate { e = expression() }) error("cannot use ${targetWhat(e!!)} as pattern target", t = nt)
             this.p = save
         }
-        val n = expectName().text
+        val n = expectName().id
         if (n == "_") error("cannot use '_' as a target", t = nt)
         return MatchAs(p, n).at(t)
     }
@@ -1790,11 +1792,11 @@ class PyParser(private val src: String) {
             }
             atOp("{") -> return mappingPattern()
             atIdentifier() -> {
-                var e: Expr = Name(next().text).at(t)
+                var e: Expr = Name(next().id).at(t)
                 var dotted = false
                 while (atOp(".")) {
                     next()
-                    e = Attribute(e, expectName().text).at(t)
+                    e = Attribute(e, expectName().id).at(t)
                     dotted = true
                 }
                 if (atOp("(")) return classPattern(e, t)
@@ -1833,7 +1835,7 @@ class PyParser(private val src: String) {
             if (atOp("**")) {
                 next()
                 val nt = tok
-                rest = expectName().text
+                rest = expectName().id
                 // (a capture target: not _)
                 if (rest == "_") error(t = nt)
             } else {
@@ -1845,9 +1847,9 @@ class PyParser(private val src: String) {
                     atName("True") -> { next(); Constant(PyBool.TRUE).at(kt) }
                     atName("False") -> { next(); Constant(PyBool.FALSE).at(kt) }
                     atIdentifier() -> {
-                        var e: Expr = Name(next().text).at(kt)
+                        var e: Expr = Name(next().id).at(kt)
                         if (!atOp(".")) error("mapping pattern keys may only match literals and attribute lookups")
-                        while (atOp(".")) { next(); e = Attribute(e, expectName().text).at(kt) }
+                        while (atOp(".")) { next(); e = Attribute(e, expectName().id).at(kt) }
                         e
                     }
                     else -> error()
@@ -1869,7 +1871,7 @@ class PyParser(private val src: String) {
         val kps = ArrayList<Pattern>()
         while (!atOp(")")) {
             if (atIdentifier() && peek().kind == Kind.OP && peek().text == "=") {
-                kwds.add(next().text)
+                kwds.add(next().id)
                 next()
                 kps.add(pattern())
             } else {

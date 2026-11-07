@@ -69,19 +69,7 @@ object PySlots {
         return if (stripped.isEmpty()) name else "_$stripped$name"
     }
 
-    private fun isIdentifier(s: String): Boolean {
-        if (s.isEmpty()) return false
-        var i = 0
-        var first = true
-        while (i < s.length) {
-            val c = s.codePointAt(i)
-            val ok = if (first) c == '_'.code || Character.isUnicodeIdentifierStart(c) else Character.isUnicodeIdentifierPart(c) && !Character.isIdentifierIgnorable(c)
-            if (!ok) return false
-            first = false
-            i += Character.charCount(c)
-        }
-        return true
-    }
+    private fun isIdentifier(s: String): Boolean = PyUnicodeType.isIdentifier(s)
 
     /** A new class [t]'s slots: from its dict's `__slots__` where it has one, else its bases' layout and a __dict__. */
     @JvmStatic

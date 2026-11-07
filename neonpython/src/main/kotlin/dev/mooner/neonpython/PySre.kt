@@ -88,20 +88,17 @@ object PySre {
     private fun isAsciiSpace(c: Int) = c == 32 || c in 9..13
     private fun isAsciiAlnum(c: Int) = c in 48..57 || c in 65..90 || c in 97..122
     private fun isWord(c: Int) = isAsciiAlnum(c) || c == '_'.code
-    private fun isUniDecimal(c: Int) = Character.getType(c) == Character.DECIMAL_DIGIT_NUMBER.toInt()
-    private fun isUniSpace(c: Int) = PyStrings.isSpace(c)
-    private fun isUniAlnum(c: Int): Boolean = when (Character.getType(c).toByte()) {
-        Character.UPPERCASE_LETTER, Character.LOWERCASE_LETTER, Character.TITLECASE_LETTER, Character.MODIFIER_LETTER, Character.OTHER_LETTER,
-        Character.DECIMAL_DIGIT_NUMBER, Character.LETTER_NUMBER, Character.OTHER_NUMBER -> true
-        else -> false
-    }
+    // (SRE_UNI_IS_*, sre_lower_unicode, sre_upper_unicode: str's, CPython's table)
+    private fun isUniDecimal(c: Int) = PyUnicodeType.isDecimal(c)
+    private fun isUniSpace(c: Int) = PyUnicodeType.isSpace(c)
+    private fun isUniAlnum(c: Int): Boolean = PyUnicodeType.isAlnum(c)
     private fun isUniWord(c: Int) = isUniAlnum(c) || c == '_'.code
-    private fun isUniLinebreak(c: Int) = c in 0x0a..0x0d || c in 0x1c..0x1e || c == 0x85 || c == 0x2028 || c == 0x2029
+    private fun isUniLinebreak(c: Int) = PyUnicodeType.isLinebreak(c)
 
     private fun lowerAscii(c: Int) = if (c in 65..90) c + 32 else c
     private fun upperAscii(c: Int) = if (c in 97..122) c - 32 else c
-    @JvmStatic fun lowerUnicode(c: Int): Int = Character.toLowerCase(c)
-    @JvmStatic fun upperUnicode(c: Int): Int = Character.toUpperCase(c)
+    @JvmStatic fun lowerUnicode(c: Int): Int = PyUnicodeType.toLower(c)
+    @JvmStatic fun upperUnicode(c: Int): Int = PyUnicodeType.toUpper(c)
 
     private fun category(code: Int, c: Int): Boolean = when (code) {
         0 -> isAsciiDigit(c)

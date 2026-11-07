@@ -1,11 +1,9 @@
 package dev.mooner.neonpython
 
-import java.util.Locale
-
 /**
  * str's methods (docs/PYTHON_PLATFORM.md §11: the types behind literals), as CPython 3.14's unicodeobject.c has
- * them: indices by code point, Python's whitespace (str.isspace: '\xa0' and '\x1c'..'\x1f' among it), Unicode's
- * categories for the predicates, CPython's messages.
+ * them: indices by code point, CPython's whitespace, line breaks, predicates and case mappings ([PyUnicodeType]: its
+ * Unicode, not the JVM's), CPython's messages.
  */
 object PyStrings {
     private fun self(a: Array<Any?>, n: String): PyStr =
@@ -14,8 +12,7 @@ object PyStrings {
     private fun str(v: Any?, n: String, i: Int): String =
         (v as? PyStr ?: throw PyRt.typeError("$n() argument $i must be str, not ${PyTypes.name(v)}")).s
 
-    @JvmStatic
-    fun isSpace(c: Int): Boolean = c in 0x09..0x0d || c in 0x1c..0x1f || c == 0x85 || Character.isSpaceChar(c)
+    private fun isSpace(c: Int): Boolean = PyUnicodeType.isSpace(c)
 
     private fun cps(s: String): IntArray = s.codePoints().toArray()
 
@@ -95,7 +92,7 @@ object PyStrings {
         return PyList(out)
     }
 
-    private fun isLineBreak(c: Int) = c == 0x0a || c == 0x0d || c == 0x0b || c == 0x0c || c in 0x1c..0x1e || c == 0x85 || c == 0x2028 || c == 0x2029
+    private fun isLineBreak(c: Int) = PyUnicodeType.isLinebreak(c)
 
     @JvmStatic
     fun splitlines(s: String, keep: Boolean): PyList {
@@ -221,110 +218,6 @@ object PyStrings {
         return false
     }
 
-    // ------------------------------------------------------------------ case
-
-    private fun isCased(c: Int) = Character.isUpperCase(c) || Character.isLowerCase(c) || Character.isTitleCase(c)
-
-    private fun cpLower(c: Int): String = String(Character.toChars(c)).lowercase(Locale.ROOT)
-    private fun cpUpper(c: Int): String = String(Character.toChars(c)).uppercase(Locale.ROOT)
-    private fun cpTitle(c: Int): String = if (c == 'ß'.code) "Ss" else String(Character.toChars(Character.toTitleCase(c)))
-
-    @JvmStatic
-    fun title(s: String): String {
-        val sb = StringBuilder()
-        var prev = false
-        for (c in cps(s)) {
-            sb.append(if (prev) cpLower(c) else cpTitle(c))
-            prev = isCased(c)
-        }
-        return sb.toString()
-    }
-
-    @JvmStatic
-    fun capitalize(s: String): String {
-        val c = cps(s)
-        if (c.isEmpty()) return s
-        val sb = StringBuilder(cpTitle(c[0]))
-        for (i in 1 until c.size) sb.append(cpLower(c[i]))
-        return sb.toString()
-    }
-
-    @JvmStatic
-    fun swapcase(s: String): String {
-        val sb = StringBuilder()
-        for (c in cps(s)) sb.append(when {
-            Character.isUpperCase(c) || Character.isTitleCase(c) -> cpLower(c)
-            Character.isLowerCase(c) -> cpUpper(c)
-            else -> String(Character.toChars(c))
-        })
-        return sb.toString()
-    }
-
-    // ------------------------------------------------------------------ predicates
-
-    private fun isDecimal(c: Int) = Character.getType(c) == Character.DECIMAL_DIGIT_NUMBER.toInt()
-    private fun isDigit(c: Int) = isDecimal(c) || Character.getType(c) == Character.OTHER_NUMBER.toInt() && Character.getNumericValue(c) in 0..9
-    private fun isNumeric(c: Int) = when (Character.getType(c).toByte()) {
-        Character.DECIMAL_DIGIT_NUMBER, Character.LETTER_NUMBER, Character.OTHER_NUMBER -> true
-        else -> false
-    }
-    private fun isAlpha(c: Int) = when (Character.getType(c).toByte()) {
-        Character.UPPERCASE_LETTER, Character.LOWERCASE_LETTER, Character.TITLECASE_LETTER, Character.MODIFIER_LETTER, Character.OTHER_LETTER -> true
-        else -> false
-    }
-
-    private fun all(s: String, p: (Int) -> Boolean): Boolean {
-        val c = cps(s)
-        return c.isNotEmpty() && c.all(p)
-    }
-
-    @JvmStatic
-    fun isLower(s: String): Boolean {
-        var cased = false
-        for (c in cps(s)) {
-            if (Character.isUpperCase(c) || Character.isTitleCase(c)) return false
-            if (Character.isLowerCase(c)) cased = true
-        }
-        return cased
-    }
-
-    @JvmStatic
-    fun isUpper(s: String): Boolean {
-        var cased = false
-        for (c in cps(s)) {
-            if (Character.isLowerCase(c) || Character.isTitleCase(c)) return false
-            if (Character.isUpperCase(c)) cased = true
-        }
-        return cased
-    }
-
-    @JvmStatic
-    fun isTitle(s: String): Boolean {
-        var cased = false
-        var prev = false
-        for (c in cps(s)) {
-            if (Character.isUpperCase(c) || Character.isTitleCase(c)) {
-                if (prev) return false
-                prev = true
-                cased = true
-            } else if (Character.isLowerCase(c)) {
-                if (!prev) return false
-                prev = true
-                cased = true
-            } else prev = false
-        }
-        return cased
-    }
-
-    @JvmStatic
-    fun isIdentifier(s: String): Boolean {
-        val c = cps(s)
-        if (c.isEmpty()) return false
-        fun start(x: Int) = x == '_'.code || Character.isUnicodeIdentifierStart(x)
-        fun part(x: Int) = start(x) || Character.isUnicodeIdentifierPart(x) && !Character.isIdentifierIgnorable(x)
-        return start(c[0]) && (1 until c.size).all { part(c[it]) }
-    }
-
     // ------------------------------------------------------------------ the methods
 
     @JvmStatic
@@ -402,12 +295,12 @@ object PyStrings {
             }
             PyStr(sb.toString())
         }
-        m("capitalize") { a, _ -> PyStr(capitalize(self(a, "capitalize").s)) }
-        m("title") { a, _ -> PyStr(title(self(a, "title").s)) }
-        m("swapcase") { a, _ -> PyStr(swapcase(self(a, "swapcase").s)) }
-        m("casefold") { a, _ -> PyStr(self(a, "casefold").s.uppercase(Locale.ROOT).lowercase(Locale.ROOT)) }
-        m("upper") { a, _ -> PyStr(self(a, "upper").s.uppercase(Locale.ROOT)) }
-        m("lower") { a, _ -> PyStr(self(a, "lower").s.lowercase(Locale.ROOT)) }
+        m("capitalize") { a, _ -> PyStr(PyUnicodeType.capitalize(self(a, "capitalize").s)) }
+        m("title") { a, _ -> PyStr(PyUnicodeType.title(self(a, "title").s)) }
+        m("swapcase") { a, _ -> PyStr(PyUnicodeType.swapcase(self(a, "swapcase").s)) }
+        m("casefold") { a, _ -> PyStr(PyUnicodeType.casefold(self(a, "casefold").s)) }
+        m("upper") { a, _ -> PyStr(PyUnicodeType.upper(self(a, "upper").s)) }
+        m("lower") { a, _ -> PyStr(PyUnicodeType.lower(self(a, "lower").s)) }
         m("find") { a, _ -> findIn(a, "find", false).toLong() }
         m("rfind") { a, _ -> findIn(a, "rfind", true).toLong() }
         m("index") { a, _ -> findIn(a, "index", false).let { if (it < 0) throw PyException("ValueError", "substring not found") else it.toLong() } }
@@ -446,18 +339,18 @@ object PyStrings {
         }
         m("removeprefix") { a, _ -> val s = self(a, "removeprefix").s; val p = str(a.getOrNull(1), "removeprefix", 1); PyStr(if (s.startsWith(p)) s.substring(p.length) else s) }
         m("removesuffix") { a, _ -> val s = self(a, "removesuffix").s; val p = str(a.getOrNull(1), "removesuffix", 1); PyStr(if (p.isNotEmpty() && s.endsWith(p)) s.substring(0, s.length - p.length) else s) }
-        m("isalpha") { a, _ -> PyBool.of(all(self(a, "isalpha").s, ::isAlpha)) }
-        m("isalnum") { a, _ -> PyBool.of(all(self(a, "isalnum").s) { isAlpha(it) || isNumeric(it) }) }
-        m("isdigit") { a, _ -> PyBool.of(all(self(a, "isdigit").s, ::isDigit)) }
-        m("isdecimal") { a, _ -> PyBool.of(all(self(a, "isdecimal").s, ::isDecimal)) }
-        m("isnumeric") { a, _ -> PyBool.of(all(self(a, "isnumeric").s, ::isNumeric)) }
-        m("isspace") { a, _ -> PyBool.of(all(self(a, "isspace").s, ::isSpace)) }
-        m("islower") { a, _ -> PyBool.of(isLower(self(a, "islower").s)) }
-        m("isupper") { a, _ -> PyBool.of(isUpper(self(a, "isupper").s)) }
-        m("istitle") { a, _ -> PyBool.of(isTitle(self(a, "istitle").s)) }
-        m("isidentifier") { a, _ -> PyBool.of(isIdentifier(self(a, "isidentifier").s)) }
+        m("isalpha") { a, _ -> PyBool.of(PyUnicodeType.all(self(a, "isalpha").s, PyUnicodeType.ALPHA)) }
+        m("isalnum") { a, _ -> PyBool.of(PyUnicodeType.all(self(a, "isalnum").s, PyUnicodeType.ALNUM)) }
+        m("isdigit") { a, _ -> PyBool.of(PyUnicodeType.all(self(a, "isdigit").s, PyUnicodeType.DIGIT)) }
+        m("isdecimal") { a, _ -> PyBool.of(PyUnicodeType.all(self(a, "isdecimal").s, PyUnicodeType.DECIMAL)) }
+        m("isnumeric") { a, _ -> PyBool.of(PyUnicodeType.all(self(a, "isnumeric").s, PyUnicodeType.NUMERIC)) }
+        m("isspace") { a, _ -> PyBool.of(PyUnicodeType.all(self(a, "isspace").s, PyUnicodeType.SPACE)) }
+        m("islower") { a, _ -> PyBool.of(PyUnicodeType.isLower(self(a, "islower").s)) }
+        m("isupper") { a, _ -> PyBool.of(PyUnicodeType.isUpper(self(a, "isupper").s)) }
+        m("istitle") { a, _ -> PyBool.of(PyUnicodeType.isTitle(self(a, "istitle").s)) }
+        m("isidentifier") { a, _ -> PyBool.of(PyUnicodeType.isIdentifier(self(a, "isidentifier").s)) }
         m("isascii") { a, _ -> PyBool.of(self(a, "isascii").s.all { it.code < 0x80 }) }
-        m("isprintable") { a, _ -> PyBool.of(cps(self(a, "isprintable").s).all { PyRt.printable(it) }) }
+        m("isprintable") { a, _ -> PyBool.of(PyUnicodeType.isPrintable(self(a, "isprintable").s)) }
         m("translate") { a, _ ->
             val s = self(a, "translate").s
             val table = a.getOrNull(1)

@@ -666,15 +666,8 @@ object PyRt {
         return sb.append(q).toString()
     }
 
-    /** str.isprintable of one code point: not a control, format, surrogate, private, unassigned or separator (but ' '). */
-    @JvmStatic fun printable(c: Int): Boolean {
-        if (c == ' '.code) return true
-        return when (Character.getType(c).toByte()) {
-            Character.CONTROL, Character.FORMAT, Character.SURROGATE, Character.PRIVATE_USE, Character.UNASSIGNED,
-            Character.LINE_SEPARATOR, Character.PARAGRAPH_SEPARATOR, Character.SPACE_SEPARATOR -> false
-            else -> true
-        }
-    }
+    /** str.isprintable of one code point (Py_UNICODE_ISPRINTABLE: CPython's table, [PyUnicodeType]). */
+    @JvmStatic fun printable(c: Int): Boolean = PyUnicodeType.isPrintable(c)
 
     // ------------------------------------------------------------------ items, attributes, iteration
 

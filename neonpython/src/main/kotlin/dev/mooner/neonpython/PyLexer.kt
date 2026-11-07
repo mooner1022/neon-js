@@ -10,6 +10,18 @@ class PyToken(@JvmField val kind: Kind, @JvmField val text: String, @JvmField va
               @JvmField val col: Int, @JvmField val start: Int = 0, @JvmField val end: Int = 0) {
     enum class Kind { NAME, NUMBER, STRING, FSTRING_START, FSTRING_MIDDLE, FSTRING_END, OP, NEWLINE, INDENT, DEDENT, END }
 
+    /**
+     * A NAME's identifier, as CPython's parser makes it (_PyPegen_new_identifier): its text, NFKC-normalized where it
+     * is not ASCII ([value]: its text is the source's, which is no keyword); one that becomes None, True or False a
+     * ValueError.
+     */
+    val id: String
+        get() {
+            val v = value as? String ?: return text
+            if (v == "None" || v == "True" || v == "False") throw PyException("ValueError", "identifier field can't represent '$v' constant")
+            return v
+        }
+
     override fun toString() = "$kind '$text' at $line:$col"
 }
 
@@ -146,7 +158,7 @@ class PyLexer(private val src: String) {
                     newline()
                 }
                 mode != null && depth == mode.base && fieldPunct(mode, c) -> {}
-                c.isLetter() || c == '_' || c.code > 127 && Character.isUnicodeIdentifierStart(src.codePointAt(pos)) -> nameOrString()
+                c in 'a'..'z' || c in 'A'..'Z' || c == '_' || c.code >= 128 -> nameOrString()
                 c in '0'..'9' || c == '.' && pos + 1 < src.length && src[pos + 1] in '0'..'9' -> number()
                 c == '"' || c == '\'' -> string("", pos)
                 else -> op()
@@ -188,11 +200,19 @@ class PyLexer(private val src: String) {
         out.add(PyToken(kind, text, value, startLine, startCol, start, pos))
     }
 
+    /**
+     * A name, or a string's prefix: ASCII's letters, digits and '_' and whatever is past ASCII (CPython's
+     * is_potential_identifier_char), a name past ASCII then checked (verify_identifier: its first XID_Start or '_',
+     * the rest XID_Continue, [PyUnicodeType]'s) and its identifier NFKC-normalized ([PyUnicodedata]'s).
+     */
     private fun nameOrString() {
         val start = pos
-        while (pos < src.length && (src[pos].isLetterOrDigit() || src[pos] == '_' ||
-                src[pos].code > 127 && Character.isUnicodeIdentifierPart(src.codePointAt(pos)))) {
-            pos += Character.charCount(src.codePointAt(pos))
+        var nonAscii = false
+        while (pos < src.length) {
+            val ch = src[pos]
+            if (ch.code >= 128) nonAscii = true
+            else if (!(ch in 'a'..'z' || ch in 'A'..'Z' || ch in '0'..'9' || ch == '_')) break
+            pos++
         }
         val text = src.substring(start, pos)
         if (pos < src.length && (src[pos] == '"' || src[pos] == '\'')) {
@@ -210,7 +230,19 @@ class PyLexer(private val src: String) {
                 }
             }
         }
-        out.add(PyToken(PyToken.Kind.NAME, java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFKC), null, line, col(start), start, pos))
+        var id: String? = null
+        if (nonAscii) {
+            val invalid = PyUnicodeType.scanIdentifier(text)
+            if (invalid < text.codePointCount(0, text.length)) {
+                val at = text.offsetByCodePoints(0, invalid)
+                val cp = text.codePointAt(at)
+                val hex = Integer.toHexString(cp).uppercase().padStart(4, '0')
+                throw PySyntaxError(if (PyRt.printable(cp)) "invalid character '${String(Character.toChars(cp))}' (U+$hex)"
+                    else "invalid non-printable character U+$hex", line, col(start + at))
+            }
+            id = PyUnicodedata.normalize(false, PyStr("NFKC"), PyStr(text)).s
+        }
+        out.add(PyToken(PyToken.Kind.NAME, text, id, line, col(start), start, pos))
     }
 
     /**
@@ -257,7 +289,7 @@ class PyLexer(private val src: String) {
         if (src[pos] == '0' && pos + 1 < src.length && src[pos + 1] in "xXoObB") {
             val r = src[pos + 1].lowercaseChar()
             val (kind, radix) = when (r) { 'x' -> "hexadecimal" to 16; 'o' -> "octal" to 8; else -> "binary" to 2 }
-            fun ok(ch: Char) = Character.digit(ch, radix) >= 0 && (radix == 16 || digit(ch))
+            fun ok(ch: Char) = ch.code < 128 && Character.digit(ch, radix) >= 0 && (radix == 16 || digit(ch))
             pos += 2
             do {
                 if (c() == '_') pos++

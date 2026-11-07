@@ -656,13 +656,7 @@ object PyTokenize {
             if (decodingErred) return false
             val s = decodeStrict(start, cur)
             val cps = s.codePoints().toArray()
-            fun xidStart(x: Int) = x == '_'.code || Character.isUnicodeIdentifierStart(x)
-            fun xidContinue(x: Int) = xidStart(x) || Character.isUnicodeIdentifierPart(x) && !Character.isIdentifierIgnorable(x)
-            var invalid = 0
-            if (xidStart(cps[0])) {
-                invalid = 1
-                while (invalid < cps.size && xidContinue(cps[invalid])) invalid++
-            }
+            val invalid = PyUnicodeType.scanIdentifier(s)
             if (invalid < cps.size) {
                 val ch = cps[invalid]
                 if (invalid + 1 < cps.size) {

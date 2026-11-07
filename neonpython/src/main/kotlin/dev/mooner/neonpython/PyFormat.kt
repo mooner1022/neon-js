@@ -53,20 +53,28 @@ object PyFormat {
             }
             i++
         }
-        var width = -1
-        val ws = i
-        while (i < cps.size && cps[i] in '0'.code..'9'.code) i++
-        if (i > ws) width = String(cps, ws, i - ws).toInt()
+        // (get_integer: decimal digits, any script's, as Py_UNICODE_TODECIMAL reads them)
+        fun integer(): Int {
+            val st = i
+            var acc = 0L
+            while (i < cps.size) {
+                val d = PyUnicodeType.toDecimal(cps[i])
+                if (d < 0) break
+                if (acc > (Long.MAX_VALUE - d) / 10) throw PyException("ValueError", "Too many decimal digits in format string")
+                acc = acc * 10 + d
+                i++
+            }
+            return if (i == st) -1 else acc.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        }
+        val width = integer()
         var grouping = 0.toChar()
         if (i < cps.size && (cps[i] == ','.code || cps[i] == '_'.code)) grouping = cps[i++].toChar()
         if (i < cps.size && (cps[i] == ','.code || cps[i] == '_'.code)) throw PyException("ValueError", "Cannot specify both ',' and '_'.")
         var precision = -1
         if (i < cps.size && cps[i] == '.'.code) {
             i++
-            val ps = i
-            while (i < cps.size && cps[i] in '0'.code..'9'.code) i++
-            if (i == ps) throw PyException("ValueError", "Format specifier missing precision")
-            precision = String(cps, ps, i - ps).toInt()
+            precision = integer()
+            if (precision < 0) throw PyException("ValueError", "Format specifier missing precision")
         }
         var type = 0.toChar()
         if (i < cps.size) type = cps[i++].toChar()
@@ -355,18 +363,19 @@ object PyFormat {
             var i = 0
             while (i < text.length && text[i] != '.' && text[i] != '[' && text[i] != '!' && text[i] != ':') i++
             val first = text.substring(0, i)
-            var v: Any? = if (first.isEmpty() || first.all { it.isDigit() }) {
+            val index = PyStringModule.integer(first)
+            var v: Any? = if (first.isEmpty() || index >= 0) {
                 val k = if (first.isEmpty()) {
                     if (manual) throw PyException("ValueError", "cannot switch from manual field specification to automatic field numbering")
                     automatic = true
-                    auto++
+                    auto++.toLong()
                 } else {
                     if (automatic) throw PyException("ValueError", "cannot switch from automatic field numbering to manual field specification")
                     manual = true
-                    first.toInt()
+                    index
                 }
                 if (k >= args.size) throw PyException("IndexError", "Replacement index $k out of range for positional args tuple")
-                args[k]
+                args[k.toInt()]
             } else {
                 val key = PyStr(first)
                 when (kw) {
@@ -385,7 +394,7 @@ object PyFormat {
                     val close = text.indexOf(']', i)
                     if (close < 0) throw PyException("ValueError", "Missing ']' in format string")
                     val k = text.substring(i + 1, close)
-                    v = PyRt.getItem(v, if (k.isNotEmpty() && k.all { it.isDigit() }) k.toLong() else PyStr(k))
+                    v = PyRt.getItem(v, PyStringModule.integer(k).let { n -> if (n >= 0) n else PyStr(k) })
                     i = close + 1
                 }
             }
@@ -510,7 +519,7 @@ object PyFormat {
                 i++
             } else {
                 val ws = i
-                while (i < fmt.length && fmt[i].isDigit()) i++
+                while (i < fmt.length && fmt[i] in '0'..'9') i++
                 if (i > ws) width = fmt.substring(ws, i).toInt()
             }
             var precision = -1
@@ -521,7 +530,7 @@ object PyFormat {
                     i++
                 } else {
                     val ps = i
-                    while (i < fmt.length && fmt[i].isDigit()) i++
+                    while (i < fmt.length && fmt[i] in '0'..'9') i++
                     precision = if (i > ps) fmt.substring(ps, i).toInt() else 0
                 }
             }
@@ -572,7 +581,7 @@ object PyFormat {
                     }
                     formatStr(ch, Spec(' '.code, if (left) '<' else '>', 0.toChar(), false, false, width, 0.toChar(), -1, 's'), value)
                 }
-                else -> throw PyException("ValueError", "unsupported format character '$type' (0x${Integer.toHexString(type.code)}) at index ${i - 1}")
+                else -> throw PyException("ValueError", "unsupported format character '${if (bytes || type.code in 31..126) type else '?'}' (0x${Integer.toHexString(type.code)}) at index ${i - 1}")
             }
             sb.append(out)
         }

@@ -93,14 +93,15 @@ object PyStringModule {
         return Piece(literal, field.field, field.spec, field.conversion) to after
     }
 
-    /** CPython's get_integer: the decimal value of [s], or -1 where it is not one. */
-    private fun integer(s: String): Long {
+    /** CPython's get_integer (unicode_format.h): the decimal value of [s] (any script's digits), or -1 where it is
+     *  not one. */
+    @JvmStatic fun integer(s: String): Long {
         if (s.isEmpty()) return -1
         var acc = 0L
         var i = 0
         while (i < s.length) {
             val cp = s.codePointAt(i)
-            val d = if (Character.getType(cp) == Character.DECIMAL_DIGIT_NUMBER.toInt()) Character.digit(cp, 10) else -1
+            val d = PyUnicodeType.toDecimal(cp)
             if (d < 0) return -1
             if (acc > (Long.MAX_VALUE - d) / 10) throw PyException("ValueError", "Too many decimal digits in format string")
             acc = acc * 10 + d

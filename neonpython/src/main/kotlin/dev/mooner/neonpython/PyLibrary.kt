@@ -98,7 +98,9 @@ object PyLibrary {
 
     /** float.fromhex(s): [sign] [0x] digits [. digits] [p [sign] digits], or inf and nan; CPython's errors. */
     private fun fromHex(s0: String): Double {
-        val s = s0.trim().lowercase()
+        val s = s0.trim(PyBuiltins::isAsciiSpace).lowercase()
+        // (hex_from_char's: ASCII's)
+        fun hex(ch: Char) = if (ch.code < 128) Character.digit(ch, 16) else -1
         fun bad(): Nothing = throw PyException("ValueError", "invalid hexadecimal floating-point string")
         var i = 0
         var neg = false
@@ -110,10 +112,10 @@ object PyLibrary {
         var mant = BigInteger.ZERO
         var digits = 0
         var fracDigits = 0
-        while (i < s.length && Character.digit(s[i], 16) >= 0) { mant = mant.shiftLeft(4).add(BigInteger.valueOf(Character.digit(s[i], 16).toLong())); i++; digits++ }
+        while (i < s.length && hex(s[i]) >= 0) { mant = mant.shiftLeft(4).add(BigInteger.valueOf(hex(s[i]).toLong())); i++; digits++ }
         if (i < s.length && s[i] == '.') {
             i++
-            while (i < s.length && Character.digit(s[i], 16) >= 0) { mant = mant.shiftLeft(4).add(BigInteger.valueOf(Character.digit(s[i], 16).toLong())); i++; digits++; fracDigits++ }
+            while (i < s.length && hex(s[i]) >= 0) { mant = mant.shiftLeft(4).add(BigInteger.valueOf(hex(s[i]).toLong())); i++; digits++; fracDigits++ }
         }
         if (digits == 0) bad()
         var exp = 0L
@@ -122,7 +124,7 @@ object PyLibrary {
             var eneg = false
             if (i < s.length && (s[i] == '+' || s[i] == '-')) { eneg = s[i] == '-'; i++ }
             val st = i
-            while (i < s.length && s[i].isDigit()) i++
+            while (i < s.length && s[i] in '0'..'9') i++
             if (i == st) bad()
             exp = s.substring(st, i).toBigInteger().min(BigInteger.valueOf(100000)).toLong().let { if (eneg) -it else it }
         }

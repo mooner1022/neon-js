@@ -11,7 +11,7 @@ with them. CPython's sources are expected in third_party/cpython at the release 
     git -C third_party/cpython sparse-checkout set Lib Modules Objects/stringlib Parser Python
 
 (Lib is what is ported; the rest is what the generators read and the C modules are ported from: Parser for
-gen_ast.py, Modules for gen_unicodedata.py.)
+gen_ast.py, Modules for gen_unicodedata.py, Objects for gen_unicodetype.py.)
 
 Usage, from the repository root: python -X utf8 -I neonpython/tools/port_cpython.py [path...]
 (without paths, every port is made again, and INDEX written; after a CPython update, check the rules still apply and

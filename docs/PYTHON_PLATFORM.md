@@ -153,8 +153,8 @@ To do this, the code version contract (`baseline`/`compiled`) has to allow that 
 ### 3.2 Front end
 
 - **Tokenizer**: INDENT/DEDENT, implicit line joining, f-strings tokenized as nested grammar (3.12, PEP 701), string
-  prefixes, number literals (`_`, complex), Unicode identifiers (NFKC normalization: whether the `unicode/` tables
-  are enough needs checking; `java.text.Normalizer` is an option).
+  prefixes, number literals (`_`, complex), Unicode identifiers (XID_Start, XID_Continue and NFKC normalization,
+  CPython's tables: §12.2).
 - **Parser**: CPython's `Grammar/python.gram` (PEG) as the reference. A hand-written recursive-descent parser is
   consistent with the JS parser (acorn style). The soft keywords `match`/`case`/`type`, `except*`, PEP 695 type
   parameters, decorators, walrus, positional-only/keyword-only parameters.
@@ -1049,6 +1049,12 @@ stand-ins until the real `unittest` imports: from then on CPython's own).
   - Where CPython's compiler crashes on a None that its validator let through (an identifier, a pattern, a handler, a
     type parameter), NeonPy raises the validator's ValueError ("None disallowed in identifier list").
   - PyCF_OPTIMIZED_AST gives the tree unoptimized.
+- **`str`'s Unicode is CPython's** (`Objects/unicodectype.c`), not the JVM's or Android's: its predicates, case
+  mappings (the full ones, the final sigma), whitespace, line breaks and digits come from `unicodetype.bin`, which
+  `neonpython/tools/gen_unicodetype.py` makes from CPython itself, checked against `Objects/unicodetype_db.h`. `re`'s
+  `\d`, `\w`, `\s` and ignore-case use it, and so do `int()`, `float()` and `complex()` (other scripts' digits),
+  `str.format`'s field numbers and widths, `repr` and identifiers: the lexer checks a name past ASCII as CPython's
+  does and normalizes it to NFKC with `unicodedata`'s tables. ASCII is answered without the table.
 
 ### 12.3 Progress (2026-11-07, later)
 
@@ -1075,6 +1081,8 @@ Since then:
   `selectors`, `signal` and `subprocess`.
 - `binascii` and `zlib`, with `base64` and `gzip`.
 - `unicodedata`, with both of CPython's databases.
+- `str`'s Unicode as CPython's: its predicates and case mappings, `re`'s classes, digits in `int()` and `float()`,
+  identifiers.
 - `hashlib` with blake2 and sha3, `hmac` and `secrets`.
 - `pathlib`, `zipfile`, `tarfile`, `wave`, `configparser`, `tomllib`, `argparse`, `optparse`, `getopt`, `logging`,
   `sched`, `decimal` (`_pydecimal`), `fractions` and `statistics`.

@@ -822,12 +822,13 @@ object PySocket {
 
     // ------------------------------------------------------------------ addresses
 
-    /** inet_aton as glibc reads one: up to four parts, each decimal, octal (0...) or hex (0x...), the last the rest. */
+    /** inet_aton as glibc reads one: up to four parts, each decimal, octal (0...) or hex (0x...), the last the rest
+     *  (its digits and white space C's: ASCII's). */
     private fun atonOrNull(s: String): ByteArray? {
         val parts = ArrayList<Long>()
         var i = 0
         while (true) {
-            if (i >= s.length || !s[i].isDigit()) return null
+            if (i >= s.length || s[i] !in '0'..'9') return null
             var base = 10
             if (s[i] == '0') {
                 base = 8
@@ -840,7 +841,7 @@ object PySocket {
             var v = 0L
             var digits = base == 8
             while (i < s.length) {
-                val d = Character.digit(s[i], base)
+                val d = if (s[i].code < 128) Character.digit(s[i], base) else -1
                 if (d < 0) break
                 v = v * base + d
                 if (v > 0xFFFFFFFFL) return null
@@ -857,7 +858,7 @@ object PySocket {
             break
         }
         // (what follows may be white space and anything after it)
-        if (i < s.length && !s[i].isWhitespace()) return null
+        if (i < s.length && !(s[i] == ' ' || s[i] in '\t'..'\r')) return null
         val n = parts.size
         for (k in 0 until n - 1) if (parts[k] > 0xFF) return null
         val last = parts[n - 1]
@@ -897,7 +898,7 @@ object PySocket {
                     out.add(((v4[2].toInt() and 0xFF) shl 8) or (v4[3].toInt() and 0xFF))
                     continue
                 }
-                if (g.isEmpty() || g.length > 4 || !g.all { Character.digit(it, 16) >= 0 }) return null
+                if (g.isEmpty() || g.length > 4 || !g.all { it.code < 128 && Character.digit(it, 16) >= 0 }) return null
                 out.add(g.toInt(16))
             }
             return out

@@ -1,0 +1,153 @@
+isalpha 141028 3f3a7f2ed737ba1a7ec97f66
+isalnum 142939 bfd6a46ba8ebcf0ab412545c
+isdecimal 760 ab88e3ee0246b07c1571f120
+isdigit 888 bb48e70140c78463b5bc0cf1
+isnumeric 2002 2ad39469000614f99365226c
+isspace 29 cfa4f8aea235c599e0a6f876
+isprintable 154810 88d55a36f9cfaa0fb3f843f7
+isupper 1978 1129d48b343db6f60700ed5c
+islower 2569 e615ec618973e10af91e19bf
+istitle 2009 a2031b585aa7aec41be68b5c
+isidentifier 141247 c1caa578832b174303787002
+upper 1552 cfbf5eccaa085efb1e167391
+lower 1460 0b58ae93fa374c62b8d2e806
+casefold 1557 4806021f8aa1e9f10aa272b2
+title 1479 285c86bd8574334fdea88ea8
+capitalize 1479 285c86bd8574334fdea88ea8
+swapcase 2950 b58f8a2ada09cf8e3e16aa3e
+xid_continue 144522 d80fed2d5a5ad975d3232a13
+cased 4578 a85aa3ecf46377375c41afdc
+sigma_after 7060 4cc6825c5bd74d5c3078908a
+sigma_before 323369 20f405e44f4ff679d71b5672
+linebreak 10 befb357a599a5a0a6e8555aa
+splits 29 271ac0670acd119bfd2ea9c3
+title_after - 6aae10a366b9fc8d16a3da73
+sre_tolower - 087e05d60138966d8783e6a3
+sre_iscased 2981 0f382a25b9918e9c08369091
+re '\\d' a9e3198e0dc8d6a60b452b3c
+re '\\w' 5af9baeb2777a7f5f9914b4f
+re '\\s' 690d49e0bc6f7872ec9959b2
+re '\\W' 426c7ec2f0a57eda4c1a7853
+re '(?i)[a-z\\u03c3]' f13e5a288d40da320ea54e7f
+re '(?i)[^\\W\\d]' 7d8077ef9f45306b555ca6b5
+re '\\b\\w' 49750e5335e19159dd2ec4dd
+re '(?a)\\w' 62fc8cc3cd533d7b957e39af
+casefold Cherokee -> ['\u13a0', '\u13a0', '\u13f0', '\u13f0']
+casefold -> ['\u0131', 'ss', 'ss', 'i\u0307', 'st']
+isidentifier start -> [False, False, False, False, True, True, True, False, True]
+isidentifier continue -> [False, True, False, True, True, True, True, True, True]
+isdigit -> [True, False, False, False, False, False, False, False, False, False]
+isnumeric -> [True, True, True, True, True, True, True, True, True, True]
+title special -> ['\u02bcN', 'J\u030c', '\u0399\u0308\u0301', '\u1f88', 'Fix']
+swapcase titlecase -> ['\u01c5', '\u01c8', '\u01cb', '\u01f2', '\u1f88']
+upper special -> ['SS', '\u02bcN', '\u1f08\u0399', 'FF', '\u0535\u0552']
+lower special -> ['i\u0307', '\xdf', '\u03c9', 'k']
+re ignorecase -> [True, True, True, True, True, True]
+sigma 'A\u03a3' -> ('a\u03c2', 'A\u03c2', 'a\u03c2', 'A\u03c2', 'a\u03c3')
+sigma 'A\u03a3B' -> ('a\u03c3b', 'A\u03c3b', 'a\u03c3b', 'A\u03c3b', 'a\u03c3b')
+sigma 'A\u03a3 ' -> ('a\u03c2 ', 'A\u03c2 ', 'a\u03c2 ', 'A\u03c2 ', 'a\u03c3 ')
+sigma 'A.\u03a3' -> ('a.\u03c2', 'A.\u03c2', 'a.\u03c2', 'A.\u03a3', 'a.\u03c3')
+sigma "A\u03a3'B" -> ("a\u03c3'b", "A\u03c3'b", "a\u03c3'b", "A\u03c3'B", "a\u03c3'b")
+sigma '\u03a3A' -> ('\u03c3a', '\u03a3a', '\u03c3a', '\u03a3a', '\u03c3a')
+sigma 'A\u03a3\u03a3' -> ('a\u03c3\u03c2', 'A\u03c3\u03c2', 'a\u03c3\u03c2', 'A\u03c3\u03c2', 'a\u03c3\u03c3')
+sigma '\u039f\u0394\u039f\u03a3' -> ('\u03bf\u03b4\u03bf\u03c2', '\u039f\u03b4\u03bf\u03c2', '\u03bf\u03b4\u03bf\u03c2', '\u039f\u03b4\u03bf\u03c2', '\u03bf\u03b4\u03bf\u03c3')
+sigma 'A\u0345\u03a3' -> ('a\u0345\u03c2', 'A\u0345\u03c2', 'a\u0399\u03c2', 'A\u0345\u03c2', 'a\u03b9\u03c3')
+sigma '1\u03a3' -> ('1\u03c3', '1\u03c3', '1\u03c3', '1\u03a3', '1\u03c3')
+sigma 'A\U0001d400\u03a3' -> ('a\U0001d400\u03c2', 'A\U0001d400\u03c2', 'a\U0001d400\u03c2', 'A\U0001d400\u03c2', 'a\U0001d400\u03c3')
+sigma 'A\u03a3\xad' -> ('a\u03c2\xad', 'A\u03c2\xad', 'a\u03c2\xad', 'A\u03c2\xad', 'a\u03c3\xad')
+sigma 'A\u03a3\xadB' -> ('a\u03c3\xadb', 'A\u03c3\xadb', 'a\u03c3\xadb', 'A\u03c3\xadB', 'a\u03c3\xadb')
+sigma '\u1f88\u03a3' -> ('\u1f80\u03c2', '\u1f88\u03c2', '\u1f88\u03c2', '\u1f88\u03c2', '\u1f00\u03b9\u03c3')
+case "they're bill's friends" -> ("They'Re Bill'S Friends", "They're bill's friends", "THEY'RE BILL'S FRIENDS", "THEY'RE BILL'S FRIENDS", "they're bill's friends", "they're bill's friends")
+preds "they're bill's friends" -> (False, False, True, False, True)
+case '\ufb01sh \ufb02our' -> ('Fish Flour', 'Fish \ufb02our', 'FISH FLOUR', 'FISH FLOUR', '\ufb01sh \ufb02our', 'fish flour')
+preds '\ufb01sh \ufb02our' -> (False, False, True, False, True)
+case '\u01c4ungla \u01c6ungla' -> ('\u01c5ungla \u01c5ungla', '\u01c5ungla \u01c6ungla', '\u01c6UNGLA \u01c4UNGLA', '\u01c4UNGLA \u01c4UNGLA', '\u01c6ungla \u01c6ungla', '\u01c6ungla \u01c6ungla')
+preds '\u01c4ungla \u01c6ungla' -> (False, False, False, False, True)
+case '\xdfa' -> ('Ssa', 'Ssa', 'SSA', 'SSA', '\xdfa', 'ssa')
+preds '\xdfa' -> (False, False, True, True, True)
+case '\u0149a' -> ('\u02bcNa', '\u02bcNa', '\u02bcNA', '\u02bcNA', '\u0149a', '\u02bcna')
+preds '\u0149a' -> (False, False, True, True, True)
+case 'a\u0345b' -> ('A\u0345b', 'A\u0345b', 'A\u0399B', 'A\u0399B', 'a\u0345b', 'a\u03b9b')
+preds 'a\u0345b' -> (False, False, True, False, True)
+case '\u1f80\u1f88 \u1fb3' -> ('\u1f88\u1f80 \u1fbc', '\u1f88\u1f80 \u1fb3', '\u1f08\u0399\u1f88 \u0391\u0399', '\u1f08\u0399\u1f08\u0399 \u0391\u0399', '\u1f80\u1f80 \u1fb3', '\u1f00\u03b9\u1f00\u03b9 \u03b1\u03b9')
+preds '\u1f80\u1f88 \u1fb3' -> (False, False, False, False, True)
+case '\u03b1\u03b2 \u0391\u0392' -> ('\u0391\u03b2 \u0391\u03b2', '\u0391\u03b2 \u03b1\u03b2', '\u0391\u0392 \u03b1\u03b2', '\u0391\u0392 \u0391\u0392', '\u03b1\u03b2 \u03b1\u03b2', '\u03b1\u03b2 \u03b1\u03b2')
+preds '\u03b1\u03b2 \u0391\u0392' -> (False, False, False, False, True)
+case 'x1y 2z' -> ('X1Y 2Z', 'X1y 2z', 'X1Y 2Z', 'X1Y 2Z', 'x1y 2z', 'x1y 2z')
+preds 'x1y 2z' -> (False, False, True, False, True)
+case '\U00010428\U00010400 \U00010400x' -> ('\U00010400\U00010428 \U00010400x', '\U00010400\U00010428 \U00010428x', '\U00010400\U00010428 \U00010428X', '\U00010400\U00010400 \U00010400X', '\U00010428\U00010428 \U00010428x', '\U00010428\U00010428 \U00010428x')
+preds '\U00010428\U00010400 \U00010400x' -> (False, False, False, False, True)
+case '\u13a0\u13a1 \uab70' -> ('\u13a0\uab71 \u13a0', '\u13a0\uab71 \uab70', '\uab70\uab71 \u13a0', '\u13a0\u13a1 \u13a0', '\uab70\uab71 \uab70', '\u13a0\u13a1 \u13a0')
+preds '\u13a0\u13a1 \uab70' -> (False, False, False, False, True)
+istitle 'A\u01c5' -> (False, False, False)
+istitle '\u01c5a' -> (True, False, False)
+istitle '\u01c5A' -> (False, False, False)
+istitle 'Ab Cd' -> (True, False, False)
+istitle 'Ab cd' -> (False, False, False)
+istitle 'A\u02b0' -> (True, False, False)
+istitle '\u2160' -> (True, True, False)
+istitle '\u2170' -> (False, False, True)
+istitle '\u24b6' -> (True, True, False)
+istitle '\u1f88' -> (True, False, False)
+istitle '\u01c5\u01c5' -> (False, False, False)
+whitespace -> '\t\n\x0b\x0c\r\x1c\x1d\x1e\x1f \x85\xa0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000'
+split -> ['a', 'b']
+split max -> ['a', 'b', 'c\x1cd']
+rsplit max -> ['a\u3000b', 'c', 'd']
+strip -> ('a', 'a', 'a', '\u200ba\ufeff')
+splitlines -> ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l\x1fm']
+splitlines keep -> ['a\r\n', 'b\x85', 'c\u2028', 'd\n', '\r']
+repr -> "'a\\x00\\x7f\\x80\\xa0\\xad\\u0378\\u200b\\u2028\\ue000\\U000e0001\xe9\\u3000 \\ud800'"
+int -> [123, 12, 12, -5, 12]
+int base -> [16, 1, 12]
+int digits -> [0, 7, 4, 1, 8, 5, 2, 9, 6, 3, 0, 7, 4, 1, 8, 5, 2, 9, 6, 3, 0, 7, 4, 1, 8, 5, 2, 9, 6, 3, 0, 7, 4, 1, 8, 5, 2, 9, 6, 3, 0, 7, 4, 1, 8, 5, 2, 9, 6, 3, 0, 7, 4, 1, 8, 5, 2, 9, 6, 3, 0, 7, 4, 1, 8, 5, 2, 9, 6, 3, 0, 7, 4, 1, 8, 5, 2, 9, 6, 3, 0, 7, 4, 1, 8, 5, 2, 9, 6, 3, 0, 7, 4, 1, 8, 5, 2, 9, 6, 3, 0, 7, 4, 1, 8, 5, 2, 9, 6]
+int '\xb9' !! ValueError "invalid literal for int() with base 10: '\xb9'"
+int '\u2160' !! ValueError "invalid literal for int() with base 10: '\u2160'"
+int '\uff21' !! ValueError "invalid literal for int() with base 16: '\uff21'"
+int '\x1c12' !! ValueError "invalid literal for int() with base 10: '\\x1c12'"
+int '12\x00' !! ValueError "invalid literal for int() with base 10: '12\\x00'"
+int '12\x7f' !! ValueError "invalid literal for int() with base 10: '12\\x7f'"
+int '\u0661x' !! ValueError "invalid literal for int() with base 10: '\u0661x'"
+float -> [1.5, 100.0, 1.5, 10.5, inf]
+float '\uff11\uff0e\uff15' !! ValueError "could not convert string to float: '\uff11\uff0e\uff15'"
+float '\u0661.x' !! ValueError "could not convert string to float: '\u0661.x'"
+float '1d' !! ValueError "could not convert string to float: '1d'"
+float '0x1p3' !! ValueError "could not convert string to float: '0x1p3'"
+float '\x1c1.5' !! ValueError "could not convert string to float: '\\x1c1.5'"
+float '1__0' !! ValueError "could not convert string to float: '1__0'"
+float ' ' !! ValueError "could not convert string to float: ' '"
+complex -> [(1+2j), (1+2j), (10+20j)]
+complex '\u0661+\u2160j' !! ValueError 'complex() arg is a malformed string'
+complex ' 1 + 2j' !! ValueError 'complex() arg is a malformed string'
+complex '1__0j' !! ValueError "could not convert string to complex: '1__0j'"
+fromhex -> 3.0
+fromhex digit !! ValueError 'invalid hexadecimal floating-point string'
+field -> ('b', 'b', 'b')
+field key !! KeyError "'\xb9'"
+spec -> ('  1', 'ab   |', '1.2', '\u0661\u0661\u0661\u06611')
+percent !! ValueError "unsupported format character '?' (0xb3) at index 1"
+percent ff !! ValueError "unsupported format character '?' (0xff15) at index 1"
+source '\ufb01 = 1' -> ['__name__', 'fi']
+source '\U0001d422f = 1' -> ['__name__', 'if']
+source '\U0001d426atch = 2' -> ['__name__', 'match']
+source 'x\xb7y = 1' -> ['__name__', 'x\xb7y']
+source 'x\u200c = 1' -> ['__name__', 'x\u200c']
+source '\u2160 = 4' -> ['I', '__name__']
+source 'e\u0301t\xe9 = 1' -> ['__name__', '\xe9t\xe9']
+source 'x\U000e0100 = 1' -> ['__name__', 'x\U000e0100']
+source 'class C:\n  def __\U0001d41f(self): pass\nr = dir(C)[0]' -> ['C', '__name__', 'r']
+source 'def g(\ufb01): return fi\ny = g(4)' -> ['__name__', 'g', 'y']
+source 'import \U0001d426ath' -> ['__name__', 'math']
+source 'x = f"{1!\uff52}"' -> ['__name__', 'x']
+source '\u037a = 1' !! SyntaxError "invalid character '\u037a' (U+037A) (<string>, line 1)"
+source 'x\u037a = 1' !! SyntaxError "invalid character '\u037a' (U+037A) (<string>, line 1)"
+source '\u0e33 = 1' !! SyntaxError "invalid character '\u0e33' (U+0E33) (<string>, line 1)"
+source 'x\u309b = 1' !! SyntaxError "invalid character '\u309b' (U+309B) (<string>, line 1)"
+source 'a\u20acb = 1' !! SyntaxError "invalid character '\u20ac' (U+20AC) (<string>, line 1)"
+source '\xb2 = 1' !! SyntaxError "invalid character '\xb2' (U+00B2) (<string>, line 1)"
+source 'x = 1\xa0+ 1' !! SyntaxError 'invalid non-printable character U+00A0 (<string>, line 1)'
+source '\U0001d413rue = 1' !! ValueError "identifier field can't represent 'True' constant"
+source 'x = (1).\U0001d40done' !! ValueError "identifier field can't represent 'None' constant"
+source 'x = 0x\uff11' !! SyntaxError 'invalid hexadecimal literal (<string>, line 1)'
+source 'x = f"{1!\ufb01}"' !! SyntaxError "f-string: invalid conversion character 'fi': expected 's', 'r', or 'a' (<string>, line 1)"
+slots !! TypeError '__slots__ must be identifiers'
