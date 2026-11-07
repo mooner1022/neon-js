@@ -1087,6 +1087,34 @@ stand-ins until the real `unittest` imports: from then on CPython's own).
 - **`importlib.resources` gives a module's resources as its file's directory** (CPython's package, its `_common` a
   rules file), read through the library's mount. NeonPy's modules have no spec and their loaders no resource reader;
   a module the host gives (its loader's) has no files to read.
+- **`sys.monitoring`, `sys.settrace` and `sys.setprofile` keep what is set, and deliver no events.**
+  - NeonPy's tiers have no instrumentation (and T2 would have to give way to it, §5).
+  - `sys.monitoring` has CPython 3.14's constants, tool ids and names, event sets, local event sets and callbacks,
+    with its checks and messages.
+  - A tool finds its settings as it left them. `bdb`, `pdb` and `doctest` import and run, but a breakpoint never
+    stops.
+  - `sys._jit` says no JIT, as a CPython built without one does.
+- **A type's layout is CPython's** (64-bit Linux): `__flags__`, `__weakrefoffset__`, `__dictoffset__`,
+  `__basicsize__` and `__itemsize__`.
+  - A builtin type's come from `PyLayouts.kt`, which `neonpython/tools/gen_layouts.py` takes from Linux CPython.
+  - A class's are worked out from its builtin base's, as type_new works them out: a managed dict, managed weak
+    references, slots, abstractness.
+  - What CPython decides from the layout, NeonPy decides from it too:
+    - which instances take weak references (not a subclass of int, bytes or tuple, nor an exception's with
+      `__slots__`);
+    - which bases refuse `__slots__`, `__dict__` and `__weakref__`;
+    - `sys.getsizeof`'s GC header and pre-header;
+    - `__class__` assignment (compatible_for_assignment).
+  - copyreg's protocols 0 and 1, dataclasses' slots and `inspect.isabstract` read the layout.
+- **`match` takes a sequence or a mapping by its type's flags** (Py_TPFLAGS_SEQUENCE, Py_TPFLAGS_MAPPING), as
+  CPython does.
+  - Sequences: list, tuple, range, memoryview, array and deque. Mappings: dict and mappingproxy.
+  - A class of `collections.abc`'s Sequence or Mapping, or one registered with them, matches as its ABC does.
+  - C `_abc` sets these flags (`__abc_tpflags__`, register). NeonPy's abc is the pure `_py_abc`, so a rules file
+    has it call two hooks in NeonPy's `_collections`.
+  - A pattern with a `*_` star takes its items by index, and an all-wildcard one takes none, as CPython compiles
+    them: a sequence whose `__getitem__` never ends still matches.
+  - A class pattern tests isinstance(): an ABC's or a runtime-checkable protocol's `__instancecheck__`.
 
 ### 12.3 Progress (2026-11-07, later)
 
@@ -1134,7 +1162,10 @@ Then:
 - `str`'s Unicode tables from CPython;
 - one dict hash for every kind of key;
 - lists safe under their own changes;
-- `zoneinfo` over the bundled IANA database, and `importlib.resources`.
+- `zoneinfo` over the bundled IANA database, and `importlib.resources`;
+- `doctest`, `pdb` and `bdb`, with `sys.monitoring` and `settrace` kept;
+- types' layouts as CPython's, and `match` by the types' flags (CPython's `test_patma` passes, but for its line-event
+  tracing tests).
 
 Next:
 - the CJK codecs;
