@@ -202,6 +202,113 @@ object PySys {
         return n
     }
 
+    /**
+     * sys.monitoring (PEP 669) as CPython 3.14's: its constants, its tools' ids and names, their event sets and
+     * callbacks kept with CPython's checks, but no event delivered (docs/PYTHON_PLATFORM.md §12.2): what bdb and pdb
+     * read when they are imported, and what a tool that registers finds as it left it.
+     */
+    private fun monitoring(): PyModule {
+        val d = PyDict()
+        val names = arrayOfNulls<Any?>(6)
+        val events = LongArray(6)
+        val local = HashMap<Pair<Int, Any?>, Long>()
+        val callbacks = HashMap<Pair<Int, Long>, Any?>()
+        val eventNames = linkedMapOf("PY_START" to 1L, "PY_RESUME" to 2L, "PY_RETURN" to 4L, "PY_YIELD" to 8L, "CALL" to 16L,
+            "LINE" to 32L, "INSTRUCTION" to 64L, "JUMP" to 128L, "BRANCH_LEFT" to 256L, "BRANCH_RIGHT" to 512L,
+            "STOP_ITERATION" to 1024L, "RAISE" to 2048L, "EXCEPTION_HANDLED" to 4096L, "PY_UNWIND" to 8192L, "PY_THROW" to 16384L,
+            "RERAISE" to 32768L, "C_RETURN" to 65536L, "C_RAISE" to 131072L, "BRANCH" to 262144L, "NO_EVENTS" to 0L)
+        val all = (1L shl 19) - 1
+        fun tool(v: Any?): Int {
+            val n = PyOperator.index(v)
+            if (n !is Long || n < 0 || n > 5) throw PyException("ValueError", "invalid tool $n (must be between 0 and 5)")
+            return n.toInt()
+        }
+        fun inUse(t: Int) {
+            if (names[t] == null) throw PyException("ValueError", "tool $t is not in use")
+        }
+        fun eventSet(v: Any?): Long {
+            val e = PyOperator.index(v) as? Long ?: throw PyException("ValueError", "invalid event set")
+            if (e < 0 || e > all) {
+                throw PyException("ValueError", "invalid event set 0x${java.lang.Long.toHexString(e)}")
+            }
+            return e
+        }
+        fun def(n: String, impl: (Array<Any?>) -> Any?) {
+            d[PyStr(n)] = PyBuiltin(n) { _, a -> impl(a) }.also { it.method = false; it.ownerModule = "sys.monitoring" }
+        }
+        d[PyStr("__name__")] = PyStr("sys.monitoring")
+        d[PyStr("__doc__")] = PyNone
+        d[PyStr("DEBUGGER_ID")] = 0L
+        d[PyStr("COVERAGE_ID")] = 1L
+        d[PyStr("PROFILER_ID")] = 2L
+        d[PyStr("OPTIMIZER_ID")] = 5L
+        d[PyStr("MISSING")] = PyObject(PyTypes.OBJECT)
+        d[PyStr("DISABLE")] = PyObject(PyTypes.OBJECT)
+        d[PyStr("events")] = namespace(*eventNames.map { (k, v) -> k to (v as Any?) }.toTypedArray())
+        def("use_tool_id") { a ->
+            if (a.size != 2) throw PyRt.typeError("use_tool_id expected 2 arguments, got ${a.size}")
+            val t = tool(a[0])
+            if (a[1] !is PyStr) throw PyException("ValueError", "tool name must be a str")
+            if (names[t] != null) throw PyException("ValueError", "tool $t is already in use")
+            names[t] = a[1]
+            PyNone
+        }
+        def("get_tool") { a -> names[tool(a.getOrNull(0))] ?: PyNone }
+        // (a tool's local events outlive clear_tool_id and free_tool_id, as CPython 3.14's do)
+        def("clear_tool_id") { a ->
+            val t = tool(a.getOrNull(0))
+            events[t] = 0
+            callbacks.keys.removeIf { it.first == t }
+            PyNone
+        }
+        def("free_tool_id") { a ->
+            val t = tool(a.getOrNull(0))
+            events[t] = 0
+            callbacks.keys.removeIf { it.first == t }
+            names[t] = null
+            PyNone
+        }
+        def("register_callback") { a ->
+            if (a.size != 3) throw PyRt.typeError("register_callback expected 3 arguments, got ${a.size}")
+            val t = tool(a[0])
+            val e = PyOperator.index(a[1]) as? Long
+            if (e == null || e < Int.MIN_VALUE || e > Int.MAX_VALUE) {
+                throw PyException("OverflowError", "Python int too large to convert to C int")
+            }
+            if (e <= 0 || e and (e - 1) != 0L) {
+                throw PyException("ValueError", "The callback can only be set for one event at a time")
+            }
+            if (e > all) throw PyException("ValueError", "invalid event $e")
+            val key = t to e
+            val old = callbacks[key]
+            if (a[2] === PyNone) callbacks.remove(key) else callbacks[key] = a[2]
+            old ?: PyNone
+        }
+        def("get_events") { a -> events[tool(a.getOrNull(0))] }
+        def("set_events") { a ->
+            if (a.size != 2) throw PyRt.typeError("set_events expected 2 arguments, got ${a.size}")
+            val t = tool(a[0])
+            inUse(t)
+            events[t] = eventSet(a[1])
+            PyNone
+        }
+        def("get_local_events") { a ->
+            if (a.size != 2) throw PyRt.typeError("get_local_events expected 2 arguments, got ${a.size}")
+            val t = tool(a[0])
+            local[t to (a[1] as? PyCode ?: throw PyRt.typeError("code must be a code object"))] ?: 0L
+        }
+        def("set_local_events") { a ->
+            if (a.size != 3) throw PyRt.typeError("set_local_events expected 3 arguments, got ${a.size}")
+            val t = tool(a[0])
+            val c = a[1] as? PyCode ?: throw PyRt.typeError("code must be a code object")
+            inUse(t)
+            local[t to c] = eventSet(a[2])
+            PyNone
+        }
+        def("restart_events") { _ -> PyNone }
+        return PyModule("sys.monitoring", d).also { it.builtin = true }
+    }
+
     /** A SimpleNamespace of [fields]. */
     @JvmStatic
     fun namespace(vararg fields: Pair<String, Any?>): PyObject = PyObject(NAMESPACE).also { o ->
@@ -287,6 +394,18 @@ object PySys {
         d[PyStr("orig_argv")] = PyList()
         d[PyStr("warnoptions")] = PyList()
         d[PyStr("_xoptions")] = PyDict()
+        // (sys._jit, CPython 3.14's experimental JIT's: none of CPython's here, NeonPy's tiers being no such thing to
+        // the code that asks, which asks to skip what CPython's JIT changes)
+        d[PyStr("_jit")] = PyModule("sys._jit", PyDict().also { j ->
+            j[PyStr("__name__")] = PyStr("sys._jit")
+            j[PyStr("__doc__")] = PyNone
+            for (n in listOf("is_available", "is_enabled", "is_active")) {
+                j[PyStr(n)] = PyBuiltin(n) { _, a ->
+                    if (a.isNotEmpty()) throw PyRt.typeError("$n() takes no arguments (${a.size} given)")
+                    PyBool.FALSE
+                }.also { it.method = false; it.ownerModule = "sys._jit" }
+            }
+        }).also { it.builtin = true }
         d[PyStr("meta_path")] = PyList()
         d[PyStr("path_hooks")] = PyList()
         d[PyStr("path_importer_cache")] = PyDict()
@@ -303,8 +422,20 @@ object PySys {
         def("is_finalizing") { _ -> PyBool.FALSE }
         def("_is_gil_enabled") { _ -> PyBool.TRUE }
         def("_is_interned") { _ -> PyBool.FALSE }
-        def("gettrace") { _ -> PyNone }
-        def("getprofile") { _ -> PyNone }
+        // (a trace or profile function kept and given back, never called: NeonPy's tiers deliver no events, §12.2)
+        def("gettrace") { _ -> ctx.traceFunc ?: PyNone }
+        def("getprofile") { _ -> ctx.profileFunc ?: PyNone }
+        def("settrace") { a ->
+            if (a.size != 1) throw PyRt.typeError("sys.settrace() takes exactly one argument (${a.size} given)")
+            ctx.traceFunc = a[0].takeIf { it !== PyNone }
+            PyNone
+        }
+        def("setprofile") { a ->
+            if (a.size != 1) throw PyRt.typeError("sys.setprofile() takes exactly one argument (${a.size} given)")
+            ctx.profileFunc = a[0].takeIf { it !== PyNone }
+            PyNone
+        }
+        d[PyStr("monitoring")] = monitoring()
         var interval = 0.005
         def("getswitchinterval") { _ -> interval }
         def("setswitchinterval") { a ->

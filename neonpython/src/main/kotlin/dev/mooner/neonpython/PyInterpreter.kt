@@ -52,6 +52,9 @@ class PyContext(
     @JvmField var asyncgenFinalizer: Any? = null
     /** sys.set_coroutine_origin_tracking_depth's: how many of its creator's frames a coroutine keeps (cr_origin). */
     @JvmField var coroutineOriginDepth = 0
+    /** sys.settrace's and sys.setprofile's functions, kept and given back, never called (docs/PYTHON_PLATFORM.md §12.2). */
+    @JvmField var traceFunc: Any? = null
+    @JvmField var profileFunc: Any? = null
     /** The callers' exceptions handled, under the generators running (each its own [handled]: PyGenBase.resume). */
     @JvmField val handledStack = ArrayList<PyBaseException?>()
     /** The innermost frame running (sys._getframe), the chain out through PyFrame.back. */
