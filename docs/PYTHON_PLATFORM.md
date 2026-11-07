@@ -1079,6 +1079,15 @@ Since then:
 - `pathlib`, `zipfile`, `tarfile`, `wave`, `configparser`, `tomllib`, `argparse`, `optparse`, `getopt`, `logging`,
   `sched`, `decimal` (`_pydecimal`), `fractions` and `statistics`.
 - `code` and `codeop`.
+- `unittest` (mock and IsolatedAsyncioTestCase too), `email`, `csv` (`_csv`), `array`, `pkgutil`.
+- `compile()` of an AST object.
+- What these needed from the runtime:
+  - ModuleType subclasses;
+  - builtin methods as CPython's method and wrapper descriptors;
+  - docstrings where CPython keeps them;
+  - float()'s grammar;
+  - sys.getsizeof's sizes;
+  - object.__dir__ and object.__sizeof__.
 
 Next: `xml` (it needs `pyexpat`), `str`'s Unicode tables from CPython, and `C1` on a core branch.
 
