@@ -611,6 +611,13 @@ object PyLibrary {
         PyTypes.INT.def("from_bytes", PyClassMethod(PyBuiltin("from_bytes", { _, a -> fromBytes(a, null) }, { _, a, kw -> fromBytes(a, kw) })))
         m(PyTypes.FLOAT, "is_integer") { a, _ -> val x = a[0] as Double; PyBool.of(!x.isInfinite() && x == Math.floor(x)) }
         m(PyTypes.FLOAT, "hex") { a, _ -> PyStr(floatHex(a[0] as Double)) }
+        // (float.__getformat__(typestr): the format of C's double and float, IEEE 754 little-endian on every host NeonPy runs on)
+        PyTypes.FLOAT.def("__getformat__", PyClassMethod(PyBuiltin("__getformat__") { _, a ->
+            if (a.size != 2) throw PyRt.typeError("float.__getformat__() takes exactly one argument (${a.size - 1} given)")
+            val t = a[1] as? PyStr ?: throw PyRt.typeError("__getformat__() argument must be str, not ${PyTypes.name(a[1])}")
+            if (t.s != "double" && t.s != "float") throw PyException("ValueError", "__getformat__() argument 1 must be 'double' or 'float'")
+            PyStr("IEEE, little-endian")
+        }))
         PyTypes.FLOAT.def("fromhex", PyClassMethod(PyBuiltin("fromhex") { ctx, a ->
             val v = fromHex((a.getOrNull(1) as? PyStr ?: throw PyRt.typeError("fromhex() argument must be str, not ${PyTypes.name(a.getOrNull(1))}")).s)
             val cls = a[0] as PyType
