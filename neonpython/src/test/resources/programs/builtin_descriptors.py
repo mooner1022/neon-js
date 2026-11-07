@@ -47,3 +47,42 @@ def uses():
 kinds()
 views()
 uses()
+
+def wrong_self():
+    def t2(f, *a):
+        try:
+            print(f(*a))
+        except TypeError as e:
+            print(e)
+    t2(str.upper, 1)
+    t2(str.join, 1, [])
+    t2(str.__add__, 1, 'a')
+    t2(str.__len__, 1)
+    t2(set.add, 1, 2)
+    t2(set.__len__, 1)
+    t2(frozenset.union, [], [])
+    t2(bytes.hex, 1)
+    t2(bytes.__len__, 1)
+    t2(bytearray.append, 1, 2)
+    t2(list.append, 1, 2)
+    t2(list.__len__, 1)
+    t2(dict.keys, 1)
+    t2(dict.__getitem__, 1, 2)
+    t2(tuple.count, 1, 2)
+    t2(int.bit_length, 'x')
+    t2(float.hex, 1)
+    t2(BaseException.with_traceback, 1, None)
+    t2(complex.conjugate, 1)
+    t2(memoryview.tobytes, 1)
+    t2(str.upper)
+    t2(str.__add__)
+    t2(set.add)
+    t2(int.bit_length)
+    print(frozenset.union(frozenset([1]), [2]), set.union({1}, [3]), int.__add__(True, 1), str.upper.__get__('a')(), list.__len__([1, 2]))
+    import enum
+    class E(enum.IntEnum):
+        A = 1
+    print(int.__repr__(E.A), str(E.A))
+
+
+wrong_self()

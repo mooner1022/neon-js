@@ -20,3 +20,29 @@ sorted key -> ['A', 'b', 'c']
 pickle -> Q
 pickle more -> ('XY', 3, 6, 'ab')
 reduce -> ((<class 'str'>, 'upper'), ('z', 'upper'), 'len', True)
+descriptor 'upper' for 'str' objects doesn't apply to a 'int' object
+descriptor 'join' for 'str' objects doesn't apply to a 'int' object
+descriptor '__add__' requires a 'str' object but received a 'int'
+descriptor '__len__' requires a 'str' object but received a 'int'
+descriptor 'add' for 'set' objects doesn't apply to a 'int' object
+descriptor '__len__' requires a 'set' object but received a 'int'
+descriptor 'union' for 'frozenset' objects doesn't apply to a 'list' object
+descriptor 'hex' for 'bytes' objects doesn't apply to a 'int' object
+descriptor '__len__' requires a 'bytes' object but received a 'int'
+descriptor 'append' for 'bytearray' objects doesn't apply to a 'int' object
+descriptor 'append' for 'list' objects doesn't apply to a 'int' object
+descriptor '__len__' requires a 'list' object but received a 'int'
+descriptor 'keys' for 'dict' objects doesn't apply to a 'int' object
+descriptor '__getitem__' for 'dict' objects doesn't apply to a 'int' object
+descriptor 'count' for 'tuple' objects doesn't apply to a 'int' object
+descriptor 'bit_length' for 'int' objects doesn't apply to a 'str' object
+descriptor 'hex' for 'float' objects doesn't apply to a 'int' object
+descriptor 'with_traceback' for 'BaseException' objects doesn't apply to a 'int' object
+descriptor 'conjugate' for 'complex' objects doesn't apply to a 'int' object
+descriptor 'tobytes' for 'memoryview' objects doesn't apply to a 'int' object
+unbound method str.upper() needs an argument
+descriptor '__add__' of 'str' object needs an argument
+unbound method set.add() needs an argument
+unbound method int.bit_length() needs an argument
+frozenset({1, 2}) {1, 3} 2 A 2
+1 1

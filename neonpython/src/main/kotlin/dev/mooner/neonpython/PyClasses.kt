@@ -344,7 +344,7 @@ object PyClasses {
                 val obj = a.getOrNull(1)
                 if (obj == null || obj === PyNone) return@PyBuiltin d
                 val owner = d.ownerType!!
-                if (!PyTypes.typeOf(obj).isSubtype(owner)) {
+                if (!PyTypes.typeOf(obj).isSubtype(owner) && PyTypes.typeOf(obj).lookup(d.name) !== d) {
                     throw PyRt.typeError("descriptor '${d.name}' for '${PyTypes.tpName(owner)}' objects doesn't apply to a '${PyTypes.name(obj)}' object")
                 }
                 PyBoundMethod(obj, d)

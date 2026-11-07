@@ -86,23 +86,51 @@ object PyCalls {
         return out
     }
 
+    /**
+     * A builtin type's method called unbound (str.upper(x)): its self one of the type's objects, CPython's errors
+     * otherwise (a method descriptor's "doesn't apply to", a slot wrapper's "requires"), not the method's own casts.
+     * A builtin two types share (set's and frozenset's) is its self's where its type finds it.
+     */
+    @JvmStatic fun checkSelf(fn: PyBuiltin, args: Array<Any?>) {
+        val owner = fn.ownerType ?: return
+        if (!fn.method || fn.name == "__new__") return
+        val slot = PyTypes.builtinType(fn) === PyTypes.WRAPPER_DESCRIPTOR
+        if (args.isEmpty()) {
+            throw PyRt.typeError(if (slot) "descriptor '${fn.name}' of '${PyTypes.tpName(owner)}' object needs an argument"
+                else "unbound method ${owner.qualname}.${fn.name}() needs an argument")
+        }
+        val t = PyTypes.typeOf(args[0])
+        if (t.isSubtype(owner) || t.lookup(fn.name) === fn) return
+        // (a class's own: __class_getitem__, a class method by nature, given its class)
+        val self = args[0]
+        if (self is PyType && self.isSubtype(owner)) return
+        throw PyRt.typeError(if (slot) "descriptor '${fn.name}' requires a '${PyTypes.tpName(owner)}' object but received a '${PyTypes.name(args[0])}'"
+            else "descriptor '${fn.name}' for '${PyTypes.tpName(owner)}' objects doesn't apply to a '${PyTypes.name(args[0])}' object")
+    }
+
+    /** A builtin's code run with [pos] (a self already checked) and the keyword arguments. */
+    private fun invoke(ctx: PyContext, fn: PyBuiltin, pos: Array<Any?>, kwNames: Array<Any?>, kwValues: Array<Any?>): Any? {
+        val args = if (fn.numSelf) numSelf(pos) else pos
+        if (kwNames.isEmpty()) return fn.impl(ctx, args)
+        val kw = fn.kwImpl ?: throw PyRt.typeError("${fn.name}() takes no keyword arguments")
+        val d = PyDict()
+        for (i in kwNames.indices) d[kwNames[i]] = kwValues[i]
+        return kw(ctx, args, d)
+    }
+
     /** [fn] called with [pos] and the keyword arguments [kwNames] (PyStrs) = [kwValues]. */
     @JvmStatic fun callWith(ctx: PyContext, fn: Any?, pos: Array<Any?>, kwNames: Array<Any?>, kwValues: Array<Any?>): Any? = when (fn) {
         is PyFunction -> if (kwNames.isEmpty()) PyInterpreter.call(ctx, fn, pos) else PyInterpreter.callBound(ctx, fn, bind(fn, pos, kwNames, kwValues))
         is PyBuiltin -> {
-            val args = if (fn.numSelf) numSelf(pos) else pos
-            if (kwNames.isEmpty()) fn.impl(ctx, args) else {
-                val kw = fn.kwImpl ?: throw PyRt.typeError("${fn.name}() takes no keyword arguments")
-                val d = PyDict()
-                for (i in kwNames.indices) d[kwNames[i]] = kwValues[i]
-                kw(ctx, args, d)
-            }
+            if (fn.ownerType != null) checkSelf(fn, pos)
+            invoke(ctx, fn, pos, kwNames, kwValues)
         }
         is PyBoundMethod -> {
             val all = arrayOfNulls<Any?>(pos.size + 1)
             all[0] = fn.self
             pos.copyInto(all, 1)
-            callWith(ctx, fn.fn, all, kwNames, kwValues)
+            // (its self its owner's: bound by a lookup on it)
+            invoke(ctx, fn.fn, all, kwNames, kwValues)
         }
         is PyType -> PyClasses.instantiate(ctx, fn, pos, kwNames, kwValues)
         is PyMethod -> {

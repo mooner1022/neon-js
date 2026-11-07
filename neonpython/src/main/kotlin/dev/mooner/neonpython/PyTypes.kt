@@ -82,6 +82,9 @@ class PyType(@JvmField var name: String, bases: Array<PyType>, @JvmField val dic
             else -> null
         }
         if (fn != null && fn.ownerType == null && fn.ownerModule == null) fn.ownerType = this
+        // (a static or class method's function is not a method descriptor: no self of the type to check, its type
+        // builtin_function_or_method, as CPython's)
+        if (fn != null && v !is PyBuiltin) fn.method = false
     }
 
     fun repr(): String = if (module == "builtins") "<class '$name'>" else "<class '$module.$qualname'>"
@@ -152,7 +155,15 @@ object PyTypes {
 
     /** A builtin's type: a type's method its descriptor's, a function (and a type's __new__, tp_new's wrapper) builtin_function_or_method. */
     @JvmStatic fun builtinType(b: PyBuiltin): PyType =
-        if (!b.method || b.ownerType == null || b.name == "__new__") BUILTIN_FUNCTION else if (b.name in SLOT_NAMES) WRAPPER_DESCRIPTOR else METHOD_DESCRIPTOR
+        if (!b.method || b.ownerType == null || b.name == "__new__") BUILTIN_FUNCTION
+        else if (b.name in SLOT_NAMES && !isMethodDunder(b.ownerType!!, b.name)) WRAPPER_DESCRIPTOR else METHOD_DESCRIPTOR
+
+    /** The slot names CPython's types define as methods (tp_methods) all the same: dict's and list's __getitem__, ... */
+    private fun isMethodDunder(t: PyType, n: String): Boolean = when (n) {
+        "__getitem__" -> t === DICT || t === LIST
+        "__contains__" -> t === DICT || t === SET || t === FROZENSET
+        else -> false
+    }
 
     /** A type's name as its C tp_name has it: a builtin's alone, another module's qualified ("_struct.Struct"). */
     @JvmStatic fun tpName(t: PyType): String = t.tpName ?: if (t.module == "builtins") t.name else "${t.module}.${t.name}"

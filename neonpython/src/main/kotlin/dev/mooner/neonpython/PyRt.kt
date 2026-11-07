@@ -1018,7 +1018,10 @@ object PyRt {
         val ctx = (f as PyFrame).ctx
         return when (fn) {
             is PyFunction -> PyInterpreter.call(ctx, fn, args)
-            is PyBuiltin -> fn.frameImpl.let { fi -> if (fi != null) fi(f, args) else fn.impl(ctx, if (fn.numSelf) PyCalls.numSelf(args) else args) }
+            is PyBuiltin -> {
+                if (fn.ownerType != null) PyCalls.checkSelf(fn, args)
+                fn.frameImpl.let { fi -> if (fi != null) fi(f, args) else fn.impl(ctx, if (fn.numSelf) PyCalls.numSelf(args) else args) }
+            }
             is PyBoundMethod -> {
                 val all = arrayOfNulls<Any?>(args.size + 1)
                 val self = fn.self
