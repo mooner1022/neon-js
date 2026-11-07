@@ -125,20 +125,38 @@ object PyContainers {
         }
         m(lt, "remove") { a, _ ->
             val l = list(a, "remove")
-            val i = l.indexOfFirst { it === a[1] || PyRt.eq(it, a[1]) }
-            if (i < 0) throw PyException("ValueError", "list.remove(x): x not in list")
-            l.removeAt(i)
-            PyNone
+            // (the size read again each step: an __eq__ may change the list, as list_remove's loop allows)
+            var i = 0
+            while (i < l.size) {
+                val x = l[i]
+                if (x === a[1] || PyRt.eq(x, a[1])) {
+                    if (i < l.size) l.removeAt(i)
+                    return@m PyNone
+                }
+                i++
+            }
+            throw PyException("ValueError", "list.remove(x): x not in list")
         }
         m(lt, "index") { a, _ ->
             val l = list(a, "index")
             val (st, end) = bounds(l.size, a, 2)
             var r = -1
-            for (i in st until end) if (l[i] === a[1] || PyRt.eq(l[i], a[1])) { r = i; break }
+            var i = st
+            while (i < end && i < l.size) {
+                val x = l[i]
+                if (x === a[1] || PyRt.eq(x, a[1])) { r = i; break }
+                i++
+            }
             if (r < 0) throw PyException("ValueError", "list.index(x): x not in list")
             r.toLong()
         }
-        m(lt, "count") { a, _ -> list(a, "count").count { it === a[1] || PyRt.eq(it, a[1]) }.toLong() }
+        m(lt, "count") { a, _ ->
+            val l = list(a, "count")
+            var n = 0L
+            var i = 0
+            while (i < l.size) { val x = l[i]; if (x === a[1] || PyRt.eq(x, a[1])) n++; i++ }
+            n
+        }
         m(lt, "sort") { a, kw ->
             val l = list(a, "sort")
             if (a.size > 1) throw PyRt.typeError("sort() takes no positional arguments")

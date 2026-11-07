@@ -367,6 +367,10 @@ object PyClasses {
             }
         }
         for (t in listOf(PyTypes.BUILTIN_FUNCTION, PyTypes.METHOD, PyTypes.METHOD_WRAPPER)) t.def("__reduce__", PyBuiltin("__reduce__") { ctx, a -> reduceBuiltin(ctx, a.getOrNull(0)) })
+        // (a generator, a coroutine, an asynchronous generator: never pickled nor copied, as CPython's (no tp_new))
+        for (t in listOf(PyTypes.GENERATOR, PyTypes.COROUTINE, PyTypes.ASYNC_GENERATOR)) {
+            for (n in listOf("__reduce__", "__reduce_ex__")) t.def(n, PyBuiltin(n) { _, _ -> throw PyRt.typeError("cannot pickle '${t.name}' object") })
+        }
         // (a function is a descriptor: f.__get__(obj) a method, partialmethod's way)
         PyTypes.FUNCTION.def("__get__", PyBuiltin("__get__") { _, a ->
             val obj = a.getOrNull(1)

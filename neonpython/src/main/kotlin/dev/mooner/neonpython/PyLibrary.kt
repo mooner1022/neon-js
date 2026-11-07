@@ -33,52 +33,64 @@ object PyLibrary {
     @JvmStatic
     fun sort(items: ArrayList<Any?>, key: Any?, reverse: Boolean) {
         if (items.size < 2) return
-        val keys: ArrayList<Any?> = if (key == null || key === PyNone) items else ArrayList<Any?>(items.size).also { k -> for (x in items) k.add(call(key, x)) }
-        // (reverse: reversed, sorted, reversed again, so that equal items keep their order, as CPython does)
-        val idx = IntArray(items.size) { it }
-        if (reverse) idx.reverse()
-        val tmp = IntArray(idx.size)
-        fun lt(i: Int, j: Int) = PyRt.order(0, keys[i], keys[j])
-        fun merge(lo: Int, mid: Int, hi: Int) {
-            var i = lo
-            var j = mid
-            var k = lo
-            while (i < mid && j < hi) tmp[k++] = if (lt(idx[j], idx[i])) idx[j++] else idx[i++]
-            while (i < mid) tmp[k++] = idx[i++]
-            while (j < hi) tmp[k++] = idx[j++]
-            for (x in lo until hi) idx[x] = tmp[x]
-        }
-        var width = 1
-        // (runs of 8 by insertion first)
-        val run = 8
-        var s = 0
-        while (s < idx.size) {
-            val e = minOf(s + run, idx.size)
-            for (i in s + 1 until e) {
-                val v = idx[i]
-                var j = i - 1
-                while (j >= s && lt(v, idx[j])) {
-                    idx[j + 1] = idx[j]
-                    j--
+        // (list.sort's way: the list empty while its items are sorted aside, so a key or a comparison sees it empty; one
+        // that changed it is "list modified during sort", the items sorted all the same; an error puts them back)
+        val work = ArrayList(items)
+        items.clear()
+        val sorted = ArrayList<Any?>(work.size)
+        try {
+            val keys: ArrayList<Any?> = if (key == null || key === PyNone) work else ArrayList<Any?>(work.size).also { k -> for (x in work) k.add(call(key, x)) }
+            // (reverse: reversed, sorted, reversed again, so that equal items keep their order, as CPython does)
+            val idx = IntArray(work.size) { it }
+            if (reverse) idx.reverse()
+            val tmp = IntArray(idx.size)
+            fun lt(i: Int, j: Int) = PyRt.order(0, keys[i], keys[j])
+            fun merge(lo: Int, mid: Int, hi: Int) {
+                var i = lo
+                var j = mid
+                var k = lo
+                while (i < mid && j < hi) tmp[k++] = if (lt(idx[j], idx[i])) idx[j++] else idx[i++]
+                while (i < mid) tmp[k++] = idx[i++]
+                while (j < hi) tmp[k++] = idx[j++]
+                for (x in lo until hi) idx[x] = tmp[x]
+            }
+            var width = 1
+            // (runs of 8 by insertion first)
+            val run = 8
+            var s = 0
+            while (s < idx.size) {
+                val e = minOf(s + run, idx.size)
+                for (i in s + 1 until e) {
+                    val v = idx[i]
+                    var j = i - 1
+                    while (j >= s && lt(v, idx[j])) {
+                        idx[j + 1] = idx[j]
+                        j--
+                    }
+                    idx[j + 1] = v
                 }
-                idx[j + 1] = v
+                s = e
             }
-            s = e
-        }
-        width = run
-        while (width < idx.size) {
-            var lo = 0
-            while (lo < idx.size - width) {
-                merge(lo, lo + width, minOf(lo + 2 * width, idx.size))
-                lo += 2 * width
+            width = run
+            while (width < idx.size) {
+                var lo = 0
+                while (lo < idx.size - width) {
+                    merge(lo, lo + width, minOf(lo + 2 * width, idx.size))
+                    lo += 2 * width
+                }
+                width *= 2
             }
-            width *= 2
+            if (reverse) idx.reverse()
+            for (i in idx) sorted.add(work[i])
+        } catch (e: PyException) {
+            items.clear()
+            items.addAll(work)
+            throw e
         }
-        if (reverse) idx.reverse()
-        val sorted = ArrayList<Any?>(items.size)
-        for (i in idx) sorted.add(items[i])
+        val modified = items.isNotEmpty()
         items.clear()
         items.addAll(sorted)
+        if (modified) throw PyException("ValueError", "list modified during sort")
     }
 
     /** float.hex(): CPython's form, 13 hex digits of the fraction and the exponent's sign (`0x1.8000000000000p+0`). */

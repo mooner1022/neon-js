@@ -411,6 +411,8 @@ object PyRt {
             is PyRange -> b is PyRange && PyRanges.eq(a, b)
             is PySlice -> b is PySlice && a == b
             is PyGenericAlias, is PyUnion, is PyParamSpecPart -> a == b
+            // (a builtin bound to its object: the same builtin of the same object, meth_richcompare's)
+            is PyBoundMethod -> b is PyBoundMethod && a.self === b.self && a.fn === b.fn
             PyNone, null -> b === PyNone || b == null
             else -> false
         }
@@ -419,8 +421,15 @@ object PyRt {
     /** Two sequences' items equal pairwise (an item is its own equal: containers compare by identity first). */
     @JvmStatic fun seqEquals(a: List<Any?>, b: List<Any?>): Boolean {
         if (a.size != b.size) return false
-        for (k in a.indices) if (a[k] !== b[k] && !eq(a[k], b[k])) return false
-        return true
+        // (list_richcompare: the sizes read again each step, an __eq__ may change either)
+        var k = 0
+        while (k < a.size && k < b.size) {
+            val x = a[k]
+            val y = b[k]
+            if (x !== y && !eq(x, y)) return false
+            k++
+        }
+        return a.size == b.size
     }
 
     /** a < b (op 0), <= (1), > (2), >= (3), as Python orders numbers, strs, lists and tuples. */
@@ -486,6 +495,7 @@ object PyRt {
         is PyComplex -> fold(PyHash.hash(v))
         is PyObject, is PyNumSub -> PyDunder.hash(v)
         is PyGenericAlias, is PyUnion, is PyParamSpecPart -> v.hashCode()
+        is PyBoundMethod -> fold(PyHash.hash(v))
         else -> System.identityHashCode(v)
     }
 
@@ -521,7 +531,8 @@ object PyRt {
 
     /** `v in container` of builtin values (a subclass's instance as its base type's value), else by iteration. */
     @JvmStatic fun containsValues(container: Any?, v: Any?): Boolean = when (container) {
-        is PyList -> container.items.any { it === v || eq(it, v) }
+        // (each item read where it is now: an __eq__ may change the list, as list_contains re-reads its size)
+        is PyList -> { val l = container.items; var i = 0; var r = false; while (i < l.size) { val x = l[i]; if (x === v || eq(x, v)) { r = true; break }; i++ }; r }
         is PyTuple -> container.items.any { it === v || eq(it, v) }
         is PyDict -> container.containsKey(v)
         is PySet -> container.contains(v)
@@ -781,15 +792,23 @@ object PyRt {
         } catch (e: PyException) {
             if (e.matches(PyExceptions.type("TypeError"))) throw typeError("must assign iterable to extended slice") else throw e
         }
+        // (the slice's indices and the value's items may have changed the list: clamped to it as it is now,
+        // as list_ass_slice clamps them)
+        val size = l.items.size
         if (st == 1L) {
-            val end = maxOf(a, b).toInt()
-            l.items.subList(a.toInt(), end).clear()
-            l.items.addAll(a.toInt(), items)
+            val lo = minOf(a, size.toLong()).toInt()
+            val hi = minOf(maxOf(a, b), size.toLong()).toInt().coerceAtLeast(lo)
+            l.items.subList(lo, hi).clear()
+            l.items.addAll(lo, items)
             return
         }
         if (items.size.toLong() != n) throw PyException("ValueError", "attempt to assign sequence of size ${items.size} to extended slice of size $n")
         var i = a
-        for (x in items) { l.items[i.toInt()] = x; i += st }
+        for (x in items) {
+            if (i < 0 || i >= l.items.size) throw PyException("IndexError", "list assignment index out of range")
+            l.items[i.toInt()] = x
+            i += st
+        }
     }
 
     @JvmStatic fun iterValues(v: Any?): PyIterator = when (v) {

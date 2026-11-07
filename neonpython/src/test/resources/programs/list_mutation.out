@@ -1,0 +1,19 @@
+slice index mutates -> [1, 2]
+slice iter mutates -> [1]
+extended slice mutates -> [1, 1, 2, 3, 3]
+remove mutates !! ValueError list.remove(x): x not in list
+index mutates !! ValueError list.index(x): x not in list
+count mutates -> 0
+contains mutates -> False
+sort mutates !! ValueError list modified during sort
+copy gen !! TypeError cannot pickle 'generator' object
+deepcopy gen !! TypeError cannot pickle 'generator' object
+pickle gen !! TypeError cannot pickle 'generator' object
+bound eq -> (True, False, False, True, True, True)
+bound repr -> <built-in method append of lis
+sort compare mutates !! ValueError list modified during sort
+after -> [C1, C2, C3]
+sort sees empty -> (None, [1, 2, 3], [0, 0, 0])
+sort key raises !! KeyError 'k'
+after raise -> [3, 1, 2]
+sorted -> [3, 2, 1]
