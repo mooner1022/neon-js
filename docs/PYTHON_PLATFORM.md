@@ -1115,6 +1115,17 @@ stand-ins until the real `unittest` imports: from then on CPython's own).
   - A pattern with a `*_` star takes its items by index, and an all-wildcard one takes none, as CPython compiles
     them: a sequence whose `__getitem__` never ends still matches.
   - A class pattern tests isinstance(): an ABC's or a runtime-checkable protocol's `__instancecheck__`.
+- **The builtin types cannot be changed**, as CPython's immutable types cannot, and every context shares them.
+  - Setting or deleting an attribute of a builtin type, or of a module's C type, raises CPython's TypeError.
+  - object's `__setattr__` and `__delattr__` do not apply to a class (CPython's hackcheck).
+  - A class's attributes go through its metaclass's `__setattr__` and `__delattr__`.
+  - A class has its own `__dict__` and `__weakref__` descriptors where it adds them to its bases' layout.
+- **The CJK codecs are CPython's `_multibytecodec` and `_codecs_*`, ported** (Modules/cjkcodecs), with CPython's
+  `encodings` for all 24 unchanged.
+  - Their tables are in `cjkcodecs.bin` (84 KB), which `neonpython/tools/gen_cjkcodecs.py` makes from
+    `mappings_*.h`.
+  - Each table is read when it is first used. The encmaps are derived from the decmaps, except for 73 values.
+  - PyCjkCodecsTest checks every code point and every short byte sequence against CPython's digests.
 
 ### 12.3 Progress (2026-11-07, later)
 
@@ -1165,10 +1176,18 @@ Then:
 - `zoneinfo` over the bundled IANA database, and `importlib.resources`;
 - `doctest`, `pdb` and `bdb`, with `sys.monitoring` and `settrace` kept;
 - types' layouts as CPython's, and `match` by the types' flags (CPython's `test_patma` passes, but for its line-event
-  tracing tests).
+  tracing tests);
+- the builtin types immutable, metaclass attribute hooks, and classes' `__dict__` and `__weakref__` descriptors;
+- the CJK codecs.
 
 Next:
-- the CJK codecs;
+- what CPython's `test_descr` finds:
+  - one member_descriptor type;
+  - classmethod's and staticmethod's `__dict__`;
+  - a bound method's `__get__`;
+  - `super()` with one argument;
+  - `complex()`'s keywords;
+- the built-in error handlers, which are quadratic on a long string outside the BMP;
 - `_elementtree`, if ElementTree's speed matters;
 - `C1` on a core branch.
 
