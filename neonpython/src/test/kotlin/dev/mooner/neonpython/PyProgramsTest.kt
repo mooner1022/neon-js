@@ -60,7 +60,7 @@ class PyProgramsTest {
      * The programs that use a file system: run with one in memory, in its empty /tmp; their outputs are Linux
      * CPython's (POSIX-shaped, as NeonPy's posix is), run in an empty directory.
      */
-    private val fsPrograms = setOf("os_module", "io_module", "io_errors", "path_modules")
+    private val fsPrograms = setOf("os_module", "io_module", "io_errors", "path_modules", "tool_modules")
 
     private fun memoryFs(fs: Boolean): PyFileSystem = if (fs) PyFileSystem.memory(mapOf("/tmp/" to ByteArray(0))) else PyFileSystem.NONE
 

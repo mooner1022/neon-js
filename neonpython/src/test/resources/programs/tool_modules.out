@@ -1,0 +1,103 @@
+sections -> (['app', 'empty'], '/srv/app', 8080, True, {'path': '/srv/app', 'port': '8080', 'debug': 'yes', 'base': '/srv'})
+write -> [DEFAULT]
+base = /srv
+
+[app]
+path = %(base)s/app
+port = 8080
+debug = yes
+
+[empty]
+
+[new]
+k = v
+
+
+missing !! KeyError 'nope'
+dup !! DuplicateSectionError While reading from '<string>' [line  3]: section 'a' already exists
+toml -> {'title': 'x', 'owner': {'name': 'n', 'dob': datetime.datetime(1979, 5, 27, 7, 32, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=57600)))}, 'db': {'ports': [8000, 8001], 'enabled': True, 'pi': 3.14}}
+toml error !! TOMLDecodeError Invalid value (at end of document)
+getopt -> ([('-a', ''), ('-b', 'x'), ('--long', 'y')], ['rest'])
+getopt error !! GetoptError option -z not recognized
+gnu_getopt -> ([('-a', '')], ['r1', 'r2'])
+optparse -> (3, True, ['x'])
+optparse help -> Usage: p [options]
+
+Options:
+  -h, --help  show this help message and exit
+  -n N        
+  -q          
+
+cmp -> (True, False)
+dircmp -> (['only.txt'], [], ['same.txt'], ['diff.txt'], ['diff.txt', 'same.txt'])
+fileinput -> [('fa/same.txt', 1, 'same'), ('fa/diff.txt', 2, 'one')]
+tar -> (['fa/same.txt', 'mem.txt'], b'hello tar', 4)
+wave -> (_wave_params(nchannels=1, sampwidth=2, framerate=8000, nframes=10, comptype='NONE', compname='not compressed'), b'\x00\x01\x00\x01')
+uuid -> (UUID('12345678-1234-5678-1234-567812345678'), '12345678123456781234567812345678', None, 24197857161011715162171839636988778104, b'\x124Vx', UUID('00000000-0000-0000-0000-000000000005'), 4, 'urn:uuid:12345678-1234-5678-1234-567812345678', UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8'))
+uuid error !! ValueError badly formed hexadecimal UUID string
+mimetypes -> (('text/html', None), ('application/x-tar', 'gzip'), '.png', (None, None))
+timeit -> (True, 2, True)
+platform -> ('Linux', '3.14.6', ('3', '14', '6'), True)
+code !! SyntaxError invalid syntax (<input>, line 1)
+'1 +' SyntaxError: invalid syntax 1
+'if True:' None
+'if True:\n  x = 1' None
+'if True:\n  x = 1\n' code
+'def f(:' SyntaxError: invalid syntax 1
+'(1,' None
+'"""abc' None
+"'abc" SyntaxError: unterminated string literal (detected at line 1) 1
+'x = )' SyntaxError: unmatched ')' 1
+'for' SyntaxError: invalid syntax 1
+'@dec' None
+'x = 1 +\\' None
+'try:\n  pass\n' None
+'if x:\n  pass\nelse' SyntaxError: expected ':' 3
+'f(**' None
+'#c' code
+'' code
+'x = 1' code
+'for i in range(2): i' None
+'class C:\n  def f(self):\n' None
+'if 1:\n pass\n  pass' IndentationError: unexpected indent 3
+'match x:\n case 1:' None
+'1 +' single _IncompleteInputError: incomplete input 1 3
+'1 +' exec SyntaxError: invalid syntax 1 4
+'1 +' eval _IncompleteInputError: incomplete input 1 3
+'if True:\n' single _IncompleteInputError: incomplete input 1 9
+'if True:\n' exec _IncompleteInputError: incomplete input 1 9
+'if True:\n' eval SyntaxError: invalid syntax 1 1
+'(1,\n' single _IncompleteInputError: incomplete input 1 4
+'(1,\n' exec _IncompleteInputError: incomplete input 1 4
+'(1,\n' eval _IncompleteInputError: incomplete input 1 4
+'1 +\n' single SyntaxError: invalid syntax 1 4
+'1 +\n' exec SyntaxError: invalid syntax 1 4
+'1 +\n' eval SyntaxError: invalid syntax 1 4
+'for i in range(2): i' single _IncompleteInputError: incomplete input 1 20
+'for i in range(2): i' exec ok
+'for i in range(2): i' eval SyntaxError: invalid syntax 1 1
+2
+'1+1' ran
+1
+'x=1; x' ran
+'1\n2' SyntaxError multiple statements found while compiling a single statement 1 2
+3
+4
+'if 1:\n  3\n  4\n' ran
+0
+1
+'for i in range(2): i\n' ran
+'None' ran
+'' SyntaxError invalid syntax 0 0
+'doc'
+'"doc"' ran
+1
+2
+'print(1); 2' ran
+incomplete type -> ('SyntaxError', True)
+hook 7
+lost hook !! RuntimeError lost sys.displayhook
+9
+underscore -> 9
+console -> [False, False, True, True, False, True, True, False, False, False, False]
+console out -> ['42', '0', '1', '6', 'Traceback (most recent call last):', 'ZeroDivisionError: division by zero', 'Traceback (most recent call last):', "NameError: name 'undefined' is not defined"]

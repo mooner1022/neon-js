@@ -177,6 +177,7 @@ object PyTypes {
             "RuntimeError" to "Exception", "NotImplementedError" to "RuntimeError", "PythonFinalizationError" to "RuntimeError",
             "RecursionError" to "RuntimeError", "StopAsyncIteration" to "Exception", "StopIteration" to "Exception",
             "SyntaxError" to "Exception", "IndentationError" to "SyntaxError", "TabError" to "IndentationError",
+            "_IncompleteInputError" to "SyntaxError",
             "SystemError" to "Exception", "TypeError" to "Exception", "ValueError" to "Exception", "UnicodeError" to "ValueError",
             "UnicodeDecodeError" to "UnicodeError", "UnicodeEncodeError" to "UnicodeError", "UnicodeTranslateError" to "UnicodeError",
             "Warning" to "Exception", "BytesWarning" to "Warning", "DeprecationWarning" to "Warning", "EncodingWarning" to "Warning",

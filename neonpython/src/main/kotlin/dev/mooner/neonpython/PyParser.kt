@@ -56,15 +56,18 @@ class PyParser(private val src: String) {
         try {
             return body()
         } catch (e: PySyntaxError) {
+            val t = toks[minOf(far, toks.size - 1)]
+            if (t.start >= src.length) e.farEnd = if (t.kind == Kind.NEWLINE) 1 else 2
             val u = unclosed ?: throw e
-            if (toks[minOf(far, toks.size - 1)].line > u.line) neverClosed()
+            if (t.line > u.line) neverClosed()
             throw e
         }
     }
 
+    /** (a bracket open at the end: the source ended in it) */
     private fun neverClosed(): Nothing {
         val u = unclosed!!
-        throw PySyntaxError("'${u.text}' was never closed", u.line, u.col).also { it.fatal = true }
+        throw PySyntaxError("'${u.text}' was never closed", u.line, u.col).also { it.fatal = true; it.eof = true }
     }
 
     // ------------------------------------------------------------------ tokens

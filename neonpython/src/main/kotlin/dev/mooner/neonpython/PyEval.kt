@@ -38,6 +38,14 @@ object PyEval {
 
     /** compile()'s PyCF_ONLY_AST, and the future feature annotations' flag. */
     private const val ONLY_AST = 0x400
+    private const val ALLOW_INCOMPLETE_INPUT = 0x4000
+    private val NO_KW = arrayOfNulls<Any?>(0)
+
+    /** PRINT_EXPR (mode 'single''s expression statements): the value to sys.displayhook as it is then. */
+    @JvmField val PRINT_EXPR = PyBuiltin("print_expr") { c, a ->
+        val hook = c.sysModule.dict[PyStr("displayhook")] ?: throw PyException("RuntimeError", "lost sys.displayhook")
+        PyCalls.callWith(c, hook, arrayOf(a[0]), NO_KW, NO_KW)
+    }
     private const val FUTURE_ANNOTATIONS = 0x1000000
 
     /** [source] (a str or UTF-8 bytes) compiled in [mode]; a compile error raised as SyntaxError. */
@@ -46,12 +54,37 @@ object PyEval {
         if (mode != "exec" && mode != "eval" && mode != "single") throw PyException("ValueError", "compile() mode must be 'exec', 'eval' or 'single'")
         val src = text(source, "compile() arg 1 must be a string, bytes or AST object")
         if (flags and ONLY_AST != 0) return PyAstObjects.parse(PyContext.current(), src, filename, mode)
-        try {
-            val cb = PyCompiler.withFilename(PyCompiler.compileSource(src, if (mode == "eval") "eval" else "exec", flags and FUTURE_ANNOTATIONS != 0), filename)
-            return PyCode(cb, mode, filename).also { (cb.dialectData as PyCodeInfo).codeObject = it }
+        val incomplete = flags and ALLOW_INCOMPLETE_INPUT != 0
+        val cb = try {
+            PyCompiler.withFilename(PyCompiler.compileSource(src, mode, flags and FUTURE_ANNOTATIONS != 0, incomplete), filename)
         } catch (e: PySyntaxError) {
+            if (incomplete && e.stage == 2 && (e.type == "_IncompleteInputError" || endedBy(e, src, mode))) throw incompleteInput(filename, src, mode)
             throw syntaxError(e, filename, src, mode)
         }
+        return PyCode(cb, mode, filename).also { (cb.dialectData as PyCodeInfo).codeObject = it }
+    }
+
+    /**
+     * _IncompleteInputError, where CPython's last token ends: the source's last line with one, after its newline
+     * where it has one.
+     */
+    private fun incompleteInput(filename: String, src: String, mode: String): PyException {
+        val lines = src.split('\n')
+        val last = lines.indexOfLast { l -> l.isNotBlank() }
+        val end = if (last < 0) -1 else lines[last].trimEnd('\r').length - (if (last == lines.size - 1) 1 else 0)
+        return syntaxError(PySyntaxError("incomplete input", last + 1, end, "_IncompleteInputError").also { it.stage = 2 }, filename, src, mode)
+    }
+
+    /**
+     * Whether the source's end made [e] (CPython's _is_end_of_source, its tokenizer having reached the end): mode
+     * 'exec' reads a source with a newline at its end, so that a string a line ends and the newline a source
+     * without one ends with are not the end.
+     */
+    private fun endedBy(e: PySyntaxError, src: String, mode: String): Boolean = when {
+        // (a backslash ending a source without a newline: 'exec''s line continued to the end, another's character after it)
+        e.eof -> if (mode == "exec") !e.msg.startsWith("unterminated string literal") else !src.endsWith("\\")
+        e.farEnd == 2 -> true
+        else -> e.farEnd == 1 && mode != "exec"
     }
 
     private fun text(source: Any?, what: String): String = when (source) {

@@ -28,6 +28,13 @@ class PySyntaxError(message: String, @JvmField val line: Int, @JvmField val col:
     @JvmField var stage = 0
     /** An error no speculative parse may take back (the tokenizer's, as CPython's aborts its parser). */
     @JvmField var fatal = false
+    /**
+     * Where the source ended it (compile()'s PyCF_ALLOW_INCOMPLETE_INPUT, codeop's): the tokenizer's at its end
+     * ([eof]: in a string, a bracket, after a backslash), the parser's having looked at the tokens the end makes
+     * ([farEnd]: 1 the newline a source without one ends with, 2 its dedents or its end).
+     */
+    @JvmField var eof = false
+    @JvmField var farEnd = 0
 }
 
 /**
@@ -90,7 +97,7 @@ class PyLexer(private val src: String) {
                         val l = line
                         pos++
                         newline()
-                        if (pos >= src.length) throw PySyntaxError("unexpected EOF while parsing", l, 0)
+                        if (pos >= src.length) throw PySyntaxError("unexpected EOF while parsing", l, 0).also { it.eof = true }
                         continue
                     }
                     skipComment()
@@ -123,12 +130,12 @@ class PyLexer(private val src: String) {
                 c == ' ' || c == '\t' || c == '\u000c' -> pos++
                 c == '#' -> skipComment()
                 c == '\\' -> {
-                    if (pos + 1 >= src.length) throw PySyntaxError("unexpected EOF while parsing", line, col(pos))
+                    if (pos + 1 >= src.length) throw PySyntaxError("unexpected EOF while parsing", line, col(pos)).also { it.eof = true }
                     if (src[pos + 1] == '\n' || src[pos + 1] == '\r') {
                         val l = line
                         pos++
                         newline()
-                        if (pos >= src.length) throw PySyntaxError("unexpected EOF while parsing", l, 0)
+                        if (pos >= src.length) throw PySyntaxError("unexpected EOF while parsing", l, 0).also { it.eof = true }
                     } else throw PySyntaxError("unexpected character after line continuation character", line, col(pos))
                 }
                 c == '\n' || c == '\r' -> {
@@ -147,7 +154,7 @@ class PyLexer(private val src: String) {
         }
         if (modes.isNotEmpty()) {
             val m = modes.first()
-            throw PySyntaxError("unterminated ${if (m.info.triple) "triple-quoted " else ""}${if (m.info.template) "t" else "f"}-string literal (detected at line $line)", line, col(pos))
+            throw PySyntaxError("unterminated ${if (m.info.triple) "triple-quoted " else ""}${if (m.info.template) "t" else "f"}-string literal (detected at line $line)", line, col(pos)).also { it.eof = true }
         }
         if (depth > 0) {
             unclosed = PyToken(PyToken.Kind.OP, parens[depth - 1].toString(), null, parenLines[depth - 1], parenCols[depth - 1])
@@ -356,7 +363,7 @@ class PyLexer(private val src: String) {
         literalQuote = q
         val sb = StringBuilder()
         while (true) {
-            if (pos >= src.length) throw unterminatedIn(triple, startLine, q)
+            if (pos >= src.length) throw unterminatedIn(triple, startLine, q).also { it.eof = true }
             val c = src[pos]
             if (c == q && (!triple || pos + 2 < src.length && src[pos + 1] == q && src[pos + 2] == q)) {
                 pos += if (triple) 3 else 1
@@ -502,7 +509,7 @@ class PyLexer(private val src: String) {
         literalQuote = info.quote
         val sb = StringBuilder()
         while (true) {
-            if (pos >= src.length) throw unterminatedF(info)
+            if (pos >= src.length) throw unterminatedF(info).also { it.eof = true }
             val c = src[pos]
             if (c == info.quote && (!info.triple || pos + 2 < src.length && src[pos + 1] == c && src[pos + 2] == c)) {
                 if (sb.isNotEmpty()) out.add(PyToken(PyToken.Kind.FSTRING_MIDDLE, src.substring(start, pos), sb.toString(), startLine, startCol, start, pos))
@@ -596,7 +603,7 @@ class PyLexer(private val src: String) {
         val startCol = col(pos)
         val sb = StringBuilder()
         while (true) {
-            if (pos >= src.length) throw unterminatedF(info)
+            if (pos >= src.length) throw unterminatedF(info).also { it.eof = true }
             val c = src[pos]
             if (c == '{' || c == '}') {
                 if (sb.isNotEmpty()) out.add(PyToken(PyToken.Kind.FSTRING_MIDDLE, src.substring(start, pos), sb.toString(), startLine, startCol, start, pos))

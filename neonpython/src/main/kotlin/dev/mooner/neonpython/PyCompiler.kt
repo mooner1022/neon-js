@@ -195,12 +195,12 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
          * (LOAD_NAME, STORE_NAME: exec()'s locals may not be its globals); [future] the caller's
          * `from __future__ import annotations`.
          */
-        @JvmStatic fun compileSource(src: String, mode: String, future: Boolean): CodeUnit {
+        @JvmStatic fun compileSource(src: String, mode: String, future: Boolean, allowIncomplete: Boolean = false): CodeUnit {
             val m = try {
                 if (mode == "eval") {
                     val e = PyParser(src).parseExpression().body
                     Module(listOf(ExprStmt(e).also { it.line = e.line; it.col = e.col })).also { it.line = 1 }
-                } else PyParser(src).parseModule()
+                } else PyParser(src).parseModule().also { if (mode == "single") single(it, src, allowIncomplete) }
             } catch (e: PySyntaxError) {
                 e.stage = 2
                 throw e
@@ -209,11 +209,39 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             val c = PyCompiler(st, st.scopes[m]!!, "<module>")
             c.nameMode = true
             c.evalMode = mode == "eval"
+            c.interactive = mode == "single"
             try {
                 return c.compileBody(m.body, null)
             } catch (e: PySyntaxError) {
                 e.stage = 1
                 throw e
+            }
+        }
+
+        /**
+         * Mode 'single''s source, CPython's statement_newline: one statement (simple ones on its line), not none; a
+         * compound one ended by a newline, else (with PyCF_ALLOW_INCOMPLETE_INPUT) incomplete, its next line maybe its own.
+         */
+        private fun single(m: Module, src: String, allowIncomplete: Boolean) {
+            val lines = src.split('\n')
+            val lastLine = lines.indexOfLast { it.isNotBlank() } + 1
+            fun incomplete(): Nothing = throw PySyntaxError("incomplete input", lastLine, lines.getOrElse(lastLine - 1) { "" }.trimEnd('\r').length - 1, "_IncompleteInputError")
+            val body = m.body
+            if (body.isEmpty()) {
+                if (allowIncomplete) incomplete()
+                throw PySyntaxError("invalid syntax", if (src.isEmpty()) 0 else maxOf(lastLine, 1), -1)
+            }
+            val first = body[0]
+            body.firstOrNull { it.line != first.line }?.let {
+                throw PySyntaxError("multiple statements found while compiling a single statement", first.line, first.endCol)
+            }
+            val compound = first is If || first is For || first is While || first is With || first is Try || first is Match ||
+                first is FunctionDef || first is ClassDef
+            if (compound && !src.endsWith("\n") && !src.endsWith("\r")) {
+                if (allowIncomplete) incomplete()
+                // (one whose last line is not in its block: the newline after the body on it the statement's own)
+                val last = lines.getOrElse(lastLine - 1) { "" }
+                if (!last.startsWith(" ") && !last.startsWith("\t")) throw PySyntaxError("invalid syntax", lastLine, -1)
             }
         }
 
@@ -254,6 +282,8 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     /** A module's code compile() made: its names LOAD_NAME's ([nameMode]); an eval's, its expression's value returned. */
     private var nameMode = false
     private var evalMode = false
+    /** A compile() in mode 'single': the module's expression statements' values given to sys.displayhook (PRINT_EXPR). */
+    private var interactive = false
 
     /** Whether this is a generator expression's code, and the line of its def (or lambda, or comprehension). */
     private var generatorExpr = false
@@ -669,7 +699,9 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         lines.add(s.line)
         when (s) {
             is ExprStmt -> {
+                if (interactive) loadConst(PyEval.PRINT_EXPR)
                 expr(s.value)
+                if (interactive) emit(PyOp.CALL, 1)
                 emit(PyOp.POP)
             }
             is Assign -> {
