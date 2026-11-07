@@ -355,17 +355,18 @@ object PyClasses {
                 PyTuple(arrayOf(c.builtins[PyStr("getattr")], PyTuple(arrayOf(d.ownerType, PyStr(d.name)))))
             })
         }
-        // (a builtin bound to its object, a slot's method-wrapper too: getattr(the object, its name))
-        for (t in listOf(PyTypes.METHOD_WRAPPER, PyTypes.BUILTIN_FUNCTION)) {
-            t.def("__reduce__", PyBuiltin("__reduce__") { c, a ->
-                when (val b = a[0]) {
-                    is PyBoundMethod -> PyTuple(arrayOf(c.builtins[PyStr("getattr")], PyTuple(arrayOf(b.self, PyStr(b.fn.name)))))
-                    // (a function: its name, pickle's save_global's to find it by)
-                    is PyBuiltin -> PyStr(b.name)
-                    else -> throw PyRt.typeError("cannot pickle '${PyTypes.name(b)}' object")
-                }
-            })
+        // (pickling a builtin, as CPython's meth_reduce: a function by its name, found again in its module; a method (a
+        // type's or one bound to its object) as getattr(owner, name))
+        fun reduceBuiltin(ctx: PyContext, f: Any?): Any? {
+            val getattr = ctx.builtins[PyStr("getattr")]
+            return when (f) {
+                is PyBoundMethod -> PyTuple(arrayOf(getattr, PyTuple(arrayOf(f.self, PyStr(f.fn.name)))))
+                is PyMethod -> PyTuple(arrayOf(getattr, PyTuple(arrayOf(f.self, PyRt.getAttr(f.fn, "__name__")))))
+                is PyBuiltin -> f.ownerType?.let { PyTuple(arrayOf(getattr, PyTuple(arrayOf(it, PyStr(f.name))))) } ?: PyStr(f.name)
+                else -> throw PyRt.typeError("descriptor '__reduce__' for 'builtin_function_or_method' objects doesn't apply to a '${PyTypes.name(f)}' object")
+            }
         }
+        for (t in listOf(PyTypes.BUILTIN_FUNCTION, PyTypes.METHOD, PyTypes.METHOD_WRAPPER)) t.def("__reduce__", PyBuiltin("__reduce__") { ctx, a -> reduceBuiltin(ctx, a.getOrNull(0)) })
         // (a function is a descriptor: f.__get__(obj) a method, partialmethod's way)
         PyTypes.FUNCTION.def("__get__", PyBuiltin("__get__") { _, a ->
             val obj = a.getOrNull(1)
@@ -782,7 +783,7 @@ object PyClasses {
             "__type_params__" -> PyTuple.EMPTY
             "__class__" -> meta
             // (a builtin type's attributes its instances have: their descriptors, FunctionType.__code__)
-            else -> PyAttrDescrs.of(t, name) ?: throw PyException("AttributeError", "type object '${t.name}' has no attribute '$name'")
+            else -> PyAttrDescrs.of(t, name) ?: throw PyException("AttributeError", "type object '${t.tpName ?: t.name}' has no attribute '$name'")
         }
     }
 

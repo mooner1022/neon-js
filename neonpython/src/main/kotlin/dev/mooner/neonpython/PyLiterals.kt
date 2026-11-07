@@ -276,7 +276,8 @@ object PyLiterals {
             if (v < 0 || v > 255) throw PyException("ValueError", "byte must be in range(0, 256)")
             bs.b.any { u(it).toLong() == v }
         }
-        else -> throw PyRt.typeError("a bytes-like object is required, not '${PyTypes.name(v)}'")
+        // (another bytes-like object: a bytearray's, a memoryview's, an array's bytes)
+        else -> PyByteSeqs.content(v)?.let { indexOf(bs.b, it, 0) >= 0 } ?: throw PyRt.typeError("a bytes-like object is required, not '${PyTypes.name(v)}'")
     }
 
     @JvmStatic

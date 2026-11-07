@@ -354,8 +354,16 @@ object PySys {
      * sys.getsizeof: an object's own __sizeof__ where its class has one, else near what CPython 3.14 (64 bits) gives
      * for the builtin kinds as it lays them out (the JVM's sizes are not the program's to see).
      */
-    /** CPython's pre-header of a class's instances: its managed dict and weak references' pointers (16), where it has them. */
-    private fun preheader(t: PyType): Long = if (t.hasDict || t.hasWeakref) 16L else 0L
+    /**
+     * CPython's pre-header of a class's instances: its managed dict and weak references' pointers (16), where it has
+     * them, a class (not a builtin type, nor a module's, which have a tp_name) over a builtin base without weak
+     * references of its own (object, list...; array's and set's keep theirs, and a subclass's dict, in the object).
+     */
+    private fun preheader(t: PyType): Long =
+        if (t.heap && t.tpName == null && (t.hasDict || t.hasWeakref) && t.mro.first { !it.heap || it.tpName != null } in MANAGED_BASES) 16L else 0L
+
+    private val MANAGED_BASES = setOf(PyTypes.OBJECT, PyTypes.INT, PyTypes.FLOAT, PyTypes.COMPLEX, PyTypes.STR, PyTypes.BYTES,
+        PyTypes.BYTEARRAY, PyTypes.TUPLE, PyTypes.LIST, PyTypes.DICT)
 
     /** object.__sizeof__: sys.getsizeof's size less a collected object's header (an instance's, its dict pointers too). */
     @JvmStatic

@@ -949,9 +949,10 @@ stand-ins until the real `unittest` imports: from then on CPython's own).
 - **A builtin type's classes are each context's.** The builtin types are every context's objects, so
   `object.__subclasses__()` lists only the asking context's classes (and the builtin types); descriptors the builtin
   types show (`FunctionType.__code__`) take no attributes of their own.
-- **A bytearray stays resizable while memoryviews of it live** (CPython raises BufferError): no reference count tells
-  when a view is gone, and refusing would break the common `memoryview(buf)[...]` temporaries; a view the resize left
-  past the end raises where it is read.
+- **A bytearray (an array.array too) stays resizable while memoryviews of it live** (CPython raises BufferError): no
+  reference count tells when a view is gone, and refusing would break the common `memoryview(buf)[...]` temporaries; a
+  view the resize left past the end raises where it is read. An array refuses only what NeonPy can tell: frombytes()
+  of its own bytes.
 - **`re` runs on a port of CPython's SRE engine,** not on `java.util.regex`: CPython's parser and compiler (Python)
   emit SRE code, which `_sre` runs as sre_lib.h does, so the semantics (backtracking order, groups in repeats, Unicode
   classes, case folding) are CPython's. Its contexts are on an explicit stack.

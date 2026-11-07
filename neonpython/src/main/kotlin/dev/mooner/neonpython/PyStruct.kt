@@ -403,7 +403,8 @@ object PyStruct {
     }
 
     /** C's (float) cast of [x] on x86_64, its bits: rounded to nearest; a NaN made quiet, its payload's top bits kept. */
-    private fun castToFloat(x: Double): Int {
+    @JvmStatic
+    internal fun castToFloat(x: Double): Int {
         if (x.isNaN()) {
             val v = java.lang.Double.doubleToRawLongBits(x)
             return ((v ushr 32).toInt() and Int.MIN_VALUE) or 0x7FC00000 or ((v and 0xFFFFFFFFFFFFFL) ushr 29).toInt()
@@ -412,7 +413,8 @@ object PyStruct {
     }
 
     /** C's (double) cast of the float [bits] on x86_64: exact; a NaN made quiet, its payload kept. */
-    private fun castToDouble(bits: Int): Double {
+    @JvmStatic
+    internal fun castToDouble(bits: Int): Double {
         if (bits and 0x7F800000 == 0x7F800000 && bits and 0x7FFFFF != 0) {
             return java.lang.Double.longBitsToDouble(((bits.toLong() and 0x80000000L) shl 32) or 0x7FF8000000000000L or ((bits.toLong() and 0x7FFFFFL) shl 29))
         }
@@ -433,7 +435,8 @@ object PyStruct {
     }
 
     /** PyFloat_Unpack4 (an IEEE platform's): the cast, a signalling NaN kept. */
-    private fun unpack4(bits: Int): Double {
+    @JvmStatic
+    internal fun unpack4(bits: Int): Double {
         if (bits and 0x7F800000 == 0x7F800000 && bits and 0x7FFFFF != 0) {
             return java.lang.Double.longBitsToDouble(((bits.toLong() and 0x80000000L) shl 32) or 0x7FF0000000000000L or ((bits.toLong() and 0x7FFFFFL) shl 29))
         }
@@ -613,6 +616,10 @@ object PyStruct {
                 obj.b
             }
             is PyMemoryView -> obj.arr()
+            is PyArrayObj -> {
+                if (off + len > obj.n * obj.itemsize) throw PyException("BufferError", "the array being read was resized past what is read")
+                obj.b
+            }
             else -> throw IllegalStateException()
         }
     }
@@ -621,6 +628,7 @@ object PyStruct {
     private fun readBuffer(v: Any?): Buf = when (v) {
         is PyBytes -> Buf(v, 0, v.b.size)
         is PyByteArray -> Buf(v, 0, v.size)
+        is PyArrayObj -> Buf(v, 0, v.n * v.itemsize)
         is PyMemoryView -> {
             v.check()
             if (!v.contiguous()) throw PyException("BufferError", "memoryview: underlying buffer is not C-contiguous")
@@ -635,6 +643,7 @@ object PyStruct {
     /** PyArg_Parse "w*": a writable, contiguous buffer, else CPython's message whatever kept it from one. */
     private fun writeBuffer(v: Any?): Buf = when {
         v is PyByteArray -> Buf(v, 0, v.size)
+        v is PyArrayObj -> Buf(v, 0, v.n * v.itemsize)
         v is PyMemoryView && !v.released && !v.readonly && v.contiguous() -> Buf(v, v.offset, v.count * v.itemsize)
         else -> throw PyRt.typeError("argument must be read-write bytes-like object, not ${PyTypes.typeOf(v).name}")
     }

@@ -27,10 +27,10 @@ class PyByteArray(@JvmField var b: ByteArray, @JvmField var size: Int) : PyValue
 }
 
 /**
- * A memoryview: [count] items of [format] ([itemsize] bytes each) of the bytes of [root] (a bytes' or a bytearray's),
- * from byte [offset], [stride] bytes apart; [obj] what it was made of. A bytearray may be resized while views of it
- * live (no reference count tells when a view is gone, docs/PYTHON_PLATFORM.md §12.2): a view the resize left past its
- * end raises where it is read.
+ * A memoryview: [count] items of [format] ([itemsize] bytes each) of the bytes of [root] (a bytes', a bytearray's or an
+ * array.array's), from byte [offset], [stride] bytes apart; [obj] what it was made of. A bytearray or an array may be
+ * resized while views of it live (no reference count tells when a view is gone, docs/PYTHON_PLATFORM.md §12.2): a view
+ * the resize left past its end raises where it is read.
  */
 class PyMemoryView(@JvmField val obj: Any, @JvmField val root: Any, @JvmField val offset: Int, @JvmField val count: Int,
                    @JvmField val stride: Int, @JvmField val format: String, @JvmField val itemsize: Int, @JvmField val readonly: Boolean) {
@@ -49,6 +49,11 @@ class PyMemoryView(@JvmField val obj: Any, @JvmField val root: Any, @JvmField va
                 if (count > 0 && offset + (count - 1) * stride + itemsize > root.size) {
                     throw PyException("BufferError", "memoryview: the bytearray it views was resized past it")
                 }
+                root.b
+            }
+            is PyArrayObj -> {
+                val end = if (stride >= 0) offset + (count - 1) * stride + itemsize else offset + itemsize
+                if (count > 0 && end > root.n * root.itemsize) throw PyException("BufferError", "memoryview: the array it views was resized past it")
                 root.b
             }
             else -> throw IllegalStateException()
@@ -82,17 +87,21 @@ object PyByteSeqs {
 
     // ------------------------------------------------------------------ bytes-like objects
 
-    /** The bytes of a bytes-like object (bytes, bytearray, memoryview), or null: a bytes' own array (not to be changed). */
+    /**
+     * The bytes of a bytes-like object (bytes, bytearray, memoryview, array.array), or null: a bytes' own array (not to
+     * be changed).
+     */
     @JvmStatic
     fun content(v: Any?): ByteArray? = when (v) {
         is PyBytes -> v.b
         is PyByteArray -> v.bytes()
         is PyMemoryView -> v.bytes()
+        is PyArrayObj -> v.bytes()
         is PyNumSub -> (v.num as? PyBytes)?.b
         else -> null
     }
 
-    @JvmStatic fun isBytesLike(v: Any?): Boolean = v is PyBytes || v is PyByteArray || v is PyMemoryView || v is PyNumSub && v.num is PyBytes
+    @JvmStatic fun isBytesLike(v: Any?): Boolean = v is PyBytes || v is PyByteArray || v is PyMemoryView || v is PyArrayObj || v is PyNumSub && v.num is PyBytes
 
     private fun need(v: Any?): ByteArray = content(v) ?: throw PyRt.typeError("a bytes-like object is required, not '${PyTypes.name(v)}'")
 
@@ -897,6 +906,7 @@ object PyByteSeqs {
         is PyNumSub -> (v.num as? PyBytes)?.let { b -> PyMemoryView(v, b, 0, b.b.size, 1, "B", 1, true) }
             ?: throw PyRt.typeError("memoryview: a bytes-like object is required, not '${PyTypes.name(v)}'")
         is PyByteArray -> PyMemoryView(v, v, 0, v.size, 1, "B", 1, false)
+        is PyArrayObj -> PyMemoryView(v, v, 0, v.n, v.itemsize, PyArray.format(v.tc), v.itemsize, false)
         is PyMemoryView -> {
             v.check()
             PyMemoryView(v.obj, v.root, v.offset, v.count, v.stride, v.format, v.itemsize, v.readonly)

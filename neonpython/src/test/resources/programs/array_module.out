@@ -1,0 +1,236 @@
+['ArrayType', '_array_reconstructor', 'array', 'typecodes'] bBuwhHiIlLqQfd True
+<class 'array.array'> array array array (<class 'array.array'>, <class 'object'>) type
+This module defines an object type which can efficiently represent array(typecode [, initializer]) -> array
+<class 'array.arrayiterator'> array arrayiterator TypeError: cannot create 'array.arrayiterator' instances
+array _array_reconstructor
+[('b', 1), ('B', 1), ('u', 4), ('w', 4), ('h', 2), ('H', 2), ('i', 4), ('I', 4), ('l', 8), ('L', 8), ('q', 8), ('Q', 8), ('f', 4), ('d', 8)]
+True True False
+TypeError: unhashable type: 'array.array' None array.array[int] array.array[float]
+getset_descriptor <attribute 'typecode' of 'array.array' objects> <attribute 'itemsize' of 'array.array' objects> h array.typecode
+AttributeError: attribute 'typecode' of 'array.array' objects is not writable AttributeError: attribute 'itemsize' of 'array.array' objects is not writable AttributeError: attribute 'typecode' of 'array.array' objects is not writable
+AttributeError: 'array.array' object has no attribute 'x' and no __dict__ for setting new attributes False TypeError: descriptor 'typecode' for 'array.array' objects doesn't apply to a 'int' object
+AttributeError: type object 'array.array' has no attribute 'nope' AttributeError: 'array.array' object has no attribute 'nope'
+b array('b', [-128, 127]) OverflowError: signed char is less than minimum OverflowError: signed char is greater than maximum
+B array('B', [0, 255]) OverflowError: unsigned byte integer is less than minimum OverflowError: unsigned byte integer is greater than maximum
+h array('h', [-32768, 32767]) OverflowError: signed short integer is less than minimum OverflowError: signed short integer is greater than maximum
+H array('H', [0, 65535]) OverflowError: unsigned short is less than minimum OverflowError: unsigned short is greater than maximum
+i array('i', [-2147483648, 2147483647]) OverflowError: signed integer is less than minimum OverflowError: signed integer is greater than maximum
+I array('I', [0, 4294967295]) OverflowError: can't convert negative value to unsigned int OverflowError: unsigned int is greater than maximum
+l array('l', [-9223372036854775808, 9223372036854775807]) OverflowError: Python int too large to convert to C long OverflowError: Python int too large to convert to C long
+L array('L', [0, 18446744073709551615]) OverflowError: can't convert negative value to unsigned int OverflowError: Python int too large to convert to C unsigned long
+q array('q', [-9223372036854775808, 9223372036854775807]) OverflowError: int too big to convert OverflowError: int too big to convert
+Q array('Q', [0, 18446744073709551615]) OverflowError: can't convert negative int to unsigned OverflowError: int too big to convert
+b OverflowError: Python int too large to convert to C long OverflowError: Python int too large to convert to C long OverflowError: Python int too large to convert to C long OverflowError: Python int too large to convert to C long
+B OverflowError: Python int too large to convert to C long OverflowError: Python int too large to convert to C long OverflowError: Python int too large to convert to C long OverflowError: Python int too large to convert to C long
+h OverflowError: Python int too large to convert to C long OverflowError: Python int too large to convert to C long OverflowError: Python int too large to convert to C long OverflowError: Python int too large to convert to C long
+H OverflowError: Python int too large to convert to C long OverflowError: Python int too large to convert to C long OverflowError: Python int too large to convert to C long OverflowError: Python int too large to convert to C long
+i OverflowError: Python int too large to convert to C long OverflowError: Python int too large to convert to C long OverflowError: Python int too large to convert to C long OverflowError: Python int too large to convert to C long
+I OverflowError: Python int too large to convert to C unsigned long OverflowError: can't convert negative value to unsigned int OverflowError: unsigned int is greater than maximum OverflowError: can't convert negative value to unsigned int
+l OverflowError: Python int too large to convert to C long OverflowError: Python int too large to convert to C long OverflowError: Python int too large to convert to C long OverflowError: Python int too large to convert to C long
+L OverflowError: Python int too large to convert to C unsigned long OverflowError: can't convert negative value to unsigned int array('L', [9223372036854775808]) OverflowError: can't convert negative value to unsigned int
+q OverflowError: int too big to convert OverflowError: int too big to convert OverflowError: int too big to convert OverflowError: int too big to convert
+Q OverflowError: int too big to convert OverflowError: can't convert negative int to unsigned array('Q', [9223372036854775808]) OverflowError: can't convert negative int to unsigned
+array('f', [inf, -inf, 0.0, 0.10000000149011612, 2147483648.0, 16777216.0]) array('d', [0.1, 1e+308, -0.0, 1.8446744073709552e+19])
+array('d', [nan, inf]) OverflowError: int too large to convert to float OverflowError: int too large to convert to float
+b TypeError: 'float' object cannot be interpreted as an integer | TypeError: 'str' object cannot be interpreted as an integer | TypeError: 'NoneType' object cannot be interpreted as an integer | array('b', [5]) | array('b', [-1]) | OverflowError: Python int too large to convert to C long | TypeError: 'Real' object cannot be interpreted as an integer | TypeError: 'Integral' object cannot be interpreted as an integer | TypeError: 'complex' object cannot be interpreted as an integer | array('b', [1]) | array('b', [7])
+B TypeError: 'float' object cannot be interpreted as an integer | TypeError: 'str' object cannot be interpreted as an integer | TypeError: 'NoneType' object cannot be interpreted as an integer | array('B', [5]) | OverflowError: unsigned byte integer is less than minimum | OverflowError: Python int too large to convert to C long | TypeError: 'Real' object cannot be interpreted as an integer | TypeError: 'Integral' object cannot be interpreted as an integer | TypeError: 'complex' object cannot be interpreted as an integer | array('B', [1]) | array('B', [7])
+h TypeError: 'float' object cannot be interpreted as an integer | TypeError: 'str' object cannot be interpreted as an integer | TypeError: 'NoneType' object cannot be interpreted as an integer | array('h', [5]) | array('h', [-1]) | OverflowError: Python int too large to convert to C long | TypeError: 'Real' object cannot be interpreted as an integer | TypeError: 'Integral' object cannot be interpreted as an integer | TypeError: 'complex' object cannot be interpreted as an integer | array('h', [1]) | array('h', [7])
+H TypeError: 'float' object cannot be interpreted as an integer | TypeError: 'str' object cannot be interpreted as an integer | TypeError: 'NoneType' object cannot be interpreted as an integer | array('H', [5]) | OverflowError: unsigned short is less than minimum | OverflowError: Python int too large to convert to C long | TypeError: 'Real' object cannot be interpreted as an integer | TypeError: 'Integral' object cannot be interpreted as an integer | TypeError: 'complex' object cannot be interpreted as an integer | array('H', [1]) | array('H', [7])
+i TypeError: 'float' object cannot be interpreted as an integer | TypeError: 'str' object cannot be interpreted as an integer | TypeError: 'NoneType' object cannot be interpreted as an integer | array('i', [5]) | array('i', [-1]) | OverflowError: Python int too large to convert to C long | TypeError: 'Real' object cannot be interpreted as an integer | TypeError: 'Integral' object cannot be interpreted as an integer | TypeError: 'complex' object cannot be interpreted as an integer | array('i', [1]) | array('i', [7])
+I TypeError: 'float' object cannot be interpreted as an integer | TypeError: 'str' object cannot be interpreted as an integer | TypeError: 'NoneType' object cannot be interpreted as an integer | array('I', [5]) | OverflowError: can't convert negative value to unsigned int | OverflowError: Python int too large to convert to C unsigned long | TypeError: 'Real' object cannot be interpreted as an integer | TypeError: 'Integral' object cannot be interpreted as an integer | TypeError: 'complex' object cannot be interpreted as an integer | array('I', [1]) | array('I', [7])
+l TypeError: 'float' object cannot be interpreted as an integer | TypeError: 'str' object cannot be interpreted as an integer | TypeError: 'NoneType' object cannot be interpreted as an integer | array('l', [5]) | array('l', [-1]) | OverflowError: Python int too large to convert to C long | TypeError: 'Real' object cannot be interpreted as an integer | TypeError: 'Integral' object cannot be interpreted as an integer | TypeError: 'complex' object cannot be interpreted as an integer | array('l', [1]) | array('l', [7])
+L TypeError: 'float' object cannot be interpreted as an integer | TypeError: 'str' object cannot be interpreted as an integer | TypeError: 'NoneType' object cannot be interpreted as an integer | array('L', [5]) | OverflowError: can't convert negative value to unsigned int | OverflowError: Python int too large to convert to C unsigned long | TypeError: 'Real' object cannot be interpreted as an integer | TypeError: 'Integral' object cannot be interpreted as an integer | TypeError: 'complex' object cannot be interpreted as an integer | array('L', [1]) | array('L', [7])
+q TypeError: 'float' object cannot be interpreted as an integer | TypeError: 'str' object cannot be interpreted as an integer | TypeError: 'NoneType' object cannot be interpreted as an integer | array('q', [5]) | array('q', [-1]) | OverflowError: int too big to convert | TypeError: 'Real' object cannot be interpreted as an integer | TypeError: 'Integral' object cannot be interpreted as an integer | TypeError: 'complex' object cannot be interpreted as an integer | array('q', [1]) | array('q', [7])
+Q TypeError: 'float' object cannot be interpreted as an integer | TypeError: 'str' object cannot be interpreted as an integer | TypeError: 'NoneType' object cannot be interpreted as an integer | array('Q', [5]) | OverflowError: can't convert negative int to unsigned | OverflowError: int too big to convert | TypeError: 'Real' object cannot be interpreted as an integer | TypeError: 'Integral' object cannot be interpreted as an integer | TypeError: 'complex' object cannot be interpreted as an integer | array('Q', [1]) | array('Q', [7])
+f array('f', [1.5]) | TypeError: must be real number, not str | TypeError: must be real number, not NoneType | array('f', [5.0]) | array('f', [-1.0]) | array('f', [1.1805916207174113e+21]) | array('f', [2.5]) | TypeError: must be real number, not Integral | TypeError: must be real number, not complex | array('f', [1.0]) | array('f', [7.0])
+d array('d', [1.5]) | TypeError: must be real number, not str | TypeError: must be real number, not NoneType | array('d', [5.0]) | array('d', [-1.0]) | array('d', [1.1805916207174113e+21]) | array('d', [2.5]) | TypeError: must be real number, not Integral | TypeError: must be real number, not complex | array('d', [1.0]) | array('d', [7.0])
+u array('u', 'a') | TypeError: array item must be a unicode character, not a string of length 2 | TypeError: array item must be a unicode character, not a string of length 0 | array('u', '😀') | array('u', '\ud800') | TypeError: array item must be a unicode character, not int | TypeError: array item must be a unicode character, not bytes | TypeError: array item must be a unicode character, not NoneType | array('u', 'z') | TypeError: array item must be a unicode character, not Integral
+w array('w', 'a') | TypeError: array item must be a unicode character, not a string of length 2 | TypeError: array item must be a unicode character, not a string of length 0 | array('w', '😀') | UnicodeDecodeError: 'utf-32-le' codec can't decode bytes in position 0-3: code point in surrogate code point range(0xd800, 0xe000) | TypeError: array item must be a unicode character, not int | TypeError: array item must be a unicode character, not bytes | TypeError: array item must be a unicode character, not NoneType | array('w', 'z') | TypeError: array item must be a unicode character, not Integral
+TypeError: array() takes at least 1 argument (0 given) ValueError: bad typecode (must be b, B, u, w, h, H, i, I, l, L, q, Q, f or d) TypeError: array() argument 1 must be a unicode character, not a string of length 2 TypeError: array() argument 1 must be a unicode character, not a string of length 0 TypeError: array() argument 1 must be a unicode character, not int TypeError: array() argument 1 must be a unicode character, not bytes TypeError: array() takes at most 2 arguments (3 given)
+TypeError: array.array() takes no keyword arguments TypeError: array.array() takes no keyword arguments TypeError: cannot use a str to initialize an array with typecode 'b' TypeError: cannot use a str to initialize an array with typecode 'x' TypeError: 'int' object is not iterable
+TypeError: cannot use a unicode array to initialize an array with typecode 'b' array('h', [1, 2]) OverflowError: signed char is greater than maximum array('b', [1, 2])
+array('b', [1, -1]) array('h', [-255]) ValueError: bytes length not a multiple of item size array('h', [513, 1027])
+array('b', [1, 2]) array('b', [1, 2, 3]) array('b', [0, 1, 2, 3, 4]) array('b', [1, 2])
+array('b', [1, 3]) TypeError: 'int' object is not iterable TypeError: 'NoneType' object is not iterable array('w', 'abc') array('w', 'ab')
+UnicodeDecodeError: 'utf-32-le' codec can't decode bytes in position 0-3: code point not in range(0x110000) TypeError: array item must be a unicode character, not int array('w', 'xy') array('d', [1.0, 2.5, 1.0]) array('d', [1.0, 2.0])
+OverflowError: signed char is greater than maximum array('w', 'a😀b') array('B') array('b', [1]) array('w', 'xy')
+array('b', [1, 2]) array('h', [1]) array('b', [1]) ValueError: bad typecode (must be b, B, u, w, h, H, i, I, l, L, q, Q, f or d)
+1 DeprecationWarning The 'u' type code is deprecated and will be removed in Python 3.16 array('u', 'hi') 4 u
+DeprecationWarning: The 'u' type code is deprecated and will be removed in Python 3.16
+None TypeError: fromunicode() argument must be str, not bytes TypeError: fromunicode() argument must be str, not int None 'abcd😀'
+ValueError: fromunicode() may only be called on unicode type arrays ('u' or 'w') ValueError: tounicode() may only be called on unicode type arrays ('u' or 'w') TypeError: fromunicode() argument must be str, not int b'a\x00\x00\x00b\x00\x00\x00' ['a', 'b', 'c', 'd', '😀']
+None 'xyz😀' 4 b'x\x00\x00\x00y\x00\x00\x00z\x00\x00\x00\x00\xf6\x01\x00' array('u', 'xyz😀')
+u b'\xff\xff\xff\xff' ValueError: chr() arg not in range(0x110000) ValueError: character U+ffffffff is not in range [U+0000; U+10ffff] ValueError: character U+ffffffff is not in range [U+0000; U+10ffff] ValueError: chr() arg not in range(0x110000)
+u b'\x00\x00\x11\x00' ValueError: chr() arg not in range(0x110000) ValueError: character U+110000 is not in range [U+0000; U+10ffff] ValueError: character U+110000 is not in range [U+0000; U+10ffff] ValueError: chr() arg not in range(0x110000)
+u b'\x00\xd8\x00\x00' '\ud800' '\ud800' "array('u', '\\ud800')" ['\ud800']
+u b'A\x00\x00\x00' 'A' 'A' "array('u', 'A')" ['A']
+w b'\xff\xff\xff\xff' ValueError: chr() arg not in range(0x110000) UnicodeDecodeError: 'utf-32-le' codec can't decode bytes in position 0-3: code point not in range(0x110000) UnicodeDecodeError: 'utf-32-le' codec can't decode bytes in position 0-3: code point not in range(0x110000) ValueError: chr() arg not in range(0x110000)
+w b'\x00\x00\x11\x00' ValueError: chr() arg not in range(0x110000) UnicodeDecodeError: 'utf-32-le' codec can't decode bytes in position 0-3: code point not in range(0x110000) UnicodeDecodeError: 'utf-32-le' codec can't decode bytes in position 0-3: code point not in range(0x110000) ValueError: chr() arg not in range(0x110000)
+w b'\x00\xd8\x00\x00' '\ud800' UnicodeDecodeError: 'utf-32-le' codec can't decode bytes in position 0-3: code point in surrogate code point range(0xd800, 0xe000) UnicodeDecodeError: 'utf-32-le' codec can't decode bytes in position 0-3: code point in surrogate code point range(0xd800, 0xe000) ['\ud800']
+w b'A\x00\x00\x00' 'A' 'A' "array('w', 'A')" ['A']
+UnicodeDecodeError: 'utf-32-le' codec can't decode bytes in position 0-3: code point in surrogate code point range(0xd800, 0xe000) '\ud800' array('w', 'a\'b"c\n😀')
+None TypeError: array.append() takes exactly one argument (0 given) TypeError: array.append() takes exactly one argument (2 given) TypeError: array.append() takes no keyword arguments TypeError: 'str' object cannot be interpreted as an integer OverflowError: signed integer is greater than maximum
+None None None None TypeError: 'float' object cannot be interpreted as an integer TypeError: 'str' object cannot be interpreted as an integer
+OverflowError: Python int too large to convert to C ssize_t TypeError: insert expected 2 arguments, got 1 TypeError: insert expected 2 arguments, got 3 TypeError: 'str' object cannot be interpreted as an integer TypeError: array.insert() takes no keyword arguments array('i', [6, 9, 1, 2, 3, 8, 4, 7])
+7 6 8 IndexError: pop index out of range IndexError: pop index out of range TypeError: 'float' object cannot be interpreted as an integer OverflowError: Python int too large to convert to C ssize_t TypeError: pop expected at most 1 argument, got 2
+IndexError: pop from empty array IndexError: pop from empty array array('i', [9, 1, 2, 3, 4])
+None ValueError: array.remove(x): x not in array ValueError: array.remove(x): x not in array None TypeError: array.remove() takes exactly one argument (0 given) array('i', [9, 1, 4])
+3 3 0 TypeError: array.count() takes exactly one argument (0 given) TypeError: array.count() takes no keyword arguments
+0 3 2 4 4 0
+ValueError: array.index(x): x not in array 2 ValueError: array.index(x): x not in array ValueError: array.index(x): x not in array TypeError: slice indices must be integers or have an __index__ method TypeError: slice indices must be integers or have an __index__ method
+ValueError: array.index(x): x not in array 0 0 TypeError: index expected at least 1 argument, got 0 TypeError: index expected at most 3 arguments, got 4 TypeError: array.index() takes no keyword arguments
+0 0 1
+None None TypeError: can only extend with array of same kind None None
+TypeError: 'int' object is not iterable TypeError: 'str' object cannot be interpreted as an integer None TypeError: 'str' object cannot be interpreted as an integer None array('h', [1, 2, 3, 4, 5, 6, 97, 98, 1, 1, 2, 3, 4, 5, 6, 97, 98, 1])
+TypeError: extend() takes exactly 1 positional argument (0 given) TypeError: extend() takes exactly 1 positional argument (0 given) TypeError: extend() takes at most 1 argument (2 given) TypeError: extend() takes at most 1 argument (2 given)
+None TypeError: arg must be list TypeError: 'str' object cannot be interpreted as an integer None array('h', [1, 2, 3])
+None ValueError: bytes length not a multiple of item size None None
+None TypeError: a bytes-like object is required TypeError: a bytes-like object is required
+BufferError: memoryview: underlying buffer is not C-contiguous TypeError: a bytes-like object is required, not 'str' TypeError: a bytes-like object is required, not 'int' TypeError: array.frombytes() takes exactly one argument (0 given) array('h', [1, 2, 3, 1, 2, 3, 4])
+b'\x01\x00\x02\x00\x03\x00\x01\x00\x02\x00\x03\x00\x04\x00' b'a\x00\x00\x00b\x00\x00\x00' b'\x00\x00\x00\x00\x00\x00\xf0?' b'\xfe\xff\xff\xff\xff\xff\xff\xff' b'\x00\x00\x00?'
+b b'\x01\x02' b'\x02\x01'; h b'\x00\x01\x00\x02' b'\x00\x02\x00\x01'; i b'\x00\x00\x00\x01\x00\x00\x00\x02' b'\x00\x00\x00\x02\x00\x00\x00\x01'; q b'\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x02' b'\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x01'; f b'?\x80\x00\x00@\x00\x00\x00' b'@\x00\x00\x00?\x80\x00\x00'; d b'?\xf0\x00\x00\x00\x00\x00\x00@\x00\x00\x00\x00\x00\x00\x00' b'@\x00\x00\x00\x00\x00\x00\x00?\xf0\x00\x00\x00\x00\x00\x00'; w b'\x00\x00\x00a\x00\x00\x00b' b'\x00\x00\x00b\x00\x00\x00a'; TypeError: array.byteswap() takes no arguments (1 given) TypeError: array.reverse() takes no arguments (1 given)
+None array('i') 0 TypeError: array.clear() takes no arguments (1 given) [1, 2] TypeError: array.tolist() takes no arguments (1 given)
+<class 'int'> (0, 0) 2 TypeError: array.buffer_info() takes no arguments (1 given)
+None b'\x01\x00\x02\x00\x03\x00'
+None array('h', [1, 2, 3]) EOFError: read() didn't return enough bytes array('h', [1, 2, 3]) ValueError: negative count TypeError: 'float' object cannot be interpreted as an integer
+TypeError: fromfile() takes exactly 2 positional arguments (1 given) TypeError: read() didn't return bytes AttributeError: 'int' object has no attribute 'read' AttributeError: 'int' object has no attribute 'write' None
+TypeError: tofile() takes exactly 1 positional argument (0 given) TypeError: tofile() takes at most 1 argument (2 given) TypeError: fromfile() takes at most 2 arguments (3 given) TypeError: fromfile() takes exactly 2 positional arguments (0 given)
+read 4
+write bytes 10
+write bytes 65536
+write bytes 4464
+ValueError: bytes length not a multiple of item size array('h', [1, 2, 3]) None None
+12 None 2
+8 array('i', [1, 2]) b'\x03\x00' None
+5 array('b', [1, 0, 0, 0, 2]) 4
+2 0 5 array('b', [65, 66, 0, 0, 2])
+os
+0 | 9 | IndexError: array index out of range | IndexError: array index out of range | IndexError: cannot fit 'int' into an index-sized integer | 1 | TypeError: array indices must be integers | TypeError: array indices must be integers | TypeError: array indices must be integers | array('i', [1, 2]) | array('i', [0, 2, 4, 6, 8]) | array('i', [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]) | array('i', [8, 5]) | array('i') | array('i', [0, 1]) | ValueError: slice step cannot be zero | array('i', [1]) | array('i') | TypeError: slice indices must be integers or None or have an __index__ method | TypeError: array indices must be integers | TypeError: array indices must be integers | 3
+None array('i', [1, 2, 3, 4, 5, 6, 7, 8, 9]); None array('i', [0, 1, 2, 3, 4, 5, 6, 7, 8]); IndexError: array assignment index out of range array('i', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]); IndexError: array assignment index out of range array('i', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]); IndexError: cannot fit 'int' into an index-sized integer array('i', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]); None array('i', [0, 2, 3, 4, 5, 6, 7, 8, 9]); TypeError: array indices must be integers array('i', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]); TypeError: array indices must be integers array('i', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]); TypeError: array indices must be integers array('i', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]); None array('i', [0, 3, 4, 5, 6, 7, 8, 9]); None array('i', [1, 3, 5, 7, 9]); None array('i'); 
+array('i', [99, 1, 2, 3, 4, 5, 6, 7, 8, 9]) array('i', [0, 1, 2, 3, 4, 5, 6, 7, 8, 99]) IndexError: array assignment index out of range IndexError: array assignment index out of range IndexError: cannot fit 'int' into an index-sized integer TypeError: 'str' object cannot be interpreted as an integer OverflowError: signed integer is greater than maximum
+IndexError: array assignment index out of range TypeError: array indices must be integers TypeError: array indices must be integers array('i', [0, 7, 8, 9, 3, 4, 5, 6, 7, 8, 9]) array('i', [0, 3, 4, 5, 6, 7, 8, 9])
+TypeError: bad argument type for built-in operation TypeError: can only assign array (not "list") to array slice TypeError: can only assign array (not "tuple") to array slice array('i', [1, 1, 2, 3, 3, 5, 4, 7, 5, 9])
+ValueError: attempt to assign array of size 3 to extended slice of size 5 array('i', [4, 1, 2, 3, 4, 5, 2, 7, 8, 1]) array('i', [1, 3, 5, 7, 9])
+array('i', [0, 1, 2, 3, 4, 7, 7, 5, 6, 7, 8, 9]) array('i', [0, 1, 2, 7, 7, 7, 6, 7, 8, 9]) ValueError: attempt to assign array of size 1 to extended slice of size 3
+array('i', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 1]) array('i', [1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) ValueError: slice step cannot be zero TypeError: array indices must be integers
+array('i', [1, 1, 2, 3, 3]) array('i', [1, 2, 2, 4, 3]) array('w', 'xyace') TypeError: __setitem__ expected 2 arguments, got 1 TypeError: expected 1 argument, got 0 TypeError: __setitem__ expected 2 arguments, got 3
+2 [0, 1, 2, 4, 6, 8, 10, 12, 14, 16, 17, 18, 19] [0, 0, 2, 0, 4, 0, 6, 0, 8, 0, 10, 0, 12, 0, 14, 0, 16, 0, 18, 19]
+3 [0, 1, 2, 4, 5, 7, 8, 10, 11, 13, 14, 16, 17, 18, 19] [0, 0, 2, 3, 0, 5, 6, 0, 8, 9, 0, 11, 12, 0, 14, 15, 0, 17, 18, 19]
+-2 [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19] [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+-3 [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19] [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+7 [0, 1, 2, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19] [0, 0, 2, 3, 4, 5, 6, 7, 0, 9, 10, 11, 12, 13, 14, 0, 16, 17, 18, 19]
+array('h', [1, 2, 3]) TypeError: bad argument type for built-in operation TypeError: can only append array (not "list") to array TypeError: can only concatenate list (not "array.array") to list TypeError: can only append array (not "bytes") to array
+array('h', [1, 2, 1, 2, 1, 2]) array('h', [1, 2, 1, 2, 1, 2]) array('h') array('h') array('h', [1, 2]) TypeError: can't multiply sequence by non-int of type 'float'
+TypeError: can't multiply sequence by non-int of type 'str' OverflowError: cannot fit 'int' into an index-sized integer OverflowError: cannot fit 'int' into an index-sized integer TypeError: can't multiply sequence by non-int of type 'array.array' array('h', [1, 2, 1, 2]) array('h', [1, 2, 1, 2])
+TypeError: can only append array (not "list") to array TypeError: bad argument type for built-in operation TypeError: unsupported operand type(s) for -: 'array.array' and 'array.array' TypeError: bad operand type for unary -: 'array.array' TypeError: '<' not supported between instances of 'array.array' and 'int' False False True
+'radd' 'rmul' TypeError: can't multiply sequence by non-int of type 'X' TypeError: unsupported operand type(s) for +: 'X' and 'array.array' TypeError: can't multiply sequence by non-int of type 'Y' b'\x01\x01\x01'
+ok array('h', [1, 2]) True; TypeError can only extend with array of same kind; TypeError can only extend array with array (not "list"); TypeError can only extend array with array (not "tuple"); TypeError can only extend array with array (not "int"); ok radd False; 
+ok array('h', [1, 2, 1, 2, 1, 2]) True; ok array('h') True; ok array('h') True; ok array('h', [1, 2]) True; ok array('h') True; TypeError can't multiply sequence by non-int of type 'str'; OverflowError cannot fit 'int' into an index-sized integer; OverflowError cannot fit 'int' into an index-sized integer; ok rmul False; 
+h h True False False True False True
+h h False True True True False False
+h h False True False False True True
+h i True False False True False True
+h d False True True True False False
+d d False True False False False False
+f d True False False True False True
+b B False True True True False False
+B B False True False False True True
+b b False True True True False False
+h h True False False True False True
+w w False True True True False False
+w d False True TypeError: '<' not supported between instances of 'str' and 'float' TypeError: '<=' not supported between instances of 'str' and 'float' TypeError: '>' not supported between instances of 'str' and 'float' TypeError: '>=' not supported between instances of 'str' and 'float'
+Q q False True False False True True
+Q Q False True False False True True
+q q False True True True False False
+I I False True False False True True
+i i False True True True False False
+H H False True False False True True
+h h False True True True False False
+d d False True False False False False
+w w False True True True False False
+u w True False False True False True
+u u False True False False True True
+l L True False False True False True
+True False False ValueError: chr() arg not in range(0x110000)
+NotImplemented True TypeError: expected 1 argument, got 0 [array('b'), array('b', [1, 5]), array('b', [2])]
+True True False False False False TypeError: expected 1 argument, got 0
+1 (<built-in function iter>, (array('i', [1, 2, 3]),), 1) [2, 3] (<built-in function iter>, ((),)) StopIteration:  None []
+None [3] True TypeError: __reduce__() takes no arguments False
+None 1 None [] TypeError: an integer is required OverflowError: Python int too large to convert to C ssize_t
+None 2 TypeError: arrayiterator.__setstate__() takes exactly one argument (0 given) TypeError: cannot create 'array.arrayiterator' instances TypeError: descriptor '__next__' requires a 'array.arrayiterator' object but received a 'int'
+[2, 3, 4] [] [] [3, 2, 1] False [1, 2, 3] 0.75
+3 [(0, 'a'), (1, 'b')] {'a': 1, 'b': 2} [1, 2] 3
+5 6 False True ['0.5']
+0 arrayiterator [8, 9] [8, 9]; 1 arrayiterator [8, 9] [8, 9]; 2 arrayiterator [8, 9] [8, 9]; 3 arrayiterator [8, 9] [8, 9]; 4 arrayiterator [8, 9] [8, 9]; 5 arrayiterator [8, 9] [8, 9]; 
+(<class 'array.array'>, ('h', [1, -2]), None) (<class 'array.array'>, ('h', [1, -2]), None) (<built-in function _array_reconstructor>, (<class 'array.array'>, 'h', 4, b'\x01\x00\xfe\xff'), None) (<built-in function _array_reconstructor>, (<class 'array.array'>, 'h', 4, b'\x01\x00\xfe\xff'), None) (<class 'array.array'>, ('h', [1, -2]), None)
+TypeError: __reduce_ex__ argument should be an integer OverflowError: Python int too large to convert to C long TypeError: __reduce_ex__() takes exactly 1 positional argument (0 given) TypeError: __reduce_ex__() takes at most 1 argument (2 given) TypeError: __reduce_ex__() takes exactly 1 positional argument (0 given)
+b (1, b'\x01'); B (0, b'\x01'); u (20, b'a\x00\x00\x00b\x00\x00\x00'); w (20, b'a\x00\x00\x00b\x00\x00\x00'); h (4, b'\x01\x00'); H (2, b'\x01\x00'); i (8, b'\x01\x00\x00\x00'); I (6, b'\x01\x00\x00\x00'); l (12, b'\x01\x00\x00\x00\x00\x00\x00\x00'); L (10, b'\x01\x00\x00\x00\x00\x00\x00\x00'); q (12, b'\x01\x00\x00\x00\x00\x00\x00\x00'); Q (10, b'\x01\x00\x00\x00\x00\x00\x00\x00'); f (14, b'\x00\x00\x80?'); d (16, b'\x00\x00\x00\x00\x00\x00\xf0?'); 
+(<built-in function _array_reconstructor>, (<class '__main__.pickling.<locals>.S'>, 'i', 8, b'\x01\x00\x00\x00\x02\x00\x00\x00'), {'x': 5}) (<class '__main__.pickling.<locals>.S'>, ('i', [1, 2]), {'x': 5})
+array array('b', [1, 2]) True; array array('w', 'xy') True; array array('d', [0.5, -1e+300]) True; array array('Q', [18446744073709551615]) True; array array('u', 'hi') True; array array('f', [0.10000000149011612]) True; array array('L') True; 
+array array('b', [1, 2]) True; array array('w', 'xy') True; array array('d', [0.5, -1e+300]) True; array array('Q', [18446744073709551615]) True; array array('u', 'hi') True; array array('f', [0.10000000149011612]) True; array array('L') True; 
+array array('b', [1, 2]) True; array array('w', 'xy') True; array array('d', [0.5, -1e+300]) True; array array('Q', [18446744073709551615]) True; array array('u', 'hi') True; array array('f', [0.10000000149011612]) True; array array('L') True; 
+array array('b', [1, 2]) True; array array('w', 'xy') True; array array('d', [0.5, -1e+300]) True; array array('Q', [18446744073709551615]) True; array array('u', 'hi') True; array array('f', [0.10000000149011612]) True; array array('L') True; 
+array array('b', [1, 2]) True; array array('w', 'xy') True; array array('d', [0.5, -1e+300]) True; array array('Q', [18446744073709551615]) True; array array('u', 'hi') True; array array('f', [0.10000000149011612]) True; array array('L') True; 
+array array('b', [1, 2]) True; array array('w', 'xy') True; array array('d', [0.5, -1e+300]) True; array array('Q', [18446744073709551615]) True; array array('u', 'hi') True; array array('f', [0.10000000149011612]) True; array array('L') True; 
+b'carray\narray\np0\n(Vb\np1\n(lp2\nI1\natp3\nRp4\n.' b'carray\narray\np0\n(Vd\np1\n(lp2\nF0.5\natp3\nRp4\n.'
+b'\x80\x03carray\n_array_reconstructor\nq\x00(carray\narray\nq\x01X\x01\x00\x00\x00bq\x02K\x01C\x01\x01q\x03tq\x04Rq\x05.' b'\x80\x03carray\n_array_reconstructor\nq\x00(carray\narray\nq\x01X\x01\x00\x00\x00dq\x02K\x10C\x08\x00\x00\x00\x00\x00\x00\xe0?q\x03tq\x04Rq\x05.'
+b'\x80\x02carray\narray\nq\x00X\x01\x00\x00\x00wq\x01]q\x02X\x01\x00\x00\x00aq\x03a\x86q\x04Rq\x05.' b'\x80\x04\x95F\x00\x00\x00\x00\x00\x00\x00\x8c\x05array\x94\x8c\x14_array_reconstructor\x94\x93\x94(\x8c\x05array\x94\x8c\x05array\x94\x93\x94\x8c\x01w\x94K\x14C\x04a\x00\x00\x00\x94t\x94R\x94.'
+0 Pickled Pickled('i', [1, 2]) {'x': 5}; 1 Pickled Pickled('i', [1, 2]) {'x': 5}; 2 Pickled Pickled('i', [1, 2]) {'x': 5}; 3 Pickled Pickled('i', [1, 2]) {'x': 5}; 4 Pickled Pickled('i', [1, 2]) {'x': 5}; 5 Pickled Pickled('i', [1, 2]) {'x': 5}; 
+[array('b', [1]), array('b', [1])] b'\x80\x04\x95K\x00\x00\x00\x00\x00\x00\x00\x8c\x05array\x94\x8c\x14_array_reconstructor\x94\x93\x94(\x8c\x08__main__\x94\x8c\x07Pickled\x94\x93\x94\x8c\x01b\x94K\x01C\x01\x03\x94t\x94R\x94}\x94b.'
+array('b', [1, -1]); array('h', [1]); array('h', [256]); array('H', [65535]); array('H', [65280]); array('h', [1]); array('q', [5]); array('q', [5]); array('Q', [5]); ValueError: string length not a multiple of item size; array('Q', [18446744073709551615]); array('i', [-2]); array('I', [4294967294]); array('d', [1.0]); array('d', [1.5]); array('f', [1.5]); array('f', [1.0]); ValueError: string length not a multiple of item size; array('w', 'ab'); UnicodeDecodeError: 'utf-16-be' codec can't decode bytes in position 2-3: unexpected end of data; array('w', 'ab'); array('u', 'a'); TypeError: cannot use a str to initialize an array with typecode 'b'; UnicodeDecodeError: 'utf-32-be' codec can't decode bytes in position 0-3: code point in surrogate code point range(0xd800, 0xe000); array('H', [1]); array('h', [256]); ValueError: second argument must be a valid type code; TypeError: _array_reconstructor(): argument 2 must be a unicode character, not a string of length 2; TypeError: _array_reconstructor() argument 2 must be a unicode character, not int; ValueError: third argument must be a valid machine format code.; ValueError: third argument must be a valid machine format code.; OverflowError: Python int too large to convert to C int; TypeError: 'str' object cannot be interpreted as an integer; TypeError: fourth argument should be bytes, not bytearray; TypeError: fourth argument should be bytes, not list; TypeError: int is not a subtype of array.array; TypeError: first argument must be a type object, not int; Pickled('b', [1]); TypeError: 'float' object cannot be interpreted as an integer; array('b', [1]); array('f', [inf]); 
+TypeError: _array_reconstructor expected 4 arguments, got 3 TypeError: _array_reconstructor expected 4 arguments, got 5 TypeError: array._array_reconstructor() takes no keyword arguments
+array('i', [1, 2]) False True array('i', [1, 2]) False array('i', [1, 2]) array('i', [1, 2]) TypeError: array.__deepcopy__() takes exactly one argument (0 given) TypeError: array.__copy__() takes no arguments (1 given) TypeError: array.__copy__() takes no keyword arguments
+array array('i', [1, 2]); array array('i', [1, 2]); array array('i', [1, 2]); array array('i', [1, 2]); array array('i', [1, 2, 1, 2]); array array('i', [1, 2, 1, 2]); array array('i', [1, 2, 1, 2]); 
+new ('b', [1]) {'k': 1}
+TT('b', [1, 2]) 5 2 b True TypeError: array() takes at most 2 arguments (4 given) U('b', [1])
+TypeError: array.array() takes no keyword arguments TypeError: array.array() takes no keyword arguments TypeError: array() takes at least 1 argument (0 given) True True (<class '__main__.V'>, <class 'array.array'>, <class 'object'>)
+W1 99 [1, 2] [1, 2] W('b', [1, 2]) Warray('b', [1]) True
+array('b', [1]) TypeError: array.array.__new__(int): int is not a subtype of array.array V('b', [1]) TypeError: array.array.__new__(): not enough arguments TypeError: array.array.__new__(X): X is not a type object (int)
+TypeError: descriptor 'append' for 'array.array' objects doesn't apply to a 'int' object None TypeError: descriptor 'tolist' for 'array.array' objects doesn't apply to a 'int' object TypeError: descriptor '__len__' requires a 'array.array' object but received a 'int' 2
+2 TypeError: unbound method array.append() needs an argument TypeError: descriptor '__len__' of 'array.array' object needs an argument TypeError: expected 0 arguments, got 1 TypeError: expected 1 argument, got 0
+1 AttributeError: 'Sl' object has no attribute 'q' and no __dict__ for setting new attributes AttributeError: 'Z' object has no attribute 'q' and no __dict__ for setting new attributes 72 64 66
+True 1 False
+b [64, 68, 68, 68, 68, 72, 72, 72, 72, 80, 80, 80, 80, 80, 80, 80, 80, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89, 89]
+h [64, 72, 72, 72, 72, 80, 80, 80, 80, 96, 96, 96, 96, 96, 96, 96, 96, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114, 114]
+i [64, 80, 80, 80, 80, 96, 96, 96, 96, 128, 128, 128, 128, 128, 128, 128, 128, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164]
+q [64, 96, 96, 96, 96, 128, 128, 128, 128, 192, 192, 192, 192, 192, 192, 192, 192, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264]
+f [64, 80, 80, 80, 80, 96, 96, 96, 96, 128, 128, 128, 128, 128, 128, 128, 128, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164]
+d [64, 96, 96, 96, 96, 128, 128, 128, 128, 192, 192, 192, 192, 192, 192, 192, 192, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264, 264]
+w [64, 80, 80, 80, 80, 96, 96, 96, 96, 128, 128, 128, 128, 128, 128, 128, 128, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164, 164]
+880 896 83 76 74
+992 160 TypeError: array.__sizeof__() takes no arguments (1 given)
+b b 1 2 (2,) (1,) False True [1, 2] 1 b'\x01\x02'
+B B 1 2 (2,) (1,) False True [1, 2] 1 b'\x01\x02'
+u w 4 8 (2,) (4,) False True NotImplementedError: memoryview: format w not supported NotImplementedError: memoryview: format w not supported b'a\x00\x00\x00b'
+w w 4 8 (2,) (4,) False True NotImplementedError: memoryview: format w not supported NotImplementedError: memoryview: format w not supported b'a\x00\x00\x00b'
+h h 2 4 (2,) (2,) False True [1, 2] 1 b'\x01\x00\x02\x00'
+H H 2 4 (2,) (2,) False True [1, 2] 1 b'\x01\x00\x02\x00'
+i i 4 8 (2,) (4,) False True [1, 2] 1 b'\x01\x00\x00\x00\x02'
+I I 4 8 (2,) (4,) False True [1, 2] 1 b'\x01\x00\x00\x00\x02'
+l l 8 16 (2,) (8,) False True [1, 2] 1 b'\x01\x00\x00\x00\x00'
+L L 8 16 (2,) (8,) False True [1, 2] 1 b'\x01\x00\x00\x00\x00'
+q q 8 16 (2,) (8,) False True [1, 2] 1 b'\x01\x00\x00\x00\x00'
+Q Q 8 16 (2,) (8,) False True [1, 2] 1 b'\x01\x00\x00\x00\x00'
+f f 4 8 (2,) (4,) False True [1.0, 2.0] 1.0 b'\x00\x00\x80?\x00'
+d d 8 16 (2,) (8,) False True [1.0, 2.0] 1.0 b'\x00\x00\x00\x00\x00'
+array('h', [100, 2, 3]) ValueError: memoryview: invalid value for format 'h' TypeError: memoryview: invalid type for format 'h' ValueError: memoryview assignment: lvalue and rvalue have different structures
+array('h', [255, 7, 5]) B 6 5 [255, 7, 5] ValueError: cannot hash writable memoryview object True True True False ff0007000500
+array('d', [3.0, -2.0]) [3.0, -2.0] array('f', [0.10000000149011612]) 0.10000000149011612 18446744073709551615 TypeError: memoryview: cannot cast between two non-byte formats
+array('w', '😀b') [1, 3] (8,) False [] d [2, 1]
+1 B [255, 7, 5] h None ValueError: operation forbidden on released memoryview object TypeError: __buffer__ expected 1 argument, got 0 TypeError: 'str' object cannot be interpreted as an integer
+OverflowError: buffer flags out of range TypeError: expected a memoryview object TypeError: __release_buffer__ expected 1 argument, got 0
+b'\x01\x00\x00\x01' bytearray(b'\x01\x00\x00\x01') b'a\x00\x00\x00' b'\x00\x00\x00\x00\x00\x00\xf0?' b'x\x01\x00\x00\x01' bytearray(b'x\x01\x00\x00\x01') b'\x01\x00\x00\x01x\x01\x00\x00\x01'
+bytearray(b'zz\x01\x00\x00\x01\x01\x00\x00\x01') b'' b'' False False
+True True True 1 [b'a', b'b']
+hi AttributeError: 'array.array' object has no attribute 'decode' ValueError: non-hexadecimal number found in fromhex() arg at position 0 258
+1.0 1 ValueError: invalid literal for int() with base 10: b'x' TypeError: int() can't convert non-string with explicit base ValueError: could not convert string to float: array('b', [120]) b'\x02\x01'
+[1, 2] True True True
+array('b', [0, 2, 1, -1, -1, -1, -1, 0]) (258, -1) (0, 2, 1, -1, -1, -1, -1, 0) [(512,), (-255,), (-1,), (255,)] error: pack_into requires a buffer of at least 9 bytes for packing 8 bytes at offset 1 (actual buffer size is 8)
+(7,) (8,) None
+2a1dd1e1e59d0a384c26951e316cd7e6 4636993d3e1da4e9 63cc8751f3cb31db 36a131149bf3c1d4
+e429cca3f703a39cc5954a6572fec9086135b34e b'x\x9ccd```\x02bf \x06\x00\x004\x00\x07' 2967478931 3407879 True
+17 b'010000000200000003000000' 2967478931 b'AQAAAAIAAAADAAAA\n'
+12 b'\x01\x00\x00\x00\x02\x00\x00\x00\x03\x00\x00\x00' 4 2
+6 array('h', [5, 6, 7, 0]) 4
+two 1 2; two a b; one 1.5; empty; 
+[('array.__new__', ('b', [1])), ('array.__new__', ('h', None)), ('array.__new__', ('d', (1,)))]

@@ -450,6 +450,7 @@ object PySocket {
 
     private fun target(fn: String, v: Any?): Target = when {
         v is PyByteArray -> Target(v.b, 0, v.size)
+        v is PyArrayObj -> Target(v.b, 0, v.n * v.itemsize)
         v is PyMemoryView && !v.readonly -> {
             v.check()
             if (!v.contiguous()) throw PyException("BufferError", "memoryview: underlying buffer is not C-contiguous")

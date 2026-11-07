@@ -658,6 +658,53 @@ object PySignatures {
         m["_weakref.getweakrefcount"] = "(\$module, object, /)"
         m["_weakref.getweakrefs"] = "(\$module, object, /)"
         m["_weakref.proxy"] = "(\$module, object, callback=None, /)"
+        m["array._array_reconstructor"] = "(\$module, arraytype, typecode, mformat_code, items,\n                     /)"
+        m["array.array.__add__"] = "(\$self, value, /)"
+        m["array.array.__buffer__"] = "(\$self, flags, /)"
+        m["array.array.__class_getitem__"] = "(\$type, object, /)"
+        m["array.array.__contains__"] = "(\$self, key, /)"
+        m["array.array.__copy__"] = "(\$self, /)"
+        m["array.array.__deepcopy__"] = "(\$self, unused, /)"
+        m["array.array.__delitem__"] = "(\$self, key, /)"
+        m["array.array.__eq__"] = "(\$self, value, /)"
+        m["array.array.__ge__"] = "(\$self, value, /)"
+        m["array.array.__getattribute__"] = "(\$self, name, /)"
+        m["array.array.__getitem__"] = "(\$self, key, /)"
+        m["array.array.__gt__"] = "(\$self, value, /)"
+        m["array.array.__iadd__"] = "(\$self, value, /)"
+        m["array.array.__imul__"] = "(\$self, value, /)"
+        m["array.array.__iter__"] = "(\$self, /)"
+        m["array.array.__le__"] = "(\$self, value, /)"
+        m["array.array.__len__"] = "(\$self, /)"
+        m["array.array.__lt__"] = "(\$self, value, /)"
+        m["array.array.__mul__"] = "(\$self, value, /)"
+        m["array.array.__ne__"] = "(\$self, value, /)"
+        m["array.array.__new__"] = "(\$type, *args, **kwargs)"
+        m["array.array.__reduce_ex__"] = "(\$self, value, /)"
+        m["array.array.__release_buffer__"] = "(\$self, buffer, /)"
+        m["array.array.__repr__"] = "(\$self, /)"
+        m["array.array.__rmul__"] = "(\$self, value, /)"
+        m["array.array.__setitem__"] = "(\$self, key, value, /)"
+        m["array.array.__sizeof__"] = "(\$self, /)"
+        m["array.array.append"] = "(\$self, v, /)"
+        m["array.array.buffer_info"] = "(\$self, /)"
+        m["array.array.byteswap"] = "(\$self, /)"
+        m["array.array.clear"] = "(\$self, /)"
+        m["array.array.count"] = "(\$self, v, /)"
+        m["array.array.extend"] = "(\$self, bb, /)"
+        m["array.array.frombytes"] = "(\$self, buffer, /)"
+        m["array.array.fromfile"] = "(\$self, f, n, /)"
+        m["array.array.fromlist"] = "(\$self, list, /)"
+        m["array.array.fromunicode"] = "(\$self, ustr, /)"
+        m["array.array.index"] = "(\$self, v, start=0, stop=sys.maxsize, /)"
+        m["array.array.insert"] = "(\$self, i, v, /)"
+        m["array.array.pop"] = "(\$self, i=-1, /)"
+        m["array.array.remove"] = "(\$self, v, /)"
+        m["array.array.reverse"] = "(\$self, /)"
+        m["array.array.tobytes"] = "(\$self, /)"
+        m["array.array.tofile"] = "(\$self, f, /)"
+        m["array.array.tolist"] = "(\$self, /)"
+        m["array.array.tounicode"] = "(\$self, /)"
         m["atexit._clear"] = "(\$module, /)"
         m["atexit._ncallbacks"] = "(\$module, /)"
         m["atexit._run_exitfuncs"] = "(\$module, /)"
@@ -763,6 +810,8 @@ object PySignatures {
         m["builtins.bool.__and__"] = "(\$self, value, /)"
         m["builtins.bool.__invert__"] = "(\$self, /)"
         m["builtins.bool.__new__"] = "(\$type, *args, **kwargs)"
+    }
+    private fun part2(m: HashMap<String, String>) {
         m["builtins.bool.__or__"] = "(\$self, value, /)"
         m["builtins.bool.__rand__"] = "(\$self, value, /)"
         m["builtins.bool.__repr__"] = "(\$self, /)"
@@ -810,8 +859,6 @@ object PySignatures {
         m["builtins.bytearray.expandtabs"] = "(\$self, /, tabsize=8)"
         m["builtins.bytearray.extend"] = "(\$self, iterable_of_ints, /)"
         m["builtins.bytearray.find"] = "(\$self, sub[, start[, end]], /)"
-    }
-    private fun part2(m: HashMap<String, String>) {
         m["builtins.bytearray.fromhex"] = "(\$type, string, /)"
         m["builtins.bytearray.hex"] = "(\$self, /, sep=<unrepresentable>, bytes_per_sep=1)"
         m["builtins.bytearray.index"] = "(\$self, sub[, start[, end]], /)"
@@ -1165,6 +1212,8 @@ object PySignatures {
         m["builtins.list.__reversed__"] = "(\$self, /)"
         m["builtins.list.__rmul__"] = "(\$self, value, /)"
         m["builtins.list.__setitem__"] = "(\$self, key, value, /)"
+    }
+    private fun part3(m: HashMap<String, String>) {
         m["builtins.list.__sizeof__"] = "(\$self, /)"
         m["builtins.list.append"] = "(\$self, object, /)"
         m["builtins.list.clear"] = "(\$self, /)"
@@ -1212,8 +1261,6 @@ object PySignatures {
         m["builtins.memoryview.release"] = "(\$self, /)"
         m["builtins.memoryview.tobytes"] = "(\$self, /, order='C')"
         m["builtins.memoryview.tolist"] = "(\$self, /)"
-    }
-    private fun part3(m: HashMap<String, String>) {
         m["builtins.memoryview.toreadonly"] = "(\$self, /)"
         m["builtins.object"] = "()"
         m["builtins.object.__delattr__"] = "(\$self, name, /)"
@@ -1567,6 +1614,8 @@ object PySignatures {
         m["itertools.permutations.__sizeof__"] = "(\$self, /)"
         m["itertools.product"] = "(*iterables, repeat=1)"
         m["itertools.product.__getattribute__"] = "(\$self, name, /)"
+    }
+    private fun part4(m: HashMap<String, String>) {
         m["itertools.product.__iter__"] = "(\$self, /)"
         m["itertools.product.__new__"] = "(\$type, *args, **kwargs)"
         m["itertools.product.__next__"] = "(\$self, /)"
@@ -1614,8 +1663,6 @@ object PySignatures {
         m["math.exp2"] = "(\$module, x, /)"
         m["math.expm1"] = "(\$module, x, /)"
         m["math.fabs"] = "(\$module, x, /)"
-    }
-    private fun part4(m: HashMap<String, String>) {
         m["math.factorial"] = "(\$module, n, /)"
         m["math.floor"] = "(\$module, x, /)"
         m["math.fma"] = "(\$module, x, y, z, /)"
@@ -1969,6 +2016,8 @@ object PySignatures {
         m["time.tzset"] = "(\$self, /)"
         m["unicodedata.UCD.__getattribute__"] = "(\$self, name, /)"
         m["unicodedata.UCD.bidirectional"] = "(\$self, chr, /)"
+    }
+    private fun part5(m: HashMap<String, String>) {
         m["unicodedata.UCD.category"] = "(\$self, chr, /)"
         m["unicodedata.UCD.combining"] = "(\$self, chr, /)"
         m["unicodedata.UCD.decimal"] = "(\$self, chr, default=<unrepresentable>, /)"
@@ -2011,5 +2060,6 @@ object PySignatures {
         part2(m)
         part3(m)
         part4(m)
+        part5(m)
     }
 }

@@ -2,15 +2,15 @@ package dev.mooner.neonpython
 
 /**
  * `match` (PEP 634; docs/PYTHON_PLATFORM.md §11, M6): the tests the patterns compile to, as CPython's MATCH_*
- * instructions do them. Sequences are lists, tuples and ranges (and their subclasses), never strs, bytes or dicts;
- * mappings are dicts; a class pattern's positional sub-patterns name attributes by __match_args__ (the subject itself
- * for the builtin types that match themselves).
+ * instructions do them. Sequences are lists, tuples, ranges and arrays (and their subclasses), never strs, bytes or
+ * dicts; mappings are dicts; a class pattern's positional sub-patterns name attributes by __match_args__ (the subject
+ * itself for the builtin types that match themselves).
  */
 object PyMatch {
     private val NO_ARGS = arrayOfNulls<Any?>(0)
 
     /** MATCH_SEQUENCE */
-    @JvmStatic fun matchSequence(v: Any?): Any? = PyBool.of(v is PyList || v is PyTuple || v is PyRange)
+    @JvmStatic fun matchSequence(v: Any?): Any? = PyBool.of(v is PyList || v is PyTuple || v is PyRange || v is PyArrayObj)
 
     /** MATCH_MAPPING */
     @JvmStatic fun matchMapping(v: Any?): Any? = PyBool.of(v is PyDict)

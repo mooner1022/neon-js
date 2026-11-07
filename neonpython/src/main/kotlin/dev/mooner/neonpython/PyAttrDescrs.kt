@@ -84,10 +84,14 @@ object PyAttrDescrs {
 
     private fun target(d: PyAttrDescr, obj: Any?): Any? {
         if (!PyTypes.typeOf(obj).isSubtype(d.owner)) {
-            throw PyRt.typeError("descriptor '${d.name}' for '${d.owner.name}' objects doesn't apply to a '${PyTypes.name(obj)}' object")
+            throw PyRt.typeError("descriptor '${d.name}' for '${d.owner.tpName ?: d.owner.name}' objects doesn't apply to a '${PyTypes.name(obj)}' object")
         }
         return obj
     }
+
+    /** A read-only descriptor's AttributeError: a member's "readonly attribute", a getset's (no setter) its own. */
+    private fun readonly(d: PyAttrDescr): PyException = PyException("AttributeError",
+        if (d.type === MEMBER) "readonly attribute" else "attribute '${d.name}' of '${d.owner.tpName ?: d.owner.name}' objects is not writable")
 
     init {
         for (t in listOf(GETSET, MEMBER)) {
@@ -99,20 +103,20 @@ object PyAttrDescrs {
             })
             t.def("__set__", PyBuiltin("__set__") { _, a ->
                 val d = self(a)
-                if (d.readonly) throw PyException("AttributeError", "readonly attribute")
+                if (d.readonly) throw readonly(d)
                 val s = d.setter
                 if (s != null) s(target(d, a[1]), a[2]) else PyClasses.setAttr(target(d, a[1]), d.name, a[2])
                 PyNone
             })
             t.def("__delete__", PyBuiltin("__delete__") { _, a ->
                 val d = self(a)
-                if (d.readonly) throw PyException("AttributeError", "readonly attribute")
+                if (d.readonly) throw readonly(d)
                 PyClasses.delAttr(target(d, a[1]), d.name)
                 PyNone
             })
             t.def("__repr__", PyBuiltin("__repr__") { _, a ->
                 val d = self(a)
-                PyStr("<${if (d.type === MEMBER) "member" else "attribute"} '${d.name}' of '${d.owner.name}' objects>")
+                PyStr("<${if (d.type === MEMBER) "member" else "attribute"} '${d.name}' of '${d.owner.tpName ?: d.owner.name}' objects>")
             })
             fun prop(n: String, get: (PyAttrDescr) -> Any?) = t.def(n, PyProperty(PyBuiltin(n) { _, a -> get(self(a)) }, null, null, null).also { it.name = n })
             prop("__name__") { PyStr(it.name) }

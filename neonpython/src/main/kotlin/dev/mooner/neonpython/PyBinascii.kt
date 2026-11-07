@@ -39,12 +39,13 @@ object PyBinascii {
     }
 
     /**
-     * PyObject_GetBuffer(v, PyBUF_SIMPLE)'s bytes: a bytes' own array (not to be changed), a copy of a bytearray's or
-     * of a (C-contiguous) memoryview's; else CPython's TypeError.
+     * PyObject_GetBuffer(v, PyBUF_SIMPLE)'s bytes: a bytes' own array (not to be changed), a copy of a bytearray's,
+     * an array's or a (C-contiguous) memoryview's; else CPython's TypeError.
      */
     internal fun buffer(v: Any?): ByteArray = when (v) {
         is PyBytes -> v.b
         is PyByteArray -> v.bytes()
+        is PyArrayObj -> v.bytes()
         is PyMemoryView -> {
             v.check()
             if (!v.contiguous()) throw PyException("BufferError", "memoryview: underlying buffer is not C-contiguous")

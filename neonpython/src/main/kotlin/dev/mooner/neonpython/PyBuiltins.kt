@@ -144,6 +144,12 @@ object PyBuiltins {
                 return@type parseInt(text, b.toInt(), PyRt.repr(v))
             }
             if (args.isNotEmpty()) bytesText(args[0])?.let { return@type parseInt(it, 10, PyRt.repr(args[0])) }
+            // (another buffer, an array's or a memoryview's: its bytes' digits, where it has no __int__ or __index__)
+            if (args.isNotEmpty() && (args[0] is PyMemoryView || args[0] is PyArrayObj &&
+                    listOf("__int__", "__index__", "__trunc__").none { PyDunder.userMethod(PyTypes.typeOf(args[0]), it) != null })) {
+                val b = PyByteSeqs.content(args[0])!!
+                return@type parseInt(PyStr(String(b, Charsets.ISO_8859_1)), 10, PyRt.repr(PyBytes(b)))
+            }
             if (args.isEmpty()) 0L else when (val v = intArg(args[0])) {
                 is Long, is BigInteger -> v
                 is PyBool -> if (v.value) 1L else 0L
@@ -160,8 +166,9 @@ object PyBuiltins {
             noKw("float", kw)
             argc("float", args, 0, 1)
             if (args.isEmpty()) 0.0 else when (val v = args[0]) {
-                is PyStr -> PyLiterals.parseFloat(v.s) ?: throw PyException("ValueError", "could not convert string to float: ${PyRt.repr(v)}")
-                is Long, is BigInteger, is PyBool, is Double, is PyNumSub -> PyRt.toDouble(v)
+                is PyStr -> floatText(v.s, v)
+                is PyNumSub -> if (v.num is PyBytes) floatText(String(v.num.b, Charsets.ISO_8859_1), v) else PyRt.toDouble(v)
+                is Long, is BigInteger, is PyBool, is Double -> PyRt.toDouble(v)
                 else -> {
                     // (a class's __float__, else its __index__)
                     val t = PyTypes.typeOf(v)
@@ -170,7 +177,12 @@ object PyBuiltins {
                         is Double -> r
                         is PyNumSub -> if (r.num is Double) r.num else throw PyRt.typeError("${t.name}.__float__ returned non-float (type ${PyTypes.name(r)})")
                         else -> throw PyRt.typeError("${t.name}.__float__ returned non-float (type ${PyTypes.name(r)})")
-                    } else PyRt.toDouble(PyRt.indexValue(v) ?: throw PyRt.typeError("float() argument must be a string or a real number, not '${t.name}'"))
+                    } else {
+                        // (else its __index__, else the text of a bytes-like object: bytes, bytearray, a buffer's)
+                        val i = PyRt.indexValue(v)
+                        if (i != null) PyRt.toDouble(i) else PyByteSeqs.content(v)?.let { floatText(String(it, Charsets.ISO_8859_1), v) }
+                            ?: throw PyRt.typeError("float() argument must be a string or a real number, not '${t.tpName ?: t.name}'")
+                    }
                 }
             }
         }
@@ -702,6 +714,12 @@ object PyBuiltins {
         val r = PyCodecs.decodeText(PyContext.current(), b, x[1]?.let { PyCodecs.cstr(it, "str() argument 'encoding'", false) }, x[2]?.let { PyCodecs.cstr(it, "str() argument 'errors'", false) })
         return if (r.sub == null) r else PyStr(r.s)
     }
+
+    /** float() of a str's (or a bytes-like object's) text [s]: its float, else ValueError with [v]'s repr. */
+    private fun floatText(s: String, v: Any?): Double =
+        // (a bytes-like object's: ASCII only, as _PyOS_ascii_strtod reads it; a str's through Unicode's digits and spaces)
+        (if (v is PyStr) PyLiterals.parseFloat(s) else if (s.any { it.code >= 128 }) null else PyLiterals.parseFloat(s))
+            ?: throw PyException("ValueError", "could not convert string to float: ${PyRt.repr(v)}")
 
     /** The text of bytes or a bytearray as int() reads it (Latin-1: its ASCII digits), or null for anything else. */
     private fun bytesText(v: Any?): PyStr? =

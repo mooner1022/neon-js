@@ -548,6 +548,11 @@ object PyPosix {
                     b.copyInto(buf.b, 0)
                     b.size.toLong()
                 }
+                is PyArrayObj -> {
+                    val b = read(f, buf.n * buf.itemsize)
+                    b.copyInto(buf.b, 0)
+                    b.size.toLong()
+                }
                 is PyMemoryView -> {
                     if (buf.readonly) throw PyRt.typeError("readinto() argument 2 must be read-write bytes-like object, not memoryview")
                     val b = read(f, buf.count * buf.itemsize)
