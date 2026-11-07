@@ -1080,6 +1080,14 @@ stand-ins until the real `unittest` imports: from then on CPython's own).
   - remove, index, count, `in` and `==` read the size again at each step;
   - `list.sort` sorts the items aside with the list empty, and raises "list modified during sort" if it was changed.
 
+- **The IANA time zone database is bundled** (tzdata.zip, 271 KB, from Linux's compiled one by
+  `neonpython/tools/gen_tzdata.py`) and mounted read-only at `/usr/share/zoneinfo`, whatever the host's file system is.
+  `zoneinfo` (CPython's pure one) finds it through Linux CPython's TZPATH. `time` stays UTC (it reads no `TZ`), and
+  so does a naive `astimezone()`.
+- **`importlib.resources` gives a module's resources as its file's directory** (CPython's package, its `_common` a
+  rules file), read through the library's mount. NeonPy's modules have no spec and their loaders no resource reader;
+  a module the host gives (its loader's) has no files to read.
+
 ### 12.3 Progress (2026-11-07, later)
 
 Done on `neonpy-stdlib`: L1–L4; S1 (the bundled library, `sys` as it reads it); S2's `_thread`, `itertools`,
@@ -1125,12 +1133,12 @@ Then:
 - `pyexpat` (Expat ported), with `xml`, `plistlib`, `http.client` and `urllib.request`;
 - `str`'s Unicode tables from CPython;
 - one dict hash for every kind of key;
-- lists safe under their own changes.
+- lists safe under their own changes;
+- `zoneinfo` over the bundled IANA database, and `importlib.resources`.
 
 Next:
 - the CJK codecs;
 - `_elementtree`, if ElementTree's speed matters;
-- `zoneinfo` with tzdata;
 - `C1` on a core branch.
 
 ## References (checked in this review)
