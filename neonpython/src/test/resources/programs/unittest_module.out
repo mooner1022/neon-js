@@ -1,0 +1,101 @@
+test_add (__main__.Arith.test_add) ... ok
+test_almost (__main__.Arith.test_almost) ... ok
+test_dict (__main__.Arith.test_dict) ... FAIL
+test_error (__main__.Arith.test_error) ... ERROR
+test_fail (__main__.Arith.test_fail) ... FAIL
+test_multiline (__main__.Arith.test_multiline) ... FAIL
+test_raises (__main__.Arith.test_raises) ... ok
+test_skip (__main__.Arith.test_skip) ... skipped 'not now'
+test_subtests (__main__.Arith.test_subtests) ... 
+  test_subtests (__main__.Arith.test_subtests) (i=1) ... FAIL
+test_xfail (__main__.Arith.test_xfail) ... expected failure
+
+======================================================================
+ERROR: test_error (__main__.Arith.test_error)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "F", line N, in test_error
+KeyError: 'k'
+
+======================================================================
+FAIL: test_dict (__main__.Arith.test_dict)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "F", line N, in test_dict
+AssertionError: {'a': 1, 'b': 2} != {'a': 1, 'b': 3}
+- {'a': 1, 'b': 2}
+?               ^
+
++ {'a': 1, 'b': 3}
+?               ^
+
+
+======================================================================
+FAIL: test_fail (__main__.Arith.test_fail)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "F", line N, in test_fail
+AssertionError: Lists differ: [1, 2, 3] != [1, 2, 4]
+
+First differing element 2:
+3
+4
+
+- [1, 2, 3]
+?        ^
+
++ [1, 2, 4]
+?        ^
+
+
+======================================================================
+FAIL: test_multiline (__main__.Arith.test_multiline)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "F", line N, in test_multiline
+AssertionError: 'a\nb\nc\n' != 'a\nB\nc\n'
+  a
+- b
++ B
+  c
+
+
+======================================================================
+FAIL: test_subtests (__main__.Arith.test_subtests) (i=1)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "F", line N, in test_subtests
+AssertionError: 1 == 1
+
+----------------------------------------------------------------------
+Ran 10 tests in Xs
+
+FAILED (failures=4, errors=1, skipped=1, expected failures=1)
+
+result: 10 4 1 1 1 False
+test_one (__main__.Fixtures.test_one) ... ok
+
+----------------------------------------------------------------------
+Ran 1 tests in Xs
+
+OK
+
+result: 1 0 0 0 0 True
+fixtures ['setUpClass', 'one', 'tearDown', 'cleanup', 'tearDownClass']
+.
+----------------------------------------------------------------------
+Ran 1 tests in Xs
+
+OK
+
+result: 1 0 0 0 0 True
+mock 3 call(1, k=2) 1 <Mock name='mock.attr.sub()' True
+assert expected call not found.
+magic 7 <MagicMock name='mock.__getitem__()' [] True
+patched /patched True
+unpatched True
+patch.object ['x']
+autospec missing a required argument: 'b'
+asyncmock 9 1
+sentinel sentinel.thing True True (1,)
+main 1 False

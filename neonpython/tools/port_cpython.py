@@ -237,6 +237,7 @@ pathlib/_local.py
 pathlib/_os.py
 pathlib/types.py
 pickle.py
+pkgutil.py
 platform.py platform
 posixpath.py
 pprint.py
@@ -278,6 +279,19 @@ tomllib/_types.py
 traceback.py
 types.py
 typing.py
+unittest/__init__.py
+unittest/__main__.py
+unittest/_log.py
+unittest/async_case.py
+unittest/case.py
+unittest/loader.py
+unittest/main.py
+unittest/mock.py
+unittest/result.py
+unittest/runner.py
+unittest/signals.py
+unittest/suite.py
+unittest/util.py
 urllib/__init__.py
 urllib/parse.py
 uuid.py

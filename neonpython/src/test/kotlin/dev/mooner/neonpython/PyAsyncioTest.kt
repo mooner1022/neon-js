@@ -57,6 +57,37 @@ class PyAsyncioTest {
         ).joinToString("\n", postfix = "\n"), out)
     }
 
+    /** cr_origin as CPython's (its filename here the program's, `<string>`): its creator's frames, innermost first. */
+    @Test
+    fun coroutineOriginTracking() {
+        val out = run("""
+            import sys
+            async def c():
+                pass
+            def make():
+                return c()
+            def outer():
+                return make()
+            t('default', lambda: (sys.get_coroutine_origin_tracking_depth(), c().cr_origin))
+            sys.set_coroutine_origin_tracking_depth(2)
+            x = outer()
+            t('origin', lambda: x.cr_origin)
+            x.close()
+            t('negative', lambda: sys.set_coroutine_origin_tracking_depth(-1))
+            t('str', lambda: sys.set_coroutine_origin_tracking_depth('x'))
+            t('none given', lambda: sys.set_coroutine_origin_tracking_depth())
+            t('keyword', lambda: (sys.set_coroutine_origin_tracking_depth(depth=0), sys.get_coroutine_origin_tracking_depth(), outer().cr_origin))
+        """)
+        assertEquals(listOf(
+            "default -> (0, None)",
+            "origin -> (('<string>', 10, 'make'), ('<string>', 12, 'outer'))",
+            "negative !! ValueError depth must be >= 0",
+            "str !! TypeError 'str' object cannot be interpreted as an integer",
+            "none given !! TypeError set_coroutine_origin_tracking_depth() missing required argument 'depth' (pos 1)",
+            "keyword -> (None, 0, None)",
+        ).joinToString("\n", postfix = "\n"), out)
+    }
+
     @Test
     fun asyncGeneratorHooks() {
         val out = run("""

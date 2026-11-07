@@ -197,7 +197,7 @@ object PyEval {
             val o = a[0]
             val t = PyTypes.typeOf(o)
             val user = t.lookup("__dir__")?.takeIf { it !is PyBuiltin }
-            fun classNames(c: PyType): List<Any?> = c.mro.flatMap { m -> m.dict.map.keys.map { it.v } }
+            fun classNames(c: PyType): List<Any?> = c.mro.flatMap { m -> m.dict.map.keys.map { it.v } + PyAttrDescrs.names(m).map { PyStr(it) } }
             when {
                 user != null -> {
                     val r = PyCalls.callWith(PyContext.current(), PyClasses.descrGet(null, user, o, t), NO_ARGS, NO_ARGS, NO_ARGS)

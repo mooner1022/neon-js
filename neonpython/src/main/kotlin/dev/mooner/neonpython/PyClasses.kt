@@ -595,6 +595,7 @@ object PyClasses {
                         "suspended" -> PyBool.of(obj.state == PyGenBase.SUSPENDED)
                         "frame" -> if (obj.state == PyGenBase.FINISHED) PyNone else PyFrames.frameOf(obj.frame)
                         "code" -> PyEval.functionCode(obj.fn)
+                        "origin" -> if (obj is PyCoroutine) obj.origin ?: PyNone else null
                         "yieldfrom" -> if (p == "gi_") obj.yieldFrom() ?: PyNone else null
                         "await" -> if (p != "gi_") obj.yieldFrom() ?: PyNone else null
                         else -> null

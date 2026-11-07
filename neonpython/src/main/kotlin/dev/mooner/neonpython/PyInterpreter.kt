@@ -50,6 +50,8 @@ class PyContext(
     /** sys.set_asyncgen_hooks's: what an asynchronous generator's first __anext__/asend/athrow/aclose calls, and its finalizer. */
     @JvmField var asyncgenFirstiter: Any? = null
     @JvmField var asyncgenFinalizer: Any? = null
+    /** sys.set_coroutine_origin_tracking_depth's: how many of its creator's frames a coroutine keeps (cr_origin). */
+    @JvmField var coroutineOriginDepth = 0
     /** The callers' exceptions handled, under the generators running (each its own [handled]: PyGenBase.resume). */
     @JvmField val handledStack = ArrayList<PyBaseException?>()
     /** The innermost frame running (sys._getframe), the chain out through PyFrame.back. */
@@ -196,7 +198,7 @@ object PyInterpreter {
             val f = PyFrame(code, ctx, fn.globals, args, null, fn.closure)
             return when (fn.info.kind) {
                 PyCodeInfo.GENERATOR -> PyGenerator(f, fn)
-                PyCodeInfo.COROUTINE -> PyCoroutine(f, fn)
+                PyCodeInfo.COROUTINE -> PyCoroutine(f, fn).also { if (ctx.coroutineOriginDepth > 0) it.origin = PyGenerators.origin(ctx) }
                 else -> PyAsyncGenerator(f, fn)
             }
         }

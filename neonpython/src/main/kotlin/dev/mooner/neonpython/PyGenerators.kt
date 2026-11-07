@@ -130,6 +130,8 @@ class PyGenerator(frame: PyFrame, fn: PyFunction) : PyGenBase(frame, fn) {
 /** An `async def`'s coroutine (PEP 492): awaitable, stepped by send() and throw(), not an iterator. */
 class PyCoroutine(frame: PyFrame, fn: PyFunction) : PyGenBase(frame, fn) {
     override val what get() = "coroutine"
+    /** cr_origin: where it was made ((filename, line, function) of its creator's frames, innermost first), or null. */
+    @JvmField var origin: Any? = null
 }
 
 /**
@@ -600,6 +602,19 @@ object PyGenerators {
 
     /** Whether [v] is an asynchronous iterator (has __anext__). */
     private fun isAsyncIter(v: Any?): Boolean = v is PyAsyncGenerator || PyTypes.typeOf(v).lookup("__anext__") != null
+
+    /** compute_cr_origin: the frames running (up to the tracking depth), each (filename, line, function). */
+    @JvmStatic
+    fun origin(ctx: PyContext): PyTuple {
+        val out = ArrayList<Any?>()
+        var f = ctx.top
+        while (f != null && out.size < ctx.coroutineOriginDepth) {
+            val info = f.code.dialectData as PyCodeInfo
+            out.add(PyTuple(arrayOf(PyStr(info.filename), PyFrames.line(f).toLong(), PyStr(info.name))))
+            f = f.back
+        }
+        return PyTuple(out.toTypedArray())
+    }
 
     /**
      * What awaiting [v] steps (CPython's _PyCoro_GetAwaitableIter): a coroutine itself, else the iterator its type's

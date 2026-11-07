@@ -26,7 +26,18 @@ object PyAttrDescrs {
             "__kwdefaults__" to (false to false), "__module__" to (true to false), "__name__" to (false to false),
             "__qualname__" to (false to false), "__type_params__" to (false to false),
         ),
+        PyEval.CODE to (listOf("co_argcount", "co_consts", "co_exceptiontable", "co_filename", "co_firstlineno", "co_flags",
+            "co_kwonlyargcount", "co_linetable", "co_name", "co_names", "co_nlocals", "co_posonlyargcount", "co_qualname",
+            "co_stacksize").associateWith { true to true } +
+            listOf("co_cellvars", "co_code", "co_freevars", "co_lnotab", "co_varnames").associateWith { false to true }),
     )
+
+    /** The methods a builtin type's instances have where the runtime makes them (a code object's), for dir(). */
+    private val METHODS: Map<PyType, List<String>> = mapOf(PyEval.CODE to listOf("__replace__", "co_lines", "co_positions", "replace"))
+
+    /** The names of [t]'s attributes kept here, not in its dict (dir() lists them, as CPython's type dict has them). */
+    @JvmStatic
+    fun names(t: PyType): List<String> = (TABLE[t]?.keys?.toList() ?: emptyList()) + (METHODS[t] ?: emptyList())
 
     // (one each: FunctionType.__code__ is FunctionType.__code__; every context's, as the types are)
     private val made = java.util.concurrent.ConcurrentHashMap<Pair<PyType, String>, PyAttrDescr>()

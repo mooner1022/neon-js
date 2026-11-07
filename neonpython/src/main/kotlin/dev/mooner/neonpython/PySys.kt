@@ -255,6 +255,26 @@ object PySys {
             return PyNone
         }
         d[PyStr("set_asyncgen_hooks")] = PyBuiltin("set_asyncgen_hooks", { _, a -> setHooks(a, null) }, { _, a, kw -> setHooks(a, kw) })
+        def("get_coroutine_origin_tracking_depth") { a ->
+            if (a.isNotEmpty()) throw PyRt.typeError("sys.get_coroutine_origin_tracking_depth() takes no arguments (${a.size} given)")
+            ctx.coroutineOriginDepth.toLong()
+        }
+        fun setDepth(a: Array<Any?>, kw: PyDict?): Any? {
+            if (a.size > 1) throw PyRt.typeError("set_coroutine_origin_tracking_depth() takes at most 1 argument (${a.size} given)")
+            var v: Any? = a.getOrNull(0)
+            if (kw != null) for ((k, x) in kw.map) {
+                val n = (k.v as PyStr).s
+                if (n != "depth") throw PyRt.typeError("set_coroutine_origin_tracking_depth() got an unexpected keyword argument '$n'")
+                if (v != null) throw PyRt.typeError("argument for set_coroutine_origin_tracking_depth() given by name ('depth') and position (1)")
+                v = x
+            }
+            if (v == null) throw PyRt.typeError("set_coroutine_origin_tracking_depth() missing required argument 'depth' (pos 1)")
+            val n = PyOperator.index(v)
+            if (PyRt.order(0, n, 0L)) throw PyException("ValueError", "depth must be >= 0")
+            ctx.coroutineOriginDepth = (n as? Long)?.coerceAtMost(Int.MAX_VALUE.toLong())?.toInt() ?: Int.MAX_VALUE
+            return PyNone
+        }
+        d[PyStr("set_coroutine_origin_tracking_depth")] = PyBuiltin("set_coroutine_origin_tracking_depth", { _, a -> setDepth(a, null) }, { _, a, kw -> setDepth(a, kw) })
         d[PyStr("maxunicode")] = 0x10FFFFL
         d[PyStr("api_version")] = 1013L
         d[PyStr("copyright")] = PyStr(COPYRIGHT)
