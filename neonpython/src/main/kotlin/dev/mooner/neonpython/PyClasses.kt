@@ -668,6 +668,21 @@ object PyClasses {
         genericSetAttr(obj, name, v)
     }
 
+    /**
+     * object.__class__ = v (object_set_class): between classes (not builtin types) whose instances are laid out alike,
+     * the same builtin base, slots and __dict__ (CPython's compatible_for_assignment).
+     */
+    private fun setClass(obj: Any, v: Any?) {
+        val to = v as? PyType ?: throw PyRt.typeError("__class__ must be set to a class, not '${PyTypes.name(v)}' object")
+        val from = PyTypes.typeOf(obj)
+        if (!to.heap || !from.heap) throw PyRt.typeError("__class__ assignment only supported for mutable types or ModuleType subclasses")
+        fun base(t: PyType) = t.mro.first { !it.heap }
+        if (base(to) !== base(from) || to.slotOwner !== from.slotOwner || to.hasDict != from.hasDict) {
+            throw PyRt.typeError("__class__ assignment: '${to.name}' object layout differs from '${from.name}'")
+        }
+        if (obj is PyObject) obj.type = to else (obj as PyValue).sub!!.cls = to
+    }
+
     private fun dictValue(v: Any?): PyDict =
         v as? PyDict ?: throw PyRt.typeError("__dict__ must be set to a dictionary, not a '${PyTypes.name(v)}'")
 
@@ -720,6 +735,10 @@ object PyClasses {
             }
             obj.dict[PyStr(name)] = v
             if (name == "__getattribute__" || name == "__setattr__" || name == "__delattr__") obj.hooks = hooksOf(obj)
+            return
+        }
+        if (name == "__class__" && obj != null) {
+            setClass(obj, v)
             return
         }
         val type = PyTypes.typeOf(obj)

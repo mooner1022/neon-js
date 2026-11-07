@@ -1,0 +1,41 @@
+pure -> ('c.tar.gz', '.gz', ['.tar', '.gz'], 'c.tar', PurePosixPath('/a/b'), ('/', 'a', 'b', 'c.tar.gz'), '/', '/a/b/c.tar.zip', PurePosixPath('b/c.tar.gz'), True, PurePosixPath('/a/b/c.tar.gz/x'))
+windows -> ('C:', 'C:\\x\\y', ('a', 'b'))
+match -> (True, True, PurePosixPath('x/z'))
+types -> ('PosixPath', True, ['Path', 'PosixPath', 'PurePath', 'PurePosixPath', 'object'])
+io -> ('héllo\n', b'x = 1\n', 7)
+tests -> (True, True, True, False)
+iterdir -> ['a.txt', 'sub']
+glob -> (['pl/a.txt', 'pl/sub'], ['pl/sub/b.py'])
+walk -> [('pl', ['sub'], ['a.txt']), ('pl/sub', [], ['b.py'])]
+resolve -> (True, 'a.txt')
+mkdir exists !! FileExistsError [Errno 17] File exists: 'pl'
+mkdir parents -> (None, True, None, None)
+rename -> ('c.txt', ['c.txt', 'sub'])
+missing !! FileNotFoundError [Errno 2] No such file or directory: 'pl/zz'
+unlink -> (None, None, None, None, False)
+namelist -> ['a.txt', 'd/b.bin']
+read -> (b'hellohello', b'\x00\x01\x00\x01\x00\x01\x00\x01\x00\x01')
+infos -> [('a.txt', 50, 8), ('d/b.bin', 10, 0)]
+testzip -> None
+path -> ['a.txt', 'd']
+path read -> (b'\x00\x01\x00\x01\x00\x01\x00\x01\x00\x01', 'hello', 'FastLookup')
+is_zipfile -> (True, False)
+bad !! BadZipFile File is not a zip file
+on disk -> (['f.txt'], b'file')
+log -> ['INFO:probe:shown 1', 'WARNING:probe:warn', 'ERROR:probe:boom', 'Traceback (most recent call last):', 'ZeroDivisionError: division by zero', 'ERROR:probe.child:from child']
+levels -> ('DEBUG', 40, 20, 'probe')
+sched -> ['a', 'first', 'b']
+operator unbound -> (3, 3, <built-in function add>, True)
+operator -> (3, 2, 2, True, -6, 2)
+operator errors !! TypeError add expected 2 arguments, got 1
+operator errors 2 !! TypeError _operator.neg() takes exactly one argument (0 given)
+operator errors 3 !! ValueError sequence.index(x): x not in sequence
+inplace -> ([1, 2], 'abab', <built-in function matmul>)
+class set -> (('C', 'C'), 'C', True)
+class layout !! TypeError __class__ assignment: 'S' object layout differs from 'C'
+class builtin !! TypeError __class__ assignment only supported for mutable types or ModuleType subclasses
+class not a class !! TypeError __class__ must be set to a class, not 'int' object
+class of int !! TypeError __class__ assignment only supported for mutable types or ModuleType subclasses
+class list -> (('L2', 'L2'), 5, [5])
+solid bases -> ('Q', 'QR')
+layout conflict !! TypeError multiple bases have instance lay-out conflict

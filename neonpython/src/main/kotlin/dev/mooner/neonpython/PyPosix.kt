@@ -160,7 +160,8 @@ object PyPosix {
         }
         val text = if (p is PyBytes) decode(p.b) else (p as PyStr).s
         if (text.indexOf('\u0000') >= 0) throw PyException("ValueError", "$fn: embedded null character in $arg")
-        return PathArg(text, p is PyBytes, v)
+        // (an error's filename is what __fspath__ gave, as 3.14's path_converter keeps)
+        return PathArg(text, p is PyBytes, p)
     }
 
     /** The file system's encoding: UTF-8, bytes not UTF-8 kept as surrogates (surrogateescape). */

@@ -183,9 +183,14 @@ keyword.py
 linecache.py
 locale.py
 logging/__init__.py
+ntpath.py
 numbers.py
 operator.py
 os.py
+pathlib/__init__.py
+pathlib/_local.py
+pathlib/_os.py
+pathlib/types.py
 pickle.py
 posixpath.py
 pprint.py
@@ -220,6 +225,9 @@ urllib/__init__.py
 urllib/parse.py
 warnings.py
 weakref.py
+zipfile/__init__.py
+zipfile/_path/__init__.py
+zipfile/_path/glob.py
 """
 
 # The lib's files that are NeonPy's, not CPython's (made by another tool): their INDEX notes

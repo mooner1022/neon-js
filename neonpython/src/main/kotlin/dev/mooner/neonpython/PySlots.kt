@@ -87,12 +87,15 @@ object PySlots {
     @JvmStatic
     fun process(t: PyType) {
         val bases = t.bases.toList()
-        // (the base whose slots this class's begin after: the others must be its bases)
-        val solid = bases.filter { it.slotCount > 0 }.maxByOrNull { it.slotCount }
-        if (solid != null && bases.any { it.slotCount > 0 && !solid.isSubtype(it) }) {
+        // (the bases' solid bases, the classes that added their slots: one of them must be a subclass of the others,
+        // as CPython's best_base asks; a base adding no slots of its own lays out as its solid base)
+        val owners = bases.mapNotNull { it.slotOwner }
+        val solid = owners.maxByOrNull { it.slotCount }
+        if (solid != null && owners.any { !solid.isSubtype(it) }) {
             throw PyRt.typeError("multiple bases have instance lay-out conflict")
         }
         val inherited = solid?.slotCount ?: 0
+        t.slotOwner = solid
         val baseDict = bases.any { dictLayout(it) }
         val baseWeakref = bases.any { weakrefLayout(it) }
         val raw = t.dict[PyStr("__slots__")]
@@ -128,6 +131,7 @@ object PySlots {
         }
         for ((i, n) in own.withIndex()) t.dict[PyStr(n)] = PyMemberDescr(t, n, inherited + i)
         t.slotCount = inherited + own.size
+        if (own.isNotEmpty()) t.slotOwner = t
         t.hasDict = baseDict || addDict
         t.hasWeakref = baseWeakref || addWeakref
     }

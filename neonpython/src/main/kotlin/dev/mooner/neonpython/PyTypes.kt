@@ -23,6 +23,8 @@ class PyType(@JvmField var name: String, bases: Array<PyType>, @JvmField val dic
     @JvmField var hasDict = true
     @JvmField var hasWeakref = true
     @JvmField var slotCount = 0
+    /** The class whose slots its layout ends with (its "solid base": itself where it adds slots), or null. */
+    @JvmField var slotOwner: PyType? = null
     /** Whether dispatch takes its builtin methods too (a weak reference's, a proxy's: theirs are all it has), and its subclasses'. */
     @JvmField var dispatchBuiltins = false
     /** The name messages give its instances' type by where it is not [name] (a C type's tp_name: `types.GenericAlias`). */
