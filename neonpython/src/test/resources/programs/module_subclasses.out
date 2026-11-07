@@ -1,0 +1,13 @@
+module class -> ('M', 'computed mm', True, 'docs', 0, 'missing whatever')
+setter -> (8, 8, 8)
+back -> ('module', False)
+module sub -> ('computed x', 'M', "<module 'y' from 'missing __file__'>", 'd', {'__name__': 'w', '__doc__': None, '__package__': None, '__loader__': None, '__spec__': None})
+bad class !! TypeError __class__ assignment only supported for mutable types or ModuleType subclasses
+init -> (1, 'n')
+errors !! TypeError module() missing required argument 'name' (pos 1)
+errors2 !! TypeError module() argument 'name' must be str, not int
+getattribute -> (42, 's')
+main module -> ('old value', 'Deprecating')
+repr -> ('R!', 'R!', "<module 'plain'>")
+kw !! TypeError module() missing required argument 'name' (pos 1)
+kw2 -> ('d', 'b')

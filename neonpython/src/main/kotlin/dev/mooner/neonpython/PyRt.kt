@@ -579,7 +579,7 @@ object PyRt {
         is PySlice -> v.toString()
         is PyTemplate -> PyLiterals.templateRepr(v)
         is PyDictView -> PyContainers.repr(v)
-        is PyModule -> v.repr()
+        is PyModule -> PyClasses.moduleRepr(v)
         is PyStream -> "<_io.TextIOWrapper name='${v.name}' mode='${v.mode}' encoding='utf-8'>"
         is PyInterpolation -> PyLiterals.interpolationRepr(v)
         is PyRange -> PyRanges.repr(v)

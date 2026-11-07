@@ -123,11 +123,11 @@ object PyClasses {
         for (b in bases) if (!b.subclassable) throw PyRt.typeError("type '${b.tpName ?: b.name}' is not an acceptable base type")
         for ((i, b) in bases.withIndex()) if (bases.subList(0, i).any { it === b }) throw PyRt.typeError("duplicate base class ${b.name}")
         // (str, list, tuple, dict, int and float as bases: their instances are such values (an int's, a float's a PyNumSub))
-        for (b in bases) for (x in b.mro) if (x.newImpl != null && x !== PyTypes.OBJECT && x !== PyTypes.TYPE && x !in VALUE_BASES) {
+        for (b in bases) for (x in b.mro) if (x.newImpl != null && x !== PyTypes.OBJECT && x !== PyTypes.TYPE && x !in VALUE_BASES && x !== PyImport.MODULE_TYPE) {
             throw PyRt.typeError("subclassing '${x.name}' is not supported yet")
         }
         // (an instance is one kind of value: two of them among the bases cannot be)
-        if (bases.mapNotNull { b -> b.mro.firstOrNull { it in VALUE_BASES || it === PyExceptions.BASE_EXCEPTION } }.distinct().size > 1) {
+        if (bases.mapNotNull { b -> b.mro.firstOrNull { it in VALUE_BASES || it === PyExceptions.BASE_EXCEPTION || it === PyImport.MODULE_TYPE } }.distinct().size > 1) {
             throw PyRt.typeError("multiple bases have instance lay-out conflict")
         }
         val t = PyType(name.s, if (bases.isEmpty()) arrayOf(PyTypes.OBJECT) else bases.toTypedArray(), heap = true)
@@ -179,6 +179,7 @@ object PyClasses {
     fun classOf(obj: Any?): PyType? = when (obj) {
         is PyObject -> obj.type
         is PyValue -> obj.sub?.cls
+        is PyModule -> obj.cls
         else -> null
     }
 
@@ -408,7 +409,11 @@ object PyClasses {
     /** obj.name for an instance of a class (or a builtin value): its class's __getattribute__, else [genericGetAttr]; __getattr__. */
     @JvmStatic
     fun getAttr(obj: Any?, name: String): Any? {
-        if (obj is PyModule) return moduleAttr(obj, name)
+        if (obj is PyModule) {
+            val c = obj.cls
+            if (c != null && c.hooks and 1 != 0) return hookedAttr(c, obj, name)
+            return moduleAttr(obj, name)
+        }
         if (obj is PyGenericAlias) {
             // (a subclass's instance: its classes' attributes and its own first)
             obj.sub?.let { s ->
@@ -430,29 +435,36 @@ object PyClasses {
         if (obj is PyParamSpecPart) return PyTyping.partAttr(obj, name)
         if (obj is PyTypeAlias) return PyTyping.aliasTypeAttr(obj, name)
         val cls = classOf(obj)
-        if (cls != null && cls.hooks and 1 != 0) {
-            val type = cls
-            val gab = PyDunder.userMethod(type, "__getattribute__")!!
-            try {
-                return PyCalls.callWith(PyContext.current(), gab, arrayOf(obj, PyStr(name)), NO_ARGS, NO_ARGS)
-            } catch (e: PyException) {
-                val ga = type.lookup("__getattr__")
-                if (!e.matches(PyExceptions.type("AttributeError")) || ga == null) throw e
-                return PyCalls.callWith(PyContext.current(), ga, arrayOf(obj, PyStr(name)), NO_ARGS, NO_ARGS)
-            }
-        }
+        if (cls != null && cls.hooks and 1 != 0) return hookedAttr(cls, obj, name)
         return attr(obj, name, true)
+    }
+
+    /** [obj].name through its class's own __getattribute__, then its __getattr__ on an AttributeError. */
+    private fun hookedAttr(type: PyType, obj: Any?, name: String): Any? {
+        val gab = PyDunder.userMethod(type, "__getattribute__")!!
+        try {
+            return PyCalls.callWith(PyContext.current(), gab, arrayOf(obj, PyStr(name)), NO_ARGS, NO_ARGS)
+        } catch (e: PyException) {
+            val ga = type.lookup("__getattr__")
+            if (!e.matches(PyExceptions.type("AttributeError")) || ga == null) throw e
+            return PyCalls.callWith(PyContext.current(), ga, arrayOf(obj, PyStr(name)), NO_ARGS, NO_ARGS)
+        }
     }
 
     /** A module's attribute: its dict's, then its module-level __getattr__ (PEP 562). */
     private fun moduleAttr(m: PyModule, name: String): Any? {
         if (PyAnnotations.isName(name)) return PyAnnotations.moduleGet(m, name)
+        val c = m.cls ?: PyImport.MODULE_TYPE
+        // (a ModuleType subclass's data descriptors first, its properties, as object's getattr has them)
+        val d = if (m.cls != null) c.lookup(name) else null
+        if (d != null && isDataDescriptor(d)) return descrGet(null, d, m, c)
         m.dict[PyStr(name)]?.let { return it }
         when (name) {
             "__dict__" -> return m.dict
-            "__class__" -> return PyImport.MODULE_TYPE
+            "__class__" -> return c
         }
-        PyImport.MODULE_TYPE.lookup(name)?.let { return descrGet(null, it, m, PyImport.MODULE_TYPE) }
+        (d ?: c.lookup(name))?.let { return descrGet(null, it, m, c) }
+        if (m.cls != null) PyDunder.userMethod(c, "__getattr__")?.let { return PyCalls.callWith(PyContext.current(), it, arrayOf(m, PyStr(name)), NO_ARGS, NO_ARGS) }
         m.dict[PyStr("__getattr__")]?.let { return PyCalls.callWith(PyContext.current(), it, arrayOf(PyStr(name)), NO_ARGS, NO_ARGS) }
         throw PyException.attributeError(m, name, "module '${m.name}' has no attribute '$name'")
     }
@@ -627,7 +639,30 @@ object PyClasses {
         is PyObject -> obj.dict
         is PyValue -> obj.sub?.dict
         is PyFunction -> obj.dict
+        is PyModule -> obj.dict
         else -> null
+    }
+
+    /**
+     * repr() of a ModuleType subclass's module: its class's __repr__, else importlib's _module_repr through its
+     * attributes (its __getattr__ answering for a missing __file__, as CPython's does).
+     */
+    @JvmStatic
+    fun moduleRepr(m: PyModule): String {
+        val c = m.cls ?: return m.repr()
+        PyDunder.userMethod(c, "__repr__")?.let { r ->
+            val v = PyCalls.callWith(PyContext.current(), r, arrayOf(m), NO_ARGS, NO_ARGS)
+            return (v as? PyStr)?.s ?: throw PyRt.typeError("__repr__ returned non-string (type ${PyTypes.name(v)})")
+        }
+        fun get(n: String): Any? = try {
+            getAttr(m, n)
+        } catch (e: PyException) {
+            if (e.matches(PyExceptions.type("AttributeError"))) null else throw e
+        }
+        val loader = get("__loader__")
+        val name = get("__name__")?.let { PyRt.repr(it) } ?: "'?'"
+        val file = get("__file__") ?: return if (loader == null || loader === PyNone) "<module $name>" else "<module $name (${PyRt.repr(loader)})>"
+        return "<module $name from ${PyRt.repr(file)}>"
     }
 
     /** C.name: through C's MRO (a function as it is, a classmethod bound to C), then its metaclass's. */
@@ -686,9 +721,33 @@ object PyClasses {
      * object.__class__ = v (object_set_class): between classes (not builtin types) whose instances are laid out alike,
      * the same builtin base, slots and __dict__ (CPython's compatible_for_assignment).
      */
+    /** obj.name = v through [d], a data descriptor of obj's class (a property's setter, a __set__): whether it was one. */
+    private fun setThrough(d: Any?, obj: Any, v: Any?): Boolean {
+        if (d is PyValue && d.sub != null) ownDescr(d, "__set__")?.let {
+            PyCalls.callWith(PyContext.current(), it, arrayOf(d, obj, v), NO_ARGS, NO_ARGS)
+            return true
+        }
+        if (d is PyProperty) {
+            val s = d.fset ?: throw PyException("AttributeError", "property ${d.nameFor()}of '${PyTypes.typeOf(obj).name}' object has no setter")
+            PyCalls.callWith(PyContext.current(), s, arrayOf(obj, v), NO_ARGS, NO_ARGS)
+            return true
+        }
+        if (d is PyObject) d.type.lookup("__set__")?.let {
+            PyCalls.callWith(PyContext.current(), it, arrayOf(d, obj, v), NO_ARGS, NO_ARGS)
+            return true
+        }
+        return false
+    }
+
     private fun setClass(obj: Any, v: Any?) {
         val to = v as? PyType ?: throw PyRt.typeError("__class__ must be set to a class, not '${PyTypes.name(v)}' object")
         val from = PyTypes.typeOf(obj)
+        // (a module's: between module and its subclasses, CPython's one exception for a builtin type)
+        if (obj is PyModule) {
+            if (!to.isSubtype(PyImport.MODULE_TYPE)) throw PyRt.typeError("__class__ assignment only supported for mutable types or ModuleType subclasses")
+            obj.cls = if (to === PyImport.MODULE_TYPE) null else to
+            return
+        }
         if (!to.heap || !from.heap) throw PyRt.typeError("__class__ assignment only supported for mutable types or ModuleType subclasses")
         fun base(t: PyType) = t.mro.first { !it.heap }
         if (base(to) !== base(from) || to.slotOwner !== from.slotOwner || to.hasDict != from.hasDict) {
@@ -704,6 +763,12 @@ object PyClasses {
     @JvmStatic
     fun genericSetAttr(obj: Any?, name: String, v: Any?) {
         if (obj is PyModule) {
+            if (name == "__class__") {
+                setClass(obj, v)
+                return
+            }
+            // (a ModuleType subclass's data descriptor: its property's setter)
+            obj.cls?.lookup(name)?.let { d -> if (setThrough(d, obj, v)) return }
             if (PyAnnotations.isName(name)) PyAnnotations.moduleSet(obj, name, v) else obj.dict[PyStr(name)] = v
             return
         }

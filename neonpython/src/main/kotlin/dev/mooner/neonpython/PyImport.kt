@@ -19,10 +19,12 @@ class PyModuleSource(@JvmField val source: String, @JvmField val path: String, @
                      @JvmField val library: Boolean = false)
 
 /** A module: its name and its dict (its globals, the same dict). */
-class PyModule(@JvmField val name: String, @JvmField val dict: PyDict) {
+class PyModule(@JvmField var name: String, @JvmField val dict: PyDict) {
     /** Whether its body is running (an import of it now meets it partially initialized). */
     @JvmField var initializing = false
     @JvmField var builtin = false
+    /** Its class where it is a ModuleType subclass's (made by one, or its __class__ set to one), else null. */
+    @JvmField var cls: PyType? = null
 
     val isPackage: Boolean get() = dict.containsKey(PyStr("__path__"))
 
@@ -56,25 +58,45 @@ object PyImport {
 
     @JvmField val MODULE_TYPE = PyTypes.newBuiltin("module", subclassable = true).also { t ->
         // (types.ModuleType(name, doc=None): a module of its own, as module_init makes one)
-        t.newImpl = { _, _, a, kw ->
-            val v = arrayOfNulls<Any?>(2)
-            if (a.size > 2) throw PyRt.typeError("module() takes at most 2 arguments (${a.size} given)")
-            a.copyInto(v)
-            kw?.map?.forEach { (k, x) ->
-                val i = listOf("name", "doc").indexOf((k.v as PyStr).s)
-                if (i < 0) throw PyRt.typeError("module() got an unexpected keyword argument '${k.v}'")
-                v[i] = x
-            }
-            val name = v[0] ?: throw PyRt.typeError("module.__init__() missing required argument 'name' (pos 1)")
-            if (name !is PyStr) throw PyRt.typeError("module.__init__() argument 'name' must be str, not ${PyTypes.name(name)}")
-            val d = PyDict()
-            d[PyStr("__name__")] = name
-            d[PyStr("__doc__")] = v[1] ?: PyNone
-            d[PyStr("__package__")] = PyNone
-            d[PyStr("__loader__")] = PyNone
-            d[PyStr("__spec__")] = PyNone
-            PyModule(name.s, d)
+        t.newImpl = { _, _, a, kw -> PyModule("?", PyDict()).also { initArgs(arrayOf(it, *a), kw) } }
+        // (a subclass's: module.__new__ an empty module of the class, module.__init__ its names, as module_init's)
+        t.def("__new__", PyBuiltin("__new__") { _, a ->
+            val cls = a.getOrNull(0) as? PyType ?: throw PyRt.typeError("module.__new__(X): X is not a type object (${PyTypes.name(a.getOrNull(0))})")
+            if (!cls.isSubtype(t)) throw PyRt.typeError("module.__new__(${cls.name}): ${cls.name} is not a subtype of module")
+            PyModule("?", PyDict()).also { if (cls !== t) it.cls = cls }
+        })
+        t.def("__init__", PyBuiltin("__init__", { _, a -> initArgs(a, null) }, { _, a, kw -> initArgs(a, kw) }))
+    }
+
+    /** module.__init__(name, doc=None), its arguments as clinic checks them (the name missing first). */
+    private fun initArgs(a: Array<Any?>, kw: PyDict?): Any? {
+        val m = a.getOrNull(0) as? PyModule ?: throw PyRt.typeError("descriptor '__init__' requires a 'module' object but received a '${PyTypes.name(a.getOrNull(0))}'")
+        if (a.size > 3) throw PyRt.typeError("module() takes at most 2 arguments (${a.size - 1} given)")
+        val v = arrayOfNulls<Any?>(2)
+        for (i in 1 until a.size) v[i - 1] = a[i]
+        var unknown: String? = null
+        kw?.map?.forEach { (k, x) ->
+            val n = (k.v as PyStr).s
+            val i = listOf("name", "doc").indexOf(n)
+            if (i < 0) unknown = unknown ?: n
+            else if (i < a.size - 1) throw PyRt.typeError("argument for module() given by name ('$n') and position (${i + 1})")
+            else v[i] = x
         }
+        val name = v[0] ?: throw PyRt.typeError("module() missing required argument 'name' (pos 1)")
+        unknown?.let { throw PyRt.typeError("module() got an unexpected keyword argument '$it'") }
+        if (name !is PyStr) throw PyRt.typeError("module() argument 'name' must be str, not ${PyTypes.name(name)}")
+        moduleInit(m, name, v[1])
+        return PyNone
+    }
+
+    private fun moduleInit(m: PyModule, name: PyStr, doc: Any?) {
+        m.name = name.s
+        val d = m.dict
+        d[PyStr("__name__")] = name
+        d[PyStr("__doc__")] = doc ?: PyNone
+        d[PyStr("__package__")] = PyNone
+        d[PyStr("__loader__")] = PyNone
+        d[PyStr("__spec__")] = PyNone
     }
     @JvmField val STREAM_TYPE = PyTypes.newBuiltin("TextIOWrapper", subclassable = false).also { it.module = "_io" }
 
