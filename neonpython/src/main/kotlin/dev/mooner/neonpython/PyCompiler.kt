@@ -2455,9 +2455,20 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     private fun markUnbound(bc: IntArray) {
         if (namespace) return
         val n = maxOf(regs, maxRegs)
+        // (the parameters are bound on entry and stay so unless deleted: tracked only where a `del` names one, so that
+        // a function of many parameters (namedtuple's generated __new__ of thousands) costs its other registers alone)
+        val p = scope.params.size
+        var lo = p
+        var i0 = 0
+        while (i0 < bc.size) {
+            if (bc[i0] == PyOp.DELETE_FAST && bc[i0 + 1] < p) { lo = 0; break }
+            i0 += PyOp.length(bc[i0])
+        }
+        if (lo >= n) return
+        val width = n - lo
         val maybe = arrayOfNulls<java.util.BitSet>(bc.size)
-        val start = java.util.BitSet(n)
-        start.set(scope.params.size, n)
+        val start = java.util.BitSet(width)
+        start.set(p - lo, width)
         maybe[0] = start
         val work = ArrayDeque<Int>()
         work.add(0)
@@ -2478,11 +2489,11 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             }
             val out = maybe[pc]!!.clone() as java.util.BitSet
             val op = bc[pc]
-            if (op == PyOp.STORE_FAST) out.clear(bc[pc + 1])
-            if (op == PyOp.DELETE_FAST) out.set(bc[pc + 1])
+            if (op == PyOp.STORE_FAST && bc[pc + 1] >= lo) out.clear(bc[pc + 1] - lo)
+            if (op == PyOp.DELETE_FAST && bc[pc + 1] >= lo) out.set(bc[pc + 1] - lo)
             for (s in successors(bc, pc)) {
                 // FOR_ITER writes its value register only on the way into the loop's body
-                val o = if (op == PyOp.FOR_ITER && s == pc + PyOp.length(op)) (out.clone() as java.util.BitSet).also { it.clear(bc[pc + 2]) } else out
+                val o = if (op == PyOp.FOR_ITER && s == pc + PyOp.length(op) && bc[pc + 2] >= lo) (out.clone() as java.util.BitSet).also { it.clear(bc[pc + 2] - lo) } else out
                 val cur = maybe[s]
                 if (cur == null) {
                     maybe[s] = o.clone() as java.util.BitSet
@@ -2497,7 +2508,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         var pc = 0
         while (pc < bc.size) {
             val m = maybe[pc]
-            if (bc[pc] == PyOp.LOAD_FAST && m != null && m[bc[pc + 1]]) bc[pc] = PyOp.LOAD_FAST_CHECK
+            if (bc[pc] == PyOp.LOAD_FAST && m != null && bc[pc + 1] >= lo && m[bc[pc + 1] - lo]) bc[pc] = PyOp.LOAD_FAST_CHECK
             pc += PyOp.length(bc[pc])
         }
     }
