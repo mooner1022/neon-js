@@ -942,7 +942,9 @@ stand-ins until the real `unittest` imports: from then on CPython's own).
   `_functools`, `_heapq`, `_bisect`, `_operator`, `_warnings`), the fallback runs until the accelerator is worth it;
   where it has none (`_collections`, `itertools`, `_sre`, `_contextvars`, `_thread`, `_weakref`), the module is Kotlin.
 - **`sys.implementation.name` is `'neonpy'` and its `cache_tag` None** (no bytecode is written); `sys.prefix` is
-  `/usr`, the library at `/usr/lib/python3.14`. Code asking whether it runs on CPython is told it does not.
+  `/usr`, the library at `/usr/lib/python3.14`. Code asking whether it runs on CPython is told it does not:
+  `sys.version` is `'3.14.6 (NeonPy)'`, and `platform` (a rules file) parses it as NeonPy's, so
+  `platform.python_implementation()` is `'NeonPy'`.
 - **A builtin type's classes are each context's.** The builtin types are every context's objects, so
   `object.__subclasses__()` lists only the asking context's classes (and the builtin types); descriptors the builtin
   types show (`FunctionType.__code__`) take no attributes of their own.
@@ -988,8 +990,9 @@ stand-ins until the real `unittest` imports: from then on CPython's own).
   where `_pyio`'s are its own (closed, detached and wrong-mode files, the unsupported operations). A file written
   without `close()` keeps what is buffered until the collector finalizes it (CPython's reference count flushes it at
   once); descriptors are never reused, so a late finalizer cannot close a newer file. `datetime` is `_pydatetime`
-  (no C `_datetime`), `pickle` the pure one, `locale` its emulation (no `_locale`), `operator` the pure one but for
-  `index` and `_compare_digest`.
+  (no C `_datetime`), `pickle` the pure one, `locale` its emulation (no `_locale`). `operator`'s functions are
+  `_operator`'s builtins, as CPython's C ones are, so that a class holding one does not bind it. Its getter classes,
+  `concat` and `length_hint` are the pure ones.
 - **`importlib` is NeonPy's own**, its API over NeonPy's import (`_imp`: a module's source found without running
   it, a module run again for reload), with CPython's `ModuleSpec`, checks and messages; NeonPy never runs
   `importlib._bootstrap`. A module NeonPy imports has no `__spec__` (None): `importlib.util.find_spec` makes the
@@ -998,6 +1001,42 @@ stand-ins until the real `unittest` imports: from then on CPython's own).
 - **Builtins' text signatures are CPython's**: `neonpython/tools/gen_signatures.py` takes each builtin function's
   and method's `__text_signature__` from Linux CPython, so `inspect.signature(len)` works as there.
 - **`time`'s zone is UTC** (`TZ` is not read): localtime is gmtime, as in a container without zone data.
+- **There is one thread.** `_thread` starts none: `start_new_thread` and `Thread.start()` raise `RuntimeError("can't
+  start new thread")`. Locks, conditions and queues work for the one thread. A wait with a timeout sleeps in slices
+  of at most 10 ms and checks the agent's limits. A wait that nothing could ever end raises RuntimeError at once
+  instead of hanging: a lock already held, a recv with no data, `select(None)` with nothing ready, a future nothing
+  will resolve.
+- **asyncio is CPython's, unchanged**, and runs on the sandbox's `_socket`, `select` and `_signal`, without
+  `_asyncio`. Its loop is `_UnixSelectorEventLoop` with `SelectSelector`, since there is no poll or epoll, and its
+  clock is `time.monotonic`. `run_in_executor` and `to_thread` raise the one-thread RuntimeError. The default
+  executor is shut down in the loop's thread (a rules file for `asyncio/base_events.py`, the lines kept), because it
+  has no workers to join. `sys.set_asyncgen_hooks`' firstiter is called as CPython calls it. Its finalizer is kept
+  but never called, because no asynchronous generator is finalized when collected. asyncio's
+  `shutdown_asyncgens()` still closes the ones firstiter saw.
+- **No network and no processes; the only signals are the program's own.**
+  - `socketpair()` and `os.pipe()` ends are posix descriptors connected in memory, with Linux's buffers, shutdown,
+    errors and timeouts.
+  - connect, bind, listen, accept, sendto, recvfrom and name lookups raise PermissionError (EPERM).
+  - `fork_exec` raises PermissionError (EPERM), so subprocess starts nothing.
+  - `raise_signal` runs the handler at once, after writing the wakeup byte. SIG_DFL ends the program with
+    `SystemExit(128 + n)`. Arming `alarm` or `setitimer` is refused.
+- **`compile()`'s mode `'single'` and incomplete input are codeop's.**
+  - `'single'` takes one statement. It gives an expression statement's value to `sys.displayhook`, and a compound
+    statement must end with a newline.
+  - `PyCF_ALLOW_INCOMPLETE_INPUT` raises `_IncompleteInputError` where the source's end made the error, so
+    `codeop.compile_command` and `code.InteractiveConsole` answer as CPython's do.
+  - Raw `compile()` with the flag differs from CPython in a few cases. In those, pegen's lookahead had already reached
+    the end, so CPython calls the input incomplete: `'def f(:'` in `'single'` and `'for'` in `'eval'`.
+- **A function's `__code__` can be set only to a code object with its bytecode**, that is, one that `replace()` made
+  of its own: NeonPy's functions keep their bytecode. `replace()` may change the names, the filename, the first line
+  and `CO_ITERABLE_COROUTINE`, which is what `types.coroutine` needs.
+- **`unicodedata` is CPython's two databases** (16.0.0, and 3.2.0 as `ucd_3_2_0`) in one resource,
+  `unicodedata.bin`. `neonpython/tools/gen_unicodedata.py` makes it from CPython itself, plus `Modules/`'s name tables
+  for the aliases and named sequences. `\N{...}`, `namereplace` and `stringprep` use it.
+  - `hashlib` is CPython built without OpenSSL (no `_hashlib`). md5, sha1, sha2, sha3/shake and blake2 are Kotlin, so
+    no JVM or Android provider is needed, and there is no `pbkdf2_hmac` or `scrypt`.
+  - A C `unsigned long` is 64 bits, as on Linux.
+  - The hash objects' attributes are properties.
 
 ### 12.3 Progress (2026-11-07, later)
 
@@ -1018,10 +1057,19 @@ Import costs (a cold JVM, interpreted: os 146 ms, re 140, json 37, typing 47, io
 traceback 57, datetime 30; adaptive, warm: about 230 ms for all of them; CPython about 40 ms). The neonpython tests
 pass with a 300 MB heap.
 
-Next: S6 (asyncio, CPython's unchanged, over a single-threaded `_thread` with `threading`, and sandbox `_socket`
-(socketpair only; the network refused), `select`, `_signal`, `_posixsubprocess`), `binascii` and `zlib` with
-`base64`, `gzip` and `zipfile`; then `unicodedata`, `hashlib` (blake2, sha3), `array`, `_decimal` (or `_pydecimal`),
-`argparse`, `logging`, `unittest`.
+Since then:
+- S6: asyncio, CPython's, unchanged. It runs on a single-threaded `_thread` with `threading`, `queue` and
+  `concurrent.futures`, and on sandbox `_socket`, `select`, `_signal` and `_posixsubprocess` with `socket`,
+  `selectors`, `signal` and `subprocess`.
+- `binascii` and `zlib`, with `base64` and `gzip`.
+- `unicodedata`, with both of CPython's databases.
+- `hashlib` with blake2 and sha3, `hmac` and `secrets`.
+- `pathlib`, `zipfile`, `tarfile`, `wave`, `configparser`, `tomllib`, `argparse`, `optparse`, `getopt`, `logging`,
+  `sched`, `decimal` (`_pydecimal`), `fractions` and `statistics`.
+- `code` and `codeop`.
+
+Next: `array`, `unittest`, `csv`, `email`, `xml` (it needs `pyexpat`), `compile()` of an AST object, and `C1` on a
+core branch.
 
 ## References (checked in this review)
 
