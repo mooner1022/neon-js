@@ -399,12 +399,16 @@ object PyImport {
                 PySignal.fillPosixSubprocess(d)
                 return mod().also { d[PyStr("__doc__")] = PyStr(PySocketData.POSIXSUBPROCESS_DOC) }
             }
+            "unicodedata" -> {
+                PyUnicodedata.fill(d)
+                return mod().also { d[PyStr("__doc__")] = PyStr(PyUnicodedata.DOC) }
+            }
             else -> return null
         }
     }
 
     /** The modules NeonPy makes itself (sys.builtin_module_names). */
-    @JvmField val BUILTIN_NAMES = listOf("sys", "builtins", "_thread", "_weakref", "gc", "_collections", "itertools", "_contextvars", "_sre", "_string", "_typing", "math", "errno", "posix", "_random", "_sha2", "_md5", "_sha1", "_operator", "_imp", "_dis", "_codecs", "_struct", "time", "_tokenize", "atexit", "binascii", "zlib", "_socket", "select", "_signal", "_posixsubprocess")
+    @JvmField val BUILTIN_NAMES = listOf("sys", "builtins", "_thread", "_weakref", "gc", "_collections", "itertools", "_contextvars", "_sre", "_string", "_typing", "math", "errno", "posix", "_random", "_sha2", "_md5", "_sha1", "_operator", "_imp", "_dis", "_codecs", "_struct", "time", "_tokenize", "atexit", "binascii", "zlib", "_socket", "select", "_signal", "_posixsubprocess", "unicodedata")
 
     /** The features `from __future__ import` knows (CPython 3.14's). */
     @JvmField val FUTURES = listOf("nested_scopes", "generators", "division", "absolute_import", "with_statement", "print_function",

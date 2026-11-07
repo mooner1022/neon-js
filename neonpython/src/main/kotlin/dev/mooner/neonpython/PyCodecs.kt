@@ -16,8 +16,7 @@ import java.math.BigInteger
  *
  * A str is a Java String: positions are code points (a surrogate pair is one, as everywhere in NeonPy), so two
  * surrogates that make a pair are one character here where CPython has two. Character names (namereplace,
- * `\N{...}`) are the JVM's (Character.getName), with CPython's algorithmic names for CJK ideographs and Hangul
- * syllables; Unicode's aliases are not known.
+ * `\N{...}`) are unicodedata's (PyUnicodedata, CPython's names and aliases).
  */
 object PyCodecs {
     private val NO_ARGS = arrayOfNulls<Any?>(0)
@@ -748,68 +747,13 @@ object PyCodecs {
 
     // ------------------------------------------------------------------ character names
 
-    private val JAMO_L = arrayOf("G", "GG", "N", "D", "DD", "R", "M", "B", "BB", "S", "SS", "", "J", "JJ", "C", "K", "T", "P", "H")
-    private val JAMO_V = arrayOf("A", "AE", "YA", "YAE", "EO", "E", "YEO", "YE", "O", "WA", "WAE", "OE", "YO", "U", "WEO", "WE", "WI", "YU", "EU", "YI", "I")
-    private val JAMO_T = arrayOf("", "G", "GG", "GS", "N", "NJ", "NH", "D", "L", "LG", "LM", "LB", "LS", "LT", "LP", "LH", "M", "B", "BS", "S", "SS", "NG", "J", "C", "K", "T", "P", "H")
-
-    /** The JVM's name for a code point it has none for: its block's and its number. */
-    private fun blockName(cp: Int): String? =
-        Character.UnicodeBlock.of(cp)?.let { it.toString().replace('_', ' ') + " " + Integer.toHexString(cp).uppercase() }
-
-    /**
-     * unicodedata.name(c) as namereplace and `\N` see it: the JVM's name (Character.getName), none for controls,
-     * surrogates, private use and unassigned code points, CPython's algorithmic names for CJK unified ideographs and
-     * Hangul syllables (Tangut ideographs: none, as in CPython 3.14).
-     */
+    /** unicodedata's name of [cp] as namereplace has it (unicodedata's C API: aliases' private-use code points named too), or null. */
     @JvmStatic
-    fun charName(cp: Int): String? {
-        when (Character.getType(cp).toByte()) {
-            Character.CONTROL, Character.SURROGATE, Character.PRIVATE_USE, Character.UNASSIGNED -> return null
-        }
-        val n = Character.getName(cp) ?: return null
-        if (n != blockName(cp)) return n
-        val block = Character.UnicodeBlock.of(cp)?.toString() ?: return null
-        return when {
-            block.startsWith("CJK_UNIFIED_IDEOGRAPHS") -> "CJK UNIFIED IDEOGRAPH-" + Integer.toHexString(cp).uppercase()
-            block == "HANGUL_SYLLABLES" && cp in 0xac00..0xd7a3 -> {
-                val k = cp - 0xac00
-                "HANGUL SYLLABLE " + JAMO_L[k / (21 * 28)] + JAMO_V[(k % (21 * 28)) / 28] + JAMO_T[k % 28]
-            }
-            else -> null
-        }
-    }
+    fun charName(cp: Int): String? = PyUnicodedata.name(cp, false, true)
 
-    /** The code point named [name] (case aside), as `\N{...}` finds it; -1 for none. */
+    /** The code point named [name] (case aside), as `\N{...}` finds it (unicodedata's C API: aliases too); -1 for none. */
     @JvmStatic
-    fun charCode(name: String): Int {
-        if (name.isEmpty() || name != name.trim()) return -1
-        val u = name.uppercase()
-        fun hexAfter(prefix: String): Int = if (u.startsWith(prefix)) u.substring(prefix.length).let { h ->
-            if (h.length in 4..5 && h.all { it in '0'..'9' || it in 'A'..'F' }) h.toInt(16) else -1
-        } else -1
-        hexAfter("CJK UNIFIED IDEOGRAPH-").let { cp ->
-            if (cp >= 0) return if (Character.isDefined(cp) && Character.UnicodeBlock.of(cp)?.toString()?.startsWith("CJK_UNIFIED_IDEOGRAPHS") == true) cp else -1
-        }
-        hexAfter("TANGUT IDEOGRAPH-").let { cp ->
-            if (cp >= 0) return if (Character.isDefined(cp) && Character.UnicodeBlock.of(cp)?.toString()?.startsWith("TANGUT") == true &&
-                Character.getName(cp) == blockName(cp)) cp else -1
-        }
-        if (u.startsWith("HANGUL SYLLABLE ")) {
-            val rest = u.substring(16)
-            for (l in JAMO_L.indices) for (v in JAMO_V.indices) for (t in JAMO_T.indices) {
-                if (JAMO_L[l] + JAMO_V[v] + JAMO_T[t] == rest) return 0xac00 + (l * 21 + v) * 28 + t
-            }
-            return -1
-        }
-        val cp = try {
-            Character.codePointOf(name)
-        } catch (_: IllegalArgumentException) {
-            return -1
-        }
-        // (the JVM's own forms of names it has none for are not names; a control's name the JVM gives is taken)
-        if (Character.getType(cp).toByte() == Character.CONTROL) return if (Character.getName(cp) == u && '(' !in u) cp else -1
-        return if (charName(cp) == u) cp else -1
-    }
+    fun charCode(name: String): Int = PyUnicodedata.code(name)
 
     // ------------------------------------------------------------------ the codecs
 

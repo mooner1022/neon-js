@@ -476,9 +476,8 @@ class PyLexer(private val src: String) {
                     throw escapeError(at, if (close == pos + 1 && close < src.length && src[close] == '}') close else close - 1, "malformed \\N character escape", false)
                 }
                 val name = src.substring(pos + 1, close)
-                val cp = try { Character.codePointOf(name) } catch (_: IllegalArgumentException) {
-                    throw escapeError(at, close, "unknown Unicode character name", false)
-                }
+                val cp = PyCodecs.charCode(name)
+                if (cp < 0) throw escapeError(at, close, "unknown Unicode character name", false)
                 sb.appendCodePoint(cp)
                 pos = close + 1
             }

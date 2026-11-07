@@ -1,0 +1,211 @@
+versions -> ('16.0.0', '3.2.0', 'UCD', 'unicodedata')
+names -> ['UCD', '_ucnhash_CAPI', 'bidirectional', 'category', 'combining', 'decimal', 'decomposition', 'digit', 'east_asian_width', 'is_normalized', 'lookup', 'mirrored', 'name', 'normalize', 'numeric', 'ucd_3_2_0', 'unidata_version']
+UCD names -> ['bidirectional', 'category', 'combining', 'decimal', 'decomposition', 'digit', 'east_asian_width', 'is_normalized', 'lookup', 'mirrored', 'name', 'normalize', 'numeric', 'unidata_version']
+doc -> '16.0.0 which is publicly available from ftp://ftp.unicode.org/.'
+capsule -> 'PyCapsule'
+sample ([('Cc', 1), ('Cf', 1), ('Cn', 3271), ('Co', 547), ('Cs', 8), ('Ll', 10), ('Lm', 1), ('Lo', 535), ('Lu', 9), ('Mc', 1), ('Mn', 6), ('Nd', 3), ('Nl', 2), ('No', 3), ('Pe', 1), ('Po', 4), ('Sk', 1), ('Sm', 3), ('So', 32)], 588, 71, 90071.4)
+sample 3.2.0 ([('Cc', 1), ('Cf', 1), ('Cn', 3504), ('Co', 547), ('Cs', 8), ('Ll', 6), ('Lo', 344), ('Lu', 6), ('Mc', 1), ('Mn', 3), ('No', 1), ('Pe', 1), ('Sm', 3), ('So', 13)], 379, 66, 2.4)
+0x41 -> ('Lu', 'L', 0, 'Na', 0, None, None, None, '', 'LATIN CAPITAL LETTER A')
+0x41 3.2.0 -> ('Lu', 'L', 0, 'Na', 0, None, None, None, '', 'LATIN CAPITAL LETTER A')
+0x31 -> ('Nd', 'EN', 0, 'Na', 0, 1, 1, 1.0, '', 'DIGIT ONE')
+0x31 3.2.0 -> ('Nd', 'EN', 0, 'Na', 0, 1, 1, 1.0, '', 'DIGIT ONE')
+0x663 -> ('Nd', 'AN', 0, 'N', 0, 3, 3, 3.0, '', 'ARABIC-INDIC DIGIT THREE')
+0x663 3.2.0 -> ('Nd', 'AN', 0, 'N', 0, 3, 3, 3.0, '', 'ARABIC-INDIC DIGIT THREE')
+0xbd -> ('No', 'ON', 0, 'A', 0, None, None, 0.5, '<fraction> 0031 2044 0032', 'VULGAR FRACTION ONE HALF')
+0xbd 3.2.0 -> ('No', 'ON', 0, 'A', 0, None, None, 0.5, '<fraction> 0031 2044 0032', 'VULGAR FRACTION ONE HALF')
+0x4e00 -> ('Lo', 'L', 0, 'W', 0, None, None, 1.0, '', 'CJK UNIFIED IDEOGRAPH-4E00')
+0x4e00 3.2.0 -> ('Lo', 'L', 0, 'W', 0, None, None, 1.0, '', 'CJK UNIFIED IDEOGRAPH-4E00')
+0xac01 -> ('Lo', 'L', 0, 'W', 0, None, None, None, '1100 1161 11A8', 'HANGUL SYLLABLE GAG')
+0xac01 3.2.0 -> ('Lo', 'L', 0, 'W', 0, None, None, None, '1100 1161 11A8', 'HANGUL SYLLABLE GAG')
+0xe9 -> ('Ll', 'L', 0, 'A', 0, None, None, None, '0065 0301', 'LATIN SMALL LETTER E WITH ACUTE')
+0xe9 3.2.0 -> ('Ll', 'L', 0, 'A', 0, None, None, None, '0065 0301', 'LATIN SMALL LETTER E WITH ACUTE')
+0xa0 -> ('Zs', 'CS', 0, 'N', 0, None, None, None, '<noBreak> 0020', 'NO-BREAK SPACE')
+0xa0 3.2.0 -> ('Zs', 'CS', 0, 'N', 0, None, None, None, '<noBreak> 0020', 'NO-BREAK SPACE')
+0x28 -> ('Ps', 'ON', 0, 'Na', 1, None, None, None, '', 'LEFT PARENTHESIS')
+0x28 3.2.0 -> ('Ps', 'ON', 0, 'Na', 1, None, None, None, '', 'LEFT PARENTHESIS')
+0x301 -> ('Mn', 'NSM', 230, 'A', 0, None, None, None, '', 'COMBINING ACUTE ACCENT')
+0x301 3.2.0 -> ('Mn', 'NSM', 230, 'A', 0, None, None, None, '', 'COMBINING ACUTE ACCENT')
+0x1f10c -> ('No', 'ON', 0, 'N', 0, None, None, 0.0, '', 'DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT ZERO')
+0x1f10c 3.2.0 -> ('Cn', '', 0, 'N', 0, None, None, None, '', None)
+0xe0080 -> ('Cn', '', 0, 'N', 0, None, None, None, '', None)
+0xe0080 3.2.0 -> ('Cn', '', 0, 'N', 0, None, None, None, '', None)
+0x2f868 -> ('Lo', 'L', 0, 'W', 0, None, None, None, '36FC', 'CJK COMPATIBILITY IDEOGRAPH-2F868')
+0x2f868 3.2.0 -> ('Lo', 'L', 0, 'W', 0, None, None, None, '36FC', 'CJK COMPATIBILITY IDEOGRAPH-2F868')
+0x378 -> ('Cn', '', 0, 'N', 0, None, None, None, '', None)
+0x378 3.2.0 -> ('Cn', '', 0, 'N', 0, None, None, None, '', None)
+0x17000 -> ('Lo', 'L', 0, 'W', 0, None, None, None, '', None)
+0x17000 3.2.0 -> ('Cn', '', 0, 'N', 0, None, None, None, '', None)
+0x1fae8 -> ('So', 'ON', 0, 'W', 0, None, None, None, '', 'SHAKING FACE')
+0x1fae8 3.2.0 -> ('Cn', '', 0, 'N', 0, None, None, None, '', None)
+0x2ebf0 -> ('Lo', 'L', 0, 'W', 0, None, None, None, '', 'CJK UNIFIED IDEOGRAPH-2EBF0')
+0x2ebf0 3.2.0 -> ('Cn', '', 0, 'N', 0, None, None, None, '', None)
+0x31350 -> ('Lo', 'L', 0, 'W', 0, None, None, None, '', 'CJK UNIFIED IDEOGRAPH-31350')
+0x31350 3.2.0 -> ('Cn', '', 0, 'N', 0, None, None, None, '', None)
+0xd800 -> ('Cs', 'L', 0, 'N', 0, None, None, None, '', None)
+0xd800 3.2.0 -> ('Cs', 'L', 0, 'N', 0, None, None, None, '', None)
+0x10ffff -> ('Cn', '', 0, 'N', 0, None, None, None, '', None)
+0x10ffff 3.2.0 -> ('Cn', '', 0, 'N', 0, None, None, None, '', None)
+0xf0000 -> ('Co', 'L', 0, 'A', 0, None, None, None, '', None)
+0xf0000 3.2.0 -> ('Co', 'L', 0, 'A', 0, None, None, None, '', None)
+0x2163 -> ('Nl', 'L', 0, 'A', 0, None, None, 4.0, '<compat> 0049 0056', 'ROMAN NUMERAL FOUR')
+0x2163 3.2.0 -> ('Nl', 'L', 0, 'A', 0, None, None, 4.0, '<compat> 0049 0056', 'ROMAN NUMERAL FOUR')
+0x1d7ce -> ('Nd', 'EN', 0, 'N', 0, 0, 0, 0.0, '<font> 0030', 'MATHEMATICAL BOLD DIGIT ZERO')
+0x1d7ce 3.2.0 -> ('Nd', 'EN', 0, 'N', 0, 0, 0, 0.0, '<font> 0030', 'MATHEMATICAL BOLD DIGIT ZERO')
+0x2460 -> ('No', 'ON', 0, 'A', 0, None, 1, 1.0, '<circle> 0031', 'CIRCLED DIGIT ONE')
+0x2460 3.2.0 -> ('No', 'EN', 0, 'A', 0, None, 1, 1.0, '<circle> 0031', 'CIRCLED DIGIT ONE')
+0x5341 -> ('Lo', 'L', 0, 'W', 0, None, None, 10.0, '', 'CJK UNIFIED IDEOGRAPH-5341')
+0x5341 3.2.0 -> ('Lo', 'L', 0, 'W', 0, None, None, 10.0, '', 'CJK UNIFIED IDEOGRAPH-5341')
+forms 'caf\xe9' -> ['caf\xe9', 'cafe\u0301', 'caf\xe9', 'cafe\u0301', True, False, True, False]
+forms 3.2.0 'caf\xe9' -> ['caf\xe9', 'cafe\u0301', 'caf\xe9', 'cafe\u0301', True, False, True, False]
+forms 'cafe\u0301' -> ['caf\xe9', 'cafe\u0301', 'caf\xe9', 'cafe\u0301', False, True, False, True]
+forms 3.2.0 'cafe\u0301' -> ['caf\xe9', 'cafe\u0301', 'caf\xe9', 'cafe\u0301', False, True, False, True]
+forms '\uac01' -> ['\uac01', '\u1100\u1161\u11a8', '\uac01', '\u1100\u1161\u11a8', True, False, True, False]
+forms 3.2.0 '\uac01' -> ['\uac01', '\u1100\u1161\u11a8', '\uac01', '\u1100\u1161\u11a8', True, False, True, False]
+forms '\u1100\u1161\u11a8' -> ['\uac01', '\u1100\u1161\u11a8', '\uac01', '\u1100\u1161\u11a8', False, True, False, True]
+forms 3.2.0 '\u1100\u1161\u11a8' -> ['\uac01', '\u1100\u1161\u11a8', '\uac01', '\u1100\u1161\u11a8', False, True, False, True]
+forms '\ufb01' -> ['\ufb01', '\ufb01', 'fi', 'fi', True, True, False, False]
+forms 3.2.0 '\ufb01' -> ['\ufb01', '\ufb01', 'fi', 'fi', True, True, False, False]
+forms '\U0002f868' -> ['\u36fc', '\u36fc', '\u36fc', '\u36fc', False, False, False, False]
+forms 3.2.0 '\U0002f868' -> ['\U0002136a', '\U0002136a', '\U0002136a', '\U0002136a', False, False, False, False]
+forms '\u1e9b\u0323' -> ['\u1e9b\u0323', '\u017f\u0323\u0307', '\u1e69', 's\u0323\u0307', True, False, False, False]
+forms 3.2.0 '\u1e9b\u0323' -> ['\u1e9b\u0323', '\u017f\u0323\u0307', '\u1e69', 's\u0323\u0307', True, False, False, False]
+forms 'a\u0328\u0301\u0323' -> ['\u0105\u0323\u0301', 'a\u0328\u0323\u0301', '\u0105\u0323\u0301', 'a\u0328\u0323\u0301', False, False, False, False]
+forms 3.2.0 'a\u0328\u0301\u0323' -> ['\u0105\u0323\u0301', 'a\u0328\u0323\u0301', '\u0105\u0323\u0301', 'a\u0328\u0323\u0301', False, False, False, False]
+forms '\u03d3' -> ['\u03d3', '\u03d2\u0301', '\u038e', '\u03a5\u0301', True, False, False, False]
+forms 3.2.0 '\u03d3' -> ['\u03d3', '\u03d2\u0301', '\u038e', '\u03a5\u0301', True, False, False, False]
+forms '\U0001d15e\U0001d165' -> ['\U0001d157\U0001d165\U0001d165', '\U0001d157\U0001d165\U0001d165', '\U0001d157\U0001d165\U0001d165', '\U0001d157\U0001d165\U0001d165', False, False, False, False]
+forms 3.2.0 '\U0001d15e\U0001d165' -> ['\U0001d157\U0001d165\U0001d165', '\U0001d157\U0001d165\U0001d165', '\U0001d157\U0001d165\U0001d165', '\U0001d157\U0001d165\U0001d165', False, False, False, False]
+forms '\u0f73\u0f75' -> ['\u0f71\u0f71\u0f72\u0f74', '\u0f71\u0f71\u0f72\u0f74', '\u0f71\u0f71\u0f72\u0f74', '\u0f71\u0f71\u0f72\u0f74', False, False, False, False]
+forms 3.2.0 '\u0f73\u0f75' -> ['\u0f71\u0f71\u0f72\u0f74', '\u0f71\u0f71\u0f72\u0f74', '\u0f71\u0f71\u0f72\u0f74', '\u0f71\u0f71\u0f72\u0f74', False, False, False, False]
+forms 'A\u030a\u212b' -> ['\xc5\xc5', 'A\u030aA\u030a', '\xc5\xc5', 'A\u030aA\u030a', False, False, False, False]
+forms 3.2.0 'A\u030a\u212b' -> ['\xc5\xc5', 'A\u030aA\u030a', '\xc5\xc5', 'A\u030aA\u030a', False, False, False, False]
+forms '\u1100\u1161\u11a7' -> ['\uac00\u11a7', '\u1100\u1161\u11a7', '\uac00\u11a7', '\u1100\u1161\u11a7', False, True, False, True]
+forms 3.2.0 '\u1100\u1161\u11a7' -> ['\uac00\u11a7', '\u1100\u1161\u11a7', '\uac00\u11a7', '\u1100\u1161\u11a7', False, True, False, True]
+forms '\u1100\u1176' -> ['\u1100\u1176', '\u1100\u1176', '\u1100\u1176', '\u1100\u1176', True, True, True, True]
+forms 3.2.0 '\u1100\u1176' -> ['\u1100\u1176', '\u1100\u1176', '\u1100\u1176', '\u1100\u1176', True, True, True, True]
+forms '\u03b1\u0313\u0300\u0345' -> ['\u1f82', '\u03b1\u0313\u0300\u0345', '\u1f82', '\u03b1\u0313\u0300\u0345', False, True, False, True]
+forms 3.2.0 '\u03b1\u0313\u0300\u0345' -> ['\u1f82', '\u03b1\u0313\u0300\u0345', '\u1f82', '\u03b1\u0313\u0300\u0345', False, True, False, True]
+forms '\ud55c\uae00' -> ['\ud55c\uae00', '\u1112\u1161\u11ab\u1100\u1173\u11af', '\ud55c\uae00', '\u1112\u1161\u11ab\u1100\u1173\u11af', True, False, True, False]
+forms 3.2.0 '\ud55c\uae00' -> ['\ud55c\uae00', '\u1112\u1161\u11ab\u1100\u1173\u11af', '\ud55c\uae00', '\u1112\u1161\u11ab\u1100\u1173\u11af', True, False, True, False]
+forms '\u1e0a\u0323' -> ['\u1e0c\u0307', 'D\u0323\u0307', '\u1e0c\u0307', 'D\u0323\u0307', False, False, False, False]
+forms 3.2.0 '\u1e0a\u0323' -> ['\u1e0c\u0307', 'D\u0323\u0307', '\u1e0c\u0307', 'D\u0323\u0307', False, False, False, False]
+forms 'a\u05ae\u0302\u0301\u0316' -> ['\u1ea5\u0316\u05ae', 'a\u0316\u05ae\u0302\u0301', '\u1ea5\u0316\u05ae', 'a\u0316\u05ae\u0302\u0301', False, False, False, False]
+forms 3.2.0 'a\u05ae\u0302\u0301\u0316' -> ['\u1ea5\u0316\u05ae', 'a\u0316\u05ae\u0302\u0301', '\u1ea5\u0316\u05ae', 'a\u0316\u05ae\u0302\u0301', False, False, False, False]
+forms '' -> ['', '', '', '', True, True, True, True]
+forms 3.2.0 '' -> ['', '', '', '', True, True, True, True]
+forms 'abc' -> ['abc', 'abc', 'abc', 'abc', True, True, True, True]
+forms 3.2.0 'abc' -> ['abc', 'abc', 'abc', 'abc', True, True, True, True]
+forms '\u2126\u212b' -> ['\u03a9\xc5', '\u03a9A\u030a', '\u03a9\xc5', '\u03a9A\u030a', False, False, False, False]
+forms 3.2.0 '\u2126\u212b' -> ['\u03a9\xc5', '\u03a9A\u030a', '\u03a9\xc5', '\u03a9A\u030a', False, False, False, False]
+random forms 150 [('\uac00\uac00\u0312', ['\uac00\uac00\u0312', '\u1100\u1161\u1100\u1161\u0312', '\uac00\uac00\u0312', '\u1100\u1161\u1100\u1161\u0312', True, False, True, False], ['\uac00\uac00\u0312', '\u1100\u1161\u1100\u1161\u0312', '\uac00\uac00\u0312', '\u1100\u1161\u1100\u1161\u0312', True, False, True, False]), ('\u030e\u1161\u0300o', ['\u030e\u1161\u0300o', '\u030e\u1161\u0300o', '\u030e\u1161\u0300o', '\u030e\u1161\u0300o', True, True, True, True], ['\u030e\u1161\u0300o', '\u030e\u1161\u0300o', '\u030e\u1161\u0300o', '\u030e\u1161\u0300o', True, True, True, True]), ('\u0310\u030f\u030e\u0300\u0312\u0313\u0315', ['\u0310\u030f\u030e\u0300\u0312\u0313\u0315', '\u0310\u030f\u030e\u0300\u0312\u0313\u0315', '\u0310\u030f\u030e\u0300\u0312\u0313\u0315', '\u0310\u030f\u030e\u0300\u0312\u0313\u0315', True, True, True, True], ['\u0310\u030f\u030e\u0300\u0312\u0313\u0315', '\u0310\u030f\u030e\u0300\u0312\u0313\u0315', '\u0310\u030f\u030e\u0300\u0312\u0313\u0315', '\u0310\u030f\u030e\u0300\u0312\u0313\u0315', True, True, True, True])]
+random nfc '\uac00\uac00\u0312\u030e\u1161\u0300o\u0310\u030f\u030e\u0300\u0312\u0313\u0315\u0309\u0313\u0301\u030e\u0310\u0301\u0301\u11a8\u0312\u030e\u0313Eo\u0305A\u1100\u0323\u030b\u0312\u0323\u0302\u0312\u0305\u0300\u030f\u03b1\u0309\u0313\u0314\u11a8\u0304\u030a\uac00\u0300\u1f70\uac00\u0307\u0305\u03ac\
+identity -> (True, False, True)
+lookup 'LATIN SMALL LETTER A' -> 'a'
+lookup 3.2.0 'LATIN SMALL LETTER A' -> 'a'
+lookup 'latin small letter a' -> 'a'
+lookup 3.2.0 'latin small letter a' -> 'a'
+lookup 'BYTE ORDER MARK' -> '\ufeff'
+lookup 3.2.0 'BYTE ORDER MARK' !! KeyError '"undefined character name \'BYTE ORDER MARK\'"'
+lookup 'LATIN CAPITAL LETTER A WITH MACRON AND  -> '\u0100\u0300'
+lookup 3.2.0 'LATIN CAPITAL LETTER A WITH MACRON AND  !! KeyError '"undefined character name \'LATIN CAPITAL LETTER A WITH MACRON AND GRAVE\'"'
+lookup 'KEYCAP NUMBER SIGN' -> '#\ufe0f\u20e3'
+lookup 3.2.0 'KEYCAP NUMBER SIGN' !! KeyError '"undefined character name \'KEYCAP NUMBER SIGN\'"'
+lookup 'HANGUL SYLLABLE GAG' -> '\uac01'
+lookup 3.2.0 'HANGUL SYLLABLE GAG' -> '\uac01'
+lookup 'hangul syllable gag' -> '\uac01'
+lookup 3.2.0 'hangul syllable gag' -> '\uac01'
+lookup 'HANGUL SYLLABLE ' !! KeyError '"undefined character name \'HANGUL SYLLABLE \'"'
+lookup 3.2.0 'HANGUL SYLLABLE ' !! KeyError '"undefined character name \'HANGUL SYLLABLE \'"'
+lookup 'HANGUL SYLLABLE A' -> '\uc544'
+lookup 3.2.0 'HANGUL SYLLABLE A' -> '\uc544'
+lookup 'CJK UNIFIED IDEOGRAPH-4e00' -> '\u4e00'
+lookup 3.2.0 'CJK UNIFIED IDEOGRAPH-4e00' -> '\u4e00'
+lookup 'CJK UNIFIED IDEOGRAPH-04E00' !! KeyError '"undefined character name \'CJK UNIFIED IDEOGRAPH-04E00\'"'
+lookup 3.2.0 'CJK UNIFIED IDEOGRAPH-04E00' !! KeyError '"undefined character name \'CJK UNIFIED IDEOGRAPH-04E00\'"'
+lookup 'CJK UNIFIED IDEOGRAPH-9FFF' -> '\u9fff'
+lookup 3.2.0 'CJK UNIFIED IDEOGRAPH-9FFF' -> '\u9fff'
+lookup 'TANGUT IDEOGRAPH-17000' -> '\U00017000'
+lookup 3.2.0 'TANGUT IDEOGRAPH-17000' -> '\U00017000'
+lookup 'CJK COMPATIBILITY IDEOGRAPH-F900' -> '\uf900'
+lookup 3.2.0 'CJK COMPATIBILITY IDEOGRAPH-F900' -> '\uf900'
+lookup 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx !! KeyError "'name too long'"
+lookup 3.2.0 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx !! KeyError "'name too long'"
+lookup 'LATIN SMALL LETTER A\x00' !! KeyError '"undefined character name \'LATIN SMALL LETTER A\'"'
+lookup 3.2.0 'LATIN SMALL LETTER A\x00' !! KeyError '"undefined character name \'LATIN SMALL LETTER A\'"'
+lookup '' !! KeyError '"undefined character name \'\'"'
+lookup 3.2.0 '' !! KeyError '"undefined character name \'\'"'
+lookup b'LATIN SMALL LETTER B' -> 'b'
+lookup 3.2.0 b'LATIN SMALL LETTER B' -> 'b'
+lookup 'LINE FEED' -> '\n'
+lookup 3.2.0 'LINE FEED' !! KeyError '"undefined character name \'LINE FEED\'"'
+lookup 'LF' -> '\n'
+lookup 3.2.0 'LF' !! KeyError '"undefined character name \'LF\'"'
+lookup 'ZWJ' -> '\u200d'
+lookup 3.2.0 'ZWJ' !! KeyError '"undefined character name \'ZWJ\'"'
+lookup 'VS256' -> '\U000e01ef'
+lookup 3.2.0 'VS256' !! KeyError '"undefined character name \'VS256\'"'
+lookup 'EGYPTIAN HIEROGLYPH A001' -> '\U00013000'
+lookup 3.2.0 'EGYPTIAN HIEROGLYPH A001' -> '\U00013000'
+lookup 'NO SUCH NAME' !! KeyError '"undefined character name \'NO SUCH NAME\'"'
+lookup 3.2.0 'NO SUCH NAME' !! KeyError '"undefined character name \'NO SUCH NAME\'"'
+lookup 'LATIN SMALL LETTER A ' !! KeyError '"undefined character name \'LATIN SMALL LETTER A \'"'
+lookup 3.2.0 'LATIN SMALL LETTER A ' !! KeyError '"undefined character name \'LATIN SMALL LETTER A \'"'
+name 0x0 -> (None, None)
+name 0x20 -> ('SPACE', 'SPACE')
+name 0x41 -> ('LATIN CAPITAL LETTER A', 'LATIN CAPITAL LETTER A')
+name 0xac00 -> ('HANGUL SYLLABLE GA', 'HANGUL SYLLABLE GA')
+name 0xd7a3 -> ('HANGUL SYLLABLE HIH', 'HANGUL SYLLABLE HIH')
+name 0x9fff -> ('CJK UNIFIED IDEOGRAPH-9FFF', None)
+name 0x2ebf0 -> ('CJK UNIFIED IDEOGRAPH-2EBF0', None)
+name 0x17000 -> (None, None)
+name 0xf900 -> ('CJK COMPATIBILITY IDEOGRAPH-F900', 'CJK COMPATIBILITY IDEOGRAPH-F900')
+name 0xfeff -> ('ZERO WIDTH NO-BREAK SPACE', 'ZERO WIDTH NO-BREAK SPACE')
+name 0x1f600 -> ('GRINNING FACE', None)
+name 0xe01ef -> ('VARIATION SELECTOR-256', None)
+name 0xf0000 -> (None, None)
+name 0x323af -> ('CJK UNIFIED IDEOGRAPH-323AF', None)
+round trips, bad: 0
+escape BYTE ORDER MARK -> '\ufeff'
+unicode_escape BYTE ORDER MARK -> '\ufeff'
+escape LATIN CAPITAL LETTER A WITH MACRON AND GRAVE !! SyntaxError "(unicode error) 'unicodeescape' codec can't decode bytes in position 0-47: unknown Unicode character name (<string>, line 1)"
+unicode_escape LATIN CAPITAL LETTER A WITH MACRON AND GRAVE !! UnicodeDecodeError "'unicodeescape' codec can't decode bytes in position 0-47: unknown Unicode character name"
+escape latin small letter a -> 'a'
+unicode_escape latin small letter a -> 'a'
+escape LF -> '\n'
+unicode_escape LF -> '\n'
+escape NO SUCH THING !! SyntaxError "(unicode error) 'unicodeescape' codec can't decode bytes in position 0-16: unknown Unicode character name (<string>, line 1)"
+unicode_escape NO SUCH THING !! UnicodeDecodeError "'unicodeescape' codec can't decode bytes in position 0-16: unknown Unicode character name"
+escape CJK UNIFIED IDEOGRAPH-4E00 -> '\u4e00'
+unicode_escape CJK UNIFIED IDEOGRAPH-4E00 -> '\u4e00'
+escape HANGUL SYLLABLE GAG -> '\uac01'
+unicode_escape HANGUL SYLLABLE GAG -> '\uac01'
+namereplace -> b'\\N{ZERO WIDTH NO-BREAK SPACE}\\N{CJK UNIFIED IDEOGRAPH-4E00}\\N{HANGUL SYLLABLE GA}\\U00017000\\N{NULL}\\N{KEYCAP NUMBER SIGN}\\N{LATIN SMALL LETTER E WITH ACUTE}'
+category ab !! TypeError 'category(): argument must be a unicode character, not a string of length 2'
+category 1 !! TypeError 'category() argument must be a unicode character, not int'
+category () !! TypeError 'unicodedata.category() takes exactly one argument (0 given)'
+UCD category () !! TypeError 'UCD.category() takes exactly one argument (0 given)'
+category kw !! TypeError 'unicodedata.category() takes no keyword arguments'
+UCD decimal kw !! TypeError 'UCD.decimal() takes no keyword arguments'
+decimal () !! TypeError 'decimal expected at least 1 argument, got 0'
+decimal 3 !! TypeError 'decimal expected at most 2 arguments, got 3'
+decimal a !! ValueError 'not a decimal'
+digit a !! ValueError 'not a digit'
+numeric a !! ValueError 'not a numeric character'
+name NUL !! ValueError 'no such name'
+name 1 !! TypeError 'name() argument 1 must be a unicode character, not int'
+name ab !! TypeError 'name(): argument 1 must be a unicode character, not a string of length 2'
+normalize NFX !! ValueError 'invalid normalization form'
+normalize 1 !! TypeError 'normalize() argument 1 must be str, not int'
+normalize str 1 !! TypeError 'normalize() argument 2 must be str, not int'
+normalize one !! TypeError 'normalize expected 2 arguments, got 1'
+is_normalized NFX !! ValueError 'invalid normalization form'
+is_normalized NFX empty -> True
+normalize NFX empty -> ''
+lookup () !! TypeError 'unicodedata.lookup() takes exactly one argument (0 given)'
+lookup 1 !! TypeError "a bytes-like object is required, not 'int'"
+lookup bytearray !! TypeError 'lookup() argument must be read-only bytes-like object, not bytearray'
+lookup surrogate !! UnicodeEncodeError "'utf-8' codec can't encode character '\\ud800' in position 0: surrogates not allowed"
+UCD() !! TypeError "cannot create 'unicodedata.UCD' instances"
+UCD subclass !! TypeError "type 'unicodedata.UCD' is not an acceptable base type"
+unidata_version set !! AttributeError 'readonly attribute'
+UCD attribute !! AttributeError "'unicodedata.UCD' object has no attribute 'foo' and no __dict__ for setting new attributes"
