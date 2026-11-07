@@ -1767,8 +1767,9 @@ class PyParser(private val src: String) {
                 if (atOp(")")) { next(); return MatchSequence(emptyList()).at(t) }
                 val first = maybeStarPattern()
                 if (atOp(")")) {
+                    // (a lone star wants its comma: `(*x,)`, as CPython's group_pattern takes no star)
+                    if (first is MatchStar) error()
                     next()
-                    if (first is MatchStar) return MatchSequence(listOf(first)).at(t)
                     return first
                 }
                 val ps = arrayListOf(first)
@@ -1811,12 +1812,16 @@ class PyParser(private val src: String) {
     /** A literal number pattern: `-1`, `1.5`, `1 + 2j`, `-1 - 2j`. */
     private fun signedNumber(): Expr {
         val t = tok
-        var e: Expr = if (atOp("-")) {
+        val neg = atOp("-")
+        if (neg) {
             next()
             if (!at(Kind.NUMBER)) error()
-            UnaryOp(UnaryOpKind.USub, Constant(next().value).at(toks[p - 1])).at(t)
-        } else Constant(next().value).at(t)
+        }
+        val nt = next()
+        var e: Expr = if (neg) UnaryOp(UnaryOpKind.USub, Constant(nt.value).at(nt)).at(t) else Constant(nt.value).at(t)
         if ((atOp("+") || atOp("-")) && peek().kind == Kind.NUMBER) {
+            // (a complex literal's real part first, as CPython's signed_real_number asks)
+            if (nt.value is PyComplex) error("real number required in complex literal", t = nt)
             val op = if (next().text == "+") OpKind.Add else OpKind.Sub
             val im = next()
             if (im.value !is PyComplex) error("imaginary number required in complex literal", t = im)

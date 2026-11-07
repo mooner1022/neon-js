@@ -1307,11 +1307,13 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 p.patterns.forEach { checkPattern(it, names) }
             }
             is MatchMapping -> {
-                val seen = HashSet<String>()
+                // (literal keys compared as values, as CPython's set of them: 0, 0.0, 0j, -0 and False are one key)
+                val seen = PySet(false)
                 for (k in p.keys) {
                     if (!valueExpr(k)) throw PySyntaxError("mapping pattern keys may only match literals and attribute lookups", p.line, p.col)
-                    val r = constantKey(k) ?: continue
-                    if (!seen.add(r)) throw PySyntaxError("mapping pattern checks duplicate key ($r)", p.line, p.col)
+                    val c = constantKey(k) ?: continue
+                    if (seen.contains(c)) throw PySyntaxError("mapping pattern checks duplicate key (${PyRt.repr(c)})", p.line, p.col)
+                    seen.addKey(c)
                 }
                 p.patterns.forEach { checkPattern(it, names) }
                 bind(p.rest, p)
@@ -1319,6 +1321,9 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             is MatchClass -> {
                 for ((i, k) in p.kwdAttrs.withIndex()) {
                     if (k == "__debug__") throw PySyntaxError("cannot assign to __debug__", p.kwdPatterns[i].line, p.kwdPatterns[i].col)
+                    for (j in i + 1 until p.kwdAttrs.size) {
+                        if (p.kwdAttrs[j] == k) throw PySyntaxError("attribute name repeated in class pattern: $k", p.kwdPatterns[j].line, p.kwdPatterns[j].col)
+                    }
                 }
                 p.patterns.forEach { checkPattern(it, names) }
                 p.kwdPatterns.forEach { checkPattern(it, names) }
@@ -1341,10 +1346,14 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     /** CPython's MATCH_VALUE_EXPR, its numbers folded: a literal (a negated one, a complex one) or an attribute lookup. */
     private fun valueExpr(e: Expr): Boolean = e is Constant || e is Attribute || e is UnaryOp || e is BinOp
 
-    /** A mapping pattern's key as CPython's duplicate check writes it, where it is a literal. */
-    private fun constantKey(k: Expr): String? = when {
-        k is Constant -> PyRt.repr(k.value)
-        k is UnaryOp && k.op == UnaryOpKind.USub && k.operand is Constant -> PyRt.repr(PyRt.neg((k.operand as Constant).value))
+    /** A mapping pattern's key's value as CPython's duplicate check folds it, where it is a literal (a number, a complex one, a str). */
+    private fun constantKey(k: Expr): Any? = when {
+        k is Constant -> k.value
+        k is UnaryOp && k.op == UnaryOpKind.USub && k.operand is Constant -> PyRt.neg((k.operand as Constant).value)
+        k is BinOp && (k.op == OpKind.Add || k.op == OpKind.Sub) && k.right is Constant -> constantKey(k.left)?.let { l ->
+            val r = (k.right as Constant).value
+            if (k.op == OpKind.Add) PyRt.add(l, r) else PyRt.sub(l, r)
+        }
         else -> null
     }
 
@@ -1377,13 +1386,40 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 fails.add(emit(PyOp.POP_JUMP_IF_FALSE, 0))
                 val star = p.patterns.indexOfFirst { it is MatchStar }
                 val n = p.patterns.size
-                emit(PyOp.LOAD_FAST, v)
-                emit(PyOp.GET_LEN)
-                loadConst((if (star < 0) n else n - 1).toLong())
-                emit(if (star < 0) PyOp.EQ else PyOp.GE)
-                fails.add(emit(PyOp.POP_JUMP_IF_FALSE, 0))
-                fun wildcard(x: Pattern) = x is MatchAs && x.pattern == null && x.name == null || x is MatchStar && x.name == null
-                if (p.patterns.all { wildcard(it) }) return
+                // (its length, as CPython's codegen_pattern_sequence checks it: not at all for a lone star)
+                if (star < 0 || n > 1) {
+                    emit(PyOp.LOAD_FAST, v)
+                    emit(PyOp.GET_LEN)
+                    loadConst((if (star < 0) n else n - 1).toLong())
+                    emit(if (star < 0) PyOp.EQ else PyOp.GE)
+                    fails.add(emit(PyOp.POP_JUMP_IF_FALSE, 0))
+                }
+                fun wildcard(x: Pattern) = x is MatchAs && x.pattern == null && x.name == null
+                fun starWildcard(x: Pattern) = x is MatchStar && x.name == null
+                if (p.patterns.all { wildcard(it) || starWildcard(it) }) return
+                // (a `*_` star: the items around it taken by index, the ones after it from the length (the subject may
+                // not take negative indexes), each tested as it is taken; nothing iterated, as CPython's
+                // pattern_helper_sequence_subscr: a sequence whose __getitem__ never ends is matched)
+                if (star >= 0 && starWildcard(p.patterns[star])) {
+                    for (i in 0 until n) {
+                        val sp = p.patterns[i]
+                        if (i == star || wildcard(sp)) continue
+                        emit(PyOp.LOAD_FAST, v)
+                        if (i < star) {
+                            loadConst(i.toLong())
+                        } else {
+                            emit(PyOp.LOAD_FAST, v)
+                            emit(PyOp.GET_LEN)
+                            loadConst((n - i).toLong())
+                            emit(PyOp.SUB)
+                        }
+                        emit(PyOp.SUBSCR)
+                        val r = temp()
+                        emit(PyOp.STORE_FAST, r)
+                        pattern(sp, r, fails, caps)
+                    }
+                    return
+                }
                 emit(PyOp.LOAD_FAST, v)
                 val regs = unpack(n, star)
                 for (i in 0 until n) {
