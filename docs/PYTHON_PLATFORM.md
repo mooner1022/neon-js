@@ -961,26 +961,67 @@ stand-ins until the real `unittest` imports: from then on CPython's own).
   atanh, log2) is fdlibm's and FreeBSD's C, ported, and the rest of mathmodule.c is ported as CPython writes it. The
   last digit of a libm function's result is the platform's (CPython's is its C runtime's: they differ from each other
   too). A C `long` is 64 bits, as on Linux and Android (`factorial`'s limit, `sumprod`'s and `prod`'s fast paths).
+- **The sandbox is a POSIX system whatever the host is.** `sys.platform` is `'linux'` (`'android'` on ART, as CPython
+  3.13+ says there), `posix` is always the os module (`os.name` `'posix'`, `/` paths), errno's names, numbers and
+  messages are Linux's (`neonpython/tools/gen_errno.py` makes them from Linux CPython), `uname()` says `Linux` and
+  `localhost`, the ids are 0 and the pid 1. What a sandbox has no use for (processes, signals, users, terminals, hard
+  links, directory descriptors, `dir_fd`) posix does not have, so `os` says it has none. Linux CPython is the oracle
+  for what is POSIX-shaped (`os`, paths, `io`).
+- **The file system is the host's to give, none by default** (§3.8; GraalVM's `IOAccess.NONE`): `PyContext`'s
+  `fileSystem`, a `PyFileSystem` of absolute POSIX path strings (posix resolves `.`, `..` and its working directory
+  first), not `java.nio.file.Path`s, which an in-memory one could not give without a `FileSystemProvider`. None
+  (`PyFileSystem.NONE`) makes every access a PermissionError with EPERM ("Operation not permitted": a policy, not a
+  missing file, which FileNotFoundError would wrongly say). `directory(root, readOnly)` makes a host directory `/`
+  with no way out of it: `..` stops at the root, a link leading out of it is refused with EACCES. `memory()` keeps one
+  in memory; `readOnly(fs)` refuses changes with EROFS. Whatever it is, the bundled library is read-only at
+  `/usr/lib/python3.14` (GraalVM's language home): `linecache`, `inspect` and tracebacks read its sources there.
+- **Descriptors 0, 1 and 2 are the context's**: 0 reads nothing (its end at once), 1 and 2 write to the context's
+  output and error output (UTF-8, a character split between writes kept for the next); files opened get 3 on.
+  `sys.stdin`, `sys.stdout` and `sys.stderr` are text streams over them written through (CPython's `-u`), so `print`,
+  `sys.stdout.write` and `os.write(1, ...)` keep their order; `print` writes to `sys.stdout` as it is at the call
+  (`contextlib.redirect_stdout`), a file not a standard stream through its `write`, piece by piece as CPython calls it.
+  `os.environ` is the host's map (empty by default); putenv and unsetenv change the context's own.
+  The standard streams' errors are `surrogateescape` (stdin, stdout) and `backslashreplace` (stderr), as CPython's in
+  UTF-8 mode, which NeonPy is (`sys.flags.utf8_mode` 1): Windows CPython, not in UTF-8 mode, says `strict`, but
+  Linux CPython is the oracle here.
+- **`_io` is CPython's `_pyio`** (a rules file, `neonpython/tools/ports/_io.py`), its messages for misuse C `_io`'s
+  where `_pyio`'s are its own (closed, detached and wrong-mode files, the unsupported operations). A file written
+  without `close()` keeps what is buffered until the collector finalizes it (CPython's reference count flushes it at
+  once); descriptors are never reused, so a late finalizer cannot close a newer file. `datetime` is `_pydatetime`
+  (no C `_datetime`), `pickle` the pure one, `locale` its emulation (no `_locale`), `operator` the pure one but for
+  `index` and `_compare_digest`.
+- **`importlib` is NeonPy's own**, its API over NeonPy's import (`_imp`: a module's source found without running
+  it, a module run again for reload), with CPython's `ModuleSpec`, checks and messages; NeonPy never runs
+  `importlib._bootstrap`. A module NeonPy imports has no `__spec__` (None): `importlib.util.find_spec` makes the
+  one CPython's would have given it. Code objects' offsets are twice NeonPy's pc (each int of its bytecode two
+  bytes), `f_lasti` and `tb_lasti` among them; `co_positions()` has lines only.
+- **Builtins' text signatures are CPython's**: `neonpython/tools/gen_signatures.py` takes each builtin function's
+  and method's `__text_signature__` from Linux CPython, so `inspect.signature(len)` works as there.
+- **`time`'s zone is UTC** (`TZ` is not read): localtime is gmtime, as in a container without zone data.
 
-### 12.3 Progress (2026-11-07)
+### 12.3 Progress (2026-11-07, later)
 
-Done on `neonpy-stdlib`: L1–L4; S1 (the bundled library, `sys` as it reads it); of S2 `_thread`, `itertools`,
-`_collections`, and bundled `abc`, `collections`, `contextvars`, `copy`, `copyreg`, `enum`, `functools`, `heapq`,
-`bisect`, `keyword`, `numbers`, `operator`, `reprlib`, `types`, `weakref`, `warnings`, `linecache`, `math`, `_string`
-with CPython's `string`; of S3 `_sre` and `re`, `_typing` with `typing` and `annotationlib`; of S5 `_ast` (generated
-from CPython's ASDL) with `ast` (its `unparse` waits on `contextlib`). With them the runtime gained what they stand on: subclasses of staticmethod, classmethod, property,
-GenericAlias and bytearray; metaclass `__instancecheck__`, `__subclasscheck__`, `__call__`, `__prepare__` (the
-namespace of a dict's subclass), `__iter__`/`__len__`/`__contains__`/`__repr__` of classes; `__subclasses__`,
-`__abstractmethods__`, `type.__new__`'s `__set_name__` and `__init_subclass__` always; mappingproxy; bytearray,
-memoryview and all of bytes' methods; range past 64 bits; the reduce protocol (`copy` of instances); the int-str
-digit limit; recursive reprs.
+Done on `neonpy-stdlib`: L1–L4; S1 (the bundled library, `sys` as it reads it); S2's `_thread`, `itertools`,
+`_collections`, `math`, `time`, `errno`, `_random` with `random`, `_struct` with `struct`, `_string` with `string`,
+`_sha2`/`_md5`/`_sha1`, `_operator` (index); S3's `_sre` with `re`, `_typing` with `typing` and `annotationlib`,
+`json`; S4's `posix` with `os`, `stat`, `posixpath`, `genericpath`, `shutil`, `glob`, `fnmatch`, `tempfile`,
+`contextlib`, `_io` (`_pyio`) with `io` and `open()`, `_codecs` with `codecs` and 84 `encodings`, the standard
+streams; S5's `_ast` (generated from CPython's ASDL) with `ast` (`unparse` too), `_tokenize` (CPython's lexer) with
+`token` and `tokenize`, `dis` (NeonPy's), `importlib` (NeonPy's), `inspect`, `dataclasses`, `traceback`, `linecache`
+(the library's sources through its mount); and `datetime`, `calendar`, `locale`, `pickle`, `textwrap`, `enum`,
+`functools`, `collections`, `copy`, `weakref`, `warnings`, and the rest of the pure modules they import. With them
+the runtime gained what they stand on: subclasses of the builtin types, metaclass protocols, `__prepare__`,
+`__slots__`, mappingproxy, the descriptor protocol's corners (`__delete__`, `__set_name__`), type's own
+descriptors, code objects' bytecode attributes, settable function names, builtins' signatures.
 
-Then for typing: type's own descriptors in `type.__dict__`, `types.FunctionType` and `CellType`, globals of a
-dict's subclass, a module's builtins as functions (not methods) in a class, `eval`'s and `exec`'s keywords.
+Import costs (a cold JVM, interpreted: os 146 ms, re 140, json 37, typing 47, io 21, dataclasses with inspect 125,
+traceback 57, datetime 30; adaptive, warm: about 230 ms for all of them; CPython about 40 ms). The neonpython tests
+pass with a 300 MB heap.
 
-Next: S4 (`os` and `posix` over the host's file system, `io`, `open`) and `contextlib`, which imports `os`; S5's
-`inspect` (typing's runtime-checkable protocols use it), `dataclasses`, `tokenize`, `dis`; S2's `time`, `errno`,
-`_random` with `random`, `_struct`, `_pydatetime`; S3's `json`; S6.
+Next: S6 (asyncio, CPython's unchanged, over a single-threaded `_thread` with `threading`, and sandbox `_socket`
+(socketpair only; the network refused), `select`, `_signal`, `_posixsubprocess`), `binascii` and `zlib` with
+`base64`, `gzip` and `zipfile`; then `unicodedata`, `hashlib` (blake2, sha3), `array`, `_decimal` (or `_pydecimal`),
+`argparse`, `logging`, `unittest`.
 
 ## References (checked in this review)
 
