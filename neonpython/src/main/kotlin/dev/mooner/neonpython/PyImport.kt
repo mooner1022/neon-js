@@ -366,6 +366,12 @@ object PyImport {
                     if (n == "sys" || n == "builtins") -1L else if (n in BUILTIN_NAMES) 1L else 0L
                 }
                 def("is_frozen") { _ -> PyBool.FALSE }
+                // (test.support's import_helper: no frozen modules here to override)
+                def("_override_frozen_modules_for_tests") { a ->
+                    PyOperator.index(a.getOrNull(0) ?: throw PyRt.typeError("_override_frozen_modules_for_tests() takes exactly one argument (0 given)"))
+                    PyNone
+                }
+                def("_frozen_module_names") { _ -> PyTuple.EMPTY }
                 def("acquire_lock") { _ -> PyNone }
                 def("release_lock") { _ -> PyNone }
                 def("lock_held") { _ -> PyBool.FALSE }
