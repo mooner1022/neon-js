@@ -1,0 +1,17 @@
+# Renames that `tools/check.sh codegen` counts as no change (ClassDiff --equiv): the generated classes of a ref before
+# step 9 of docs/IR_NEUTRALITY.md (§10) against those after it are compared modulo these, applied to both sides.
+#
+# type NEW = OLD     class NEW (internal name) counts as OLD
+# entry-cast CLASS   a `run` method's first instructions ALOAD 1, CHECKCAST CLASS, ASTORE 1 are dropped
+
+# step 9d: CompiledCode.run takes the core's VmFrame; the core's code names its own classes and helpers
+type dev/mooner/neonjs/vm/VmFrame = dev/mooner/neonjs/vm/Frame
+type dev/mooner/neonjs/compiler/CodeUnit = dev/mooner/neonjs/compiler/CodeBlock
+type dev/mooner/neonjs/jit/VmRt = dev/mooner/neonjs/jit/JitRt
+type dev/mooner/neonjs/jit/VmDeopt = dev/mooner/neonjs/jit/Deopt
+entry-cast dev/mooner/neonjs/vm/Frame
+# the stack map frames as the verifier sees them: the entry cast changes how the next frame is encoded (FULL, not
+# APPEND), not what it says
+expand-frames
+# a baseline class's name is a hash of its code, which the renames change
+baseline-names

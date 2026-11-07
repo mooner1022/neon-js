@@ -88,12 +88,4 @@ open class JSErrorObject(proto: JSObject?) : JSObject(proto) {
     open val slotMessage: String? get() = null
 }
 
-/**
- * Thrown to terminate execution (sandbox limits, interrupts). Not catchable by JS code: catch/finally handlers
- * rethrow it without running.
- */
-open class TerminationException(message: String) : RuntimeException(message)
-
-class ExecutionTimeoutException(message: String) : TerminationException(message)
-class ResourceLimitException(message: String) : TerminationException(message)
-class InterruptedExecutionException(message: String) : TerminationException(message)
+// TerminationException and its subclasses: VmAgent.kt (the core's)

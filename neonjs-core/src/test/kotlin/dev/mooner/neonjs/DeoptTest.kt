@@ -48,7 +48,8 @@ class DeoptTest {
     /** Leaves every activation at its start, and every on-stack replacement where the interpreter is. */
     private class ExitAtOnce(val test: DeoptTest) : CompiledCode {
         var exits = 0
-        override fun run(f: Frame): Any? {
+        override fun run(vf: dev.mooner.neonjs.vm.VmFrame): Any? {
+            val f = vf as Frame
             exits++
             if (!f.isCompiled) return Deopt.resume(f, f.pc, f.slots.copyOf(f.sp), null)
             return Deopt.resume(f, 0, test.entryRegisters(f), null)
@@ -145,7 +146,8 @@ class DeoptTest {
         val callees: List<Pair<JSClosure, List<Any?>>>,
         val args: List<Array<Any?>>,
     ) : CompiledCode {
-        override fun run(f: Frame): Any? {
+        override fun run(vf: dev.mooner.neonjs.vm.VmFrame): Any? {
+            val f = vf as Frame
             val cb = f.code
             val pc = callWith(cb, below.size)
             var inner: Deopt.Inlined? = null

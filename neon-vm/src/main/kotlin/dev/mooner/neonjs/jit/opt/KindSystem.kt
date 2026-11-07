@@ -74,6 +74,12 @@ interface KindSystem {
     fun osrCode(kind: Byte): Char
     fun osrRead(em: Emit, kind: Byte)
 
+    /**
+     * Given the frame's slots on the JVM stack, leaves whether each register whose letter in [kinds] (osrCode) names a
+     * kind holds a value of it (the language's helper); called only where some letter is not '.'.
+     */
+    fun osrCheck(em: Emit, kinds: String): Unit = throw dev.mooner.neonjs.jit.JitBailout("on-stack replacement: no check of kinds")
+
     /** [kind] in the IR's printed form ("" for [any]). */
     fun name(kind: Byte): String
 }

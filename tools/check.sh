@@ -70,8 +70,8 @@ stress_modes() {
 
 quick() {
   test262_checkout
-  step "unit tests (neonjs-core), Test262 runner"
-  gradle :neonjs-core:test :neonjs-test262:installDist
+  step "unit tests (neon-vm, neonjs-core), Test262 runner"
+  gradle :neon-vm:test :neonjs-core:test :neonjs-test262:installDist
   step "Test262, 1 test in $SAMPLE"
   # (the generated Unicode property tests check RegExp's tables, slowly in the interpreter: full runs them)
   stress_modes --sample "$SAMPLE" --timeout 60000 --exclude built-ins/RegExp/property-escapes/generated
@@ -117,7 +117,7 @@ codegen() {
     printf '%-8s ' "$v:"
     # (SUBSET=1: a change that compiles more, every class of REF's there unchanged, more allowed)
     java -cp "$LIB" dev.mooner.neonjs.test262.ClassDiffKt build/check/dumps/$sha-$v build/check/dumps/current-$v --show 10 \
-      ${SUBSET:+--subset} || status=1
+      ${SUBSET:+--subset} --equiv tools/codegen-equiv.txt || status=1
   done
   [ $status -eq 0 ] || fail "generated code differs from $ref"
 }
