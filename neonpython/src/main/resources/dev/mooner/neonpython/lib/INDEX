@@ -4,6 +4,8 @@ _ast_unparse.py
 _collections_abc.py
 _py_abc.py
 _py_warnings.py
+_pyio.py
+_io.py  # CPython's _pyio.py as _io: what it takes from io (which imports _io) defined in it, the ABCs' registrations left to io, C _io's messages for open's mode and unsupported operations
 _strptime.py
 _weakrefset.py
 abc.py
@@ -112,6 +114,7 @@ functools.py
 genericpath.py
 glob.py
 heapq.py
+io.py
 keyword.py
 linecache.py
 numbers.py
@@ -130,6 +133,7 @@ stat.py
 string/__init__.py
 string/templatelib.py
 struct.py
+tempfile.py
 textwrap.py
 token.py
 tokenize.py

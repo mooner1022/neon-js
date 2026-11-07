@@ -2,7 +2,8 @@
 
 Each line of PORTS is `<path in CPython's Lib> [<rules in tools/ports>]` (a package's files each on its own line).
 A rules file defines REPLACEMENTS = [(old, new), ...] (each old must occur exactly once in CPython's file) and
-optionally NOTE (said in the lib's INDEX: the summary of changes PSF's license asks for). Files are otherwise as
+optionally NOTE (said in the lib's INDEX: the summary of changes PSF's license asks for) and TARGET (the lib's path
+the file is ported to, where it is not CPython's own: _pyio.py as _io.py). Files are otherwise as
 CPython has them (LF line ends): their lines are CPython's, and so are tracebacks' line numbers. CPython's LICENSE goes
 with them. CPython's sources are expected in third_party/cpython at the release named in VERSION, a sparse checkout:
 
@@ -24,6 +25,8 @@ _ast_unparse.py
 _collections_abc.py
 _py_abc.py
 _py_warnings.py
+_pyio.py
+_pyio.py _io
 _strptime.py
 _weakrefset.py
 abc.py
@@ -132,6 +135,7 @@ functools.py
 genericpath.py
 glob.py
 heapq.py
+io.py
 keyword.py
 linecache.py
 numbers.py
@@ -150,6 +154,7 @@ stat.py
 string/__init__.py
 string/templatelib.py
 struct.py
+tempfile.py
 textwrap.py
 token.py
 tokenize.py
@@ -174,18 +179,23 @@ SRC = os.path.join(ROOT, 'third_party/cpython/Lib')
 LIB = os.path.join(ROOT, 'neonpython/src/main/resources/dev/mooner/neonpython/lib')
 
 
+def rules_of(rules):
+    return runpy.run_path(os.path.join(TOOLS, 'ports', rules + '.py')) if rules else {}
+
+
 def port(rel, rules):
     src = open(os.path.join(SRC, rel), encoding='utf-8').read().replace('\r\n', '\n')
-    cfg = runpy.run_path(os.path.join(TOOLS, 'ports', rules + '.py')) if rules else {}
+    cfg = rules_of(rules)
     for old, new in cfg.get('REPLACEMENTS', []):
         n = src.count(old)
         if n != 1:
             sys.exit(f'{rel}: expected one occurrence, found {n}: {old[:80]!r}')
         src = src.replace(old, new)
-    out = os.path.join(LIB, rel)
+    target = cfg.get('TARGET', rel)
+    out = os.path.join(LIB, target)
     os.makedirs(os.path.dirname(out), exist_ok=True)
     open(out, 'w', encoding='utf-8', newline='\n').write(src)
-    print('ported', rel)
+    print('ported', rel, '' if target == rel else f'as {target}')
     return cfg.get('NOTE')
 
 
@@ -198,7 +208,8 @@ def main(names):
         note = None
         if not names or rel in names:
             note = port(rel, rules)
-        index.append(rel + (f'  # {note}' if note else ''))
+        target = rules_of(rules).get('TARGET', rel)
+        index.append(target + (f'  # {note}' if note else ''))
     for rel, note in OWN.items():
         index.append(f'{rel}  # {note}')
     if not names:

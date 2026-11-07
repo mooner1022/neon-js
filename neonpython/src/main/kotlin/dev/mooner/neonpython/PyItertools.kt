@@ -24,7 +24,16 @@ object PyItertools {
     private val types = LinkedHashMap<String, PyType>()
 
     private fun type(name: String): PyType = types.getOrPut(name) {
-        PyTypes.newBuiltin(name, subclassable = false).also { it.module = "itertools"; it.tpName = "itertools.$name" }
+        PyTypes.newBuiltin(name, subclassable = false).also { t ->
+            t.module = "itertools"
+            t.tpName = "itertools.$name"
+            // (an iterator's own __next__ and __iter__, which code takes as attributes: tokenize's chain(...).__next__)
+            t.def("__next__", PyBuiltin("__next__") { _, a ->
+                val v = (a[0] as PyIterator).next()
+                if (v === PyIterator.STOP) throw PyException("StopIteration", "") else v
+            })
+            t.def("__iter__", PyBuiltin("__iter__") { _, a -> a[0] })
+        }
     }
 
     private fun iterator(name: String, next: () -> Any?): PyIterTool = PyIterTool(next).also { it.type = type(name) }

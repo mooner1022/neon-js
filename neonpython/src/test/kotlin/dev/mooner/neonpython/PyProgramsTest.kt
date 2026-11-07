@@ -60,7 +60,7 @@ class PyProgramsTest {
      * The programs that use a file system: run with one in memory, in its empty /tmp; their outputs are Linux
      * CPython's (POSIX-shaped, as NeonPy's posix is), run in an empty directory.
      */
-    private val fsPrograms = setOf("os_module")
+    private val fsPrograms = setOf("os_module", "io_module")
 
     private fun memoryFs(fs: Boolean): PyFileSystem = if (fs) PyFileSystem.memory(mapOf("/tmp/" to ByteArray(0))) else PyFileSystem.NONE
 
@@ -548,7 +548,7 @@ class PyProgramsTest {
         fun programs(): List<String> = listOf(
             "fib", "loops", "bigints", "lists", "dicts", "strings", "tuples", "floats", "logic", "globals", "primes",
             "speculation", "functions", "closures", "unpacking", "types", "classes", "descriptors",
-            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods", "containers", "match", "imports", "coroutines", "async_generators", "annotations", "future_annotations", "generic_aliases", "type_params", "generic_classes", "private_names", "eval_exec", "suspensions", "rich_compare", "number_subclasses", "frames", "weakrefs", "stdlib", "descriptor_subclasses", "sys_module", "itertools_module", "collections_module", "type_checks", "ranges", "byte_sequences", "stdlib_core", "class_protocols", "enums", "class_namespaces", "mapping_proxies", "context_vars", "regexes", "warnings_module", "string_module", "ast_module", "typing_module", "math_module", "typing_generics", "os_module", "random_module", "importlib_module", "code_objects", "codecs_module", "struct_module", "time_module", "tokenize_module",
+            "dunders", "protocols", "subclasses", "exceptions", "exception_objects", "with", "exception_groups", "generators", "comprehensions", "formatting", "sets", "slices", "literals", "builtins", "strmethods", "containers", "match", "imports", "coroutines", "async_generators", "annotations", "future_annotations", "generic_aliases", "type_params", "generic_classes", "private_names", "eval_exec", "suspensions", "rich_compare", "number_subclasses", "frames", "weakrefs", "stdlib", "descriptor_subclasses", "sys_module", "itertools_module", "collections_module", "type_checks", "ranges", "byte_sequences", "stdlib_core", "class_protocols", "enums", "class_namespaces", "mapping_proxies", "context_vars", "regexes", "warnings_module", "string_module", "ast_module", "typing_module", "math_module", "typing_generics", "os_module", "random_module", "importlib_module", "code_objects", "codecs_module", "struct_module", "time_module", "tokenize_module", "io_module",
         )
 
         /** The code blocks of [cb] and every function it defines. */

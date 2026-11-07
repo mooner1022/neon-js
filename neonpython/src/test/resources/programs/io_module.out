@@ -1,0 +1,45 @@
+write -> (12, 'a.txt', 'w', 'utf-8', False, True, False)
+closed -> True
+read -> héllo
+wörld
+print to file 1
+
+lines -> ('héllo\n', ['wörld\n', 'print to file 1\n'])
+rb -> (b'h\xc3\xa9', 3, 0, b'h\xc3\xa9llo\nw\xc3\xb6rld\nprint to file 1\n', 'BufferedReader', 'FileIO')
+append -> ['héllo', 'wörld', 'print to file 1', 'more']
+wb -> (3, 2, 'BufferedWriter')
+rb2 -> b'\x00\x01\xffxy'
+newline raw -> b'a\r\nb\rc\n'
+newline universal -> 'a\nb\nc\n'
+newline none -> 'a\r\nb\rc\n'
+latin-1 -> (b'\xe9', 'é')
+decode error !! UnicodeDecodeError 'utf-8' codec can't decode byte 0xe9 in position 0: unexpected end of data
+errors replace -> �
+w+ -> ('34', 5, 10, 5, 0, '01234')
+missing !! FileNotFoundError [Errno 2] No such file or directory: 'nope.txt'
+isdir !! IsADirectoryError [Errno 21] Is a directory: '.'
+bad mode !! ValueError must have exactly one of create/read/write/append mode
+x mode !! FileExistsError [Errno 17] File exists: 'a.txt'
+binary encoding !! ValueError binary mode doesn't take an encoding argument
+closed read !! ValueError I/O operation on closed file.
+fileno -> (True, False)
+buffering 0 -> FileIO
+text buffering 0 !! ValueError can't have unbuffered text I/O
+repr -> ("<_io.TextIOWrapper name='a.txt' mode='r'", "<_io.BufferedReader name='a.tx")
+StringIO -> ('x\ny\n', 4, 'x\ny\n', 3)
+BytesIO -> (b'ab', b'abc', 3, 2, b'abcde', b'abcde')
+TextIOWrapper -> (b't\xc3\xa9st\n', 'utf-8', False)
+TextIOWrapper read -> ('é\n', 'z')
+isinstance -> (True, True, True, False, True)
+UnsupportedOperation -> (True, True)
+unsupported !! UnsupportedOperation fileno
+open is io.open -> (True, 'open')
+text_encoding -> utf-8
+stdout seek !! UnsupportedOperation underlying stream is not seekable
+names -> []
+copyfile -> True
+tokenize -> ['x', '=', '1', '# c', '\n', '']
+tokenize file -> ('utf-8', True)
+linecache -> ('r""', 'wörld\n')
+tempfile -> (True,)
+cleaned []

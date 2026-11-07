@@ -83,6 +83,20 @@ object PyBuiltins {
             return PyNone
         }
         d[PyStr("input")] = PyBuiltin("input") { ctx, args -> input(ctx, args) }
+        // open(): _io's, imported the first time it is called, which then is the builtin itself (as CPython's is _io.open)
+        fun open(ctx: PyContext, args: Array<Any?>, kw: PyDict?): Any? {
+            val f = PyRt.getAttr(PyImport.importModule(ctx, "_io"), "open")
+            ctx.builtins[PyStr("open")] = f
+            val names = arrayOfNulls<Any?>(kw?.size ?: 0)
+            val values = arrayOfNulls<Any?>(names.size)
+            var i = 0
+            kw?.map?.forEach { (k, v) ->
+                names[i] = k.v
+                values[i++] = v
+            }
+            return PyCalls.callWith(ctx, f, args, names, values)
+        }
+        d[PyStr("open")] = PyBuiltin("open", { ctx, args -> open(ctx, args, null) }, { ctx, args, kw -> open(ctx, args, kw) })
         d[PyStr("print")] = PyBuiltin("print", { ctx, args -> print(ctx, args, null) }, { ctx, args, kw -> print(ctx, args, kw) })
         def("len") { _, args ->
             argc("len", args, 1)
