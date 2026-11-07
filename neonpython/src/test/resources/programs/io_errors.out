@@ -1,0 +1,56 @@
+text w read !! UnsupportedOperation not readable
+text w readline !! UnsupportedOperation not readable
+text r write !! UnsupportedOperation not writable
+text r truncate !! UnsupportedOperation truncate
+bin w read !! UnsupportedOperation read
+bin r write !! UnsupportedOperation write
+raw w read !! UnsupportedOperation File not open for reading
+raw w readinto !! UnsupportedOperation File not open for reading
+stringio detach !! UnsupportedOperation detach
+stringio fileno !! UnsupportedOperation fileno
+bytesio fileno !! UnsupportedOperation fileno
+buffered on bytesio read !! UnsupportedOperation read
+bufferedreader write !! UnsupportedOperation write
+iobase seek !! UnsupportedOperation seek
+iobase truncate !! UnsupportedOperation truncate
+iobase fileno !! UnsupportedOperation fileno
+rawiobase read !! NotImplementedError 
+bufferediobase read !! UnsupportedOperation read
+bufferediobase read1 !! UnsupportedOperation read1
+bufferediobase write !! UnsupportedOperation write
+bufferediobase detach !! UnsupportedOperation detach
+textiobase read !! UnsupportedOperation read
+textiobase readline !! UnsupportedOperation readline
+textiobase write !! UnsupportedOperation write
+textiobase detach !! UnsupportedOperation detach
+closed read !! ValueError I/O operation on closed file.
+detached !! ValueError underlying buffer has been detached
+w write !! ValueError I/O operation on closed file.
+w read !! ValueError I/O operation on closed file.
+w readline !! ValueError I/O operation on closed file.
+w seek !! ValueError I/O operation on closed file.
+w tell !! ValueError I/O operation on closed file.
+w flush !! ValueError I/O operation on closed file.
+w iter !! ValueError I/O operation on closed file.
+r write !! ValueError I/O operation on closed file.
+r read !! ValueError I/O operation on closed file.
+r readline !! ValueError I/O operation on closed file.
+r seek !! ValueError I/O operation on closed file.
+r tell !! ValueError I/O operation on closed file.
+r flush !! ValueError I/O operation on closed file.
+r iter !! ValueError I/O operation on closed file.
+wb write !! ValueError write to closed file
+wb read !! UnsupportedOperation read
+wb seek !! ValueError seek of closed file
+wb tell !! ValueError I/O operation on closed file
+wb flush !! ValueError flush of closed file
+wb iter !! ValueError I/O operation on closed file.
+rb write !! UnsupportedOperation write
+rb read !! ValueError read of closed file
+rb seek !! ValueError seek of closed file
+rb tell !! ValueError I/O operation on closed file
+rb flush !! ValueError I/O operation on closed file.
+rb iter !! ValueError I/O operation on closed file.
+text write bytes !! TypeError write() argument must be str, not bytes
+stringio closed !! ValueError I/O operation on closed file
+bytesio closed !! ValueError I/O operation on closed file.

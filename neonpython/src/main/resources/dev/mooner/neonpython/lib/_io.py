@@ -640,7 +640,7 @@ class RawIOBase(IOBase):
         Returns an int representing the number of bytes read (0 for EOF), or
         None if the object is set not to block and has no data to read.
         """
-        self._unsupported("readinto")
+        raise NotImplementedError
 
     def write(self, b):
         """Write the given buffer to the IO stream.
@@ -648,7 +648,7 @@ class RawIOBase(IOBase):
         Returns the number of bytes written, which may be less than the
         length of b in bytes.
         """
-        self._unsupported("write")
+        raise NotImplementedError
 
 _RawIOBase = RawIOBase
 
@@ -787,7 +787,8 @@ class _BufferedIOMixin(BufferedIOBase):
 
     def truncate(self, pos=None):
         self._checkClosed()
-        self._checkWritable()
+        if not self.writable():
+            raise UnsupportedOperation("truncate")
 
         # Flush the stream.  We're mixing buffered I/O with lower-level I/O,
         # and a flush may be necessary to synch both views of the current
@@ -804,7 +805,7 @@ class _BufferedIOMixin(BufferedIOBase):
 
     def flush(self):
         if self.closed:
-            raise ValueError("flush on closed file")
+            raise ValueError("I/O operation on closed file.")
         self.raw.flush()
 
     def close(self):
@@ -894,14 +895,14 @@ class BytesIO(BufferedIOBase):
         """Return the bytes value (contents) of the buffer
         """
         if self.closed:
-            raise ValueError("getvalue on closed file")
+            raise ValueError("I/O operation on closed file.")
         return bytes(self._buffer)
 
     def getbuffer(self):
         """Return a readable and writable view of the buffer.
         """
         if self.closed:
-            raise ValueError("getbuffer on closed file")
+            raise ValueError("I/O operation on closed file.")
         return memoryview(self._buffer)
 
     def close(self):
@@ -911,7 +912,7 @@ class BytesIO(BufferedIOBase):
 
     def read(self, size=-1):
         if self.closed:
-            raise ValueError("read from closed file")
+            raise ValueError("I/O operation on closed file.")
         if size is None:
             size = -1
         else:
@@ -940,7 +941,7 @@ class BytesIO(BufferedIOBase):
             raise TypeError("can't write str to binary stream")
         with memoryview(b) as view:
             if self.closed:
-                raise ValueError("write to closed file")
+                raise ValueError("I/O operation on closed file.")
 
             n = view.nbytes  # Size of any bytes-like object
             if n == 0:
@@ -956,7 +957,7 @@ class BytesIO(BufferedIOBase):
 
     def seek(self, pos, whence=0):
         if self.closed:
-            raise ValueError("seek on closed file")
+            raise ValueError("I/O operation on closed file.")
         try:
             pos_index = pos.__index__
         except AttributeError:
@@ -977,12 +978,12 @@ class BytesIO(BufferedIOBase):
 
     def tell(self):
         if self.closed:
-            raise ValueError("tell on closed file")
+            raise ValueError("I/O operation on closed file.")
         return self._pos
 
     def truncate(self, pos=None):
         if self.closed:
-            raise ValueError("truncate on closed file")
+            raise ValueError("I/O operation on closed file.")
         if pos is None:
             pos = self._pos
         else:
@@ -1054,6 +1055,7 @@ class BufferedReader(_BufferedIOMixin):
         """
         if size is not None and size < -1:
             raise ValueError("invalid number of bytes to read")
+        self._checkClosed("read of closed file")
         with self._read_lock:
             return self._read_unlocked(size)
 
@@ -1277,7 +1279,7 @@ class BufferedWriter(_BufferedIOMixin):
 
     def _flush_unlocked(self):
         if self.closed:
-            raise ValueError("flush on closed file")
+            raise ValueError("flush of closed file")
         while self._write_buf:
             try:
                 n = self.raw.write(self._write_buf)
@@ -1298,6 +1300,7 @@ class BufferedWriter(_BufferedIOMixin):
     def seek(self, pos, whence=0):
         if whence not in valid_seek_flags:
             raise ValueError("invalid whence value")
+        self._checkClosed("seek of closed file")
         with self._write_lock:
             self._flush_unlocked()
             return _BufferedIOMixin.seek(self, pos, whence)
@@ -1478,6 +1481,11 @@ def _new_buffersize(bytes_read):
 
 class FileIO(RawIOBase):
     _fd = -1
+
+    def _checkClosed(self, msg=None):
+        # (C FileIO's: without the full stop)
+        if self.closed:
+            raise ValueError("I/O operation on closed file" if msg is None else msg)
     _created = False
     _readable = False
     _writable = False
@@ -2169,7 +2177,13 @@ class TextIOWrapper(TextIOBase):
 
     @property
     def buffer(self):
+        if self._buffer is None:
+            raise ValueError("underlying buffer has been detached")
         return self._buffer
+
+    def _closed_message(self):
+        # (C _io's: a StringIO's without the full stop)
+        return "I/O operation on closed file" if isinstance(self, StringIO) else "I/O operation on closed file."
 
     def reconfigure(self, *,
                     encoding=None, errors=None, newline=Ellipsis,
@@ -2226,6 +2240,8 @@ class TextIOWrapper(TextIOBase):
         return self.buffer.writable()
 
     def flush(self):
+        if self.closed:
+            raise ValueError(self._closed_message())
         self.buffer.flush()
         self._telling = self._seekable
 
@@ -2252,11 +2268,13 @@ class TextIOWrapper(TextIOBase):
 
     def write(self, s):
         'Write data, where s is a str'
-        if self.closed:
-            raise ValueError("write to closed file")
         if not isinstance(s, str):
-            raise TypeError("can't write %s to text stream" %
+            raise TypeError("write() argument must be str, not %s" %
                             s.__class__.__name__)
+        if self.closed:
+            raise ValueError(self._closed_message())
+        if not self.writable():
+            raise UnsupportedOperation("not writable")
         length = len(s)
         haslf = (self._writetranslate or self._line_buffering) and "\n" in s
         if haslf and self._writetranslate and self._writenl != "\n":
@@ -2380,6 +2398,8 @@ class TextIOWrapper(TextIOBase):
         return position, dec_flags, bytes_to_feed, bool(need_eof), chars_to_skip
 
     def tell(self):
+        if self.closed:
+            raise ValueError(self._closed_message())
         if not self._seekable:
             raise UnsupportedOperation("underlying stream is not seekable")
         if not self._telling:
@@ -2507,7 +2527,7 @@ class TextIOWrapper(TextIOBase):
                     encoder.reset()
 
         if self.closed:
-            raise ValueError("tell on closed file")
+            raise ValueError(self._closed_message())
         if not self._seekable:
             raise UnsupportedOperation("underlying stream is not seekable")
         if whence == SEEK_CUR:
@@ -2568,7 +2588,10 @@ class TextIOWrapper(TextIOBase):
         return cookie
 
     def read(self, size=None):
-        self._checkReadable()
+        if self.closed:
+            raise ValueError(self._closed_message())
+        if not self.readable():
+            raise UnsupportedOperation("not readable")
         if size is None:
             size = -1
         else:
@@ -2610,7 +2633,9 @@ class TextIOWrapper(TextIOBase):
 
     def readline(self, size=None):
         if self.closed:
-            raise ValueError("read from closed file")
+            raise ValueError(self._closed_message())
+        if not self.readable():
+            raise UnsupportedOperation("not readable")
         if size is None:
             size = -1
         else:
