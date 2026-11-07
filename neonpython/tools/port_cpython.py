@@ -33,6 +33,7 @@ _pydecimal.py _pydecimal
 _pyio.py
 _pyio.py _io
 _strptime.py
+_threading_local.py
 _weakrefset.py
 abc.py
 annotationlib.py
@@ -45,6 +46,10 @@ codecs.py
 codeop.py
 collections/__init__.py
 colorsys.py
+concurrent/__init__.py
+concurrent/futures/__init__.py
+concurrent/futures/_base.py
+concurrent/futures/thread.py
 contextlib.py
 contextvars.py
 copy.py
@@ -165,12 +170,14 @@ json/scanner.py
 keyword.py
 linecache.py
 locale.py
+logging/__init__.py
 numbers.py
 operator.py
 os.py
 pickle.py
 posixpath.py
 pprint.py
+queue.py
 random.py
 re/__init__.py
 re/_casefix.py
@@ -190,6 +197,7 @@ struct.py
 tempfile.py
 textwrap.py
 this.py
+threading.py
 token.py
 tokenize.py
 traceback.py

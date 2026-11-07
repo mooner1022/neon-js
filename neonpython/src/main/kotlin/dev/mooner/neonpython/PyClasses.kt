@@ -476,7 +476,7 @@ object PyClasses {
         special(obj, name)?.let { return it }
         val ga = if (hook) type.lookup("__getattr__") else null
         if (ga != null) return PyCalls.callWith(PyContext.current(), ga, arrayOf(obj, PyStr(name)), NO_ARGS, NO_ARGS)
-        throw PyException.attributeError(obj, name, "'${type.name}' object has no attribute '$name'")
+        throw PyException.attributeError(obj, name, "'${type.tpName ?: type.name}' object has no attribute '$name'")
     }
 
     /** The attributes every object of a kind has (not in a type's dict). */
@@ -668,6 +668,9 @@ object PyClasses {
         genericSetAttr(obj, name, v)
     }
 
+    private fun dictValue(v: Any?): PyDict =
+        v as? PyDict ?: throw PyRt.typeError("__dict__ must be set to a dictionary, not a '${PyTypes.name(v)}'")
+
     /** object.__setattr__ (and type's): data descriptors, else the instance's dict. */
     @JvmStatic
     fun genericSetAttr(obj: Any?, name: String, v: Any?) {
@@ -748,6 +751,11 @@ object PyClasses {
         }
         when (obj) {
             is PyObject -> {
+                // (o.__dict__ = d: the instance's dict replaced, as the type's __dict__ descriptor does)
+                if (name == "__dict__" && obj.type.hasDict) {
+                    obj.dict = dictValue(v)
+                    return
+                }
                 if (!obj.type.hasDict && obj.dict == null) {
                     throw PyException.attributeError(obj, name, "'${obj.type.tpName ?: obj.type.name}' object has no attribute '$name' and no __dict__ for setting new attributes")
                 }
@@ -768,6 +776,10 @@ object PyClasses {
             is PyValue -> {
                 val s = obj.sub ?: throw PyException("AttributeError", "'${type.tpName ?: type.name}' object has no attribute '$name' and no __dict__ for setting new attributes")
                 if (!s.cls.hasDict) throw PyException("AttributeError", "'${s.cls.tpName ?: s.cls.name}' object has no attribute '$name' and no __dict__ for setting new attributes")
+                if (name == "__dict__") {
+                    s.dict = dictValue(v)
+                    return
+                }
                 (s.dict ?: PyDict().also { s.dict = it })[PyStr(name)] = v
             }
             else -> throw PyException("AttributeError", "'${PyTypes.name(obj)}' object has no attribute '$name' and no __dict__ for setting new attributes")
@@ -858,7 +870,7 @@ object PyClasses {
         }
         val dict = instanceDict(obj)
         if (dict == null || dict.map.remove(PyDict.Key(PyStr(name))) == null) {
-            throw PyException("AttributeError", "'${type.name}' object has no attribute '$name'")
+            throw PyException("AttributeError", "'${type.tpName ?: type.name}' object has no attribute '$name'")
         }
     }
 

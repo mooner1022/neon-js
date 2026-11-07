@@ -12,6 +12,7 @@ _pydecimal.py  # a trapped signal raised with its condition in a list, int()'s e
 _pyio.py
 _io.py  # CPython's _pyio.py as _io: what it takes from io (which imports _io) defined in it, the ABCs' registrations left to io, C _io's messages for open's mode and unsupported operations
 _strptime.py
+_threading_local.py
 _weakrefset.py
 abc.py
 annotationlib.py
@@ -24,6 +25,10 @@ codecs.py
 codeop.py
 collections/__init__.py
 colorsys.py
+concurrent/__init__.py
+concurrent/futures/__init__.py
+concurrent/futures/_base.py
+concurrent/futures/thread.py
 contextlib.py
 contextvars.py
 copy.py
@@ -144,12 +149,14 @@ json/scanner.py
 keyword.py
 linecache.py
 locale.py
+logging/__init__.py
 numbers.py
 operator.py
 os.py
 pickle.py
 posixpath.py
 pprint.py
+queue.py
 random.py
 re/__init__.py
 re/_casefix.py
@@ -169,6 +176,7 @@ struct.py
 tempfile.py
 textwrap.py
 this.py
+threading.py
 token.py
 tokenize.py
 traceback.py

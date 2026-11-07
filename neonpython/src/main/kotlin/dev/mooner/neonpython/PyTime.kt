@@ -274,6 +274,9 @@ object PyTime {
         return i as? Long ?: throw overflow()
     }
 
+    /** _PyTime_FromSecondsObject with _PyTime_ROUND_TIMEOUT: a timeout's seconds as nanoseconds (_thread's locks'). */
+    @JvmStatic internal fun timeoutNs(v: Any?): Long = fromSecondsObject(v, ROUND_UP)
+
     /** _PyTime_FromSecondsObject: seconds as nanoseconds, a float's rounded by [mode]. */
     private fun fromSecondsObject(v: Any?, mode: Int): Long {
         floatOf(v)?.let { d ->
@@ -725,7 +728,23 @@ object PyTime {
         val mono = monotonicNs()
         // (clock_nanosleep's deadline past the clock's range: EINVAL)
         if (timeout > Long.MAX_VALUE - mono) throw osError(EINVAL)
+        waitUntil(ctx, mono + timeout)
+    }
+
+    /** Waits [timeout] nanoseconds ([waitUntil]); a deadline past the clock's range is its last. */
+    @JvmStatic
+    internal fun waitFor(ctx: PyContext, timeout: Long) {
+        val mono = monotonicNs()
         val deadline = mono + timeout
+        waitUntil(ctx, if (timeout > 0 && deadline < mono) Long.MAX_VALUE else deadline)
+    }
+
+    /**
+     * Waits until the monotonic clock's [deadline] (nanoseconds), in slices of 10 ms at most, the agent's limits and
+     * interrupts checked between them (time.sleep's wait, and a lock's that only times out: _thread's).
+     */
+    @JvmStatic
+    internal fun waitUntil(ctx: PyContext, deadline: Long) {
         val agent = ctx.agent
         while (true) {
             agent.checkWaitLimits()

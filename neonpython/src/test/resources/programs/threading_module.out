@@ -1,0 +1,139 @@
+True MainThread _MainThread False True
+True
+True int
+1 True 0
+9223372036.0 True True
+_thread RLock True
+<_MainThread(MainThread False True
+True True False False False
+False True <locked _thread.lock object
+False <unlocked _thread.lock object
+RuntimeError release unlocked lock
+True
+False
+ValueError can't specify a timeout for a non-blocking call
+ValueError timeout value must be a non-negative number
+TypeError 'str' object cannot be interpreted as an integer or float
+AttributeError '_thread.lock' object has no attribute 'x' and no __dict__ for setting new attributes
+True True 2 True True
+<locked _thread.RLock object owner=ME count=2
+2 True False False 0
+2
+False <unlocked _thread.RLock object owner=0 count=0
+RuntimeError cannot release un-acquired lock
+RuntimeError cannot release un-acquired lock
+2
+True <unlocked R object owner=0 count=0
+False False True
+True False
+RuntimeError cannot wait on un-acquired lock
+RuntimeError cannot notify on un-acquired lock
+False True
+False
+False False False True
+True True True
+False unset>
+True True False False
+2 value=2>
+True
+ValueError Semaphore released too many times
+ValueError semaphore initial value must be >= 0
+ValueError can't specify timeout for non-blocking acquire
+ValueError n must be one or more
+1
+action
+0 1 0 False
+BrokenBarrierError True broken>
+False 0
+True
+ValueError parties must be >= 1
+1 {'x': 1} _thread _local
+5 {'v': 6}
+TypeError Initialization arguments are not supported
+AttributeError '_thread._local' object attribute '__dict__' is read-only
+AttributeError '_thread._local' object attribute '__dict__' is read-only
+AttributeError '_thread._local' object has no attribute 'y'
+False
+2 {'y': 2}
+w False None None False <Thread(w, initial)>
+RuntimeError cannot join thread before it is started
+True Thread-2 (threads)
+RuntimeError cannot join current thread
+1 False
+True
+True True
+0 0 65536 0
+ValueError size must be at least 53248 bytes
+True True
+_ExceptHookArgs ValueError True 4
+['Exception in thread MainThread:', 'ValueError: boom']
+TypeError _thread.excepthook argument type must be ExceptHookArgs
+2 1 2 True
+Empty 
+Empty 
+ValueError task_done() called too many times
+Full 
+[2, 1, 3] [1, 2, 3]
+ShutDown 
+2 1 2 True
+Empty 
+Empty 
+ValueError 'timeout' must be a non-negative number
+False False False
+done callback 5
+5 True finished returned int>
+True True False
+CancelledError 
+TimeoutError 
+TimeoutError 
+1 1
+TimeoutError 1 (of 1) futures unfinished
+ValueError [True]
+InvalidStateError FINISHED
+2 p concurrent.futures
+RuntimeError cannot schedule new futures after shutdown
+ValueError max_workers must be greater than 0
+['ALL_COMPLETED', 'BrokenExecutor', 'CancelledError', 'Executor', 'FIRST_COMPLETED', 'FIRST_EXCEPTION', 'Future', 'InvalidStateError', 'ProcessPoolExecutor', 'ThreadPoolExecutor', 'TimeoutError', 'as_completed', 'wait']
+['LockType', 'RLock', 'TIMEOUT_MAX', '_ExceptHookArgs', '_NAME_MAXLEN', '_ThreadHandle', '_count', '_excepthook', '_get_main_thread_ident', '_get_name', '_is_main_interpreter', '_local', '_make_thread_handle', '_shutdown', 'allocate', 'allocate_lock', 'daemon_threads_allowed', 'error', 'exit', 'exit_thread', 'get_ident', 'get_native_id', 'interrupt_main', 'lock', 'set_name', 'stack_size', 'start_joinable_thread', 'start_new', 'start_new_thread']
+True True 9223372036.0 15
+0 False <_thread._ThreadHandle object: ident=0>
+RuntimeError thread not started
+RuntimeError thread not started
+TypeError 'handle' must be a _ThreadHandle
+TypeError first arg must be callable
+TypeError 2nd arg must be a tuple
+TypeError optional 3rd arg must be a dictionary
+TypeError start_new_thread expected at least 2 arguments, got 1
+TypeError thread function must be callable
+TypeError start_joinable_thread() missing required argument 'function' (pos 1)
+RuntimeError Cannot join current thread
+False None True None
+TypeError ident must be an integer
+OverflowError can't convert negative int to unsigned
+TypeError lock expected 0 arguments, got 1
+TypeError lock() takes no keyword arguments
+TypeError type '_thread.lock' is not an acceptable base type
+TypeError lock.release() takes no arguments (1 given)
+TypeError acquire() takes at most 2 arguments (3 given)
+TypeError acquire() got an unexpected keyword argument 'blockin'. Did you mean 'blocking'?
+TypeError _acquire_restore() argument 1 must be 2-item tuple, not int
+TypeError _acquire_restore() argument 1 must be tuple of length 2, not 1
+TypeError _thread.get_ident() takes no arguments (1 given)
+TypeError _thread.excepthook argument type must be ExceptHookArgs
+TypeError _thread._ExceptHookArgs() takes a 4-sequence (3-sequence given)
+ValueError signal number out of range
+ok None
+KeyboardInterrupt 
+SystemExit 
+TypeError set_name() argument 'name' must be str, not int
+ok None
+ok 0123456789abcde
+TypeError stack_size() takes at most 1 argument (2 given)
+True True
+TypeError the first argument must be callable
+TypeError register() takes at least 1 argument (0 given)
+exit (2,) {}
+exit (1,) {'k': 2}
+[1] False True
+RuntimeError can't register atexit after shutdown
+RuntimeError cannot schedule new futures after interpreter shutdown

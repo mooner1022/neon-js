@@ -268,7 +268,11 @@ object PyImport {
                 return m
             }
             "_thread" -> {
-                PyStdlib.fillThread(ctx, d)
+                PyThread.fill(ctx, d)
+                return mod()
+            }
+            "atexit" -> {
+                PyAtexit.fill(ctx, d)
                 return mod()
             }
             "_weakref" -> {
@@ -376,7 +380,7 @@ object PyImport {
     }
 
     /** The modules NeonPy makes itself (sys.builtin_module_names). */
-    @JvmField val BUILTIN_NAMES = listOf("sys", "builtins", "_thread", "_weakref", "gc", "_collections", "itertools", "_contextvars", "_sre", "_string", "_typing", "math", "errno", "posix", "_random", "_sha2", "_md5", "_sha1", "_operator", "_imp", "_dis", "_codecs", "_struct", "time", "_tokenize")
+    @JvmField val BUILTIN_NAMES = listOf("sys", "builtins", "_thread", "_weakref", "gc", "_collections", "itertools", "_contextvars", "_sre", "_string", "_typing", "math", "errno", "posix", "_random", "_sha2", "_md5", "_sha1", "_operator", "_imp", "_dis", "_codecs", "_struct", "time", "_tokenize", "atexit")
 
     /** The features `from __future__ import` knows (CPython 3.14's). */
     @JvmField val FUTURES = listOf("nested_scopes", "generators", "division", "absolute_import", "with_statement", "print_function",
