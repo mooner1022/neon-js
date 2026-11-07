@@ -1,0 +1,38 @@
+star wildcard -> ('ends', [0, 41])
+first fails -> (('x y', 1, 42), [0, 0, 41])
+lone star -> any
+deque -> ends
+range -> ends
+memoryview -> any
+star capture -> ((1, [2, 3]), (4, [5]))
+chainmap -> ('a', {'c': 3})
+userdict -> ('b', 2)
+mappingproxy -> e
+keys view -> None
+get used -> (('a', {'z': 1}), [('get', 'a'), ('getitem', 'a'), ('getitem', 'z')])
+protocol -> ('point', 1, 2)
+registered -> ('sized', 'sized')
+other -> other
+plain protocol !! TypeError Instance and class checks can only be used with @runtime_checkable protocols
+twice !! TypeError Twice() got multiple sub-patterns for attribute 'a'
+missing first -> no match
+positional and keyword !! TypeError Twice() got multiple sub-patterns for attribute 'a'
+case Class(a=_, a=_) -> attribute name repeated in class pattern: a 2 20
+case Class(a=_, b=_, a=_) -> attribute name repeated in class pattern: a 2 25
+case (*x) -> invalid syntax 2 10
+case (*x,) ok
+case {0: _, False: _} -> mapping pattern checks duplicate key (False) 2 7
+case {0: _, 0.0: _} -> mapping pattern checks duplicate key (0.0) 2 7
+case {0: _, -0: _} -> mapping pattern checks duplicate key (0) 2 7
+case {'a': _, 'a': _} -> mapping pattern checks duplicate key ('a') 2 7
+case {0: _, 0j: _} -> mapping pattern checks duplicate key (0j) 2 7
+case {1: _, True: _} -> mapping pattern checks duplicate key (True) 2 7
+case {1: _, 1+0j: _} -> mapping pattern checks duplicate key ((1+0j)) 2 7
+case {0j+0: _} -> real number required in complex literal 2 8
+case 0j+0j -> real number required in complex literal 2 7
+case -0j+0j -> real number required in complex literal 2 8
+case {-0j+0j: _} -> real number required in complex literal 2 9
+case 0+0 -> imaginary number required in complex literal 2 9
+case 1-2j ok
+case {x.y: _, x.y: _} ok
+case {b'a': _, 'a': _} ok

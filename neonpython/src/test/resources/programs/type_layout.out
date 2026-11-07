@@ -1,0 +1,218 @@
+object -> ('0x1502', 0, 0, 16, 0)
+int -> ('0x1401502', 0, 0, 24, 4)
+bool -> ('0x1401102', 0, 0, 24, 4)
+float -> ('0x401502', 0, 0, 24, 0)
+complex -> ('0x1502', 0, 0, 32, 0)
+str -> ('0x10401502', 0, 0, 64, 0)
+bytes -> ('0x8401502', 0, 0, 33, 1)
+bytearray -> ('0x401502', 0, 0, 56, 0)
+list -> ('0x2405522', 0, 0, 40, 0)
+tuple -> ('0x4405522', 0, 0, 32, 8)
+dict -> ('0x20405542', 0, 0, 48, 0)
+set -> ('0x405502', 192, 0, 200, 0)
+frozenset -> ('0x405502', 192, 0, 200, 0)
+range -> ('0x1122', 0, 0, 48, 0)
+slice -> ('0x5102', 0, 0, 40, 0)
+memoryview -> ('0x5122', 136, 0, 144, 8)
+type -> ('0x80805d02', 368, 264, 936, 40)
+property -> ('0x5502', 0, 0, 64, 0)
+staticmethod -> ('0x5502', 0, 24, 32, 0)
+classmethod -> ('0x5502', 0, 24, 32, 0)
+super -> ('0x5502', 0, 0, 40, 0)
+enumerate -> ('0x5502', 0, 0, 56, 0)
+zip -> ('0x5502', 0, 0, 48, 0)
+map -> ('0x5502', 0, 0, 40, 0)
+filter -> ('0x5502', 0, 0, 32, 0)
+reversed -> ('0x5502', 0, 0, 32, 0)
+BaseException -> ('0x40005502', 0, 16, 72, 0)
+Exception -> ('0x40005502', 0, 16, 72, 0)
+ValueError -> ('0x40005502', 0, 16, 72, 0)
+OSError -> ('0x40005502', 0, 16, 112, 0)
+KeyError -> ('0x40005502', 0, 16, 72, 0)
+StopIteration -> ('0x40005502', 0, 16, 80, 0)
+function -> ('0x25902', 96, 88, 152, 0)
+module -> ('0x5502', 40, 16, 56, 0)
+method -> ('0x5902', 32, 0, 48, 0)
+generator -> ('0x5182', 16, 0, 152, 8)
+code -> ('0x1102', 144, 0, 208, 2)
+SimpleNamespace -> ('0x5502', 0, 16, 24, 0)
+builtin_function_or_method -> ('0x5982', 40, 0, 56, 0)
+mappingproxy -> ('0x5142', 0, 0, 24, 0)
+list_iterator -> ('0x5182', 0, 0, 32, 0)
+dict_keys -> ('0x5182', 0, 0, 24, 0)
+deque -> ('0x5720', 208, 0, 216, 0)
+defaultdict -> ('0x20405740', 0, 0, 56, 0)
+array -> ('0x5720', 48, 0, 64, 0)
+ReferenceType -> ('0x5d02', 0, 0, 64, 0)
+NoneType -> ('0x1102', 0, 0, 16, 0)
+NotImplementedType -> ('0x1102', 0, 0, 16, 0)
+cell -> ('0x5102', 0, 0, 24, 0)
+method-wrapper -> ('0x5182', 0, 0, 32, 0)
+wrapper_descriptor -> ('0x25182', 0, 0, 56, 0)
+method_descriptor -> ('0x25982', 0, 0, 56, 0)
+C -> ('0x561c', -32, -1, 16, 0)
+D -> ('0x561c', -32, -1, 16, 0)
+P -> ('0x5600', 0, 0, 16, 0)
+Q -> ('0x5600', 0, 0, 32, 0)
+R -> ('0x5614', 0, -1, 16, 0)
+W -> ('0x5608', -32, 0, 16, 0)
+RW -> ('0x561c', -32, -1, 24, 0)
+PD -> ('0x561c', -32, -1, 16, 0)
+QS -> ('0x5600', 0, 0, 40, 0)
+CS -> ('0x561c', -32, -1, 24, 0)
+M -> ('0x561c', -32, -1, 32, 0)
+Ab -> ('0x10561c', -32, -1, 16, 0)
+Co -> ('0x561c', -32, -1, 16, 0)
+Call -> ('0x80805600', 368, 264, 936, 40)
+E -> ('0x561c', -32, -1, 16, 0)
+Ex -> ('0x40005608', -32, 16, 72, 0)
+ExS -> ('0x40005600', 0, 16, 80, 0)
+ExW -> ('0x40005608', -32, 16, 72, 0)
+Ty -> ('0x80805e00', 368, 264, 936, 40)
+Tu -> ('0x4405630', 0, -1, 32, 8)
+TuP -> ('0x4405620', 0, 0, 32, 8)
+By -> ('0x8405610', 0, -1, 33, 1)
+Ia -> ('0x1405610', 0, -1, 24, 4)
+Fl -> ('0x40561c', -32, -1, 24, 0)
+Cx -> ('0x561c', -32, -1, 32, 0)
+St -> ('0x1040561c', -32, -1, 64, 0)
+StS -> ('0x10405600', 0, 0, 72, 0)
+Li -> ('0x240563c', -32, -1, 40, 0)
+Dc -> ('0x2040565c', -32, -1, 48, 0)
+Se -> ('0x405614', 192, -1, 200, 0)
+SeP -> ('0x405600', 192, 0, 200, 0)
+Dq -> ('0x5634', 208, -1, 216, 0)
+DqD -> ('0x5634', 208, -1, 216, 0)
+Dd -> ('0x2040565c', -32, -1, 56, 0)
+Mo -> ('0x5600', 40, 16, 56, 0)
+Nt -> ('0x4405620', 0, 0, 32, 8)
+DtS -> ('0x5600', 0, 0, 24, 0)
+abstract later -> 0x10561c
+abstract cleared -> 0x561c
+slot errors -> [<class 'set'>, <class 'Exception'>, <class 'tuple'>, <class 'tuple'>]
+var slots type ('a',) !! TypeError nonempty __slots__ not supported for subtype of 'type'
+var slots Tu ('__weakref__',) !! TypeError nonempty __slots__ not supported for subtype of 'Tu'
+var slots int ['a'] !! TypeError nonempty __slots__ not supported for subtype of 'int'
+var slots bytes a !! TypeError nonempty __slots__ not supported for subtype of 'bytes'
+var slots Tu () -> 32
+weakref tuple -> False
+weakref int -> False
+weakref bytes -> False
+weakref str -> True
+weakref list -> True
+weakref set -> True
+weakref Exception -> True
+weakref slots -> (False, True, True)
+weakref builtin -> (False, True)
+popped -> (False, False)
+kinds -> ['S', 'S', 'S', 'S', 'S', 'S', '-', '-', '-', 'M', '-', 'M', 'M', 'M', 'M', 'S', '-', 'M', 'S', 'S', 'M', 'S', 'S', 'S', 'S', 'M', 'M', 'M', '-']
+match list -> ('sequence', 1)
+match tuple -> ('sequence', 1)
+match range -> ('sequence', 0)
+match memoryview -> ('sequence', 97)
+match array -> ('sequence', 7)
+match deque -> ('sequence', 2)
+match str -> other
+match bytes -> other
+match bytearray -> other
+match dict -> ('mapping a', 1, {'b': 2})
+match OrderedDict -> ('mapping a', 3, {})
+match Counter -> ('mapping a', 1, {'b': 1})
+match ChainMap -> ('mapping a', 4, {})
+match UserDict -> ('mapping a', 5, {})
+match UserList -> ('sequence', 6)
+match mappingproxy -> mapping
+match dict_keys -> other
+match S1 -> sequence
+match S2 -> sequence
+match M1 -> ('mapping a', 8, {'c': 9})
+match Rg !! TypeError object of type 'Rg' has no len()
+match RgSub !! TypeError object of type 'RgSub' has no len()
+match RgLater !! TypeError object of type 'RgLater' has no len()
+match Both -> sequence
+match Both2 -> mapping
+match X !! TypeError object of type 'X' has no len()
+match L !! AttributeError 'L' object has no attribute 'get'
+match set -> other
+both __abc_tpflags__ cannot be both Py_TPFLAGS_SEQUENCE and Py_TPFLAGS_MAPPING
+own -> ('M', False, '-', True)
+isabstract -> (True, False, False, True)
+pickle 0 -> ('Pt', 3)
+pickle int 0 -> ('PI', 4, 't')
+reduce_ex 0 -> ('_reconstructor', (<class '__main__.Pt'>, <class 'object'>, None))
+pickle 1 -> ('Pt', 3)
+pickle int 1 -> ('PI', 4, 't')
+reduce_ex 1 -> ('_reconstructor', (<class '__main__.Pt'>, <class 'object'>, None))
+copy -> 5
+object pickle 0 -> True
+dataclass slots -> (['__weakref__', '__dict__'], [], ['__weakref__', '__dict__'])
+weakref_slot -> (('a', '__weakref__'), True)
+slots sub -> (('b',), 'Sub(a=1, b=2)')
+object None 32 True 0
+object () 16 False 0
+int None 32 True 0
+int () 16 False 0
+float None 32 True 0
+float () 16 False 0
+complex None 32 True 0
+complex () 16 False 0
+str None 56 True 24
+str () 40 False 24
+bytes None 32 True 0
+bytes () 16 False 0
+bytearray None 32 True 0
+bytearray () 16 False 0
+tuple None 16 True 0
+tuple () 0 False 0
+list None 16 True 0
+list () 0 False 0
+dict None 16 True 0
+dict () 0 False 0
+set None 16 True 0
+set () 0 False 0
+frozenset None 16 True 0
+frozenset () 0 False 0
+deque None 16 True 0
+deque () 0 False 0
+array None 16 True 0
+array () 0 False 0
+Exception None 16 True 0
+Exception () 0 False 0
+module None 0 False 0
+module () 0 False 0
+property None 16 True 0
+property () 0 False 0
+SimpleNamespace None 16 True 0
+SimpleNamespace () 0 False 0
+'' 56 81 65
+'ab' 56 83 67
+'é' 37 82 66
+'éa' 40 83 67
+'가나' 40 86 70
+'😀x' 40 92 76
+48 32 56 24
+A -> B -> B
+Sa -> Sb -> Sb
+Sa -> Sc -> Sc
+Sa -> Sd !! TypeError __class__ assignment: 'Sd' object layout differs from 'Sa'
+Se -> Sf -> Sf
+Sa -> Se !! TypeError __class__ assignment: 'Se' object layout differs from 'Sa'
+Sub -> Sub2 -> Sub2
+Sub -> Sa !! TypeError __class__ assignment: 'Sa' object layout differs from 'Sub'
+Sa -> Sub !! TypeError __class__ assignment: 'Sub' object layout differs from 'Sa'
+R -> W !! TypeError __class__ assignment: 'W' object layout differs from 'R'
+P -> P2 -> P2
+P -> A !! TypeError __class__ assignment: 'A' object layout differs from 'P'
+A -> P !! TypeError __class__ assignment: 'P' object layout differs from 'A'
+L1 -> L2 -> L2
+L1 -> LP !! TypeError __class__ assignment: 'LP' object layout differs from 'L1'
+I1 -> I2 -> I2
+E1 -> E2 -> E2
+A -> Mixed !! TypeError __class__ assignment: 'Mixed' object layout differs from 'A'
+Mixed -> A !! TypeError __class__ assignment: 'A' object layout differs from 'Mixed'
+A -> int !! TypeError __class__ assignment only supported for mutable types or ModuleType subclasses
+L1 -> list !! TypeError __class__ assignment only supported for mutable types or ModuleType subclasses
+values kept -> (1, 2, 'Sb')
+reordered kept -> (3, 4, 'Sc')
+back -> (3, 4)
+partly set -> (False, 5)
