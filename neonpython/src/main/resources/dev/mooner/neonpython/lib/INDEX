@@ -304,6 +304,9 @@ uuid.py
 warnings.py
 wave.py
 weakref.py
+xml/__init__.py
+xml/parsers/__init__.py
+xml/parsers/expat.py
 zipfile/__init__.py
 zipfile/_path/__init__.py
 zipfile/_path/glob.py

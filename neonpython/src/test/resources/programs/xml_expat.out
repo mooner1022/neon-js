@@ -1,0 +1,356 @@
+== module
+expat_2.8.1 (2, 8, 1) UTF-8
+[('sizeof(XML_Char)', 1), ('sizeof(XML_LChar)', 1), ('XML_DTD', 0), ('XML_CONTEXT_BYTES', 1024), ('XML_NS', 0), ('XML_BLAP_MAX_AMP', 100), ('XML_BLAP_ACT_THRES', 8388608), ('XML_GE', 0), ('XML_AT_MAX_AMP', 100), ('XML_AT_ACT_THRES', 67108864)]
+Python wrapper for Expat parser. pyexpat.errors pyexpat.model Constants used to describe error conditions. Constants used to interpret content model information.
+True 6 True
+7 mismatched tag syntax error
+44 44 2
+<class 'xml.parsers.expat.ExpatError'> True (<class 'xml.parsers.expat.ExpatError'>, <class 'Exception'>, <class 'BaseException'>, <class 'object'>) <class 'pyexpat.xmlparser'>
+[None, 'out of memory', 'mismatched tag', 'limit on input amplification factor (from DTD and entities) breached', 'parser not started', None, None]
+<class 'pyexpat.xmlparser'> xmlparser pyexpat XML parser
+['AttlistDeclHandler', 'CharacterDataHandler', 'CommentHandler', 'CurrentByteIndex', 'CurrentColumnNumber', 'CurrentLineNumber', 'DefaultHandler', 'DefaultHandlerExpand', 'ElementDeclHandler', 'EndCdataSectionHandler', 'EndDoctypeDeclHandler', 'EndElementHandler', 'EndNamespaceDeclHandler', 'EntityDeclHandler', 'ErrorByteIndex', 'ErrorCode', 'ErrorColumnNumber', 'ErrorLineNumber', 'ExternalEntityParserCreate', 'ExternalEntityRefHandler', 'GetBase', 'GetInputContext', 'GetReparseDeferralEnabled', 'NotStandaloneHandler', 'NotationDeclHandler', 'Parse', 'ParseFile', 'ProcessingInstructionHandler', 'SetAllocTrackerActivationThreshold', 'SetAllocTrackerMaximumAmplification', 'SetBase', 'SetBillionLaughsAttackProtectionActivationThreshold', 'SetBillionLaughsAttackProtectionMaximumAmplification', 'SetParamEntityParsing', 'SetReparseDeferralEnabled', 'SkippedEntityHandler', 'StartCdataSectionHandler', 'StartDoctypeDeclHandler', 'StartElementHandler', 'StartNamespaceDeclHandler', 'UnparsedEntityDeclHandler', 'UseForeignDTD', 'XmlDeclHandler', 'buffer_size', 'buffer_text', 'buffer_used', 'intern', 'namespace_prefixes', 'ordered_attributes', 'specified_attributes']
+== arguments
+new !! TypeError cannot create 'pyexpat.xmlparser' instances
+setattr !! AttributeError 'pyexpat.xmlparser' object has no attribute 'foo' and no __dict__ for setting new attributes
+set ErrorCode !! AttributeError attribute 'ErrorCode' of 'pyexpat.xmlparser' objects is not writable
+del handler !! RuntimeError Cannot delete attribute
+set intern !! AttributeError readonly attribute
+buffer_size !! TypeError buffer_size must be an integer
+buffer_size 0 !! ValueError buffer_size must be greater than zero
+ParserCreate !! TypeError ParserCreate() argument 'encoding' must be str or None, not int
+ParserCreate ns !! ValueError namespace_separator must be at most one character, omitted, or None
+ParserCreate ns2 !! ValueError namespace_separator must be at most one character, omitted, or None
+ParserCreate intern !! TypeError intern must be a dictionary
+ParserCreate kw !! TypeError ParserCreate() got an unexpected keyword argument 'foo'
+ParserCreate nul !! ValueError embedded null character
+ErrorString !! TypeError 'str' object cannot be interpreted as an integer
+Parse !! TypeError Parse() takes at least 1 positional argument (0 given)
+Parse int !! TypeError a bytes-like object is required, not 'int'
+Parse kw !! TypeError Parse() got an unexpected keyword argument 'isfinal'
+ParseFile !! TypeError argument must have 'read' attribute
+SetBase !! TypeError SetBase() argument must be str, not int
+SetBase ok (None, 'http://x/')
+ExternalEntityParserCreate !! TypeError ExternalEntityParserCreate() argument 1 must be str or None, not int
+threshold !! ValueError Cannot convert negative int
+threshold2 !! OverflowError Python int too large for C unsigned long long
+amplification !! ExpatError 'max_factor' must be at least 1.0
+amplification2 !! TypeError must be real number, not str
+subparser !! ExpatError parser must be a root parser
+reparse (True, None, False)
+positions (0, 1, 0, -1, -1)
+== documents
+('XmlDecl', '1.0', 'utf-8', -1)
+('StartElement', 'a', {'x': '1', 'y': '2'})
+('CharacterData', 'hi')
+('StartElement', 'b', {})
+('EndElement', 'b')
+('CharacterData', 'there ')
+('CharacterData', '&')
+('CharacterData', ' ')
+('CharacterData', 'A')
+('CharacterData', 'B')
+('StartCdataSection',)
+('CharacterData', '<raw>')
+('EndCdataSection',)
+('Comment', 'c')
+('ProcessingInstruction', 'pi', 'data')
+('EndElement', 'a')
+('ok', 1)
+--
+('StartElement', 'a', {})
+('CharacterData', 'é中😀')
+('EndElement', 'a')
+('ok', 1)
+--
+('StartDoctypeDecl', 'a', None, None, 1)
+('EntityDecl', 'e', 0, 'val!', None, None, None, None)
+('ElementDecl', 'a', (3, 2, None, ((4, 0, 'b', ()),)))
+('AttlistDecl', 'a', 'x', 'CDATA', 'd', 0)
+('AttlistDecl', 'a', 'y', '(p|q)', None, 1)
+('EndDoctypeDecl',)
+('StartElement', 'a', {'x': 'd'})
+('CharacterData', 'val!')
+('EndElement', 'a')
+('ok', 1)
+--
+('StartNamespaceDecl', None, 'u')
+('StartNamespaceDecl', 'p', 'v')
+('StartElement', 'u a', {})
+('StartElement', 'v b', {'v c': '1', 'd': '2'})
+('EndElement', 'v b')
+('EndElement', 'u a')
+('EndNamespaceDecl', 'p')
+('EndNamespaceDecl', None)
+('ok', 1)
+--
+('StartElement', 'a', {})
+('CharacterData', '\n')
+('CharacterData', 'line')
+('CharacterData', '\n')
+('CharacterData', 'x')
+('EndElement', 'a')
+('ok', 1)
+--
+('StartDoctypeDecl', 'a', None, None, 1)
+('NotationDecl', 'n', None, 's', None)
+('UnparsedEntityDecl', 'u', None, 'f', None, 'n')
+('EntityDecl', 'p', 1, 'x', None, None, None, None)
+('EndDoctypeDecl',)
+('StartElement', 'a', {})
+('EndElement', 'a')
+('ok', 1)
+--
+== malformed
+b'<a' ('unclosed token: line 1, column 0', 5, 5, 0, 1, 0) ('unclosed token: line 1, column 0', 5, 5, 0, 1, 0)
+b'<a>' ('no element found: line 1, column 3', 3, 3, 3, 1, 3) ('no element found: line 1, column 3', 3, 3, 3, 1, 3)
+b'</a>' ('not well-formed (invalid token): line 1, column 1', 4, 4, 1, 1, 1) ('not well-formed (invalid token): line 1, column 1', 4, 4, 1, 1, 1)
+b'<a></b>' ('mismatched tag: line 1, column 5', 7, 7, 5, 1, 5) ('mismatched tag: line 1, column 5', 7, 7, 5, 1, 5)
+b'<a b></a>' ('not well-formed (invalid token): line 1, column 4', 4, 4, 4, 1, 4) ('not well-formed (invalid token): line 1, column 4', 4, 4, 4, 1, 4)
+b'<a b=1></a>' ('not well-formed (invalid token): line 1, column 5', 4, 4, 5, 1, 5) ('not well-formed (invalid token): line 1, column 5', 4, 4, 5, 1, 5)
+b'<a b="1></a>' ('not well-formed (invalid token): line 1, column 8', 4, 4, 8, 1, 8) ('not well-formed (invalid token): line 1, column 8', 4, 4, 8, 1, 8)
+b'<a b="<"/>' ('not well-formed (invalid token): line 1, column 6', 4, 4, 6, 1, 6) ('not well-formed (invalid token): line 1, column 6', 4, 4, 6, 1, 6)
+b'<a>&</a>' ('not well-formed (invalid token): line 1, column 4', 4, 4, 4, 1, 4) ('not well-formed (invalid token): line 1, column 4', 4, 4, 4, 1, 4)
+b'<a>&#;</a>' ('not well-formed (invalid token): line 1, column 5', 4, 4, 5, 1, 5) ('not well-formed (invalid token): line 1, column 5', 4, 4, 5, 1, 5)
+b'<a>&#xZZ;</a>' ('not well-formed (invalid token): line 1, column 6', 4, 4, 6, 1, 6) ('not well-formed (invalid token): line 1, column 6', 4, 4, 6, 1, 6)
+b'<a>&#0;</a>' ('reference to invalid character number: line 1, column 3', 14, 14, 3, 1, 3) ('reference to invalid character number: line 1, column 3', 14, 14, 3, 1, 3)
+b'<a>&#x110000;</a>' ('reference to invalid character number: line 1, column 3', 14, 14, 3, 1, 3) ('reference to invalid character number: line 1, column 3', 14, 14, 3, 1, 3)
+b'<a>&#55296;</a>' ('reference to invalid character number: line 1, column 3', 14, 14, 3, 1, 3) ('reference to invalid character number: line 1, column 3', 14, 14, 3, 1, 3)
+b'<a>]]></a>' ('not well-formed (invalid token): line 1, column 5', 4, 4, 5, 1, 5) ('not well-formed (invalid token): line 1, column 5', 4, 4, 5, 1, 5)
+b'<a><![CDATA[x</a>' ('unclosed CDATA section: line 1, column 17', 20, 20, 17, 1, 17) ('unclosed CDATA section: line 1, column 17', 20, 20, 17, 1, 17)
+b'<a><!-- -- --></a>' ('not well-formed (invalid token): line 1, column 10', 4, 4, 10, 1, 10) ('not well-formed (invalid token): line 1, column 10', 4, 4, 10, 1, 10)
+b'<a><?xml version="1.0"?></a>' ('XML or text declaration not at start of entity: line 1, column 3', 17, 17, 3, 1, 3) ('XML or text declaration not at start of entity: line 1, column 3', 17, 17, 3, 1, 3)
+b' <?xml version="1.0"?><a/>' ('XML or text declaration not at start of entity: line 1, column 1', 17, 17, 1, 1, 1) ('XML or text declaration not at start of entity: line 1, column 1', 17, 17, 1, 1, 1)
+b'<?xml version="2.0" foo="1"?><a/>' ('XML declaration not well-formed: line 1, column 20', 30, 30, 20, 1, 20) ('XML declaration not well-formed: line 1, column 20', 30, 30, 20, 1, 20)
+b'<?xml encoding="utf-8"?><a/>' ('XML declaration not well-formed: line 1, column 6', 30, 30, 6, 1, 6) ('XML declaration not well-formed: line 1, column 6', 30, 30, 6, 1, 6)
+b'<?xml version="1.0" standalone="maybe"?><a/>' ('XML declaration not well-formed: line 1, column 32', 30, 30, 32, 1, 32) ('XML declaration not well-formed: line 1, column 32', 30, 30, 32, 1, 32)
+b'<?xml version="1.0" encoding="utf-16"?><a/>' ('encoding specified in XML declaration is incorrect: line 1, column 30', 19, 19, 30, 1, 30) ('encoding specified in XML declaration is incorrect: line 1, column 30', 19, 19, 30, 1, 30)
+b'<a/><b/>' ('junk after document element: line 1, column 4', 9, 9, 4, 1, 4) ('junk after document element: line 1, column 4', 9, 9, 4, 1, 4)
+b'<a/>text' ('junk after document element: line 1, column 4', 9, 9, 4, 1, 4) ('junk after document element: line 1, column 4', 9, 9, 4, 1, 4)
+b'<a>\xff</a>' ('not well-formed (invalid token): line 1, column 3', 4, 4, 3, 1, 3) ('not well-formed (invalid token): line 1, column 3', 4, 4, 3, 1, 3)
+b'<a>\xc3(</a>' ('not well-formed (invalid token): line 1, column 3', 4, 4, 3, 1, 3) ('not well-formed (invalid token): line 1, column 3', 4, 4, 3, 1, 3)
+b'<a>\xed\xa0\x80</a>' ('not well-formed (invalid token): line 1, column 3', 4, 4, 3, 1, 3) ('not well-formed (invalid token): line 1, column 3', 4, 4, 3, 1, 3)
+b'<a>\xef\xbf\xbe</a>' ('not well-formed (invalid token): line 1, column 3', 4, 4, 3, 1, 3) ('not well-formed (invalid token): line 1, column 3', 4, 4, 3, 1, 3)
+b'<a>\x01</a>' ('not well-formed (invalid token): line 1, column 3', 4, 4, 3, 1, 3) ('not well-formed (invalid token): line 1, column 3', 4, 4, 3, 1, 3)
+b'<1a/>' ('not well-formed (invalid token): line 1, column 1', 4, 4, 1, 1, 1) ('not well-formed (invalid token): line 1, column 1', 4, 4, 1, 1, 1)
+b'<a:b:c/>' ('ok', 1, 8, 8) ('not well-formed (invalid token): line 1, column 4', 4, 4, 4, 1, 4)
+b'<!DOCTYPE a' ('no element found: line 1, column 11', 3, 3, 11, 1, 11) ('no element found: line 1, column 11', 3, 3, 11, 1, 11)
+b'<!DOCTYPE a [<!ENTITY>]><a/>' ('not well-formed (invalid token): line 1, column 21', 4, 4, 21, 1, 21) ('not well-formed (invalid token): line 1, column 21', 4, 4, 21, 1, 21)
+b'<!DOCTYPE a [<!ELEMENT a (b,c|d)>]><a/>' ('syntax error: line 1, column 29', 2, 2, 29, 1, 29) ('syntax error: line 1, column 29', 2, 2, 29, 1, 29)
+b'<!DOCTYPE a [<!ENTITY e "&e;">]><a>&e;</a>' ('recursive entity reference: line 1, column 35', 12, 12, 35, 1, 35) ('recursive entity reference: line 1, column 35', 12, 12, 35, 1, 35)
+b'<!DOCTYPE a [<!ENTITY e SYSTEM "x" NDATA n>]><a>&e;</a>' ('reference to binary entity: line 1, column 48', 15, 15, 48, 1, 48) ('reference to binary entity: line 1, column 48', 15, 15, 48, 1, 48)
+b'<!DOCTYPE a [<!ENTITY e SYSTEM "x">]><a b="&e;"/>' ('reference to external entity in attribute: line 1, column 43', 16, 16, 43, 1, 43) ('reference to external entity in attribute: line 1, column 43', 16, 16, 43, 1, 43)
+b'<!DOCTYPE a [<!ENTITY e "<b>">]><a>&e;</a>' ('asynchronous entity: line 1, column 35', 13, 13, 35, 1, 35) ('asynchronous entity: line 1, column 35', 13, 13, 35, 1, 35)
+b'<!DOCTYPE a [<!ENTITY e "x" %p;>]><a/>' ('illegal parameter entity reference: line 1, column 28', 10, 10, 28, 1, 28) ('illegal parameter entity reference: line 1, column 28', 10, 10, 28, 1, 28)
+b'<!DOCTYPE a PUBLIC "\t" "x"><a/>' ('illegal character(s) in public id: line 1, column 20', 32, 32, 20, 1, 20) ('illegal character(s) in public id: line 1, column 20', 32, 32, 20, 1, 20)
+b'<a xmlns:p=""/>' ('ok', 1, 15, 15) ('must not undeclare prefix: line 1, column 0', 28, 28, 0, 1, 0)
+b'<a xmlns:xmlns="x"/>' ('ok', 1, 20, 20) ('reserved prefix (xmlns) must not be declared or undeclared: line 1, column 0', 39, 39, 0, 1, 0)
+b'<a xmlns:xml="x"/>' ('ok', 1, 18, 18) ('reserved prefix (xml) must not be undeclared or bound to another namespace name: line 1, column 0', 38, 38, 0, 1, 0)
+b'<a xmlns:p="http://www.w3.org/XML/1998/namespace"/>' ('ok', 1, 51, 51) ('prefix must not be bound to one of the reserved namespace names: line 1, column 0', 40, 40, 0, 1, 0)
+b'<p:a/>' ('ok', 1, 6, 6) ('unbound prefix: line 1, column 0', 27, 27, 0, 1, 0)
+b'<a xmlns:p="u" xmlns:q="u" p:x="1" q:x="2"/>' ('ok', 1, 44, 44) ('duplicate attribute: line 1, column 0', 8, 8, 0, 1, 0)
+b'\xef\xbb\xbf\xef\xbb\xbf<a/>' ('not well-formed (invalid token): line 1, column 1', 4, 4, 3, 1, 1) ('not well-formed (invalid token): line 1, column 1', 4, 4, 3, 1, 1)
+b'<a>\r' ('no element found: line 1, column 3', 3, 3, 3, 1, 3) ('no element found: line 1, column 3', 3, 3, 3, 1, 3)
+b'<a>]]' ('no element found: line 1, column 5', 3, 3, 5, 1, 5) ('no element found: line 1, column 5', 3, 3, 5, 1, 5)
+b'<a/><![CDATA[x]]>' ('junk after document element: line 1, column 4', 9, 9, 4, 1, 4) ('junk after document element: line 1, column 4', 9, 9, 4, 1, 4)
+b'<!DOCTYPE a [<![INCLUDE[]]>]><a/>' ('syntax error: line 1, column 13', 2, 2, 13, 1, 13) ('syntax error: line 1, column 13', 2, 2, 13, 1, 13)
+b'<a>&undefined;</a>' ('undefined entity: line 1, column 3', 11, 11, 3, 1, 3) ('undefined entity: line 1, column 3', 11, 11, 3, 1, 3)
+b'<a x="1" x="2"/>' ('duplicate attribute: line 1, column 9', 8, 8, 9, 1, 9) ('duplicate attribute: line 1, column 9', 8, 8, 9, 1, 9)
+b'' ('no element found: line 1, column 0', 3, 3, 0, 1, 0) ('no element found: line 1, column 0', 3, 3, 0, 1, 0)
+b'<a' ('unclosed token: line 1, column 0', 5, 5, 0, 1, 0) ('unclosed token: line 1, column 0', 5, 5, 0, 1, 0)
+b'<a>' ('no element found: line 1, column 3', 3, 3, 3, 1, 3) ('no element found: line 1, column 3', 3, 3, 3, 1, 3)
+b'</a>' ('not well-formed (invalid token): line 1, column 1', 4, 4, 1, 1, 1) ('not well-formed (invalid token): line 1, column 1', 4, 4, 1, 1, 1)
+b'<a></b>' ('mismatched tag: line 1, column 5', 7, 7, 5, 1, 5) ('mismatched tag: line 1, column 5', 7, 7, 5, 1, 5)
+b'<a b></a>' ('not well-formed (invalid token): line 1, column 4', 4, 4, 4, 1, 4) ('not well-formed (invalid token): line 1, column 4', 4, 4, 4, 1, 4)
+b'<a b=1></a>' ('not well-formed (invalid token): line 1, column 5', 4, 4, 5, 1, 5) ('not well-formed (invalid token): line 1, column 5', 4, 4, 5, 1, 5)
+b'<a b="1></a>' ('not well-formed (invalid token): line 1, column 8', 4, 4, 8, 1, 8) ('not well-formed (invalid token): line 1, column 8', 4, 4, 8, 1, 8)
+b'<a b="<"/>' ('not well-formed (invalid token): line 1, column 6', 4, 4, 6, 1, 6) ('not well-formed (invalid token): line 1, column 6', 4, 4, 6, 1, 6)
+b'<a>&</a>' ('not well-formed (invalid token): line 1, column 4', 4, 4, 4, 1, 4) ('not well-formed (invalid token): line 1, column 4', 4, 4, 4, 1, 4)
+b'<a>&#;</a>' ('not well-formed (invalid token): line 1, column 5', 4, 4, 5, 1, 5) ('not well-formed (invalid token): line 1, column 5', 4, 4, 5, 1, 5)
+b'<a>&#xZZ;</a>' ('not well-formed (invalid token): line 1, column 6', 4, 4, 6, 1, 6) ('not well-formed (invalid token): line 1, column 6', 4, 4, 6, 1, 6)
+b'<a>&#0;</a>' ('reference to invalid character number: line 1, column 3', 14, 14, 3, 1, 3) ('reference to invalid character number: line 1, column 3', 14, 14, 3, 1, 3)
+b'<a>&#x110000;</a>' ('reference to invalid character number: line 1, column 3', 14, 14, 3, 1, 3) ('reference to invalid character number: line 1, column 3', 14, 14, 3, 1, 3)
+b'<a>&#55296;</a>' ('reference to invalid character number: line 1, column 3', 14, 14, 3, 1, 3) ('reference to invalid character number: line 1, column 3', 14, 14, 3, 1, 3)
+b'<a>]]></a>' ('not well-formed (invalid token): line 1, column 5', 4, 4, 5, 1, 5) ('not well-formed (invalid token): line 1, column 5', 4, 4, 5, 1, 5)
+b'<a><![CDATA[x</a>' ('unclosed CDATA section: line 1, column 17', 20, 20, 17, 1, 17) ('unclosed CDATA section: line 1, column 17', 20, 20, 17, 1, 17)
+b'<a><!-- -- --></a>' ('not well-formed (invalid token): line 1, column 10', 4, 4, 10, 1, 10) ('not well-formed (invalid token): line 1, column 10', 4, 4, 10, 1, 10)
+b'<a><?xml version="1.0"?></a>' ('XML or text declaration not at start of entity: line 1, column 3', 17, 17, 3, 1, 3) ('XML or text declaration not at start of entity: line 1, column 3', 17, 17, 3, 1, 3)
+b' <?xml version="1.0"?><a/>' ('XML or text declaration not at start of entity: line 1, column 1', 17, 17, 1, 1, 1) ('XML or text declaration not at start of entity: line 1, column 1', 17, 17, 1, 1, 1)
+b'<?xml version="2.0" foo="1"?><a/>' ('XML declaration not well-formed: line 1, column 20', 30, 30, 20, 1, 20) ('XML declaration not well-formed: line 1, column 20', 30, 30, 20, 1, 20)
+b'<?xml encoding="utf-8"?><a/>' ('XML declaration not well-formed: line 1, column 6', 30, 30, 6, 1, 6) ('XML declaration not well-formed: line 1, column 6', 30, 30, 6, 1, 6)
+b'<?xml version="1.0" standalone="maybe"?><a/>' ('XML declaration not well-formed: line 1, column 32', 30, 30, 32, 1, 32) ('XML declaration not well-formed: line 1, column 32', 30, 30, 32, 1, 32)
+b'<?xml version="1.0" encoding="utf-16"?><a/>' ('encoding specified in XML declaration is incorrect: line 1, column 30', 19, 19, 30, 1, 30) ('encoding specified in XML declaration is incorrect: line 1, column 30', 19, 19, 30, 1, 30)
+b'<a/><b/>' ('junk after document element: line 1, column 4', 9, 9, 4, 1, 4) ('junk after document element: line 1, column 4', 9, 9, 4, 1, 4)
+b'<a/>text' ('junk after document element: line 1, column 4', 9, 9, 4, 1, 4) ('junk after document element: line 1, column 4', 9, 9, 4, 1, 4)
+b'<a>\xff</a>' ('not well-formed (invalid token): line 1, column 3', 4, 4, 3, 1, 3) ('not well-formed (invalid token): line 1, column 3', 4, 4, 3, 1, 3)
+b'<a>\xc3(</a>' ('not well-formed (invalid token): line 1, column 3', 4, 4, 3, 1, 3) ('not well-formed (invalid token): line 1, column 3', 4, 4, 3, 1, 3)
+b'<a>\xed\xa0\x80</a>' ('not well-formed (invalid token): line 1, column 3', 4, 4, 3, 1, 3) ('not well-formed (invalid token): line 1, column 3', 4, 4, 3, 1, 3)
+b'<a>\xef\xbf\xbe</a>' ('not well-formed (invalid token): line 1, column 3', 4, 4, 3, 1, 3) ('not well-formed (invalid token): line 1, column 3', 4, 4, 3, 1, 3)
+b'<a>\x01</a>' ('not well-formed (invalid token): line 1, column 3', 4, 4, 3, 1, 3) ('not well-formed (invalid token): line 1, column 3', 4, 4, 3, 1, 3)
+error !! ExpatError mismatched tag: line 3, column 2
+again !! ExpatError mismatched tag: line 5, column 2
+done !! ExpatError parsing finished: line 1, column 4
+== buffering
+3 [('<a', 0), ('hello ', 0), ('&', 1), (' world', 0), ('<b', 0), ('abcdefghijklmnopqrstuvwxyz', 0), ('A\n\n', 3), ('more', 0)] 0 True
+8 [('<a', 0), ('hello &', 7), (' world', 6), ('<b', 0), ('abcdefghijklmnopqrstuvwxyz', 0), ('A\n\nmore', 7)] 0 True
+16 [('<a', 0), ('hello & world', 13), ('<b', 0), ('abcdefghijklmnopqrstuvwxyz', 0), ('A\n\nmore', 7)] 0 True
+8192 [('<a', 0), ('hello & world', 13), ('<b', 0), ('abcdefghijklmnopqrstuvwxyzA\n\nmore', 33)] 0 True
+['abc'] 0
+['abc', 'def'] 0
+True 4
+== positions
+('StartElement', ('a', {}), 1, 0, 0, b'<a>\n  <b x="1">t\xc3\xa9xt</b>\r\n  <!-- c -->')
+('CharacterData', ('\n',), 1, 3, 3, b'\n  <b x="1">t\xc3\xa9xt</b>\r\n  <!-- c -->')
+('CharacterData', ('  ',), 2, 0, 4, b'  <b x="1">t\xc3\xa9xt</b>\r\n  <!-- c -->')
+('StartElement', ('b', {'x': '1'}), 2, 2, 6, b'<b x="1">t\xc3\xa9xt</b>\r\n  <!-- c -->')
+('CharacterData', ('téxt',), 2, 11, 15, b't\xc3\xa9xt</b>\r\n  <!-- c -->')
+('EndElement', ('b',), 2, 15, 20, b'</b>\r\n  <!-- c -->')
+('CharacterData', ('\n',), 2, 19, 24, b'\r\n  <!-- c -->')
+('CharacterData', ('  ',), 3, 0, 26, b'  <!-- c -->')
+('Comment', (' c ',), 3, 2, 28, b'<!-- c -->')
+('CharacterData', ('\n',), 3, 12, 38, b'\n</a>')
+('EndElement', ('a',), 4, 0, 39, b'</a>')
+None
+== defaults
+DefaultHandler [('Default', '<!DOCTYPE'), ('Default', ' '), ('Default', 'a'), ('Default', ' '), ('Default', '['), ('Default', '<!ENTITY'), ('Default', ' '), ('Default', 'e'), ('Default', ' '), ('Default', '"E<b/>"'), ('Default', '>'), ('Default', '<!ENTITY'), ('Default', ' '), ('Default', 'f'), ('Default', ' '), ('Default', '"F"'), ('Default', '>'), ('Default', ']'), ('Default', '>'), ('StartElement', 'a', {}), ('SkippedEntity', 'e', 0), ('SkippedEntity', 'f', 0), ('CharacterData', '&'), ('CharacterData', '<'), ('CharacterData', 'x'), ('Default', '</a>')]
+DefaultHandlerExpand [('DefaultHandle', '<!DOCTYPE'), ('DefaultHandle', ' '), ('DefaultHandle', 'a'), ('DefaultHandle', ' '), ('DefaultHandle', '['), ('DefaultHandle', '<!ENTITY'), ('DefaultHandle', ' '), ('DefaultHandle', 'e'), ('DefaultHandle', ' '), ('DefaultHandle', '"E<b/>"'), ('DefaultHandle', '>'), ('DefaultHandle', '<!ENTITY'), ('DefaultHandle', ' '), ('DefaultHandle', 'f'), ('DefaultHandle', ' '), ('DefaultHandle', '"F"'), ('DefaultHandle', '>'), ('DefaultHandle', ']'), ('DefaultHandle', '>'), ('StartElement', 'a', {}), ('CharacterData', 'E'), ('StartElement', 'b', {}), ('CharacterData', 'F'), ('CharacterData', '&'), ('CharacterData', '<'), ('CharacterData', 'x'), ('DefaultHandle', '</a>')]
+['<?xml version="1.0"?>', '\n', '<!DOCTYPE', ' ', 'a', ' ', '[', '<!ATTLIST', ' ', 'a', ' ', 'b', ' ', 'CDATA', ' ', '"c"', '>', ']', '>', '\n', '<a x="1">', 't', '<![CDATA[', 'c', ']]>', '<!--k-->', '</a>', '\n']
+== entities
+pe 0 1
+('XmlDecl', '1.0', None, 0)
+('NotStandalone',)
+('StartDoctypeDecl', 'doc', 'doc.dtd', None, 1)
+('EntityDecl', 'int', 0, 'internal &amp; text', 'http://base/', None, None, None)
+('EntityDecl', 'ext', 0, None, 'http://base/', 'ext.xml', None, None)
+('EntityDecl', 'pub', 0, None, 'http://base/', 'pub.xml', '-//X//Y Z//EN', None)
+('UnparsedEntityDecl', 'unp', 'http://base/', 'u.gif', None, 'gif')
+('NotationDecl', 'gif', 'http://base/', 'image/gif', None)
+('NotationDecl', 'jpg', 'http://base/', None, '-//J//EN')
+('EntityDecl', 'pe', 1, "<!ENTITY fromPE 'yes'>", 'http://base/', None, None, None)
+('NotStandalone',)
+('EndDoctypeDecl',)
+('StartElement', 'doc', {'a': 'internal & text'})
+('CharacterData', 'internal ')
+('CharacterData', '&')
+('CharacterData', ' text')
+('ExternalEntityRef', 'http://base/', 'ext.xml', None)
+('XmlDecl', None, 'utf-8', -1)
+('CharacterData', 'ext')
+('StartElement', 'e', {})
+('ExternalEntityRef', 'http://base/', 'pub.xml', '-//X//Y Z//EN')
+('CharacterData', 'pub')
+('SkippedEntity', 'fromPE', 0)
+('SkippedEntity', 'fromDTD', 0)
+pe 1 1
+('XmlDecl', '1.0', None, 0)
+('StartDoctypeDecl', 'doc', 'doc.dtd', None, 1)
+('EntityDecl', 'int', 0, 'internal &amp; text', 'http://base/', None, None, None)
+('EntityDecl', 'ext', 0, None, 'http://base/', 'ext.xml', None, None)
+('EntityDecl', 'pub', 0, None, 'http://base/', 'pub.xml', '-//X//Y Z//EN', None)
+('UnparsedEntityDecl', 'unp', 'http://base/', 'u.gif', None, 'gif')
+('NotationDecl', 'gif', 'http://base/', 'image/gif', None)
+('NotationDecl', 'jpg', 'http://base/', None, '-//J//EN')
+('EntityDecl', 'pe', 1, "<!ENTITY fromPE 'yes'>", 'http://base/', None, None, None)
+('EntityDecl', 'fromPE', 0, 'yes', 'http://base/', None, None, None)
+('ExternalEntityRef', 'http://base/', 'doc.dtd', None)
+('EntityDecl', 'fromDTD', 0, 'dtd', None, None, None, None)
+('NotStandalone',)
+('EndDoctypeDecl',)
+('StartElement', 'doc', {'a': 'internal & text'})
+('CharacterData', 'internal ')
+('CharacterData', '&')
+('CharacterData', ' text')
+('ExternalEntityRef', 'http://base/', 'ext.xml', None)
+('XmlDecl', None, 'utf-8', -1)
+('CharacterData', 'ext')
+('StartElement', 'e', {})
+('ExternalEntityRef', 'http://base/', 'pub.xml', '-//X//Y Z//EN')
+('CharacterData', 'pub')
+('CharacterData', 'yes')
+('CharacterData', 'dtd')
+pe 2 1
+('XmlDecl', '1.0', None, 0)
+('StartDoctypeDecl', 'doc', 'doc.dtd', None, 1)
+('EntityDecl', 'int', 0, 'internal &amp; text', 'http://base/', None, None, None)
+('EntityDecl', 'ext', 0, None, 'http://base/', 'ext.xml', None, None)
+('EntityDecl', 'pub', 0, None, 'http://base/', 'pub.xml', '-//X//Y Z//EN', None)
+('UnparsedEntityDecl', 'unp', 'http://base/', 'u.gif', None, 'gif')
+('NotationDecl', 'gif', 'http://base/', 'image/gif', None)
+('NotationDecl', 'jpg', 'http://base/', None, '-//J//EN')
+('EntityDecl', 'pe', 1, "<!ENTITY fromPE 'yes'>", 'http://base/', None, None, None)
+('EntityDecl', 'fromPE', 0, 'yes', 'http://base/', None, None, None)
+('ExternalEntityRef', 'http://base/', 'doc.dtd', None)
+('EntityDecl', 'fromDTD', 0, 'dtd', None, None, None, None)
+('NotStandalone',)
+('EndDoctypeDecl',)
+('StartElement', 'doc', {'a': 'internal & text'})
+('CharacterData', 'internal ')
+('CharacterData', '&')
+('CharacterData', ' text')
+('ExternalEntityRef', 'http://base/', 'ext.xml', None)
+('XmlDecl', None, 'utf-8', -1)
+('CharacterData', 'ext')
+('StartElement', 'e', {})
+('ExternalEntityRef', 'http://base/', 'pub.xml', '-//X//Y Z//EN')
+('CharacterData', 'pub')
+('CharacterData', 'yes')
+('CharacterData', 'dtd')
+== foreign
+True [('ext', None, None, None), ('data', 'foreign')]
+False ['undefined entity: line 1, column 3']
+ext 0 !! ExpatError error in processing external entity reference: line 1, column 40
+late !! ExpatError cannot change setting once parsing has begun: line 1, column 3
+== attributes
+0 0 a {'x': '1', 't': 'p q', 'i': 'z', 'w': 'a b\nc\td end', 'd': 'dv'}
+0 1 a {'x': '1', 't': 'p q', 'i': 'z', 'w': 'a b\nc\td end'}
+1 0 a ['x', '1', 't', 'p q', 'i', 'z', 'w', 'a b\nc\td end', 'd', 'dv']
+1 1 a ['x', '1', 't', 'p q', 'i', 'z', 'w', 'a b\nc\td end']
+== namespaces
+'!' False [('StartNamespaceDecl', None, 'http://d/'), ('StartNamespaceDecl', 'a', 'http://a/'), ('StartElement', 'http://d/!r', {}), ('StartElement', 'http://a/!x', {'http://a/!y': '1', 'z': '2'}), ('StartNamespaceDecl', None, None), ('StartElement', 'y', {}), ('StartElement', 'http://a/!q', {}), ('EndElement', 'http://a/!q'), ('EndElement', 'y'), ('EndNamespaceDecl', None), ('EndElement', 'http://a/!x'), ('EndElement', 'http://d/!r'), ('EndNamespaceDecl', 'a'), ('EndNamespaceDecl', None)]
+'!' True [('StartNamespaceDecl', None, 'http://d/'), ('StartNamespaceDecl', 'a', 'http://a/'), ('StartElement', 'http://d/!r', {}), ('StartElement', 'http://a/!x!a', {'http://a/!y!a': '1', 'z': '2'}), ('StartNamespaceDecl', None, None), ('StartElement', 'y', {}), ('StartElement', 'http://a/!q!a', {}), ('EndElement', 'http://a/!q!a'), ('EndElement', 'y'), ('EndNamespaceDecl', None), ('EndElement', 'http://a/!x!a'), ('EndElement', 'http://d/!r'), ('EndNamespaceDecl', 'a'), ('EndNamespaceDecl', None)]
+'' False [('StartNamespaceDecl', None, 'http://d/'), ('StartNamespaceDecl', 'a', 'http://a/'), ('StartElement', 'http://d/r', {}), ('StartElement', 'http://a/x', {'http://a/y': '1', 'z': '2'}), ('StartNamespaceDecl', None, None), ('StartElement', 'y', {}), ('StartElement', 'http://a/q', {}), ('EndElement', 'http://a/q'), ('EndElement', 'y'), ('EndNamespaceDecl', None), ('EndElement', 'http://a/x'), ('EndElement', 'http://d/r'), ('EndNamespaceDecl', 'a'), ('EndNamespaceDecl', None)]
+'' True [('StartNamespaceDecl', None, 'http://d/'), ('StartNamespaceDecl', 'a', 'http://a/'), ('StartElement', 'http://d/r', {}), ('StartElement', 'http://a/x', {'http://a/y': '1', 'z': '2'}), ('StartNamespaceDecl', None, None), ('StartElement', 'y', {}), ('StartElement', 'http://a/q', {}), ('EndElement', 'http://a/q'), ('EndElement', 'y'), ('EndNamespaceDecl', None), ('EndElement', 'http://a/x'), ('EndElement', 'http://d/r'), ('EndNamespaceDecl', 'a'), ('EndNamespaceDecl', None)]
+':' False [('StartNamespaceDecl', None, 'http://d/'), ('StartNamespaceDecl', 'a', 'http://a/'), ('StartElement', 'http://d/:r', {}), ('StartElement', 'http://a/:x', {'http://a/:y': '1', 'z': '2'}), ('StartNamespaceDecl', None, None), ('StartElement', 'y', {}), ('StartElement', 'http://a/:q', {}), ('EndElement', 'http://a/:q'), ('EndElement', 'y'), ('EndNamespaceDecl', None), ('EndElement', 'http://a/:x'), ('EndElement', 'http://d/:r'), ('EndNamespaceDecl', 'a'), ('EndNamespaceDecl', None)]
+':' True [('StartNamespaceDecl', None, 'http://d/'), ('StartNamespaceDecl', 'a', 'http://a/'), ('StartElement', 'http://d/:r', {}), ('StartElement', 'http://a/:x:a', {'http://a/:y:a': '1', 'z': '2'}), ('StartNamespaceDecl', None, None), ('StartElement', 'y', {}), ('StartElement', 'http://a/:q:a', {}), ('EndElement', 'http://a/:q:a'), ('EndElement', 'y'), ('EndNamespaceDecl', None), ('EndElement', 'http://a/:x:a'), ('EndElement', 'http://d/:r'), ('EndNamespaceDecl', 'a'), ('EndNamespaceDecl', None)]
+' ' False [('StartNamespaceDecl', None, 'http://d/'), ('StartNamespaceDecl', 'a', 'http://a/'), ('StartElement', 'http://d/ r', {}), ('StartElement', 'http://a/ x', {'http://a/ y': '1', 'z': '2'}), ('StartNamespaceDecl', None, None), ('StartElement', 'y', {}), ('StartElement', 'http://a/ q', {}), ('EndElement', 'http://a/ q'), ('EndElement', 'y'), ('EndNamespaceDecl', None), ('EndElement', 'http://a/ x'), ('EndElement', 'http://d/ r'), ('EndNamespaceDecl', 'a'), ('EndNamespaceDecl', None)]
+' ' True [('StartNamespaceDecl', None, 'http://d/'), ('StartNamespaceDecl', 'a', 'http://a/'), ('StartElement', 'http://d/ r', {}), ('StartElement', 'http://a/ x a', {'http://a/ y a': '1', 'z': '2'}), ('StartNamespaceDecl', None, None), ('StartElement', 'y', {}), ('StartElement', 'http://a/ q a', {}), ('EndElement', 'http://a/ q a'), ('EndElement', 'y'), ('EndNamespaceDecl', None), ('EndElement', 'http://a/ x a'), ('EndElement', 'http://d/ r'), ('EndNamespaceDecl', 'a'), ('EndNamespaceDecl', None)]
+== interning
+['a', 'b'] True True None
+== raising
+raise !! ValueError boom b
+['a', 'b'] None None 35
+after !! ExpatError parsing finished: line 1, column 6
+chardata !! ZeroDivisionError division by zero
+['x'] None
+== encodings
+utf-16 [('a', {'b': 'é'}), '中']
+utf-16-le [('a', {}), 'x😀']
+utf-16-be [('a', {}), 'é']
+latin [('a', {'é': 'ÿ'}), 'é']
+ascii [('a', {})] ExpatError not well-formed (invalid token): line 1, column 44
+cp1252 [('a', {}), '€']
+koi8 [('а', {}), 'ж']
+multibyte [] ValueError multi-byte encodings are not supported
+unknown [] LookupError unknown encoding: no-such
+bom [('a', {}), 'bom']
+utf-8 [] ExpatError not well-formed (invalid token): line 1, column 3
+UTF-16LE [] ExpatError not well-formed (invalid token): line 1, column 1
+latin-1 ['é']
+cp437 ['Θ']
+== models
+a (6, 0, None, ((4, 0, 'b', ()), (5, 2, None, ((4, 0, 'c', ()), (4, 0, 'd', ()))), (4, 1, 'e', ()), (4, 3, 'f', ())))
+b (1, 0, None, ())
+c (2, 0, None, ())
+d (3, 0, None, ())
+e (3, 2, None, ((4, 0, 'b', ()), (4, 0, 'c', ())))
+f (5, 3, None, ((6, 0, None, ((4, 0, 'b', ()), (4, 0, 'c', ()))), (6, 0, None, ((4, 0, 'd', ()), (4, 0, 'e', ())))))
+== protection
+laughs 1
+300000
+laughs2 !! ExpatError limit on input amplification factor (from DTD and entities) breached: line 1, column 311
+== chunks
+True ['|', 'root', '|', '|', '|', 'child', 'x', '|']
+False ['|', 'root', '|', '|', 'child', '|', 'x', '|']
+[3, 3000000]
+== many
+1946683 1 [60001, 60000, 498890] 1946683 1946683
+1 [80002, 100000, 498890]
