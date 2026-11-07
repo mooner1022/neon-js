@@ -11,6 +11,7 @@ import dev.mooner.neonjs.vm.HostException
 import dev.mooner.neonjs.vm.Interpreter
 import dev.mooner.neonjs.vm.Frame
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.Condition
 import java.util.concurrent.locks.ReentrantLock
 
 /** A host function callable from JS (Java-friendly SAM). */
@@ -36,6 +37,16 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
     internal val realm: Realm
     internal val bridge: HostBridge
     private val lock = ReentrantLock()
+    /** Signalled as threads leave the context, for a thread taking it back after [releasing] (see [reacquire]). */
+    private val left: Condition = lock.newCondition()
+    /**
+     * The threads that let go of the context while in it ([releasing], [awaitReleased]), in the order they did; guarded
+     * by [lock]. One that let go with calls running ([Release.callsRunning], [releasing]) has them on the agent's stack
+     * above those of the threads before it, so those take the context back only after it has.
+     */
+    private val released = ArrayList<Release>()
+
+    private class Release(val thread: Thread, val callsRunning: Boolean)
     private var depth = 0
     @Volatile private var closed = false
 
@@ -85,6 +96,8 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
     override fun <R> enter(block: () -> R): R {
         check(!closed) { "context is closed" }
         acquire()
+        val outer = entered.get()
+        entered.set(this)
         try {
             return agent.enter {
                 realm.enter {
@@ -101,18 +114,83 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
                 }
             }
         } finally {
+            entered.set(outer)
+            left.signalAll()
             lock.unlock()
+        }
+    }
+
+    /**
+     * Lets other threads call into the context while the calling thread, running JS of it, blocks in host code until
+     * they have: a host function waiting for the UI thread to run a JS function, for instance. Without this the wait
+     * deadlocks, as the other thread can't enter the context the waiting thread holds.
+     *
+     * The calls other threads make meanwhile run nested in the JS this thread was running, as if it had made them: they
+     * run no pending jobs (the microtasks stay queued for this thread) and count against this thread's limits instead of
+     * starting their own. When [block] returns, this thread takes the context back once every call made meanwhile has
+     * returned, including those of threads that released it in turn, so they end in the reverse order of their start,
+     * as nested calls do.
+     *
+     * Call it from host code running inside [enter] on the thread holding the context, typically reached through
+     * [current]. Throws [IllegalStateException] outside [enter], or when the context was closed meanwhile.
+     */
+    fun <R> releasing(block: () -> R): R {
+        check(lock.isHeldByCurrentThread) { "releasing outside the context" }
+        val holds = lock.holdCount
+        val realm = agent.currentRealm
+        release(holds, callsRunning = true)
+        val result = try {
+            block()
+        } finally {
+            reacquire()
+            repeat(holds - 1) { lock.lock() }
+            agent.currentRealm = realm
+        }
+        check(!closed) { "context is closed" }
+        return result
+    }
+
+    /** Lets go of the context, [holds] times taken by this thread, recording it for [reacquire]. */
+    private fun release(holds: Int, callsRunning: Boolean) {
+        released += Release(Thread.currentThread(), callsRunning)
+        left.signalAll()
+        repeat(holds) { lock.unlock() }
+    }
+
+    /**
+     * Takes the context back, once for this thread, after [release]. A thread that let go of it later with calls running
+     * made them nested in this thread's, in calls made meanwhile: it takes the context back and returns first, so the
+     * calls sharing the agent's stack end in the reverse order of their start. Threads that let go between calls, as a
+     * waiting event loop does, don't hold anyone up.
+     */
+    private fun reacquire() {
+        val self = Thread.currentThread()
+        lock.lock()
+        while (true) {
+            val index = released.indexOfFirst { it.thread === self }
+            if ((index + 1 until released.size).none { released[it].callsRunning }) {
+                released.removeAt(index)
+                return
+            }
+            left.awaitUninterruptibly()
         }
     }
 
     /**
      * Takes the context lock. A thread waits at most the sandbox time limit for another thread's use of the context,
      * so threads waiting on each other (JS blocking on host work that needs the same context) end with a
-     * [NeonTimeoutException] instead of a deadlock. Without a time limit the wait is unbounded.
+     * [NeonTimeoutException] instead of a deadlock, and a thread [NeonEngine.Builder.contextWaitLimit] selects at most
+     * that limit. Without either the wait is unbounded.
      */
     private fun acquire() {
-        val limit = engine.sandbox.maxExecutionMillis
-        if (limit <= 0 || lock.isHeldByCurrentThread) {
+        if (lock.isHeldByCurrentThread) {
+            lock.lock()
+            return
+        }
+        val sandboxLimit = engine.sandbox.maxExecutionMillis.takeIf { it > 0 }
+        val waitLimit = engine.contextWaitMillis.takeIf { it > 0 && engine.contextWaitAppliesTo.test(Thread.currentThread()) }
+        val limit = listOfNotNull(sandboxLimit, waitLimit).minOrNull()
+        if (limit == null) {
             lock.lock()
             return
         }
@@ -395,7 +473,7 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
         val deadline = if (agent.config.limitsPerTask) 0L else agent.deadlineNanos
         val end = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
         depth = 0
-        lock.unlock()
+        release(1, callsRunning = false)
         try {
             // another thread may run the last tasks meanwhile: then nothing will be posted
             while (!closed && agent.interruptCount == interrupts && agent.hasPendingExternal()) {
@@ -407,8 +485,9 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
                 if (agent.waitForExternal(minOf(wait, Agent.WAIT_SLICE_NANOS))) break
             }
         } finally {
-            // not acquire(): its time limit is for threads that may wait on each other, and this one holds nothing
-            lock.lock()
+            // not acquire(): its time limit is for threads that may wait on each other, and this one holds nothing; and
+            // after any thread that released the context in calls made meanwhile, as releasing does
+            reacquire()
             depth = 1
             agent.currentRealm = realm
             agent.restoreLimits(limits)
@@ -529,5 +608,14 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
 
     companion object {
         @Suppress("unused") private val keepImports = listOf(Interpreter::class, Frame::class)
+
+        /** The context each thread is running JS of, innermost first ([enter] restores the outer one). */
+        private val entered = ThreadLocal<NeonContext?>()
+
+        /**
+         * The context whose JS the calling thread is running, as host code called from JS sees it, or null outside
+         * any: for [releasing] from host functions that don't know their context.
+         */
+        @JvmStatic fun current(): NeonContext? = entered.get()
     }
 }

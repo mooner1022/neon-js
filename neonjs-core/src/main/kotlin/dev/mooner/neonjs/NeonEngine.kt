@@ -88,6 +88,10 @@ class NeonEngine private constructor(b: Builder) : AutoCloseable {
     val codeDefiner: dev.mooner.neonjs.jit.CodeDefiner? = b.codeDefiner
     /** Engine modules installed into every context, in order ([Builder.extension]). */
     val extensions: List<NeonExtension> = b.extensions.toList()
+    /** How long a thread [contextWaitAppliesTo] selects waits for a context in use; 0 for no limit of its own. */
+    val contextWaitMillis: Long = b.contextWaitMillis
+    /** The threads [contextWaitMillis] applies to ([Builder.contextWaitLimit]). */
+    val contextWaitAppliesTo: java.util.function.Predicate<Thread> = b.contextWaitAppliesTo
     @Volatile private var closed = false
 
     fun newContext(): NeonContext {
@@ -122,6 +126,8 @@ class NeonEngine private constructor(b: Builder) : AutoCloseable {
         var intl = true
         var codeDefiner: dev.mooner.neonjs.jit.CodeDefiner? = null
         val extensions = ArrayList<NeonExtension>()
+        var contextWaitMillis = 0L
+        var contextWaitAppliesTo: java.util.function.Predicate<Thread> = java.util.function.Predicate { true }
 
         fun executionMode(m: ExecutionMode) = apply { executionMode = m }
 
@@ -190,6 +196,21 @@ class NeonEngine private constructor(b: Builder) : AutoCloseable {
          * console and the web globals. Extensions are never found on the class path: an application opts in here.
          */
         fun extension(e: NeonExtension) = apply { extensions.add(e) }
+
+        /**
+         * Bounds how long a thread [appliesTo] selects (all by default) waits for a context another thread is using:
+         * past [millis], its entry throws [NeonTimeoutException] instead of waiting on. Meant for threads that must not
+         * stall, such as Android's main thread, which a script keeping its context busy would otherwise freeze. The
+         * predicate is tested on the waiting thread, at each wait. Without it, only the sandbox time limit bounds a
+         * wait ([SandboxPolicy.maxExecutionMillis]), when there is one.
+         */
+        @JvmOverloads
+        fun contextWaitLimit(millis: Long, appliesTo: java.util.function.Predicate<Thread> = java.util.function.Predicate { true }) = apply {
+            require(millis >= 0) { "millis must not be negative" }
+            contextWaitMillis = millis
+            contextWaitAppliesTo = appliesTo
+        }
+
         fun build() = NeonEngine(this)
     }
 
