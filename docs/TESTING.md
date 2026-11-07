@@ -5,7 +5,7 @@ suite run once before a large pull request. `tools/check.sh` has the three level
 
 | level | command | what | time (8 cores) |
 |---|---|---|---|
-| quick | `tools/check.sh quick` | neonjs-core's unit tests; a fixed 1 in 20 of Test262 in the interpreter and in the JIT's stress modes | ~2.5–3 min |
+| quick | `tools/check.sh quick` | neon-vm's and neonjs-core's unit tests; a fixed 1 in 20 of Test262 in the interpreter and in the JIT's stress modes | ~2.5–3 min |
 | codegen | `tools/check.sh codegen [REF]` | the classes the JIT generates for that part of Test262, against those of REF (default `main`) | ~1.5 min (~3 the first time for a REF) |
 | full | `tools/check.sh full` | what CI runs, then all of Test262 in the stress modes | long: before a large pull request |
 
@@ -67,8 +67,14 @@ On branch `ir-neutral-core`, whose step 7 compiles generators and async function
 classes as added until the branch is merged: compare with `SUBSET=1`, with a later commit of the branch (`codegen HEAD`,
 the committed tree), or with `CODEGEN_OPTS=-Dneonjs.jit.suspendable=false`.
 
+Step 9 of docs/IR_NEUTRALITY.md (§10, the core as a module of its own) renames what every class names: `run` takes the
+core's `VmFrame`, which JavaScript's code casts to its `Frame` first, and the core's code calls its own helpers. The
+comparison applies the renames `tools/codegen-equiv.txt` lists to both sides (`type NEW = OLD`: class NEW counts as
+OLD; `entry-cast CLASS`: the cast at a `run` method's start is dropped), and prints first how many names differ as
+generated. Nothing else counts as no change: a list that grew to hide a difference would be visible in its diff.
+
 REF's dumps are kept in `build/check/dumps/<commit>-*`, so comparing against the same REF again only dumps the working
-tree. `ClassDiffKt BEFORE AFTER [--show N] [--subset]` can compare any two dump directories.
+tree. `ClassDiffKt BEFORE AFTER [--show N] [--subset] [--equiv FILE]` can compare any two dump directories.
 
 ## Full
 

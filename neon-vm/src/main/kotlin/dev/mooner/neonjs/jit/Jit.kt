@@ -1,8 +1,8 @@
 package dev.mooner.neonjs.jit
 
-import dev.mooner.neonjs.compiler.CodeBlock
-import dev.mooner.neonjs.runtime.Agent
-import dev.mooner.neonjs.vm.Frame
+import dev.mooner.neonjs.compiler.CodeUnit
+import dev.mooner.neonjs.runtime.VmAgent
+import dev.mooner.neonjs.vm.VmFrame
 
 /** Tier-up policy: decides when code blocks are compiled, and whether the caller waits for the code. */
 object Jit {
@@ -21,7 +21,7 @@ object Jit {
      *    queued, so they are usually compiled, in parallel, by the time they are called.
      */
     @JvmStatic
-    fun prepare(cb: CodeBlock, agent: Agent): CompiledCode? {
+    fun prepare(cb: CodeUnit, agent: VmAgent): CompiledCode? {
         val c = cb.compiled
         if (c != null) {
             if (!cb.childrenQueued) queueChildren(cb, agent)
@@ -51,6 +51,14 @@ object Jit {
      * that runs is entered compiled after its first iteration (for tests).
      */
     @JvmField val OSR_STRESS = System.getProperty("neonjs.jit.osrStress") != null
+
+    /**
+     * Testing deoptimization: with `-Dneonjs.jit.deoptStress=N` (N > 0; 3 without a value), code compiled from then on
+     * has exits at its start, its loop headers, the start and loop headers of the bodies it inlines, and after each
+     * inlined call, and one in N exits reached leaves the activation to the interpreter there. Part of the class
+     * identity; tests change it between compilations.
+     */
+    @JvmField @Volatile var DEOPT_STRESS: Int = System.getProperty("neonjs.jit.deoptStress")?.let { it.toIntOrNull() ?: 3 } ?: 0
     @JvmField val LOOP_CHECK = if (OSR_STRESS) 1 else 4096
 
     /**
@@ -64,44 +72,45 @@ object Jit {
      * module bodies stay interpreted, as before.
      */
     @JvmStatic
-    fun loop(cb: CodeBlock, agent: Agent): Boolean {
+    fun loop(cb: CodeUnit, agent: VmAgent): Boolean {
         val config = agent.config
         if (cb.compiled != null) return config.executionMode != MODE_INTERPRETER
         cb.invocationCount += 64
         if (config.executionMode != MODE_ADAPTIVE || cb.jitFailed || cb.jitTask != null) return false
         if (cb.invocationCount < config.jitThreshold && !OSR_STRESS) return false
-        if (cb.flags and CodeBlock.TOP_LEVEL != 0 && cb.flags and CodeBlock.SCRIPT == 0) return false
+        if (!dev.mooner.neonjs.jit.opt.Dialects.of(cb).compilesAtLoops(cb)) return false
         if (!compilable(cb)) return false
         if (config.backgroundJit && !OSR_STRESS && JitQueue.submit(cb, backend(agent), agent)) return false
         return compileNow(cb, agent) != null
     }
 
     /**
-     * On-stack replacement: continues interpreted frame [f] in its code block's compiled code, at the loop header
-     * [Frame.pc] with the registers in [Frame.slots] and an empty operand stack (see [CompiledCode]). Returns the
-     * frame's result, or [JitRt.NO_OSR] (nothing done) when the code has no entry there. Called by the interpreter
-     * outside its exception dispatch: exceptions leave the frame as they leave compiled code (JitRt.leaveCompiled).
+     * On-stack replacement: continues interpreted frame [f] in its code unit's compiled code, at the loop header
+     * [VmFrame.pc] with the registers in [VmFrame.slots] and an empty operand stack (see [CompiledCode]). Returns the
+     * frame's result, or [VmRt.NO_OSR] (nothing done) when the code has no entry there. Called by the interpreter
+     * outside its exception dispatch: exceptions leave the frame as they leave compiled code (Dialect.leaveCompiled).
      */
     @JvmStatic
-    fun osr(f: Frame): Any? {
-        val c = f.code.compiled as CompiledCode
-        var r = if (c is dev.mooner.neonjs.jit.opt.T2Code && !c.hasEntry(f.pc)) JitRt.NO_OSR else enter(c, f)
+    fun osr(f: VmFrame): Any? {
+        val unit = f.unit
+        val c = unit.compiled as CompiledCode
+        var r = if (c is dev.mooner.neonjs.jit.opt.T2Code && !c.hasEntry(f.pc)) VmRt.NO_OSR else enter(c, f)
         // the optimizing tier's code declines a frame whose registers lack the kinds it speculated on (it changed
         // nothing then): the baseline, which takes any, continues the loop, and the tier's code is not tried there again
-        if (r === JitRt.NO_OSR && c is dev.mooner.neonjs.jit.opt.T2Code) {
+        if (r === VmRt.NO_OSR && c is dev.mooner.neonjs.jit.opt.T2Code) {
             c.declined(f.pc)
-            val b = f.code.baseline as CompiledCode?
+            val b = unit.baseline as CompiledCode?
             if (b != null && b !== c) r = enter(b, f)
         }
-        (if (r === JitRt.NO_OSR) osrMissed else osrEntered).incrementAndGet()
+        (if (r === VmRt.NO_OSR) osrMissed else osrEntered).incrementAndGet()
         return r
     }
 
-    private fun enter(c: CompiledCode, f: Frame): Any? = try {
+    private fun enter(c: CompiledCode, f: VmFrame): Any? = try {
         c.run(f)
     } catch (e: Throwable) {
         osrEntered.incrementAndGet()
-        throw JitRt.leaveCompiled(e, f)
+        throw dev.mooner.neonjs.jit.opt.Dialects.of(f.unit).leaveCompiled(e, f)
     }
 
     /** Loops continued in compiled code ([osr]), and attempts at a pc the code has no entry at. */
@@ -115,7 +124,7 @@ object Jit {
      * already running keep the version they started with.
      */
     @JvmStatic
-    fun install(cb: CodeBlock, code: CompiledCode): Boolean {
+    fun install(cb: CodeUnit, code: CompiledCode): Boolean {
         if (cb.baseline == null) return false
         cb.compiled = code
         return true
@@ -123,52 +132,46 @@ object Jit {
 
     /** Makes [cb]'s baseline the code new activations run again, if [code] is the one they run now. */
     @JvmStatic
-    fun revert(cb: CodeBlock, code: CompiledCode) {
+    fun revert(cb: CodeUnit, code: CompiledCode) {
         val b = cb.baseline ?: return
         COMPILED.compareAndSet(cb, code, b)
     }
 
-    private val COMPILED: java.util.concurrent.atomic.AtomicReferenceFieldUpdater<CodeBlock, Any> =
-        java.util.concurrent.atomic.AtomicReferenceFieldUpdater.newUpdater(CodeBlock::class.java, Any::class.java, "compiled")
+    private val COMPILED: java.util.concurrent.atomic.AtomicReferenceFieldUpdater<CodeUnit, Any> =
+        java.util.concurrent.atomic.AtomicReferenceFieldUpdater.newUpdater(CodeUnit::class.java, Any::class.java, "compiled")
 
     /** Queues [cb], code created at run time (the `Function` constructor), in compiled mode: it is about to be called. */
     @JvmStatic
-    fun prefetch(cb: CodeBlock, agent: Agent) {
+    fun prefetch(cb: CodeUnit, agent: VmAgent) {
         val config = agent.config
         if (config.executionMode == MODE_COMPILED && config.backgroundJit && compilable(cb)) JitQueue.submit(cb, backend(agent), agent)
     }
 
     /** The backend compiling for [agent]: JVM classes defined by its code definer. */
     @JvmStatic
-    fun backend(agent: Agent): JitBackend = ClassBackend(agent.config.codeDefiner ?: CodeDefiners.default, agent.config.tier2)
+    fun backend(agent: VmAgent): JitBackend = ClassBackend(agent.config.codeDefiner ?: CodeDefiners.default, agent.config.tier2)
 
     /** In compiled mode, queues the functions [cb] defines (once per block; not for blocks compiled in advance). */
-    private fun queueChildren(cb: CodeBlock, agent: Agent) {
+    private fun queueChildren(cb: CodeUnit, agent: VmAgent) {
         cb.childrenQueued = true
         val config = agent.config
         if (config.executionMode != MODE_COMPILED || !config.backgroundJit) return
         var backend: JitBackend? = null
         for (k in cb.constants) {
-            if (k is CodeBlock && compilable(k)) JitQueue.submit(k, backend ?: backend(agent).also { backend = it }, agent)
+            if (k is CodeUnit && compilable(k)) JitQueue.submit(k, backend ?: backend(agent).also { backend = it }, agent)
         }
     }
 
-    private fun compilable(cb: CodeBlock): Boolean =
-        cb.compiled == null && !cb.jitFailed && cb.jitTask == null && cb.strictPcs == null && canCompile(cb)
+    private fun compilable(cb: CodeUnit): Boolean =
+        cb.compiled == null && !cb.jitFailed && cb.jitTask == null && canCompile(cb)
 
-    /**
-     * Whether some tier compiles [cb]: the baseline compiler (T1), or, for generators and async functions, the optimizing
-     * tier's pipeline (dev.mooner.neonjs.jit.opt.T2.suspendable).
-     */
+    /** Whether some tier compiles [cb], as its language says (Dialect.canCompile). */
     @JvmStatic
-    fun canCompile(cb: CodeBlock): Boolean =
-        if (cb.dialect != null) cb.flags and CodeBlock.NO_JIT == 0 // another language's: the tier's pipeline only
-        else JvmCompiler.canCompile(cb) || dev.mooner.neonjs.jit.opt.T2.suspendable(cb)
+    fun canCompile(cb: CodeUnit): Boolean = dev.mooner.neonjs.jit.opt.Dialects.of(cb).canCompile(cb)
 
     /** Compiled code for [cb] now: compiled on this thread, taken over from the queue, or awaited from a worker. */
-    private fun compileNow(cb: CodeBlock, agent: Agent): CompiledCode? {
-        // code with strict regions inside sloppy code (CodeBlock.strictPcs) is rare: keep it interpreted
-        if (cb.strictPcs != null || !canCompile(cb)) {
+    private fun compileNow(cb: CodeUnit, agent: VmAgent): CompiledCode? {
+        if (!canCompile(cb)) {
             cb.jitFailed = true
             return null
         }

@@ -5,10 +5,9 @@ import org.objectweb.asm.Label
 import org.objectweb.asm.MethodVisitor
 import org.objectweb.asm.Opcodes.*
 
-// Names the generated code uses, and the locals of CompiledCode.run that every code generator lays out the same way.
+// JavaScript's names in the generated code (the core's: Emit.kt)
 internal const val FRAME = "dev/mooner/neonjs/vm/Frame"
 internal const val RT = "dev/mooner/neonjs/jit/JitRt"
-internal const val OBJ = "Ljava/lang/Object;"
 internal const val FRAME_D = "Ldev/mooner/neonjs/vm/Frame;"
 internal const val AGENT = "dev/mooner/neonjs/runtime/Agent"
 internal const val CLOSURE = "dev/mooner/neonjs/vm/JSClosure"
@@ -17,81 +16,6 @@ internal const val CODEBLOCK = "dev/mooner/neonjs/compiler/CodeBlock"
 internal const val CODEBLOCK_D = "Ldev/mooner/neonjs/compiler/CodeBlock;"
 internal const val REALM_D = "Ldev/mooner/neonjs/runtime/Realm;"
 internal const val AGENT_D = "Ldev/mooner/neonjs/runtime/Agent;"
-internal const val CONSTS_D = "[Ljava/lang/Object;"
-
-internal const val L_FRAME = 1
-internal const val L_CONSTS = 2
-internal const val L_AGENT = 3
-internal const val L_BUDGET = 4
-internal const val L_REGS = 5
-
-/**
- * Writes the classes of generated code: frames and stack sizes computed, every class merged into Object (the generated
- * code never needs a more precise common supertype, and loading classes to find one could fail in a definer's loader).
- */
-internal class JitClassWriter : org.objectweb.asm.ClassWriter(COMPUTE_FRAMES or COMPUTE_MAXS) {
-    override fun getCommonSuperClass(type1: String, type2: String): String = "java/lang/Object"
-}
-
-/**
- * What every code generator of the JIT emits alike, whatever the language: JVM locals, constants, calls of the
- * runtime's static helpers, the interrupt check of a loop's back edge. [JvmEmitter] is the base class of the
- * generators; [JsEmit] adds what JavaScript's code needs.
- */
-interface Emit {
-    val mv: MethodVisitor
-
-    /** [n] new JVM locals of the method being generated. */
-    fun alloc(n: Int): Int
-
-    fun temp(): Int = alloc(1)
-
-    fun tempD(): Int = alloc(2)
-
-    fun rt(name: String, desc: String) = mv.visitMethodInsn(INVOKESTATIC, RT, name, desc, false)
-
-    fun iconst(v: Int) {
-        when (v) {
-            in -1..5 -> mv.visitInsn(ICONST_0 + v)
-            in Byte.MIN_VALUE..Byte.MAX_VALUE -> mv.visitIntInsn(BIPUSH, v)
-            in Short.MIN_VALUE..Short.MAX_VALUE -> mv.visitIntInsn(SIPUSH, v)
-            else -> mv.visitLdcInsn(v)
-        }
-    }
-
-    fun frame() = mv.visitVarInsn(ALOAD, L_FRAME)
-
-    fun getstatic(owner: String, field: String, desc: String) = mv.visitFieldInsn(GETSTATIC, owner, field, desc)
-
-    fun packArray(n: Int) {
-        val temps = IntArray(n) { temp() }
-        for (i in n - 1 downTo 0) mv.visitVarInsn(ASTORE, temps[i])
-        iconst(n)
-        mv.visitTypeInsn(ANEWARRAY, "java/lang/Object")
-        for (i in 0 until n) {
-            mv.visitInsn(DUP)
-            iconst(i)
-            mv.visitVarInsn(ALOAD, temps[i])
-            mv.visitInsn(AASTORE)
-        }
-    }
-
-    /** A loop back edge: counts down the interrupt budget (L_BUDGET) and checks for interrupts when it runs out. */
-    fun interruptCheck() {
-        val ok = Label()
-        mv.visitIincInsn(L_BUDGET, -1)
-        mv.visitVarInsn(ILOAD, L_BUDGET)
-        mv.visitJumpInsn(IFGT, ok)
-        mv.visitVarInsn(ALOAD, L_AGENT)
-        mv.visitMethodInsn(INVOKEVIRTUAL, "dev/mooner/neonjs/runtime/Agent", "checkInterrupt", "()V", false)
-        iconst(4096)
-        mv.visitVarInsn(ISTORE, L_BUDGET)
-        mv.visitLabel(ok)
-    }
-}
-
-/** A code generator's base: the method it writes ([mv]) and what [Emit] gives every generator. */
-abstract class JvmEmitter(final override val mv: MethodVisitor) : Emit
 
 /**
  * What JavaScript's code generators emit alike: constants, conversions of unboxed values, and the helper call of
@@ -99,7 +23,13 @@ abstract class JvmEmitter(final override val mv: MethodVisitor) : Emit
  * nothing about it is specialized. [JvmCompiler]'s generator implements it, as does the optimizing tier's for
  * JavaScript, so that both call the runtime the same way.
  */
+/** A call of JavaScript's runtime helper [name] (JitRt), from any of its code generators' emitters. */
+internal fun Emit.rt(name: String, desc: String) = mv.visitMethodInsn(INVOKESTATIC, RT, name, desc, false)
+
 internal interface JsEmit : Emit {
+    /** JavaScript's Agent (its code's L_AGENT, from the frame's realm). */
+    override val agentClass: String get() = AGENT
+
     /** Pushes the constants array of the code the instruction belongs to (an inlined body's are its own). */
     fun consts() = mv.visitVarInsn(ALOAD, L_CONSTS)
     /** The local holding the environment, or `this`, of the inlined body being generated; -1 elsewhere (the frame's). */

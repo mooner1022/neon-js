@@ -4,36 +4,27 @@ import dev.mooner.neonjs.compiler.CodeBlock
 import dev.mooner.neonjs.runtime.*
 
 /**
- * Activation record of an interpreted function, script or eval. Registers and operand stack share [slots].
- *
- * Open for other languages' frames (docs/IR_NEUTRALITY.md): the optimizing tier's core reads only [code] (its
- * constants), [realm] (its agent: limits and interrupts), [args] (where a language's parameters come from), [slots],
- * [sp] and [pc] (an interpreted frame: on-stack replacement, resumption, exits), [inlinePc], and the records of calls
- * compiled inlined that its language keeps; [fn], [thisValue], [newTarget] and [env] are JavaScript's (null where a
- * language has none), and a language's own state goes in a subclass.
+ * Activation record of an interpreted function, script or eval: JavaScript's [VmFrame]. Registers and operand stack
+ * share [slots] (the core's, with [args], [sp], [pc] and [inlinePc]); [code] is the frame's code block, [realm] its
+ * realm, and [fn], [thisValue], [newTarget], [env] and the rest are JavaScript's.
  */
 open class Frame(
     @JvmField var fn: JSClosure?,
     @JvmField var code: CodeBlock,
     @JvmField var realm: Realm,
     @JvmField var thisValue: Any?,
-    @JvmField var args: Array<Any?>,
+    args: Array<Any?>,
     @JvmField var newTarget: Any?,
     @JvmField var env: Env?,
     /**
      * Compiled code to run this activation with (the code block's entry code), or null to interpret it. Not kept: a
      * frame run by compiled code has [NO_SLOTS] (see [isCompiled]), and every version of a block's code runs such a
-     * frame.
+     * frame; a deoptimization gives it slots and the interpreter continues it (dev.mooner.neonjs.jit.Deopt).
      */
     compiled: dev.mooner.neonjs.jit.CompiledCode? = code.compiled as dev.mooner.neonjs.jit.CompiledCode?,
-) {
-    /**
-     * Registers, then the operand stack, of an interpreted frame; [NO_SLOTS] for a frame compiled code runs, until a
-     * deoptimization gives it slots and the interpreter continues it (dev.mooner.neonjs.jit.Deopt).
-     */
-    @JvmField var slots: Array<Any?> = if (compiled != null) NO_SLOTS else arrayOfNulls(code.numRegs + code.maxStack)
-    @JvmField var sp: Int = code.numRegs
-    @JvmField var pc: Int = 0
+) : VmFrame(args, if (compiled != null) VmFrame.NO_SLOTS else VmFrame.slotsFor(code), code.numRegs) {
+    override val unit: dev.mooner.neonjs.compiler.CodeUnit get() = code
+    override val agent: dev.mooner.neonjs.runtime.VmAgent get() = realm.agent
 
     /**
      * Generator / async and tail-call state, created on first use: most frames never need it, and every call allocates
@@ -140,14 +131,10 @@ open class Frame(
      * into it, the optimizing tier's, make it the innermost one ([FrameExt.inlineFns] holds the others).
      */
     @JvmField var inlineFn: JSClosure? = null
-    @JvmField var inlinePc: Int = 0
 
     init {
         if (compiled == null) initSlots()
     }
-
-    /** Whether compiled code runs this frame: it was made for compiled code and not deoptimized since. */
-    val isCompiled: Boolean get() = slots === NO_SLOTS
 
     private fun initSlots() {
         val regs = code.numRegs
@@ -187,7 +174,8 @@ open class Frame(
     }
 
     companion object {
-        @JvmField val NO_SLOTS = arrayOfNulls<Any?>(0)
+        /** VmFrame.NO_SLOTS (the code generated reads it here). */
+        @JvmField val NO_SLOTS: Array<Any?> = VmFrame.NO_SLOTS
         const val SUSPEND_YIELD = 1
         const val SUSPEND_AWAIT = 2
         const val SUSPEND_INITIAL = 3

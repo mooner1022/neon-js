@@ -171,23 +171,18 @@ class ValueProfile(codeSize: Int, params: Int) {
     }
 }
 
-/** Compiled function template (bytecode + metadata). */
-class CodeBlock(@JvmField val name: String, @JvmField val kind: FunctionKind) {
-    @JvmField var flags = 0
-    @JvmField var code: IntArray = IntArray(0)
-    @JvmField var constants: Array<Any?> = arrayOfNulls(0)
-    /** Exception handlers: triples (startPc, endPc, handlerPc). Inner handlers come first. */
-    @JvmField var handlers: IntArray = IntArray(0)
-    @JvmField var numRegs = 0
-    @JvmField var maxStack = 0
+/**
+ * Compiled function template (bytecode + metadata): JavaScript's [CodeUnit]. What the execution core reads is the unit's
+ * (bytecode, constants, handlers, registers, flags, the JIT's state); the rest is JavaScript's. [CodeUnit.lineTable]
+ * holds pairs (pc, source position).
+ */
+class CodeBlock(name: String, @JvmField val kind: FunctionKind) : CodeUnit(name) {
+    init {
+        dialect = dev.mooner.neonjs.jit.opt.JsDialect
+    }
+
     /** Value of the "length" property. */
     @JvmField var length = 0
-    /** Number of formal parameters (for mapped arguments). */
-    @JvmField var formalCount = 0
-    /** For each formal parameter index, the register receiving the argument directly, or -1. */
-    @JvmField var paramRegs: IntArray? = null
-    /** Pairs (pc, sourcePos) sorted by pc. */
-    @JvmField var lineTable: IntArray = IntArray(0)
     /** Triples (pc of a call or `new` instruction, source start, source end of its callee) sorted by pc. */
     @JvmField var callSites: IntArray = IntArray(0)
     @JvmField var source: Source? = null
@@ -231,40 +226,6 @@ class CodeBlock(@JvmField val name: String, @JvmField val kind: FunctionKind) {
      * called is a closure of exactly `inlineTargets[k]`. Set before the baseline is installed, never changed after.
      */
     @JvmField var inlineTargets: Array<CodeBlock?>? = null
-    /**
-     * JIT state (see dev.mooner.neonjs.jit.Jit): the code new activations of this block run, once some is installed:
-     * the [baseline], or a later version over it (docs/OPTIMIZING_TIER.md, "Code versions"), which can give way to the
-     * baseline again. Every version runs a frame made for compiled code and answers on-stack replacement, so readers
-     * need not care which one they get.
-     */
-    @JvmField @Volatile var compiled: Any? = null
-    /** The first compiled code (dev.mooner.neonjs.jit.JvmCompiler's), once installed: never replaced. */
-    @JvmField @Volatile var baseline: Any? = null
-    /** Whether the optimizing tier's code for this block deoptimized too often: it is not compiled by that tier again. */
-    @JvmField var t2Off = false
-    /**
-     * The optimizing tier's dialect of the block's language (a jit.opt.Dialect: its builder, ops, kinds and code
-     * generator, docs/IR_NEUTRALITY.md); null for JavaScript's.
-     */
-    @JvmField var dialect: Any? = null
-    /** What the block's language keeps of it besides its bytecode (another language's names of locals, say); null for JavaScript. */
-    @JvmField var dialectData: Any? = null
-    /**
-     * The pcs where a speculation of the optimizing tier failed (an exit taken), which its next compilations of this
-     * block, or of blocks inlining it, do not make again (bit [code].size: the parameters); and how many times the block
-     * was compiled again because of them.
-     */
-    @JvmField var t2Failed: java.util.BitSet? = null
-    @JvmField var t2Recompiles = 0
-
-    /** Whether a speculation of the optimizing tier at [pc] failed before ([t2Failed]). */
-    fun t2FailedAt(pc: Int): Boolean = t2Failed?.get(pc) ?: false
-    @JvmField var invocationCount = 0
-    @JvmField @Volatile var jitFailed = false
-    /** The pending dev.mooner.neonjs.jit.JitTask while the block is queued or being compiled. */
-    @JvmField @Volatile var jitTask: Any? = null
-    /** Whether the functions this block defines were queued for compilation (compiled mode). */
-    @JvmField var childrenQueued = false
     /** Context flags for direct eval inside this function (CTX_*). */
     @JvmField var evalCtx = 0
     /** Private names visible to direct eval inside this function. */
@@ -290,8 +251,8 @@ class CodeBlock(@JvmField val name: String, @JvmField val kind: FunctionKind) {
     companion object {
         const val STRICT = 1
         const val ARROW = 2
-        const val GENERATOR = 4
-        const val ASYNC = 8
+        const val GENERATOR = CodeUnit.GENERATOR
+        const val ASYNC = CodeUnit.ASYNC
         const val CLASS_CTOR = 16
         const val DERIVED = 32
         const val METHOD = 64
@@ -300,7 +261,7 @@ class CodeBlock(@JvmField val name: String, @JvmField val kind: FunctionKind) {
         const val CONSTRUCTOR = 512
         const val TOP_LEVEL = 1024
         const val HAS_EVAL = 2048
-        const val NO_JIT = 4096
+        const val NO_JIT = CodeUnit.NO_JIT
         /** A classic script's top-level code (eval code and module bodies are TOP_LEVEL without it). */
         const val SCRIPT = 8192
 

@@ -584,11 +584,12 @@ their context).
 
 | Module / package | Contents |
 |---|---|
+| `neon-vm` (working name) | the execution core JavaScript and other languages run on: the JIT's policy and queue, the `CodeDefiner` SPI, the optimizing tier's language-neutral core (`…jit.opt`: IR, passes, code generation) and what it reads of code units, frames and agents; no JavaScript on its class path (docs/IR_NEUTRALITY.md §10) |
 | `neonjs-core` `dev.mooner.neonjs` | public API: `NeonEngine`, `NeonContext`, `NeonValue`, `SandboxPolicy`, `HostAccess`, module loaders |
 | `…parser` | lexer and parser (ESTree-like AST, early errors, Unicode 17 identifiers) |
 | `…compiler` | scope analysis and bytecode emitter |
 | `…vm` | interpreter, environments, generators/async, promises jobs, modules, eval |
-| `…jit` | JVM bytecode compiler (ASM) and the `CodeDefiner` SPI that turns its output into classes |
+| `…jit` | JVM bytecode compiler (ASM, T1), JavaScript's runtime helpers and dialect of the optimizing tier (`…jit.opt`: its builder, ops, kinds, code generator) |
 | `…runtime` | object model (shapes, property maps, inline caches), values, abstract operations, agent/realm |
 | `…builtins`, `…regexp`, `…unicode` | standard library, RegExp engine, Unicode tables |
 | `…interop` | host object bridge, overload selection, interface proxies, `Java.extend` adapters |

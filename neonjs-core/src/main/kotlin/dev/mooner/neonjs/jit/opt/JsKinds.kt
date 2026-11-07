@@ -4,6 +4,7 @@ import dev.mooner.neonjs.compiler.Op
 import dev.mooner.neonjs.jit.JT
 import dev.mooner.neonjs.jit.JitInput
 import dev.mooner.neonjs.jit.Emit
+import dev.mooner.neonjs.jit.rt
 import dev.mooner.neonjs.jit.JsEmit
 
 /**
@@ -82,6 +83,12 @@ internal class JsKinds private constructor(@JvmField val ints: Boolean, private 
         JT.INT -> 'I'
         JT.BOOL -> 'B'
         else -> '.'
+    }
+
+    /** JitRt.osrKinds: 'N' a number, 'I' an int32, 'B' a boolean. */
+    override fun osrCheck(em: Emit, kinds: String) {
+        em.mv.visitLdcInsn(kinds)
+        em.rt("osrKinds", "([Ljava/lang/Object;Ljava/lang/String;)Z")
     }
 
     override fun osrRead(em: Emit, kind: Byte) {

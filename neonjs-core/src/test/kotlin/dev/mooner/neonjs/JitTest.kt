@@ -6,6 +6,7 @@ import dev.mooner.neonjs.compiler.Source
 import dev.mooner.neonjs.jit.ClassBackend
 import dev.mooner.neonjs.jit.CodeCache
 import dev.mooner.neonjs.jit.CodeDefiner
+import dev.mooner.neonjs.jit.CodeDefiners
 import dev.mooner.neonjs.jit.CompiledCode
 import dev.mooner.neonjs.jit.GeneratedClass
 import dev.mooner.neonjs.jit.JitInput
@@ -60,7 +61,7 @@ class JitTest {
         private val jvm = JvmCodeDefiner()
         override fun define(name: String, bytes: ByteArray, parent: ClassLoader): Class<*> {
             threads[name] = Thread.currentThread().name
-            if (gate != null && name != JvmCompiler.PROBE_CLASS) {
+            if (gate != null && name != CodeDefiners.PROBE_CLASS) {
                 entered?.release()
                 gate.await()
             }

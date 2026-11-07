@@ -32,7 +32,7 @@ class T2Test {
                     val t2 = T2.compile(cb, CodeDefiners.default) ?: fail("$n not compiled by T2: ${T2.failureReasons.keys}")
                     assertNotSame(base, t2)
                     Jit.install(cb, object : CompiledCode {
-                        override fun run(f: Frame): Any? {
+                        override fun run(f: dev.mooner.neonjs.vm.VmFrame): Any? {
                             runs++
                             return t2.run(f)
                         }

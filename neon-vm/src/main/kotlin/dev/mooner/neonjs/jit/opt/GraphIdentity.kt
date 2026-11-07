@@ -1,7 +1,5 @@
 package dev.mooner.neonjs.jit.opt
 
-import dev.mooner.neonjs.runtime.Null
-import dev.mooner.neonjs.runtime.Undefined
 import java.io.DataOutputStream
 
 /**
@@ -47,7 +45,7 @@ internal object GraphIdentity {
             return sites[s]!!
         }
         fun block(b: Block?) = out.writeInt(if (b == null) -1 else blocks[b] ?: -2)
-        fun codeRef(cb: dev.mooner.neonjs.compiler.CodeBlock?) =
+        fun codeRef(cb: dev.mooner.neonjs.compiler.CodeUnit?) =
             out.writeInt(if (cb == null || cb === g.code) -1 else g.dataIndex(cb.constants))
         fun value(v: Value) {
             if (v !is Const) {
@@ -57,10 +55,9 @@ internal object GraphIdentity {
             }
             val c = v.value
             when {
-                c === Undefined -> out.writeByte('u'.code)
-                c === Null -> out.writeByte('n'.code)
                 c == null -> out.writeByte('0'.code)
-                c is Boolean -> { out.writeByte('b'.code); out.writeBoolean(c) }
+                // (the language's own singletons: JavaScript's undefined, null, true and false)
+                g.dialect.constIdentity(c, out) -> {}
                 v.k >= 0 -> { out.writeByte('k'.code); out.writeInt(v.k); codeRef(v.code) }
                 c is Double -> { out.writeByte('d'.code); out.writeLong(java.lang.Double.doubleToRawLongBits(c)) }
                 // (a value of another type, as its class and text: never shared where the text is an identity)

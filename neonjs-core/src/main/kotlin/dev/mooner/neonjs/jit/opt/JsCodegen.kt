@@ -33,13 +33,35 @@ internal class JsCodegen(
     className: String,
 ) : IrCodegen(g, mv, kinds, cw, className), JsEmit {
     private val intKind = if (ints) JT.INT else JT.NUM
+
+    // JavaScript's frame (its code block, realm, function...) and agent, as T1's code holds them
+    override val frameClass: String get() = FRAME
+    override val agentClass: String get() = AGENT
+
+    override fun entry() {
+        mv.visitVarInsn(ALOAD, L_FRAME)
+        mv.visitTypeInsn(CHECKCAST, FRAME)
+        mv.visitVarInsn(ASTORE, L_FRAME)
+    }
+
+    override fun loadConstants() {
+        frame()
+        mv.visitFieldInsn(GETFIELD, FRAME, "code", CODEBLOCK_D)
+        mv.visitFieldInsn(GETFIELD, CODEBLOCK, "constants", CONSTS_D)
+    }
+
+    override fun loadAgent() {
+        frame()
+        mv.visitFieldInsn(GETFIELD, FRAME, "realm", REALM_D)
+        mv.visitFieldInsn(GETFIELD, "dev/mooner/neonjs/runtime/Realm", "agent", AGENT_D)
+    }
     // an inlined body reads its own constants and environment, and its calls record their position in Frame.inlinePc
     override fun consts() = mv.visitVarInsn(ALOAD, curSite?.let { constsLocal[it.code]!! } ?: L_CONSTS)
     override fun inlinedEnv(): Int = curSite?.let { local[it.env]!! } ?: -1
     override val inInlinedBody: Boolean get() = curSite != null
 
     /** In an exit method: pushes the constants of [cb], the frame's code block's or one in T2Code.data. */
-    private fun constantsOf(em: JsEmit, cb: dev.mooner.neonjs.compiler.CodeBlock) {
+    private fun constantsOf(em: JsEmit, cb: dev.mooner.neonjs.compiler.CodeUnit) {
         if (cb === g.code) {
             em.mv.visitVarInsn(ALOAD, L_FRAME)
             em.mv.visitFieldInsn(GETFIELD, FRAME, "code", CODEBLOCK_D)

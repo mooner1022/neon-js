@@ -1,5 +1,7 @@
 package dev.mooner.neonjs.jit
 
+import org.objectweb.asm.Opcodes.*
+
 import java.lang.invoke.MethodHandles
 import java.util.ServiceLoader
 import java.util.concurrent.ConcurrentHashMap
@@ -60,7 +62,8 @@ open class JvmCodeDefiner : CodeDefiner {
     companion object {
         private const val JIT_PACKAGE = "dev.mooner.neonjs.jit."
         private val LOOKUP = MethodHandles.lookup()
-        internal val VISIBLE_CLASSES = System.getProperty("neonjs.jit.visibleClasses") != null
+        /** Whether JIT code is defined as ordinary (never unloaded) classes, which profilers show: `-Dneonjs.jit.visibleClasses`. */
+        val VISIBLE_CLASSES = System.getProperty("neonjs.jit.visibleClasses") != null
     }
 }
 
@@ -110,12 +113,37 @@ object CodeDefiners {
     @JvmStatic
     fun isUsable(d: CodeDefiner): Boolean = usable.computeIfAbsent(d) {
         try {
-            val bytes = JvmCompiler.probeClass(d.classFileVersion)
-            val c = d.define(JvmCompiler.PROBE_CLASS, bytes, CodeDefiner::class.java.classLoader)
+            val bytes = probeClass(d.classFileVersion)
+            val c = d.define(PROBE_CLASS, bytes, CodeDefiner::class.java.classLoader)
             c.getDeclaredConstructor().newInstance() is CompiledCode
         } catch (e: Throwable) {
             if (System.getProperty("neonjs.jit.debug") != null) e.printStackTrace()
             false
         }
+    }
+
+
+    /** Binary name of the class [CodeDefiners.isUsable] defines to test a definer. */
+    const val PROBE_CLASS = "dev.mooner.neonjs.jit.JSProbe"
+
+    /** A trivial [CompiledCode] class (its run returns null) for testing a definer. */
+    fun probeClass(version: Int): ByteArray {
+        val cw = JitClassWriter()
+        cw.visit(version, ACC_PUBLIC or ACC_FINAL or ACC_SUPER, PROBE_CLASS.replace('.', '/'), null, "java/lang/Object", arrayOf("dev/mooner/neonjs/jit/CompiledCode"))
+        val init = cw.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null)
+        init.visitCode()
+        init.visitVarInsn(ALOAD, 0)
+        init.visitMethodInsn(INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false)
+        init.visitInsn(RETURN)
+        init.visitMaxs(0, 0)
+        init.visitEnd()
+        val mv = cw.visitMethod(ACC_PUBLIC or ACC_FINAL, "run", "($VM_FRAME_D)$OBJ", null, null)
+        mv.visitCode()
+        mv.visitInsn(ACONST_NULL)
+        mv.visitInsn(ARETURN)
+        mv.visitMaxs(0, 0)
+        mv.visitEnd()
+        cw.visitEnd()
+        return cw.toByteArray()
     }
 }
