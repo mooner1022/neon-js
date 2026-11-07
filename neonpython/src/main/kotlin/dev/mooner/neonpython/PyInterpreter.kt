@@ -103,6 +103,8 @@ class PyContext(
         modules[PyStr("__main__")] = PyModule("__main__", globals)
         val outer = CURRENT.get()
         val outerHandled = handled
+        // (a host's call: its limits (time, instructions, allocations) start now, as the core's evaluations start them)
+        if (outer == null) agent.startLimits()
         CURRENT.set(this)
         try {
             PyInterpreter.call(this, PyFunction(cb, globals, name), NO_ARGS)

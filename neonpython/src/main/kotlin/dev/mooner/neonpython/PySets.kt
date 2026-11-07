@@ -98,6 +98,15 @@ object PyHash {
         else -> System.identityHashCode(v).toLong()
     }
 
+    /** A builtin value's own hash, a subclass's instance's too (str.__hash__, tuple.__hash__, int.__hash__): what hash() gives it. */
+    @JvmStatic
+    fun valueHash(v: Any?): Long = when (v) {
+        is PyStr -> fix(v.s.hashCode().toLong())
+        is PyTuple -> tuple(v.items)
+        is PyNumSub -> hash(v.num)
+        else -> hash(v)
+    }
+
     /** An instance's: its class's __hash__ (None: unhashable), else its base type's or its identity. */
     private fun special(v: Any): Long {
         val t = PyTypes.typeOf(v)
@@ -113,7 +122,9 @@ object PyHash {
             else -> System.identityHashCode(v).toLong()
         }
         return when (val r = PyCalls.callWith(PyContext.current(), PyClasses.descrGet(null, h, v, t), arrayOfNulls(0), arrayOfNulls(0), arrayOfNulls(0))) {
-            is Long -> int(r)
+            // (slot_tp_hash: a value in a hash's range as it is, so hash(x) == hash(y) where x.__hash__ gives hash(y);
+            // a larger int hashed as an int is)
+            is Long -> fix(r)
             is BigInteger -> int(r)
             is PyBool -> if (r.value) 1L else 0L
             else -> throw PyRt.typeError("__hash__ method should return an integer")

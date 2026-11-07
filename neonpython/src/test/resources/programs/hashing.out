@@ -1,0 +1,8 @@
+tuple -> (True, True, True)
+str -> (True, True, True)
+int -> (True, 5, True, True)
+struct hash -> True
+struct setattr !! AttributeError 'time.struct_time' object has no attribute 'x' and no __dict__ for setting new attributes
+version setattr !! AttributeError readonly attribute
+stat setattr !! AttributeError 'os.stat_result' object has no attribute 'y' and no __dict__ for setting new attributes
+custom -> (4611686018427387909, -2, 512)

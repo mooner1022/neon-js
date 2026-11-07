@@ -762,7 +762,7 @@ object PyClasses {
             }
             is PyValue -> {
                 val s = obj.sub ?: throw PyException("AttributeError", "'${type.tpName ?: type.name}' object has no attribute '$name' and no __dict__ for setting new attributes")
-                if (!s.cls.hasDict) throw PyException("AttributeError", "'${s.cls.name}' object has no attribute '$name' and no __dict__ for setting new attributes")
+                if (!s.cls.hasDict) throw PyException("AttributeError", "'${s.cls.tpName ?: s.cls.name}' object has no attribute '$name' and no __dict__ for setting new attributes")
                 (s.dict ?: PyDict().also { s.dict = it })[PyStr(name)] = v
             }
             else -> throw PyException("AttributeError", "'${PyTypes.name(obj)}' object has no attribute '$name' and no __dict__ for setting new attributes")

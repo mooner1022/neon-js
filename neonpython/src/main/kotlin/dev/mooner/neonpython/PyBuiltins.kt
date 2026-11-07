@@ -596,7 +596,7 @@ object PyBuiltins {
             def("__abs__") { a -> val x = plain(a[0]); if (x is Double) Math.abs(x) else if (PyRt.order(0, x, 0L)) PyRt.neg(x) else x }
             def("__bool__") { a -> PyBool.of(PyRt.truthy(plain(a[0]))) }
             def("__float__") { a -> PyRt.toDouble(plain(a[0])) }
-            def("__hash__") { a -> PyRt.hashValues(plain(a[0])).toLong() }
+            def("__hash__") { a -> PyHash.hash(plain(a[0])) }
             def("__repr__") { a -> PyStr(PyRt.reprValues(plain(a[0]))) }
             def("__format__") { a -> PyStr(PyFormat.builtinFormat(plain(a[0]), (a.getOrNull(1) as? PyStr)?.s ?: "")) }
         }
@@ -684,7 +684,8 @@ object PyBuiltins {
             dunder(t, "__mul__", 1) { a -> if (PyRt.isInt(a[1])) PyRt.mulValues(a[0], a[1]) else PyNotImplemented }
             dunder(t, "__rmul__", 1) { a -> if (PyRt.isInt(a[1])) PyRt.mulValues(a[0], a[1]) else PyNotImplemented }
         }
-        for (t in arrayOf(PyTypes.STR, PyTypes.TUPLE)) dunder(t, "__hash__", 0) { a -> PyRt.hashValues(a[0]).toLong() }
+        // (what hash() gives: CPython's for a tuple, its items' combined)
+        for (t in arrayOf(PyTypes.STR, PyTypes.TUPLE)) dunder(t, "__hash__", 0) { a -> PyHash.valueHash(a[0]) }
         dunder(PyTypes.STR, "__str__", 0) { a -> PyStr((a[0] as PyStr).s) }
     }
 

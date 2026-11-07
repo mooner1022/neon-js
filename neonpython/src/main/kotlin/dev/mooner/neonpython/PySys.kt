@@ -33,6 +33,8 @@ object PySys {
         t.module = module
         t.tpName = "$module.$name"
         t.subclassable = false
+        // (a tuple: no __dict__ for attributes of one's own)
+        t.hasDict = false
         // (its repr and fields are builtins dispatch takes: a tuple's own methods are what the runtime's paths do)
         t.dispatchBuiltins = true
         // (a field without a name (os.stat_result's integer times): in the tuple only; the members' names are the
