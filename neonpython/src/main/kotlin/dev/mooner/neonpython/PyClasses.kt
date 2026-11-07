@@ -155,6 +155,8 @@ object PyClasses {
                 }
             }
         }
+        // (its __slots__: member descriptors, and whether its instances have a __dict__)
+        PySlots.process(t)
         // (a class that defines __eq__ and not __hash__ is unhashable)
         if (t.dict.containsKey(PyStr("__eq__")) && !t.dict.containsKey(PyStr("__hash__"))) t.dict[PyStr("__hash__")] = PyNone
         t.hooks = hooksOf(t)
@@ -502,9 +504,9 @@ object PyClasses {
 
     private fun special(obj: Any?, name: String): Any? {
         if (name == "__class__") return PyTypes.typeOf(obj)
-        if (obj is PyValue && name == "__dict__") obj.sub?.let { s -> return s.dict ?: PyDict().also { s.dict = it } }
+        if (obj is PyValue && name == "__dict__") obj.sub?.let { s -> if (s.cls.hasDict) return s.dict ?: PyDict().also { s.dict = it } }
         return when (obj) {
-            is PyObject -> if (name == "__dict__") obj.dict ?: PyDict().also { obj.dict = it } else null
+            is PyObject -> if (name == "__dict__" && obj.type.hasDict) obj.dict ?: PyDict().also { obj.dict = it } else null
             is PyFunction -> when (name) {
                 "__name__" -> obj.nameObj ?: PyStr(obj.name).also { obj.nameObj = it }
                 "__qualname__" -> obj.qualnameObj ?: PyStr(obj.qualname).also { obj.qualnameObj = it }
@@ -529,7 +531,15 @@ object PyClasses {
                 else -> if (obj.fn is PyFunction) special(obj.fn, name) ?: (obj.fn as PyFunction).dict?.get(PyStr(name)) else null
             }
             is PyBuiltin -> when (name) {
-                "__name__", "__qualname__" -> PyStr(obj.name)
+                "__name__" -> PyStr(obj.name)
+                "__qualname__" -> PyStr(obj.ownerType?.let { "${it.qualname}.${obj.name}" } ?: obj.name)
+                // (CPython's, for inspect.signature: a function's of its module, a method's of its type)
+                "__text_signature__" -> {
+                    val key = obj.ownerType?.let { "${it.module}.${it.name}.${obj.name}" } ?: obj.ownerModule?.let { "$it.${obj.name}" }
+                    key?.let { PySignatures.MAP[it] }?.let { PyStr(it) } ?: PyNone
+                }
+                "__module__" -> obj.ownerModule?.let { PyStr(it) } ?: PyNone
+                "__self__" -> obj.ownerModule?.let { PyImport.importModule(PyContext.current(), it) } ?: PyNone
                 else -> null
             }
             // (a staticmethod's or classmethod's, the function's: CPython copies its attributes, and __wrapped__)
@@ -589,7 +599,9 @@ object PyClasses {
                 }
             }
             is PyBoundMethod -> when (name) {
-                "__name__", "__qualname__" -> PyStr(obj.fn.name)
+                "__name__" -> PyStr(obj.fn.name)
+                // (its function's: a method's of its type)
+                "__qualname__", "__text_signature__" -> special(obj.fn, name)
                 "__self__" -> obj.self
                 else -> null
             }
@@ -730,10 +742,27 @@ object PyClasses {
             return
         }
         when (obj) {
-            is PyObject -> (obj.dict ?: PyDict().also { obj.dict = it })[PyStr(name)] = v
-            is PyFunction -> (obj.dict ?: PyDict().also { obj.dict = it })[PyStr(name)] = v
+            is PyObject -> {
+                if (!obj.type.hasDict && obj.dict == null) {
+                    throw PyException.attributeError(obj, name, "'${obj.type.tpName ?: obj.type.name}' object has no attribute '$name' and no __dict__ for setting new attributes")
+                }
+                (obj.dict ?: PyDict().also { obj.dict = it })[PyStr(name)] = v
+            }
+            is PyFunction -> when (name) {
+                // (its names: str only, as func_set_name and func_set_qualname take them)
+                "__name__" -> {
+                    obj.name = (v as? PyStr ?: throw PyRt.typeError("__name__ must be set to a string object")).s
+                    obj.nameObj = v
+                }
+                "__qualname__" -> {
+                    obj.qualname = (v as? PyStr ?: throw PyRt.typeError("__qualname__ must be set to a string object")).s
+                    obj.qualnameObj = v
+                }
+                else -> (obj.dict ?: PyDict().also { obj.dict = it })[PyStr(name)] = v
+            }
             is PyValue -> {
                 val s = obj.sub ?: throw PyException("AttributeError", "'${type.tpName ?: type.name}' object has no attribute '$name' and no __dict__ for setting new attributes")
+                if (!s.cls.hasDict) throw PyException("AttributeError", "'${s.cls.name}' object has no attribute '$name' and no __dict__ for setting new attributes")
                 (s.dict ?: PyDict().also { s.dict = it })[PyStr(name)] = v
             }
             else -> throw PyException("AttributeError", "'${PyTypes.name(obj)}' object has no attribute '$name' and no __dict__ for setting new attributes")
@@ -774,6 +803,7 @@ object PyClasses {
             PyAnnotations.functionSet(obj, name, null)
             return
         }
+        if (obj is PyFunction && (name == "__name__" || name == "__qualname__")) throw PyRt.typeError("$name must be set to a string object")
         if (obj is PyFunction && (name == "__defaults__" || name == "__kwdefaults__")) {
             setDefaults(obj, name, PyNone)
             return
@@ -811,6 +841,15 @@ object PyClasses {
             val del = d.fdel ?: throw PyException("AttributeError", "property ${d.nameFor()}of '${type.name}' object has no deleter")
             PyCalls.callWith(PyContext.current(), del, arrayOf(obj), NO_ARGS, NO_ARGS)
             return
+        }
+        // (a descriptor object's __delete__: a slot's, one of a class's; a data descriptor without one refuses)
+        if (d is PyObject) {
+            val del = d.type.lookup("__delete__")
+            if (del != null) {
+                PyCalls.callWith(PyContext.current(), del, arrayOf(d, obj), NO_ARGS, NO_ARGS)
+                return
+            }
+            if (d.type.lookup("__set__") != null) throw PyException("AttributeError", "__delete__")
         }
         val dict = instanceDict(obj)
         if (dict == null || dict.map.remove(PyDict.Key(PyStr(name))) == null) {

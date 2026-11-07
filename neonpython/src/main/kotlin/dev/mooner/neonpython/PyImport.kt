@@ -242,8 +242,11 @@ object PyImport {
             d[PyStr("__package__")] = PyStr(name.substringBeforeLast('.', ""))
             d[PyStr("__loader__")] = PyNone
             d[PyStr("__spec__")] = PyNone
-            // (a module's builtins are functions, not methods: a class holding one gives it as it is)
-            for (v in d.map.values) if (v is PyBuiltin) v.method = false
+            // (a module's builtins are functions, not methods: a class holding one gives it as it is; theirs the module)
+            for (v in d.map.values) if (v is PyBuiltin) {
+                v.method = false
+                if (v.ownerType == null && v.ownerModule == null) v.ownerModule = name
+            }
             val m = PyModule(name, d)
             m.builtin = true
             ctx.modules[PyStr(name)] = m
@@ -255,6 +258,10 @@ object PyImport {
         when (name) {
             "sys" -> return ctx.sysModule
             "builtins" -> {
+                // (the module's own names in its dict, as CPython's builtins has them)
+                for ((k, v) in listOf("__name__" to PyStr("builtins"), "__package__" to PyStr(""), "__loader__" to PyNone, "__spec__" to PyNone)) {
+                    if (!ctx.builtins.containsKey(PyStr(k))) ctx.builtins[PyStr(k)] = v
+                }
                 val m = PyModule("builtins", ctx.builtins)
                 m.builtin = true
                 ctx.modules[PyStr("builtins")] = m
@@ -437,8 +444,20 @@ object PyImport {
             PyNone
         }
         def("intern") { a -> a[0] as? PyStr ?: throw PyRt.typeError("intern() argument must be str, not ${PyTypes.name(a[0])}") }
+        // (dataclasses' slots=True: a class's __dict__ and __weakref__ descriptors taken from its dict, gh-135228)
+        def("_clear_type_descriptors") { a ->
+            if (a.size != 1) throw PyRt.typeError("_clear_type_descriptors() takes exactly one argument (${a.size} given)")
+            val t = a[0] as? PyType ?: throw PyRt.typeError("_clear_type_descriptors() argument must be type, not ${PyTypes.name(a[0])}")
+            if (!t.heap) throw PyRt.typeError("argument is immutable")
+            t.dict.map.remove(PyDict.Key(PyStr("__dict__")))
+            t.dict.map.remove(PyDict.Key(PyStr("__weakref__")))
+            PyNone
+        }
         PySys.fill(ctx, d)
-        for (v in d.map.values) if (v is PyBuiltin) v.method = false
+        for (v in d.map.values) if (v is PyBuiltin) {
+            v.method = false
+            if (v.ownerType == null && v.ownerModule == null) v.ownerModule = "sys"
+        }
         val m = PyModule("sys", d)
         m.builtin = true
         ctx.modules[PyStr("sys")] = m

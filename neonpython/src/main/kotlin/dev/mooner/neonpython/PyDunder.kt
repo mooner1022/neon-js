@@ -553,10 +553,7 @@ object PyDunder {
 
     /** object.__getstate__: the instance's dict, None where it is empty. */
     @JvmStatic
-    fun getState(v: Any?): Any? {
-        val d = PyClasses.instanceDict(v)
-        return if (d == null || d.size == 0) PyNone else d
-    }
+    fun getState(v: Any?): Any? = PySlots.getState(v)
 
     /**
      * object.__reduce_ex__(protocol): a class's own __reduce__ where it has one; from protocol 2 copyreg.__newobj__ with

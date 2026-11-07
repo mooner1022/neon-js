@@ -38,6 +38,8 @@ class PySub(@JvmField val cls: PyType) {
     @JvmField var dict: PyDict? = null
     /** What a builtin subclass keeps of its own (a defaultdict's default_factory). */
     @JvmField var state: Any? = null
+    /** Its `__slots__`' values ([PySlots]). */
+    @JvmField var slots: Array<Any?>? = null
 }
 
 /** True and False: a subclass of int (`True + 1 == 2`). */
@@ -193,11 +195,12 @@ class PyDict : PyValue() {
  * A function: its code ([PyCompiler]), the globals of its module, its name; its defaults, keyword-only defaults and
  * closure (the cells of its free variables) as SET_FUNCTION_ATTRIBUTE gave them.
  */
-class PyFunction(@JvmField val code: CodeUnit, @JvmField val globals: PyDict, @JvmField val name: String) {
+class PyFunction(@JvmField val code: CodeUnit, @JvmField val globals: PyDict, @JvmField var name: String) {
     @JvmField val info: PyCodeInfo = code.dialectData as PyCodeInfo
     /** Its parameters' count: the registers a call's arguments fill. */
     @JvmField val params: Int = code.formalCount
-    @JvmField val qualname: String = info.qualname
+    /** Its __qualname__ (what its call errors name it by: dataclasses' generated methods set theirs). */
+    @JvmField var qualname: String = info.qualname
     @JvmField var defaults: PyTuple? = null
     @JvmField var kwdefaults: PyDict? = null
     @JvmField var closure: Array<Any?>? = null
@@ -217,7 +220,8 @@ class PyFunction(@JvmField val code: CodeUnit, @JvmField val globals: PyDict, @J
     /** Whether a call of exactly [params] positional arguments needs no binding (no keyword-only, *args, **kwargs). */
     @JvmField val simple: Boolean = info.kwonlyCount == 0 && !info.varargs && !info.varkw
 
-    override fun toString() = "<function $qualname>"
+    // (CPython's, with an address: the object's identity, as id() gives it)
+    override fun toString() = "<function $qualname at ${PyGenerators.addr(this)}>"
 }
 
 /**
@@ -234,6 +238,10 @@ class PyBuiltin(@JvmField val name: String, @JvmField val impl: (PyContext, Arra
      * `__call__ = _idfunc`).
      */
     @JvmField var method = true
+    /** Whose it is: a type's method ([ownerType]) or a module's function ([ownerModule]): its __qualname__, its
+     * __module__ and its __text_signature__ ([PySignatures]) are found by it. */
+    @JvmField var ownerType: PyType? = null
+    @JvmField var ownerModule: String? = null
     /** A builtin of its caller's frame (globals()): what a call from code calls, with the frame. */
     @JvmField var frameImpl: ((dev.mooner.neonjs.vm.VmFrame, Array<Any?>) -> Any?)? = null
 

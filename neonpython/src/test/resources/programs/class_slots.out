@@ -1,0 +1,32 @@
+get -> (1, <member 'a' of 'S' objects>, "<member 'a' of 'S' objects>", 'member_descriptor', ('a', '__b'), 'a', <class '__main__.S'>)
+unset !! AttributeError 'S' object has no attribute '_S__b'
+unset2 !! AttributeError 'S' object has no attribute '__dict__'
+set new !! AttributeError 'S' object has no attribute 'z' and no __dict__ for setting new attributes
+del -> (None, False)
+del again !! AttributeError a
+vars !! TypeError vars() argument must have __dict__ attribute
+sub dict -> ({}, None, 1)
+sub no dict !! AttributeError 'N' object has no attribute 'q' and no __dict__ for setting new attributes
+E -> ({}, True)
+mangled -> ['__static_attributes__', '_S__b']
+object !! AttributeError 'object' object has no attribute 'x' and no __dict__ for setting new attributes
+bad type !! TypeError 'int' object is not iterable
+bad item !! TypeError __slots__ items must be strings, not 'int'
+bad ident !! TypeError __slots__ must be identifiers
+conflict !! ValueError 'a' in __slots__ conflicts with class variable
+dict twice !! TypeError __dict__ slot disallowed: we already got one
+weakref !! TypeError __weakref__ slot disallowed: we already got one
+int slots !! TypeError nonempty __slots__ not supported for subtype of 'int'
+int empty -> 5
+str empty !! AttributeError 'X' object has no attribute 'q' and no __dict__ for setting new attributes
+dup -> <class '__main__.X'>
+layout !! TypeError multiple bases have instance lay-out conflict
+str slot -> <member 'abc' of 'X' objects>
+descr wrong obj !! TypeError descriptor 'a' for 'S' objects doesn't apply to a 'int' object
+weakref slotted !! TypeError cannot create weak reference to 'S' object
+copy -> S
+copy slots -> (7, 1)
+getstate -> (None, {'a': 1, '_S__b': 7})
+set 1
+deleted
+del no __delete__ !! AttributeError __delete__

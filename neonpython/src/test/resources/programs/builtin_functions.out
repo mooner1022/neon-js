@@ -1,0 +1,24 @@
+len ($module, obj, /)
+sorted ($module, iterable, /, *, key=None, reverse=False)
+print ($module, /, *args, sep=' ', end='\n', file=None, flush=False)
+max None
+getattr None
+sqrt ($module, x, /)
+log None
+str.join ($self, iterable, /)
+list.append ($self, object, /)
+dict.get ($self, key, default=None, /)
+str.split ($self, /, sep=None, maxsplit=-1)
+list.sort ($self, /, *, key=None, reverse=False)
+int.to_bytes ($self, /, length=1, byteorder='big', *, signed=False)
+dict.fromkeys ($type, iterable, value=None, /)
+object.__init__ ($self, /, *args, **kwargs)
+chain.from_iterable ($type, iterable, /)
+builtins math builtins join
+X.y y True
+X.y() missing 1 required positional argument: 'a'
+__qualname__ must be set to a string object
+__name__ must be set to a string object
+__qualname__ must be set to a string object
+__name__ must be set to a string object
+__qualname__ must be set to a string object

@@ -47,8 +47,8 @@ object PyWeakrefs {
     @JvmStatic
     fun weakrefable(v: Any?): Boolean = when (v) {
         is PyBaseException -> v.type.heap
-        is PyObject -> v.type !== PyTypes.OBJECT
-        is PyValue -> v.sub != null || v is PySet
+        is PyObject -> v.type !== PyTypes.OBJECT && v.type.hasWeakref
+        is PyValue -> v.sub?.cls?.hasWeakref ?: (v is PySet)
         is PyFunction, is PyBuiltin, is PyType, is PyMethod, is PyGenBase, is PyModule, is PyCode -> true
         else -> false
     }

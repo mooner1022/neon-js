@@ -32,7 +32,12 @@ class PyContext(
     @JvmField var posix: PyPosix.State? = null
     @JvmField val agent = VmAgent(config)
     // (the builtins are functions, not methods: a class holding one gives it as it is)
-    @JvmField val builtins: PyDict = PyBuiltins.module().also { d -> for (v in d.map.values) if (v is PyBuiltin) v.method = false }
+    @JvmField val builtins: PyDict = PyBuiltins.module().also { d ->
+        for (v in d.map.values) if (v is PyBuiltin) {
+            v.method = false
+            if (v.ownerType == null && v.ownerModule == null) v.ownerModule = "builtins"
+        }
+    }
     /** sys.modules */
     @JvmField val modules = PyDict()
     /** The code of each module imported (the tests check them all compiled). */

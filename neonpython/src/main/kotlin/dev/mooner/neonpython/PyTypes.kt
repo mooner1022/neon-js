@@ -16,6 +16,13 @@ class PyType(@JvmField var name: String, bases: Array<PyType>, @JvmField val dic
     @JvmField var subclassable = true
     /** A class (made by a class statement or type()), not a builtin type: what `__annotations__` is given for. */
     @JvmField var heap = heap
+    /**
+     * Its instances' layout ([PySlots]): whether they have a __dict__ and weak references (a class without __slots__
+     * does; object's do not), and how many slots (its bases' first).
+     */
+    @JvmField var hasDict = true
+    @JvmField var hasWeakref = true
+    @JvmField var slotCount = 0
     /** Whether dispatch takes its builtin methods too (a weak reference's, a proxy's: theirs are all it has), and its subclasses'. */
     @JvmField var dispatchBuiltins = false
     /** The name messages give its instances' type by where it is not [name] (a C type's tp_name: `types.GenericAlias`). */
@@ -65,6 +72,14 @@ class PyType(@JvmField var name: String, bases: Array<PyType>, @JvmField val dic
     /** Defines attribute [n] (a builtin's method, a constant). */
     fun def(n: String, v: Any?) {
         dict[PyStr(n)] = v
+        // (a builtin method knows its type: its __qualname__ and __text_signature__)
+        val fn = when (v) {
+            is PyBuiltin -> v
+            is PyClassMethod -> v.fn as? PyBuiltin
+            is PyStaticMethod -> v.fn as? PyBuiltin
+            else -> null
+        }
+        if (fn != null && fn.ownerType == null && fn.ownerModule == null) fn.ownerType = this
     }
 
     fun repr(): String = if (module == "builtins") "<class '$name'>" else "<class '$module.$qualname'>"
@@ -75,6 +90,8 @@ class PyType(@JvmField var name: String, bases: Array<PyType>, @JvmField val dic
 /** An instance of a class: its type and its attributes. (Exceptions' instances are of a subclass: PyBaseException.) */
 open class PyObject(@JvmField var type: PyType) {
     @JvmField var dict: PyDict? = null
+    /** Its `__slots__`' values ([PySlots]), made when one is first set. */
+    @JvmField var slots: Array<Any?>? = null
 
     override fun toString() = "<${type.module}.${type.qualname} object>"
 }
@@ -93,7 +110,11 @@ object PyTypes {
         return t
     }
 
-    @JvmField val OBJECT = PyType("object", emptyArray())
+    @JvmField val OBJECT = PyType("object", emptyArray()).also {
+        // (object() has no __dict__: `object().x = 1` an AttributeError)
+        it.hasDict = false
+        it.hasWeakref = false
+    }
     @JvmField val TYPE = builtin("type")
     @JvmField val NONE = builtin("NoneType", subclassable = false)
     @JvmField val INT = builtin("int")
