@@ -1,0 +1,178 @@
+['Error', 'Incomplete', 'a2b_base64', 'a2b_hex', 'a2b_qp', 'a2b_uu', 'b2a_base64', 'b2a_hex', 'b2a_qp', 'b2a_uu', 'crc32', 'crc_hqx', 'hexlify', 'unhexlify'] Conversion between binary data and ASCII
+(<class 'binascii.Error'>, <class 'ValueError'>, <class 'Exception'>, <class 'BaseException'>, <class 'object'>) (<class 'binascii.Incomplete'>, <class 'Exception'>, <class 'BaseException'>, <class 'object'>) binascii binascii
+True ('x',) Error: Odd-length string
+b'' Error: Missing length byte
+b' ' b''
+b'!' b'\x00'
+b'!!' b'\x04'
+b'#86)C\n' b'abc'
+b'#86)C  `\r\n' b'abc'
+b'#86)C x' Error: Trailing garbage
+b'#8\x7f)C' Error: Illegal char
+b'`' b''
+b'Maaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' Error: Illegal char
+b'\x7f' b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+b'!8```' b'`'
+b'' b' \n' b'`\n'
+b'\x00\x00\x00' b'#    \n' b'#````\n'
+b'abc' b'#86)C\n' b'#86)C\n'
+b'xxxxxxxx' b"M>'AX>'AX>'AX>'AX>'AX>'AX>'AX>'AX>'AX>'AX>'AX>'AX>'AX>'AX>'AX\n" b"M>'AX>'AX>'AX>'AX>'AX>'AX>'AX>'AX>'AX>'AX>'AX>'AX>'AX>'AX>'AX\n"
+b'xxxxxxxx' Error: At most 45 bytes at once Error: At most 45 bytes at once
+b'\x00\x01\x02\x03\x04\x05\x06\x07' b'H  $" P0%!@<("0H+# T.#Q 1$A,4%187&!D:&QP=\'A\\@(2(C)"4F)P  \n' b'H``$"`P0%!@<("0H+#`T.#Q`1$A,4%187&!D:&QP=\'A\\@(2(C)"4F)P``\n'
+TypeError: b2a_uu() takes exactly 1 positional argument (2 given) TypeError: b2a_uu() takes exactly 1 positional argument (0 given) b'!80  \n' ValueError: no truth
+True b'\x00\x01'
+b'' b'' b''
+b'YQ==' b'a' b'a'
+b'YQ' Error: Incorrect padding Error: Incorrect padding
+b'YQ=' Error: Incorrect padding Error: Incorrect padding
+b'YQ===' b'a' Error: Excess padding not allowed
+b'=YQ==' b'a' Error: Leading padding not allowed
+b'Y=Q==' b'a' Error: Invalid base64-encoded string: number of data characters (1) cannot be 1 more than a multiple of 4
+b'YQ==YQ==' b'a\x06\x10' Error: Excess data after padding
+b'YQ==\n' b'a' Error: Only base64 data is allowed
+b'Y Q = =' b'a' Error: Only base64 data is allowed
+b'YWJj' b'abc' b'abc'
+b'YWJjZA' Error: Incorrect padding Error: Incorrect padding
+b'Y' Error: Invalid base64-encoded string: number of data characters (1) cannot be 1 more than a multiple of 4 Error: Invalid base64-encoded string: number of data characters (1) cannot be 1 more than a multiple of 4
+b'YWJjZ' Error: Invalid base64-encoded string: number of data characters (5) cannot be 1 more than a multiple of 4 Error: Invalid base64-encoded string: number of data characters (5) cannot be 1 more than a multiple of 4
+b'Y===' Error: Invalid base64-encoded string: number of data characters (1) cannot be 1 more than a multiple of 4 Error: Invalid base64-encoded string: number of data characters (1) cannot be 1 more than a multiple of 4
+b'YQ=a' Error: Incorrect padding Error: Discontinuous padding not allowed
+b'YQ==a' Error: Incorrect padding Error: Excess data after padding
+b'YQ=\n=' b'a' Error: Only base64 data is allowed
+b'a\xffb=' Error: Incorrect padding Error: Only base64 data is allowed
+b'==' b'' Error: Leading padding not allowed
+b'YWJj=' b'abc' Error: Excess padding not allowed
+b'YWJj==' b'abc' Error: Excess padding not allowed
+b'YW=Jj' b'abc' Error: Discontinuous padding not allowed
+b'YW==Jj' b'abc' Error: Excess data after padding
+b'YW+/' b'ao\xbf' b'ao\xbf'
+b'-_==' b'' Error: Only base64 data is allowed
+b'' b'\n' b''
+b'a' b'YQ==\n' b'YQ=='
+b'ab' b'YWI=\n' b'YWI='
+b'abc' b'YWJj\n' b'YWJj'
+b'abcd' b'YWJjZA==\n' b'YWJjZA=='
+b'\x00\x01\x02\x03' b'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDE=\n' b'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDE='
+TypeError: a2b_base64() takes exactly 1 positional argument (2 given) TypeError: a2b_base64() takes exactly 1 positional argument (0 given) b'YQ==' ValueError: no truth
+True b'abc' ValueError: string argument should contain only ASCII characters
+Error: Non-hexadecimal digit found Error: Odd-length string b'\xab\xcd\t' b'' Error: Non-hexadecimal digit found Error: Non-hexadecimal digit found
+None None b'b901ef0203' b'b901ef0203'
+':' None b'b9:01:ef:02:03' b'b9:01:ef:02:03'
+b'_' 2 b'b9_01ef_0203' b'b9_01ef_0203'
+'-' -2 b'b901-ef02-03' b'b901-ef02-03'
+':' 0 b'b901ef0203' b'b901ef0203'
+'::' 1 ValueError: sep must be length 1. ValueError: sep must be length 1.
+'' 1 ValueError: sep must be length 1. ValueError: sep must be length 1.
+b'\xff' 1 b'b9\xff01\xffef\xff02\xff03' b'b9\xff01\xffef\xff02\xff03'
+'é' 1 b'b9\xe901\xe9ef\xe902\xe903' b'b9\xe901\xe9ef\xe902\xe903'
+'Ĭ' 1 ValueError: sep must be ASCII. ValueError: sep must be ASCII.
+bytearray(b':') 1 TypeError: sep must be str or bytes. TypeError: sep must be str or bytes.
+memoryview 1 TypeError: sep must be str or bytes. TypeError: sep must be str or bytes.
+3 1 TypeError: object of type 'int' has no len() TypeError: object of type 'int' has no len()
+None 1 TypeError: object of type 'NoneType' has no len() TypeError: object of type 'NoneType' has no len()
+':' 2147483648 OverflowError: Python int too large to convert to C int OverflowError: Python int too large to convert to C int
+':' -2147483648 b'b901ef0203' b'b901ef0203'
+':' 5 b'b901ef0203' b'b901ef0203'
+':' 6 b'b901ef0203' b'b901ef0203'
+':' -5 b'b901ef0203' b'b901ef0203'
+':' 4 b'b9:01ef0203' b'b9:01ef0203'
+':' -4 b'b901ef02:03' b'b901ef02:03'
+':' 1.0 TypeError: 'float' object cannot be interpreted as an integer TypeError: 'float' object cannot be interpreted as an integer
+'x' True b'b9x01xefx02x03' b'b9x01xefx02x03'
+b'' b'61' b'61:62' b'6162' TypeError: hexlify() got an unexpected keyword argument 'sepp'. Did you mean 'sep'? ValueError: sep must be length 1.
+True b'000102 030405 060708 090a0b 0c0d0e 0f'
+b'' b'' b''
+b'abc' b'abc' b'abc'
+b'a=b' b'a=b' b'a=b'
+b'=' b'' b''
+b'=4' b'=4' b'=4'
+b'=41' b'A' b'A'
+b'=4g' b'=4g' b'=4g'
+b'=\n' b'' b''
+b'a=\r\nb' b'ab' b'ab'
+b'a=\rb' b'a' b'a'
+b'a=  \nb' b'a=  \nb' b'a=  \nb'
+b'==41' b'=41' b'=41'
+b'_x_' b'_x_' b' x '
+b'a\x80b' b'a\x80b' b'a\x80b'
+b'=a1=A1=aZ' b'\xa1\xa1=aZ' b'\xa1\xa1=aZ'
+b'a=' b'a' b'a'
+b'a=\r' b'a' b'a'
+b'=\r\n=' b'' b''
+TypeError: a2b_qp() takes at most 2 arguments (3 given) b'aA' ValueError: string argument should contain only ASCII characters TypeError: a2b_qp() missing required argument 'data' (pos 1)
+b'' b'' b'' b'' b'' b''
+b'abc' b'abc' b'abc' b'abc' b'abc' b'abc'
+b'a b' b'a b' b'a=20b' b'a b' b'a_b' b'a=20b'
+b'a\tb' b'a\tb' b'a=09b' b'a\tb' b'a\tb' b'a=09b'
+b'a ' b'a=20' b'a=20' b'a=20' b'a=20' b'a=20'
+b'a\t' b'a=09' b'a=09' b'a=09' b'a=09' b'a=09'
+b'a \nb' b'a=20\nb' b'a=20\nb' b'a =0Ab' b'a_\nb' b'a=20=0Ab'
+b'a\t\r\nb' b'a=09\r\nb' b'a=09\r\nb' b'a\t=0D=0Ab' b'a=09\r\nb' b'a=09=0D=0Ab'
+b'a\r\nb\nc' b'a\r\nb\r\nc' b'a\r\nb\r\nc' b'a=0D=0Ab=0Ac' b'a\r\nb\r\nc' b'a=0D=0Ab=0Ac'
+b'=' b'=3D' b'=3D' b'=3D' b'=3D' b'=3D'
+b'_' b'_' b'_' b'_' b'=5F' b'=5F'
+b'.' b'=2E' b'=2E' b'=2E' b'=2E' b'=2E'
+b'.\n' b'=2E\n' b'=2E\n' b'=2E=0A' b'=2E\n' b'=2E=0A'
+b'a\n.\n' b'a\n=2E\n' b'a\n=2E\n' b'a=0A.=0A' b'a\n=2E\n' b'a=0A.=0A'
+b'.x' b'.x' b'.x' b'.x' b'.x' b'.x'
+b'\x00\x01\x7f\x80\xff' b'=00=01=7F=80=FF' b'=00=01=7F=80=FF' b'=00=01=7F=80=FF' b'=00=01=7F=80=FF' b'=00=01=7F=80=FF'
+b'xxxxxxxxxxxx' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\nxxxxx' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\nxxxxx' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\nxxxxx' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\nxxxxx' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\nxxxxx'
+b'xxxxxxxxxxxx' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\n=3D' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\n=3D' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\n=3D' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\n=3D' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\n=3D'
+b'xxxxxxxxxxxx' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\n=20y' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_y' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\n=20y'
+b'aaaaaaaaaaaa' b'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n' b'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n' b'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa=\n=0A' b'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n' b'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa=\n=0A'
+b'\r' b'\r' b'\r' b'=0D' b'\r' b'=0D'
+b'a\rb' b'a\rb' b'a\rb' b'a=0Db' b'a\rb' b'a=0Db'
+b'\n' b'\n' b'\n' b'=0A' b'\n' b'=0A'
+b'a  \r\nb  \n' b'a =20\r\nb =20\r\n' b'a=20=20\r\nb=20=20\r\n' b'a  =0D=0Ab  =0A' b'a__\r\nb__\r\n' b'a=20=20=0D=0Ab=20=20=0A'
+b'xxxxxxxxxxxx' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\n=01=02' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\n=01=02' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\n=01=02' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\n=01=02' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\n=01=02'
+b' ' b'=20' b'=20' b'=20' b'=20' b'=20'
+b'\t' b'=09' b'=09' b'=09' b'=09' b'=09'
+b'a .' b'a .' b'a=20.' b'a .' b'a_.' b'a=20.'
+b'xxxxxxxxxxxx' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\nxxxxxxxxxx' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\nxxxxxxxxxx' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\nxxxxxxxxxx' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\nxxxxxxxxxx' b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\nxxxxxxxxxx'
+b'a\r\nyyyyyyyyy' b'a\r\nyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy=\r\nyyyyy\r\n' b'a\r\nyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy=\r\nyyyyy\r\n' b'a=0D=0Ayyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy=\r\nyyyyyyyyyyyy=0D=0A' b'a\r\nyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy=\r\nyyyyy\r\n' b'a=0D=0Ayyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy=\r\nyyyyyyyyyyyy=0D=0A'
+b'line\nother\r\n' b'line\nother\n' b'line\nother\n' b'line=0Aother=0D=0A' b'line\nother\n' b'line=0Aother=0D=0A'
+b'.\r\n' b'=2E\r\n' b'=2E\r\n' b'=2E=0D=0A' b'=2E\r\n' b'=2E=0D=0A'
+b'\x00.\n' b'=00.\n' b'=00.\n' b'=00.=0A' b'=00.\n' b'=00.=0A'
+TypeError: b2a_qp() takes at most 4 arguments (5 given) b'a_b' b'x' ValueError: no truth
+TypeError: crc_hqx expected 2 arguments, got 1 40406 20810 51333 TypeError: 'float' object cannot be interpreted as an integer TypeError: crc_hqx expected 2 arguments, got 3 TypeError: binascii.crc_hqx() takes no keyword arguments 16317
+891568578 871334697 848547827 7 1182717079 TypeError: binascii.crc32() takes no keyword arguments TypeError: crc32 expected at least 1 argument, got 0 TypeError: a bytes-like object is required, not 'str'
+True 3951999591 3951999591
+a2b_uu ValueError: string argument should contain only ASCII characters TypeError: argument should be bytes, buffer or ASCII string, not 'int' TypeError: argument should be bytes, buffer or ASCII string, not 'NoneType' b'A\x14@\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' b'A\x14@\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' b'@\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' TypeError: binascii.a2b_uu() takes exactly one argument (0 given)
+a2b_base64 ValueError: string argument should contain only ASCII characters TypeError: argument should be bytes, buffer or ASCII string, not 'int' TypeError: argument should be bytes, buffer or ASCII string, not 'NoneType' b'\xd3Mu' b'\xd3Mu' Error: Incorrect padding TypeError: a2b_base64() takes exactly 1 positional argument (0 given)
+a2b_hex ValueError: string argument should contain only ASCII characters TypeError: argument should be bytes, buffer or ASCII string, not 'int' TypeError: argument should be bytes, buffer or ASCII string, not 'NoneType' b'\x00\x11' b'\x00\x11' b'\x00' TypeError: binascii.a2b_hex() takes exactly one argument (0 given)
+unhexlify ValueError: string argument should contain only ASCII characters TypeError: argument should be bytes, buffer or ASCII string, not 'int' TypeError: argument should be bytes, buffer or ASCII string, not 'NoneType' b'\x00\x11' b'\x00\x11' b'\x00' TypeError: binascii.unhexlify() takes exactly one argument (0 given)
+a2b_qp ValueError: string argument should contain only ASCII characters TypeError: argument should be bytes, buffer or ASCII string, not 'int' TypeError: argument should be bytes, buffer or ASCII string, not 'NoneType' b'0011' b'0011' b'00' TypeError: a2b_qp() missing required argument 'data' (pos 1)
+b2a_uu TypeError: a bytes-like object is required, not 'str' TypeError: a bytes-like object is required, not 'int' b'$,# Q,0  \n' b'$,# Q,0  \n' TypeError: b2a_uu() takes exactly 1 positional argument (0 given)
+b2a_base64 TypeError: a bytes-like object is required, not 'str' TypeError: a bytes-like object is required, not 'int' b'MDAxMQ==\n' b'MDAxMQ==\n' TypeError: b2a_base64() takes exactly 1 positional argument (0 given)
+b2a_hex TypeError: a bytes-like object is required, not 'str' TypeError: a bytes-like object is required, not 'int' b'30303131' b'30303131' TypeError: b2a_hex() missing required argument 'data' (pos 1)
+hexlify TypeError: a bytes-like object is required, not 'str' TypeError: a bytes-like object is required, not 'int' b'30303131' b'30303131' TypeError: hexlify() missing required argument 'data' (pos 1)
+b2a_qp TypeError: a bytes-like object is required, not 'str' TypeError: a bytes-like object is required, not 'int' b'0011' b'0011' TypeError: b2a_qp() missing required argument 'data' (pos 1)
+crc32 TypeError: a bytes-like object is required, not 'str' TypeError: a bytes-like object is required, not 'int' 1653065125 1653065125 TypeError: crc32 expected at least 1 argument, got 0
+TypeError: binascii.a2b_uu() takes no keyword arguments TypeError: binascii.a2b_hex() takes no keyword arguments TypeError: binascii.a2b_hex() takes exactly one argument (2 given) BufferError: memoryview: underlying buffer is not C-contiguous TypeError: argument should be bytes, buffer or ASCII string, not 'memoryview'
+b'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwd' True ['a85decode', 'a85encode', 'b16decode', 'b16encode', 'b32decode', 'b32encode', 'b32hexdecode', 'b32hexencode', 'b64decode', 'b64encode', 'b85decode', 'b85encode', 'decode', 'decodebytes', 'encode', 'encodebytes', 'standard_b64decode', 'standard_b64encode', 'urlsafe_b64decode', 'urlsafe_b64encode', 'z85decode', 'z85encode']
+b'-__-' b'\xfb\xff\xfe' b'eHl6' b'xyz'
+b'YWJj' Error: Only base64 data is allowed b'abc' Error: Incorrect padding
+b'AAAQEAYEAUDAOCAJBIFQYDIOB4IBCEQTCQKRMFYY' True b'C5H66P35' b'abcde'
+b'abc' b'abc' Error: Incorrect padding b'qbc'
+b'01AB' b'\x01\xab' Error: Non-base16 digit found b'\x01\xab'
+b'!!*-\'"9eu7#RLhG$k3[W&.oNg\'GVB"(`=52*$$(B' True b'<~@:E^~>' b'zy'
+b'!!*-\'"9eu7#RLhG$k3[W\n&.oNg\'GVB"(`=52*$$(B\n+<_pR,UF' b'abc' ValueError: Non-Ascii85 digit found: ~
+b'009C61O)~M2nh-c3=Iws5D^j+6crX17#SKH9337X' True b'VPazd' ValueError: base85 overflow in hunk starting at byte 5
+b'HelloWorld' b'\x86O\xd2o\xb5Y\xf7['
+b'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4\nOTo' True TypeError: expected bytes-like object, not str
+1083 b'3+/2hlbGxvIHdv\ncmxk\n' True
+b'h=E9llo =3D world =09\nline two with trailing space=20\nlong xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\nxxxxxxxxxxxxxxxxxxxx\n' True b'h=E9llo=20=3D=20world=20=09\nline=20two=2' b'a_b=5Fc' b'a b=c'
+True True
+base64 b'aGVsbG8gd29ybGQ=\n' b'hello world' base64
+base64_codec b'aGVsbG8gd29ybGQ=\n' b'hello world' base64
+base_64 b'aGVsbG8gd29ybGQ=\n' b'hello world' base64
+hex b'68656c6c6f20776f726c64' b'hello world' hex
+hex_codec b'68656c6c6f20776f726c64' b'hello world' hex
+uu b'begin 666 <data>\n+:&5L;&\\@=V]R;&0 \n \nend\n' b'hello world' uu
+uu_codec b'begin 666 <data>\n+:&5L;&\\@=V]R;&0 \n \nend\n' b'hello world' uu
+quopri b'hello=20world' b'hello world' quopri
+quotedprintable b'hello=20world' b'hello world' quopri
+quoted_printable b'hello=20world' b'hello world' quopri
+TypeError: expected bytes-like object, not str Error: Non-hexadecimal digit found LookupError: 'hex' is not a text encoding; use codecs.decode() to handle arbitrary codecs LookupError: 'base64' is not a text encoding; use codecs.encode() to handle arbitrary codecs
+b'YWJj\nZGVm\n' b'abc'
+b'begin 666 <data>\n&<W1R96%M\n \nend\n' b'stream' ValueError: Missing "begin" line in input data

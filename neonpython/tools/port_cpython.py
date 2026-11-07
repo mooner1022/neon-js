@@ -39,6 +39,7 @@ abc.py
 annotationlib.py
 argparse.py
 ast.py
+base64.py
 bisect.py
 calendar.py
 cmd.py
@@ -46,6 +47,11 @@ codecs.py
 codeop.py
 collections/__init__.py
 colorsys.py
+compression/__init__.py
+compression/_common/__init__.py
+compression/_common/_streams.py
+compression/gzip.py
+compression/zlib.py
 concurrent/__init__.py
 concurrent/futures/__init__.py
 concurrent/futures/_base.py
@@ -62,6 +68,7 @@ encodings/__init__.py
 encodings/_win_cp_codecs.py
 encodings/aliases.py
 encodings/ascii.py
+encodings/base64_codec.py
 encodings/charmap.py
 encodings/cp037.py
 encodings/cp1006.py
@@ -100,6 +107,7 @@ encodings/cp866.py
 encodings/cp869.py
 encodings/cp874.py
 encodings/cp875.py
+encodings/hex_codec.py
 encodings/hp_roman8.py
 encodings/iso8859_1.py
 encodings/iso8859_10.py
@@ -134,6 +142,7 @@ encodings/mac_turkish.py
 encodings/palmos.py
 encodings/ptcp154.py
 encodings/punycode.py
+encodings/quopri_codec.py
 encodings/raw_unicode_escape.py
 encodings/rot_13.py
 encodings/tis_620.py
@@ -148,6 +157,8 @@ encodings/utf_32_le.py
 encodings/utf_7.py
 encodings/utf_8.py
 encodings/utf_8_sig.py
+encodings/uu_codec.py
+encodings/zlib_codec.py
 enum.py
 fnmatch.py
 fractions.py
@@ -156,6 +167,7 @@ genericpath.py
 gettext.py
 glob.py
 graphlib.py
+gzip.py
 heapq.py
 html/__init__.py
 html/entities.py
@@ -178,6 +190,7 @@ pickle.py
 posixpath.py
 pprint.py
 queue.py
+quopri.py
 random.py
 re/__init__.py
 re/_casefix.py

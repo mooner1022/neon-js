@@ -1,0 +1,213 @@
+['DEFLATED', 'DEF_BUF_SIZE', 'DEF_MEM_LEVEL', 'MAX_WBITS', 'ZLIB_RUNTIME_VERSION', 'ZLIB_VERSION', 'Z_BEST_COMPRESSION', 'Z_BEST_SPEED', 'Z_BLOCK', 'Z_DEFAULT_COMPRESSION', 'Z_DEFAULT_STRATEGY', 'Z_FILTERED', 'Z_FINISH', 'Z_FIXED', 'Z_FULL_FLUSH', 'Z_HUFFMAN_ONLY', 'Z_NO_COMPRESSION', 'Z_NO_FLUSH', 'Z_PARTIAL_FLUSH', 'Z_RLE', 'Z_SYNC_FLUSH', 'Z_TREES', '_ZlibDecompressor', 'adler32', 'compress', 'compressobj', 'crc32', 'decompress', 'decompressobj', 'error'] 1.0 1.3.2 1.3.2
+15 8 8 16384 0 1 9 -1 1 2 3 4 0 0 1 2 3 4 5 6
+['The functions in this module allow compression and decompression using the', 'zlib library, which is based on GNU zip.'] <class 'zlib.Compress'> <class 'zlib.Decompress'> <class 'zlib._ZlibDecompressor'> (<class 'zlib.error'>, <class 'Exception'>, <class 'BaseException'>, <class 'object'>) zlib
+TypeError: cannot create 'zlib.Compress' instances TypeError: cannot create 'zlib.Decompress' instances Create a decompressor object for decompressing data incrementally. zlib
+type 'zlib._ZlibDecompressor' is not an acceptable base type
+891568578 899311407 871334697 TypeError: 'float' object cannot be interpreted as an integer 38600999 42074420 TypeError: a bytes-like object is required, not 'str' TypeError: crc32 expected at least 1 argument, got 0 TypeError: crc32 expected at most 2 arguments, got 3 TypeError: zlib.crc32() takes no keyword arguments TypeError: zlib.adler32() takes no keyword arguments
+2599912338 2168731741 True 345649196 3951999591
+-1 789c 8144385d True True
+0 7801 8144385d True True
+1 7801 8144385d True True
+2 785e 8144385d True True
+3 785e 8144385d True True
+4 785e 8144385d True True
+5 785e 8144385d True True
+6 789c 8144385d True True
+7 78da 8144385d True True
+8 78da 8144385d True True
+9 78da 8144385d True True
+9 1895 True b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\t b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\t
+10 2891 True b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\t error: Error -3 while decompressing data
+12 4889 True b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\t error: Error -3 while decompressing data
+14 6881 True b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\t error: Error -3 while decompressing data
+15 789c True b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\t error: Error -3 while decompressing data
+-9  True error: Error -3 while decompressing data b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\t
+-12  True error: Error -3 while decompressing data b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\t
+-15  True error: Error -3 while decompressing data b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\t
+25 1f8b0800000000000003 True error: Error -3 while decompressing data error: Error -3 while decompressing data
+28 1f8b0800000000000003 True error: Error -3 while decompressing data error: Error -3 while decompressing data
+31 1f8b0800000000000003 True error: Error -3 while decompressing data error: Error -3 while decompressing data
+8 1895 error: Error -3 while decompressing data: invalid window size b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\t b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\t
+7801010b00f4ff73746f72656420646174611ab2044c 7801010000ffff00000001 010000ffff 1f8b0800000000000403010100feff788316dc8c01000000
+b'hello world hello world hello world hello world hello world hello world hello world hello world hello world hello world hello world hello world hello world hello world hello world hello world hello world hello world hello world hello world ' True b'gzip member\ngzip member\ngzip member\ngzip member\ngzip member\ngzip member\ngzip member\ngzip member\ngzip member\ngzip member\n' True
+b'first part, second part, last' b'hello' b'hello' True
+-16 error: Bad compression l error: Error -2 while preparing to decompress data: inconsis
+-8 error: Bad compression l error: Error -3 while decompressing data: invalid stored blo
+-7 error: Bad compression l error: Error -2 while preparing to decompress data: inconsis
+0 error: Bad compression l b'hello world hello world hello world hello world hello worl
+1 error: Bad compression l error: Error -2 while preparing to decompress data: inconsis
+7 error: Bad compression l error: Error -2 while preparing to decompress data: inconsis
+8 1895ab000000790079 error: Error -3 while decompressing data: invalid window siz
+16 error: Bad compression l error: Error -3 while decompressing data: incorrect header c
+24 error: Bad compression l error: Error -3 while decompressing data: incorrect header c
+32 error: Bad compression l b'hello world hello world hello world hello world hello worl
+47 error: Bad compression l b'hello world hello world hello world hello world hello worl
+48 error: Bad compression l error: Error -2 while preparing to decompress data: inconsis
+2147483648 OverflowError: Python in OverflowError: Python int too large to convert to C int
+-2 error: Bad compression level
+10 error: Bad compression level
+11 error: Bad compression level
+ error: Error -5 while decompressing data: incomplete or truncated stream
+78 error: Error -5 while decompressing data: incomplete or truncated stream
+789c error: Error -5 while decompressing data: incomplete or truncated stream
+789c4b error: Error -5 while decompressing data: incomplete or truncated stream
+78dacb48cdc9 error: Error -5 while decompressing data: incomplete or truncated stream
+78dacb48cdc9 error: Error -5 while decompressing data: incomplete or truncated stream
+78dacb48cdc9 error: Error -5 while decompressing data: incomplete or truncated stream
+789dcb48cdc9 error: Error -3 while decompressing data: incorrect header check
+799ccb48cdc9 error: Error -3 while decompressing data: incorrect header check
+889ccb48cdc9 error: Error -3 while decompressing data: incorrect header check
+779c error: Error -3 while decompressing data: incorrect header check
+78797a error: Error -3 while decompressing data: incorrect header check
+78dacb48cdc9 b'hello world hello world hello world hello world hello world hello world hello 
+78daff48cdc9 error: Error -3 while decompressing data: invalid block type
+78dacb48cdc9 error: Error -3 while decompressing data: incorrect data check
+78f91a0b045d error: Error 2 while decompressing data
+1f8b0800 error: Error -5 while decompressing data: incomplete or truncated stream error: Error -5 while decompressing data: incomplete or truncated stream
+1f8b0800 error: Error -5 while decompressing data: incomplete or truncated stream error: Error -5 while decompressing data: incomplete or truncated stream
+1f8b0800 error: Error -5 while decompressing data: incomplete or truncated stream error: Error -5 while decompressing data: incomplete or truncated stream
+1f8b08 error: Error -5 while decompressing data: incomplete or truncated stream error: Error -5 while decompressing data: incomplete or truncated stream
+1f8b07 error: Error -5 while decompressing data: incomplete or truncated stream error: Error -5 while decompressing data: incomplete or truncated stream
+1f8b08e0 error: Error -3 while decompressing data: unknown header flags set error: Error -3 while decompressing data: unknown header flags set
+1f8b0800 error: Error -3 while decompressing data: incorrect data check error: Error -3 while decompressing data: incorrect data check
+1f8b0800 error: Error -3 while decompressing data: incorrect length check error: Error -3 while decompressing data: incorrect length check
+1f8b0800 b'gzip member\ngzip member\ngzip member\ngzip member\ngzip member\ngzip member\n b'gzip member\ngzip member\ngzip member\ngzip member\ngzip member\ngzip member\n
+78dacb48 error: Error -3 while decompressing data: incorrect header check b'hello world hello world hello world hello world hello world hello world hello 
+63606462 error: Error -5 while decompressing data: incomplete or truncated stre
+63606462 b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\x0c\r\x0e\x0f\x10\x11\x
+ffff error: Error -3 while decompressing data: invalid block type
+07 error: Error -3 while decompressing data: invalid block type
+ error: Error -5 while decompressing data: incomplete or truncated stre
+ValueError: bufsize must be non-negative OverflowError: Python int too large to convert to C ssize_t TypeError: a bytes-like object is required, not 'str' TypeError: a bytes-like object is required, not 'str' TypeError: 'NoneType' object cannot be interpreted as an integer TypeError: compress() takes at most 3 arguments (4 given) TypeError: compress() takes at least 1 positional argument (0 given) TypeError: 'str' object cannot be interpreted as an integer
+0 7061796c6f6164
+7061796c6f6164 error: Error -3 while decompressing data: header crc mismatch
+b'payload' True b''
+4 7061796c6f6164
+7061796c6f6164 error: Error -3 while decompressing data: header crc mismatch
+b'payload' True b''
+8 7061796c6f6164
+7061796c6f6164 error: Error -3 while decompressing data: header crc mismatch
+b'payload' True b''
+16 7061796c6f6164
+7061796c6f6164 error: Error -3 while decompressing data: header crc mismatch
+b'payload' True b''
+28 7061796c6f6164
+7061796c6f6164 error: Error -3 while decompressing data: header crc mismatch
+b'payload' True b''
+{'level': 10} ValueError: Invalid initialization option
+{'level': -2} ValueError: Invalid initialization option
+{'method': 7} ValueError: Invalid initialization option
+{'wbits': 8} error: Error -3 while decompressing data: invalid window size
+{'wbits': -8} ValueError: Invalid initialization option
+{'wbits': 24} ValueError: Invalid initialization option
+{'wbits': 7} ValueError: Invalid initialization option
+{'wbits': 16} ValueError: Invalid initialization option
+{'wbits': 32} ValueError: Invalid initialization option
+{'memLevel': 0} ValueError: Invalid initialization option
+{'memLevel': 10} ValueError: Invalid initialization option
+{'memLevel': 9} 789c 8144385d True
+{'memLevel': 1} 789c 8144385d True
+{'strategy': -1} ValueError: Invalid initialization option
+{'strategy': 5} ValueError: Invalid initialization option
+{'strategy': 4} 7801 8144385d True
+{'strategy': 3} 7801 8144385d True
+{'strategy': 2} 7801 8144385d True
+{'strategy': 1} 789c 8144385d True
+{'zdict': 'abc'} TypeError: a bytes-like object is required, not 'str'
+{'zdict': b'abc', 'wbits': 31} ValueError: Invalid dictionary
+{'zdict': b'abc', 'wbits': -15}   True
+{'zdict': bytearray(b'x')} 78bb 8144385d True
+{'levl': 1} TypeError: compressobj() got an unexpected keyword argument 'levl'. Did you mean 'level'?
+TypeError: compressobj() takes at most 6 arguments (7 given) TypeError: 'str' object cannot be interpreted as an integer TypeError: a bytes-like object is required, not 'str'
+-1 789c error: Error -2 while flushing: inconsistent stream state error: Error -2 while flushing: inconsistent stream state 557659b1
+0 789c   557659b1
+1 789c   557659b1
+2 789c 0000ffff  557659b1
+3 789c 0000ffff  557659b1
+4 789c  error: Error -2 while flushing: inconsistent stream state 
+5 789c   557659b1
+6 789c error: Error -2 while flushing: inconsistent stream state error: Error -2 while flushing: inconsistent stream state 557659b1
+7 789c error: Error -2 while flushing: inconsistent stream state error: Error -2 while flushing: inconsistent stream state 557659b1
+8 789c error: Error -2 while flushing: inconsistent stream state error: Error -2 while flushing: inconsistent stream state 557659b1
+789c  000000ffff   000000ffff 030000000001
+4b4c4a0600024d0127 error: Error -2 while compressing data: inconsistent stream state error: Error -2 while flushing: inconsistent stream state error: Error -2 while flushing: inconsistent stream state ValueError: Inconsistent stream state
+030000000001 error: Error -2 while compressing data: buffer error error: Error -2 while flushing: buffer error
+error: Error -2 while flushing: inconsistent stream state error: Error -2 while flushing: inconsistent stream state OverflowError: Python int too large to convert to C int TypeError: 'str' object cannot be interpreted as an integer TypeError: flush() got an unexpected keyword argument 'mode' TypeError: compress() takes exactly 1 positional argument (0 given) TypeError: compress() takes at most 1 argument (2 given)
+b'zxyzq' 91
+15 0 True True True True ValueError: Inconsistent stream state
+15 1 True True True True ValueError: Inconsistent stream state
+15 9 True True True True ValueError: Inconsistent stream state
+-15 0 True True True True ValueError: Inconsistent stream state
+-15 1 True True True True ValueError: Inconsistent stream state
+-15 9 True True True True ValueError: Inconsistent stream state
+31 0 True True True True ValueError: Inconsistent stream state
+31 1 True True True True ValueError: Inconsistent stream state
+31 9 True True True True ValueError: Inconsistent stream state
+10 0 True True True True ValueError: Inconsistent stream state
+10 1 True True True True ValueError: Inconsistent stream state
+10 9 True True True True ValueError: Inconsistent stream state
+-12 0 True True True True ValueError: Inconsistent stream state
+-12 1 True True True True ValueError: Inconsistent stream state
+-12 9 True True True True ValueError: Inconsistent stream state
+TypeError: copy() takes no arguments TypeError: __deepcopy__() takes exactly 1 positional argument (0 given) TypeError: copy() takes no arguments Compress
+0 True True True True True True
+1 1 True True True True True
+100 100 True True True True True
+5000 5000 True True True True True
+31 True True 211 b''
+-15 True True 211 b''
+47 True True 211 b''
+15 True True 211 b''
+b'hello world hello world hello world hello world hello world hello world hello  b'xy' True  b'xymore'  error: Error -2 while decompressing data: inconsistent stream state  ValueError: Inconsistent stream state
+b'hello world hello world hello world hello world hello world hello world hello   False  True  True error: Error -2 while decompressing data: inconsistent stream state ValueError: Inconsistent stream state
+ValueError: max_length must be non-negative OverflowError: Python int too large to convert to C ssize_t ValueError: length must be greater than zero ValueError: length must be greater than zero TypeError: flush() takes at most 1 argument (2 given) TypeError: decompress() takes at least 1 positional argument (0 given) TypeError: flush() got an unexpected keyword argument 'length'
+error: Error -3 while decompressing data: invalid block type b'H\xcd\xc9\xc9W(\xcf/\xcaIQ\xc8\x18\x01l\x00UvY\xb1' error: Error -3 while decompressing data: invalid block type  Decompress
+error: Error 2 while decompressing data cb403075148a133353144a3252217c3d8561240900854b5201 b'' False
+error: Error -3 while setting zdict: invalid input data b'' False
+b'hello world, said the world. hello world, said the world. hello world, said th True
+b'hello world, said the world. hello world, said the world. hello world, said the world. hello world, said the world. hello world, said the world. hello world, said the world. hello world, said the world. hello world, said the world. ' True
+{'wbits': 7} ValueError: Invalid initi
+{'wbits': 8} <zlib.Decompress object a
+{'wbits': -8} <zlib.Decompress object a
+{'wbits': 0} <zlib.Decompress object a
+{'wbits': 16} <zlib.Decompress object a
+{'wbits': 48} ValueError: Invalid initi
+{'wbits': 47} <zlib.Decompress object a
+{'wbits': -16} ValueError: Invalid initi
+{'zdict': 'abc'} TypeError: zdict argument
+{'zdict': 1} TypeError: zdict argument
+{'zdict': None} TypeError: zdict argument
+{'zdict': b'abc', 'wbits': -15} <zlib.Decompress object a
+memoryview <zlib.Decompress object a
+b'hello world hello' error: Error -3 while decompressing data: invalid distance too far back
+78bb04fe2e91 True True
+TypeError: _ZlibDecompressor() takes at most 2 arguments (3 given) TypeError: _ZlibDecompressor() got an unexpected keyword argument 'x' TypeError: argument for _ZlibDecompressor() given by name ('wbits') and position (1) TypeError: 'float' object cannot be interpreted as an integer OverflowError: signed integer is greater than maximum OverflowError: signed integer is less than minimum OverflowError: Python int too large to convert to C long TypeError: 'str' object cannot be interpreted as an integer ValueError: Invalid initialization option _ZlibDecompressor TypeError: a bytes-like object is required, not 'int'
+b'hello world hello world hello world hello world hello world hello world hello  True b'' False EOFError: End of stream already reached
+b'hello world hello world hello world hello world hello world hello world hello  b'tail' AttributeError: readonly attribute AttributeError: 'zlib._ZlibDecompressor' object has no attribute 'x' and no __dict__ for setting new attributes
+SystemError: error return without exception set True False SystemError: error return without exception set True
+ False 68656c6c6f False  False b' world hello world hello world hello world hello world hello world hello world True
+False False [True, True, True, True, True, False] 97
+True True 97
+True True b'trailing' False EOFError: End of stream already reached
+'zlib.Compress' object has no attribute 'x' and no __dict__ for setting new attributes
+readonly attribute
+readonly attribute
+readonly attribute
+'zlib.Decompress' object has no attribute 'x' and no __dict__ for setting new attributes
+readonly attribute
+bool bytes b''
+True True TypeError: cannot pickle 'zlib._ZlibDecompressor' object TypeError: cannot pickle 'zlib._ZlibDecompressor' object TypeError: cannot pickle 'zlib.Compress' object TypeError: cannot pickle 'zlib.Decompress' object TypeError: cannot pickle 'zlib._ZlibDecompressor' object
+1f8b08000000000002ff fde95404f4010000 True True 1f8b08003930000004ff
+b'gzip member\ngzip member\ngzip member\ngzip member\ngzip member\ngzip member\ngzip member\ngzip member\ngzip member\ngzip member\n' EOFError: Compressed file ended before the end-of-stream marker was reached BadGzipFile: Not a gzipped file (b'xx') BadGzipFile: CRC check failed 500 BadGzipFile: Not a gzipped file (b'ju')
+29 wb
+b'\x1f\x8b\x08\x08\x00\x00\x00\x00\x02\xffname.txt\x00'
+b'line one\n' b'lin' b'line' 13 [b' two\n', b'line three\n'] True 5 b'one\nline two\nline three\n' 0 
+['line one\n', 'line two\n', 'line three\n']
+b'text\r\nmode\n'
+15 102400 [7000, 7000, 7000]
+b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\t' 102400 102400 100 b'defgh'
+EOFError: Compressed file ended before the end-of-stream marker was reached
+BadGzipFile: Not a gzipped file (b'no')
+ValueError: Argument 'encoding' not supported in binary mode (<class 'gzip.BadGzipFile'>, <class 'OSError'>, <class 'Exception'>, <class 'BaseException'>, <class 'object'>) rb wb
+b'hello world' b'abcabcabcabcabcabcabcabcabcabc' zlib
+True True True
