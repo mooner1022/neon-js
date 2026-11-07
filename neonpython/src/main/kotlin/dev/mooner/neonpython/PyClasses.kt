@@ -319,12 +319,42 @@ object PyClasses {
         }
         PyTypes.TYPE.def("__call__", PyBuiltin("__call__", { ctx, a -> typeCall(ctx, a, null) }, { ctx, a, kw -> typeCall(ctx, a, kw) }))
         // (what calling a function, a builtin, a method, an alias is, in their types' dicts: collections.abc's Callable looks there)
-        for (t in listOf(PyTypes.FUNCTION, PyTypes.BUILTIN_FUNCTION, PyTypes.METHOD, PyTypes.STATICMETHOD, PyTyping.GENERIC_ALIAS)) {
+        for (t in listOf(PyTypes.FUNCTION, PyTypes.BUILTIN_FUNCTION, PyTypes.METHOD, PyTypes.STATICMETHOD, PyTyping.GENERIC_ALIAS,
+                PyTypes.METHOD_DESCRIPTOR, PyTypes.WRAPPER_DESCRIPTOR, PyTypes.METHOD_WRAPPER)) {
             fun call(ctx: PyContext, a: Array<Any?>, kw: PyDict?): Any? {
                 val (n, v) = kwOf(kw)
                 return PyCalls.callWith(ctx, a[0], a.copyOfRange(1, a.size), n, v)
             }
             t.def("__call__", PyBuiltin("__call__", { ctx, a -> call(ctx, a, null) }, { ctx, a, kw -> call(ctx, a, kw) }))
+        }
+        // (a builtin type's method a descriptor: str.upper.__get__('a') bound to it, its class's objects only)
+        for (t in listOf(PyTypes.METHOD_DESCRIPTOR, PyTypes.WRAPPER_DESCRIPTOR)) {
+            t.def("__get__", PyBuiltin("__get__") { _, a ->
+                val d = a[0] as PyBuiltin
+                val obj = a.getOrNull(1)
+                if (obj == null || obj === PyNone) return@PyBuiltin d
+                val owner = d.ownerType!!
+                if (!PyTypes.typeOf(obj).isSubtype(owner)) {
+                    throw PyRt.typeError("descriptor '${d.name}' for '${PyTypes.tpName(owner)}' objects doesn't apply to a '${PyTypes.name(obj)}' object")
+                }
+                PyBoundMethod(obj, d)
+            })
+            // (pickled as CPython's: getattr(its class, its name))
+            t.def("__reduce__", PyBuiltin("__reduce__") { c, a ->
+                val d = a[0] as PyBuiltin
+                PyTuple(arrayOf(c.builtins[PyStr("getattr")], PyTuple(arrayOf(d.ownerType, PyStr(d.name)))))
+            })
+        }
+        // (a builtin bound to its object, a slot's method-wrapper too: getattr(the object, its name))
+        for (t in listOf(PyTypes.METHOD_WRAPPER, PyTypes.BUILTIN_FUNCTION)) {
+            t.def("__reduce__", PyBuiltin("__reduce__") { c, a ->
+                when (val b = a[0]) {
+                    is PyBoundMethod -> PyTuple(arrayOf(c.builtins[PyStr("getattr")], PyTuple(arrayOf(b.self, PyStr(b.fn.name)))))
+                    // (a function: its name, pickle's save_global's to find it by)
+                    is PyBuiltin -> PyStr(b.name)
+                    else -> throw PyRt.typeError("cannot pickle '${PyTypes.name(b)}' object")
+                }
+            })
         }
         // (a function is a descriptor: f.__get__(obj) a method, partialmethod's way)
         PyTypes.FUNCTION.def("__get__", PyBuiltin("__get__") { _, a ->
@@ -554,6 +584,7 @@ object PyClasses {
             }
             is PyBuiltin -> when (name) {
                 "__name__" -> PyStr(obj.name)
+                "__objclass__" -> if (obj.method) obj.ownerType else null
                 "__qualname__" -> PyStr(obj.ownerType?.let { "${it.qualname}.${obj.name}" } ?: obj.name)
                 // (CPython's, for inspect.signature: a function's of its module, a method's of its type)
                 "__text_signature__" -> {
@@ -626,6 +657,7 @@ object PyClasses {
             }
             is PyBoundMethod -> when (name) {
                 "__name__" -> PyStr(obj.fn.name)
+                "__objclass__" -> if (PyTypes.typeOf(obj) === PyTypes.METHOD_WRAPPER) obj.fn.ownerType else null
                 // (its function's: a method's of its type)
                 "__qualname__", "__text_signature__" -> special(obj.fn, name)
                 "__self__" -> obj.self
@@ -641,6 +673,40 @@ object PyClasses {
         is PyFunction -> obj.dict
         is PyModule -> obj.dict
         else -> null
+    }
+
+    private val builtinNews = java.util.concurrent.ConcurrentHashMap<PyType, PyBuiltin>()
+
+    /** T.__new__ of a type whose making is its newImpl (none in its dict before object's): one wrapper of it each. */
+    private fun builtinNew(t: PyType): PyBuiltin? {
+        for (m in t.mro) {
+            if (m === PyTypes.OBJECT || m.dict.containsKey(PyStr("__new__"))) return null
+            val impl = m.newImpl ?: continue
+            return builtinNews.computeIfAbsent(m) {
+                fun make(ctx: PyContext, a: Array<Any?>, kw: PyDict?): Any? {
+                    val cls = a.getOrNull(0) as? PyType ?: throw PyRt.typeError("${m.name}.__new__(X): X is not a type object (${PyTypes.name(a.getOrNull(0))})")
+                    if (!cls.isSubtype(m)) throw PyRt.typeError("${m.name}.__new__(${cls.name}): ${cls.name} is not a subtype of ${m.name}")
+                    return impl(ctx, cls, a.copyOfRange(1, a.size), kw)
+                }
+                PyBuiltin("__new__", { ctx, a -> make(ctx, a, null) }, { ctx, a, kw -> make(ctx, a, kw) }).also { it.method = false }
+            }
+        }
+        return null
+    }
+
+    /** repr() of a builtin: a type's method its descriptor's ("<method 'upper' of 'str' objects>"), a slot's a wrapper's. */
+    @JvmStatic
+    fun builtinRepr(b: PyBuiltin): String = when (PyTypes.builtinType(b)) {
+        PyTypes.METHOD_DESCRIPTOR -> "<method '${b.name}' of '${PyTypes.tpName(b.ownerType!!)}' objects>"
+        PyTypes.WRAPPER_DESCRIPTOR -> "<slot wrapper '${b.name}' of '${PyTypes.tpName(b.ownerType!!)}' objects>"
+        else -> b.toString()
+    }
+
+    /** repr() of a builtin bound to its object: "<built-in method upper of str object at 0x...>", a slot's a method-wrapper's. */
+    @JvmStatic
+    fun boundRepr(m: PyBoundMethod): String {
+        val of = "${PyTypes.tpName(PyTypes.typeOf(m.self))} object at 0x${Integer.toHexString(System.identityHashCode(m.self)).padStart(16, '0').uppercase()}"
+        return if (PyTypes.typeOf(m) === PyTypes.METHOD_WRAPPER) "<method-wrapper '${m.fn.name}' of $of>" else "<built-in method ${m.fn.name} of $of>"
     }
 
     /**
@@ -674,6 +740,8 @@ object PyClasses {
         if (PyAnnotations.isName(name)) return PyAnnotations.typeGet(t, name)
         // (a class's own type parameters, not a base's)
         if (name == "__type_params__") return t.dict[PyStr(name)] ?: PyTuple.EMPTY
+        // (a builtin type made by the runtime (range): its own __new__, not object's, as CPython's tp_new wrapper)
+        if (name == "__new__") builtinNew(t)?.let { return it }
         // (type's data descriptors, for a class whose metaclass is type: what the class's dict holds of the names does
         // not hide them, as the metatype's data descriptors come first in CPython)
         when (name) {
@@ -699,6 +767,8 @@ object PyClasses {
             "__bases__" -> PyTuple(arrayOf(*t.bases))
             "__dict__" -> PyMappingProxies.of(t.dict)
             "__doc__" -> PyNone
+            // (a builtin type's, CPython's (PySignatures): what inspect.signature reads of a class with no __init__ of its own)
+            "__text_signature__" -> if (t.heap) PyNone else PySignatures.MAP["${t.module}.${t.name}"]?.let { PyStr(it) } ?: PyNone
             "__type_params__" -> PyTuple.EMPTY
             "__class__" -> meta
             // (a builtin type's attributes its instances have: their descriptors, FunctionType.__code__)

@@ -1,0 +1,22 @@
+repr -> ("<method 'upper' of 'str' objects>", 'method_descriptor', '<built-in method upper of str ', 'builtin_function_or_method')
+objclass -> (<class 'str'>, 'upper', 'str.upper')
+get -> ('AB', True)
+get error !! TypeError descriptor 'upper' for 'str' objects doesn't apply to a 'int' object
+call -> ('AB', 'CD')
+types -> ('method_descriptor', 'wrapper_descriptor', 'method-wrapper', 'builtin_function_or_method')
+isinst -> (True, True, True, True)
+reprs -> ("<slot wrapper '__add__' of 'str' objects>", "<slot wrapper '__init__' of 'object' objects>", "<method 'pack' of '_struct.Struct' objects>", "<method 'append' of 'collections.deque' objects>", "<slot wrapper '__next__' of 'itertools.count' objects>")
+mw -> ("<method-wrapper '__str__' of object obje", 3, 'method-wrapper')
+preds -> (True, True, False, True, False)
+sigs -> ['(self, /)', '(self, /, sep=None, maxsplit=-1)', '(self, object, /)', '(self, key, default=None, /)', '(obj, /)', '(iterable, /, *, key=None, reverse=False)']
+type sigs -> ('()', "(data=b'', *, digest_size=64, ", '()', None)
+no sig !! ValueError no signature found for builtin type <class 'str'>
+isroutine -> [True, True, True, True, True]
+new -> ('builtin_function_or_method', 'builtin_function_or_method', range(2, 5), 'builtin_function_or_method', False)
+new error !! TypeError range.__new__(int): int is not a subtype of range
+partial -> AB
+mapping -> ['A', 'B']
+sorted key -> ['A', 'b', 'c']
+pickle -> Q
+pickle more -> ('XY', 3, 6, 'ab')
+reduce -> ((<class 'str'>, 'upper'), ('z', 'upper'), 'len', True)

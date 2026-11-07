@@ -133,6 +133,29 @@ object PyTypes {
     @JvmField val RANGE = builtin("range", subclassable = false)
     @JvmField val FUNCTION = builtin("function", subclassable = false)
     @JvmField val BUILTIN_FUNCTION = builtin("builtin_function_or_method", subclassable = false)
+    /** A builtin type's method as its class gives it (str.upper), and a slot's (str.__add__); a slot's bound to its object. */
+    @JvmField val METHOD_DESCRIPTOR = builtin("method_descriptor", subclassable = false)
+    @JvmField val WRAPPER_DESCRIPTOR = builtin("wrapper_descriptor", subclassable = false)
+    @JvmField val METHOD_WRAPPER = builtin("method-wrapper", subclassable = false)
+
+    /** The names of CPython's type slots (typeobject.c's slotdefs): a builtin type's such method is a slot wrapper. */
+    @JvmField val SLOT_NAMES: Set<String> = setOf("__getattribute__", "__getattr__", "__setattr__", "__delattr__", "__repr__",
+        "__hash__", "__call__", "__str__", "__lt__", "__le__", "__eq__", "__ne__", "__gt__", "__ge__", "__iter__", "__next__",
+        "__get__", "__set__", "__delete__", "__init__", "__del__", "__await__", "__aiter__", "__anext__", "__add__", "__radd__",
+        "__sub__", "__rsub__", "__mul__", "__rmul__", "__mod__", "__rmod__", "__divmod__", "__rdivmod__", "__pow__", "__rpow__",
+        "__neg__", "__pos__", "__abs__", "__bool__", "__invert__", "__lshift__", "__rlshift__", "__rshift__", "__rrshift__",
+        "__and__", "__rand__", "__xor__", "__rxor__", "__or__", "__ror__", "__int__", "__float__", "__iadd__", "__isub__",
+        "__imul__", "__imod__", "__ipow__", "__ilshift__", "__irshift__", "__iand__", "__ixor__", "__ior__", "__floordiv__",
+        "__rfloordiv__", "__truediv__", "__rtruediv__", "__ifloordiv__", "__itruediv__", "__index__", "__matmul__",
+        "__rmatmul__", "__imatmul__", "__len__", "__getitem__", "__setitem__", "__delitem__", "__contains__", "__buffer__",
+        "__release_buffer__")
+
+    /** A builtin's type: a type's method its descriptor's, a function (and a type's __new__, tp_new's wrapper) builtin_function_or_method. */
+    @JvmStatic fun builtinType(b: PyBuiltin): PyType =
+        if (!b.method || b.ownerType == null || b.name == "__new__") BUILTIN_FUNCTION else if (b.name in SLOT_NAMES) WRAPPER_DESCRIPTOR else METHOD_DESCRIPTOR
+
+    /** A type's name as its C tp_name has it: a builtin's alone, another module's qualified ("_struct.Struct"). */
+    @JvmStatic fun tpName(t: PyType): String = t.tpName ?: if (t.module == "builtins") t.name else "${t.module}.${t.name}"
     @JvmField val METHOD = builtin("method", subclassable = false)
     @JvmField val ITERATOR = builtin("iterator", subclassable = false)
     @JvmField val CELL = builtin("cell", subclassable = false)
@@ -213,7 +236,8 @@ object PyTypes {
         is PyType -> v.meta ?: TYPE
         is PyFunction -> FUNCTION
         is PyMethod -> METHOD
-        is PyBuiltin, is PyBoundMethod -> BUILTIN_FUNCTION
+        is PyBuiltin -> builtinType(v)
+        is PyBoundMethod -> if (v.fn.ownerType != null && v.fn.name in SLOT_NAMES) METHOD_WRAPPER else BUILTIN_FUNCTION
         is PySuper -> SUPER
         is PyProperty -> v.sub?.cls ?: PROPERTY
         is PyStaticMethod -> v.sub?.cls ?: STATICMETHOD
