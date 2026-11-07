@@ -5,7 +5,7 @@ suite run once before a large pull request. `tools/check.sh` has the three level
 
 | level | command | what | time (8 cores) |
 |---|---|---|---|
-| quick | `tools/check.sh quick` | neon-vm's and neonjs-core's unit tests; a fixed 1 in 20 of Test262 in the interpreter and in the JIT's stress modes | ~2.5–3 min |
+| quick | `tools/check.sh quick` | neon-vm's, neonjs-core's and neonpython's (NeonPy) unit tests; a fixed 1 in 20 of Test262 in the interpreter and in the JIT's stress modes | ~2.5–3 min |
 | codegen | `tools/check.sh codegen [REF]` | the classes the JIT generates for that part of Test262, against those of REF (default `main`) | ~1.5 min (~3 the first time for a REF) |
 | full | `tools/check.sh full` | what CI runs, then all of Test262 in the stress modes | long: before a large pull request |
 

@@ -370,4 +370,5 @@ JavaScript's generated classes, against f186d45 (step 8): the same classes are c
 the three variants). As generated, 5,672, 5,704 and 1,105 names differ; modulo `tools/codegen-equiv.txt`, none.
 `bench/basic.js` in compiled mode is as fast (medians of 8 runs).
 
-Left: f, NeonPy on `neon-vm` alone (its branch); the core's own name and packages.
+Step f is done on NeonPy's branch: its compile class path is `neon-vm` and ASM, its frame a `VmFrame`, its context a
+`VmAgent`, no realm. Left: the core's own name and packages.
