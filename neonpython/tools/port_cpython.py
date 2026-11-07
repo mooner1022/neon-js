@@ -35,6 +35,10 @@ _pydatetime.py _pydatetime
 _pydecimal.py _pydecimal
 _pyio.py
 _pyio.py _io
+_pyrepl/__init__.py
+_pyrepl/trace.py
+_pyrepl/types.py
+_pyrepl/utils.py
 _strptime.py
 _threading_local.py
 _weakrefset.py
@@ -76,6 +80,7 @@ asyncio/transports.py
 asyncio/trsock.py
 asyncio/unix_events.py
 base64.py
+bdb.py
 bisect.py
 calendar.py
 cmd.py
@@ -103,6 +108,7 @@ dataclasses.py
 datetime.py
 decimal.py
 difflib.py
+doctest.py
 email/__init__.py
 email/_encoded_words.py
 email/_header_value_parser.py
@@ -272,6 +278,7 @@ pathlib/__init__.py
 pathlib/_local.py
 pathlib/_os.py
 pathlib/types.py
+pdb.py
 pickle.py
 pkgutil.py
 platform.py platform

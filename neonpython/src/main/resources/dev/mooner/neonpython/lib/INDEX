@@ -11,6 +11,10 @@ _pydatetime.py  # IsoCalendarDate's repr C _datetime's (its module named)
 _pydecimal.py  # a trapped signal raised with its condition in a list, int()'s errors' messages, as C _decimal's
 _pyio.py
 _io.py  # CPython's _pyio.py as _io: what it takes from io (which imports _io) defined in it, the ABCs' registrations left to io, C _io's messages for open's mode and unsupported operations
+_pyrepl/__init__.py
+_pyrepl/trace.py
+_pyrepl/types.py
+_pyrepl/utils.py
 _strptime.py
 _threading_local.py
 _weakrefset.py
@@ -52,6 +56,7 @@ asyncio/transports.py
 asyncio/trsock.py
 asyncio/unix_events.py
 base64.py
+bdb.py
 bisect.py
 calendar.py
 cmd.py
@@ -79,6 +84,7 @@ dataclasses.py
 datetime.py
 decimal.py
 difflib.py
+doctest.py
 email/__init__.py
 email/_encoded_words.py
 email/_header_value_parser.py
@@ -248,6 +254,7 @@ pathlib/__init__.py
 pathlib/_local.py
 pathlib/_os.py
 pathlib/types.py
+pdb.py
 pickle.py
 pkgutil.py
 platform.py  # sys.version parsed as NeonPy's, python_implementation() 'NeonPy'
