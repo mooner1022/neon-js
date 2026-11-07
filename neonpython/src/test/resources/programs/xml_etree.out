@@ -1,0 +1,223 @@
+== etree_basics
+{http://example.com/c}catalog {} 3 ['{http://example.com/c}book', '{http://example.com/c}book', '{http://example.com/c}empty']
+b1 Python & XML {'currency': 'USD'} one
+b2 Kotlin {'currency': 'EUR'} -
+['Python & XML', 'Kotlin']
+35.00
+['b2']
+['{http://example.com/c}title', '{http://example.com/c}price', '{http://example.com/x}tag', '{http://example.com/c}title', '{http://example.com/c}price']
+b2 b2
+['{http://example.com/x}tag']
+<ns0:book xmlns:ns0="http://example.com/c" xmlns:ns1="http://example.com/x" id="b1" ns1:lang="en">
+    <ns0:title>Python &amp; XML</ns0:title>
+    <ns0:price currency="USD">29.99</ns0:price>
+    <ns1:tag>one</ns1:tag>
+  </ns0:book>
+  
+b'<ns0:catalog xmlns:ns0="http://example.com/c" xmlns:ns1="http://example.com/x">\n'
+['Python', '&', 'XML', '29.99', 'one', 'Kotlin', '35.00']
+b'<root a="1"><child b="2">text &lt;&amp;&gt;</child>tail<empty /></root>'
+b'<root a="1"><child b="2">text &lt;&amp;&gt;</child>tail<empty></empty></root>'
+b'<?xml version=\'1.0\' encoding=\'us-ascii\'?>\n<root a="1"><child b="2">text &lt;&amp;&gt;</child>tail<empty /></root>'
+<root a="1">
+  <child b="2">text &lt;&amp;&gt;</child>tail<empty />
+</root>
+b'<?xml version=\'1.0\' encoding=\'utf-8\'?>\n<root a="1">\n  <child b="2">text &lt;&amp;&gt;</child>tail<empty />\n</root>'
+<a><b /></a>
+None
+x y
+True <Element <function C b'<?pi v?>'
+['1', '2'] x
+== etree_ns
+<ns0:root xmlns:ex="http://example.com/x" xmlns:ns0="http://example.com/c"><ex:item ex:attr="v" /><plain /></ns0:root>
+defns !! ValueError cannot use non-qualified names with default_namespace option
+defns2 <root xmlns="http://example.com/c" xmlns:ex="http://example.com/x"><ex:item ex:attr="v" /></root>
+== etree_parse
+{http://example.com/c}catalog {http://example.com/c}empty
+start-ns ('', 'http://example.com/c') None
+start-ns ('x', 'http://example.com/x') None
+start {http://example.com/c}catalog 
+  
+  
+comment Comment  a comment 
+start {http://example.com/c}book 
+    
+start {http://example.com/c}title Python & XML
+end {http://example.com/c}title Python & XML
+start {http://example.com/c}price 29.99
+end {http://example.com/c}price 29.99
+start {http://example.com/x}tag one
+end {http://example.com/x}tag one
+end {http://example.com/c}book 
+    
+start {http://example.com/c}book 
+    
+start {http://example.com/c}title Kotlin
+end {http://example.com/c}title Kotlin
+start {http://example.com/c}price 35.00
+end {http://example.com/c}price 35.00
+pi ProcessingInstruction pi target
+end {http://example.com/c}book 
+    
+start {http://example.com/c}empty None
+end {http://example.com/c}empty None
+end {http://example.com/c}catalog 
+  
+  
+end-ns None None
+end-ns None None
+3001 r 3000
+== pull
+[('start', 'root'), ('start', 'a')]
+[('end', 'a')]
+[('start', 'b'), ('end', 'b'), ('end', 'root')]
+['root']
+['child']
+[]
+[('start-ns', ('', 'u')), ('start-ns', ('p', 'v')), ('end-ns', None), ('end-ns', None)]
+== targets
+['Comment', 'ProcessingInstruction'] ent Expat 2.8.1
+start a {'b': 'c'}
+data 'x'
+start d {}
+end d
+data 'y'
+end a
+closed
+'<a>' no element found: line 1, column 3 3 (1, 3)
+'<a></b>' mismatched tag: line 1, column 5 7 (1, 5)
+'<a>&x;</a>' undefined entity: line 1, column 3 11 (1, 3)
+'' no element found: line 1, column 0 3 (1, 0)
+'<a b="1" b="2"/>' duplicate attribute: line 1, column 9 8 (1, 9)
+'x<a/>' not well-formed (invalid token): line 1, column 1 4 (1, 1)
+'<a>\n<b>\n</c></a>' mismatched tag: line 3, column 2 7 (3, 2)
+== include
+<r><inc>included</inc><p>plain text</p></r>
+== canon
+<root a1="1" a2="2"><b:x xmlns:b="u"></b:x>  <y>t</y></root>
+<root a1="1" a2="2"><!-- c --><b:x xmlns:b="u"></b:x><y>t</y></root>
+<n0:root xmlns:n0="" a2="2"><n1:x xmlns:n1="u"></n1:x>  <n0:y>t</n0:y></n0:root>
+== dom
+catalog http://example.com/c
+b1 Python & XML en
+b2 Kotlin 
+<?xml version="1.0" ?>
+<catalog xmlns="http://example.com/c" xmlns:x="http://example.com/x">
+  
+  
+  <!-- a comment -->
+  
+  
+  <book id="b1" x:lang="en">
+    
+    
+    <title>Python &amp; XML</title>
+    
+    
+    <price currency="USD">29.99</price>
+    
+    
+    <x:tag>one</x:tag>
+    
+  
+  </book>
+  
+  
+  <book id="b2">
+    
+    
+    <title>Kotlin</title>
+    
+    
+    <price currency="EUR">35.
+<?xml version="1.0" ?><a><b c="1">t</b></a> <a>
+	<b c="1">t</b>
+</a>
+
+b'<?xml version="1.0" encoding="utf-8"?><a><b c="1">t</b></a>'
+<?xml version="1.0" ?><root><child k="v">text &amp; more</child></root>
+ExpatError mismatched tag: line 1, column 8
+== pulldom_events
+START_DOCUMENT #document
+START_ELEMENT a
+START_ELEMENT b
+CHARACTERS #text
+END_ELEMENT b
+START_ELEMENT c
+END_ELEMENT c
+END_ELEMENT a
+== sax
+startDocument
+('start', 'a', {'x': '1'}, ['x'])
+('start', 'b', {}, [])
+('chars', 'hi')
+('end', 'b')
+('pi', 'p', 'd')
+('chars', 'there')
+('end', 'a')
+endDocument
+prefix None d
+prefix p q
+startNS ('d', 'r') None {}
+startNS ('q', 'x') None {('q', 'y'): '1'}
+endNS ('q', 'x') None
+endNS ('d', 'r') None
+sax error <unknown>:1:8: mismatched tag 1 8 mismatched tag
+&lt;a &amp; b&gt; "x &quot;y&quot; 'z'" <&>
+<?xml version="1.0" encoding="iso-8859-1"?>
+<a b="1">t&amp;<c></c></a>
+== plist
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>bytes</key>
+	<data>
+	AAFiaW5hcnk=
+	</data>
+	<key>count</key>
+	<integer>42</integer>
+	<key>date</key>
+	<date>2026-11-07T12:30:45Z</date>
+	<key>empty</key>
+	<dict/>
+	<key>flags</key>
+	<array>
+		<true/>
+		<false/>
+	</array>
+	<key>name</key>
+	<string>NeonPy</string>
+	<key>nested</key>
+	<dict>
+		<key>a</key>
+		<array>
+			<integer>1</integer>
+			<integer>2</integer>
+			<dict>
+				<key>b</key>
+				<string>c</string>
+			</dict>
+		</array>
+	</dict>
+	<key>unicode</key>
+	<string>é中</string>
+	<key>version</key>
+	<real>3.14</real>
+</dict>
+</plist>
+
+True {'bytes': b'\x00\x01binary', 'count': 42, 'date': datetime.datetime(2026, 11, 7, 12, 30, 45), 'empty': {}, 'flags': [True, False], 'name': 'NeonPy', 'nested': {'a': [1, 2, {'b': 'c'}]}, 'unicode': 'é中', 'version': 3.14}
+211 b'bplist00' True
+b'<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<array>\n\t<integer>1</integer>\n\t<string>two</string>\n</array>\n</plist>\n'
+ExpatError mismatched tag: line 1, column 27
+[16, 1000.0, 's', b'\x00\x01']
+== parse_file
+1 ['root', 'a', 4, 'a', 4, 'a'] 1001 None
+1 ['root', 'a', 4, 'a', 4, 'a'] 1001 [2048, 2048, 2048, 2048]
+1 ['root', 'a', 4, 'a', 4, 'a'] 1001 [2048, 2048, 2048, 2048]
+ValueError read() returned too much data: 2048 bytes requested, 5048 returned []
+TypeError read() did not return a bytes object (type=str) []
+ExpatError mismatched tag: line 1, column 8 ['a', 'b']
+ExpatError no element found: line 1, column 0 []
+[297, 298, 299]
