@@ -160,12 +160,7 @@ object PyBuiltins {
             noKw("float", kw)
             argc("float", args, 0, 1)
             if (args.isEmpty()) 0.0 else when (val v = args[0]) {
-                is PyStr -> when (val t = v.s.trim().lowercase()) {
-                    "inf", "+inf", "infinity" -> Double.POSITIVE_INFINITY
-                    "-inf", "-infinity" -> Double.NEGATIVE_INFINITY
-                    "nan", "+nan", "-nan" -> Double.NaN
-                    else -> t.toDoubleOrNull() ?: throw PyException("ValueError", "could not convert string to float: ${PyRt.repr(v)}")
-                }
+                is PyStr -> PyLiterals.parseFloat(v.s) ?: throw PyException("ValueError", "could not convert string to float: ${PyRt.repr(v)}")
                 is Long, is BigInteger, is PyBool, is Double, is PyNumSub -> PyRt.toDouble(v)
                 else -> {
                     // (a class's __float__, else its __index__)
@@ -715,7 +710,7 @@ object PyBuiltins {
     /** int(s, base): Python's int literal syntax (sign, underscores between digits, a prefix where base is 0 or matches). */
     @JvmStatic fun parseInt(v: PyStr, base: Int, shown: String? = null): Any {
         fun bad(): Nothing = throw PyException("ValueError", "invalid literal for int() with base $base: ${shown ?: PyRt.repr(v)}")
-        var s = v.s.trim()
+        var s = v.s.trim { PyLiterals.isPySpace(it) }
         var neg = false
         if (s.startsWith("+") || s.startsWith("-")) { neg = s[0] == '-'; s = s.substring(1) }
         var b = base

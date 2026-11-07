@@ -115,11 +115,91 @@ object PyLiterals {
         return c.imag == 0.0 && PyRt.eq(c.real, other)
     }
 
+    /**
+     * float(s)'s number, or null where [s] is not one: CPython's _Py_string_to_number_with_underscores over
+     * _PyOS_ascii_strtod. Unicode decimal digits read as ASCII ones and Unicode spaces stripped
+     * (_PyUnicode_TransformDecimalAndSpaceToASCII); a sign, digits with single underscores between them, a point, an
+     * exponent, or inf/infinity/nan in any case. Nothing else: no hexadecimal, no Java's `d`/`f` suffixes.
+     */
+    @JvmStatic
+    fun parseFloat(s: String): Double? = asciiNumber(s)?.let { parseAsciiFloat(it) }
+
+    /** [s] as _PyUnicode_TransformDecimalAndSpaceToASCII makes it, stripped: Unicode digits ASCII ones, spaces ' '; null for another non-ASCII character. */
+    private fun asciiNumber(s: String): String? {
+        val sb = StringBuilder(s.length)
+        var i = 0
+        while (i < s.length) {
+            val c = s.codePointAt(i)
+            when {
+                c < 128 -> sb.append(c.toChar())
+                Character.getType(c) == Character.DECIMAL_DIGIT_NUMBER.toInt() -> sb.append('0' + Character.digit(c, 10))
+                isSpace(c) -> sb.append(' ')
+                else -> return null
+            }
+            i += Character.charCount(c)
+        }
+        return sb.toString().trim { it == ' ' || it in '\u0009'..'\u000d' || it in '\u001c'..'\u001f' }
+    }
+
+    /** Python's str.isspace() for one code point beyond ASCII (Zs, Zl, Zp and the C1 separators). */
+    private fun isSpace(c: Int): Boolean = c == 0x85 || Character.isSpaceChar(c) && c != 0x200B && c != 0xFEFF
+
+    /** Python's str.isspace() for one char: ASCII's whitespace and separators, the rest Unicode's. */
+    @JvmStatic
+    fun isPySpace(c: Char): Boolean = c == ' ' || c in '\u0009'..'\u000d' || c in '\u001c'..'\u001f' || c.code >= 128 && isSpace(c.code)
+
+    /** An ASCII float literal (stripped): its value, or null. */
+    @JvmStatic
+    fun parseAsciiFloat(t: String): Double? {
+        var i = 0
+        val n = t.length
+        if (i < n && (t[i] == '+' || t[i] == '-')) i++
+        val rest = t.substring(i).lowercase()
+        if (rest == "inf" || rest == "infinity") return if (t[0] == '-') Double.NEGATIVE_INFINITY else Double.POSITIVE_INFINITY
+        if (rest == "nan") return if (t[0] == '-') -Double.NaN else Double.NaN
+        val out = StringBuilder(n)
+        if (i > 0) out.append(t[0])
+        // (digits: single underscores between them only)
+        fun digits(): Boolean {
+            val start = i
+            while (i < n) {
+                val c = t[i]
+                if (c in '0'..'9') { out.append(c); i++ }
+                else if (c == '_' && i > start && i + 1 < n && t[i + 1] in '0'..'9' && t[i - 1] in '0'..'9') i++
+                else break
+            }
+            return i > start
+        }
+        val whole = digits()
+        var frac = false
+        if (i < n && t[i] == '.') {
+            out.append('.')
+            i++
+            frac = digits()
+        }
+        if (!whole && !frac) return null
+        if (i < n && (t[i] == 'e' || t[i] == 'E')) {
+            out.append('e')
+            i++
+            if (i < n && (t[i] == '+' || t[i] == '-')) out.append(t[i++])
+            if (!digits()) return null
+        }
+        if (i != n) return null
+        return out.toString().toDouble()
+    }
+
     /** complex(s): CPython's grammar of a complex in a str ("1+2j", " -3.5j ", "(1-1j)", "inf", "j"). */
     @JvmStatic
     fun parseComplex(str: String): PyComplex {
         fun bad(): Nothing = throw PyException("ValueError", "complex() arg is a malformed string")
-        var s = str.trim()
+        var s = asciiNumber(str) ?: bad()
+        // (_Py_string_to_number_with_underscores: each underscore between two digits, else its own error)
+        if ('_' in s) {
+            for (i in s.indices) if (s[i] == '_' && !(i > 0 && s[i - 1] in '0'..'9' && i + 1 < s.length && s[i + 1] in '0'..'9')) {
+                throw PyException("ValueError", "could not convert string to complex: ${PyRt.repr(PyStr(str))}")
+            }
+            s = s.replace("_", "")
+        }
         if (s.startsWith("(") && s.endsWith(")")) s = s.substring(1, s.length - 1).trim()
         if (s.isEmpty()) bad()
         fun num(t: String): Double {
@@ -128,7 +208,7 @@ object PyLiterals {
                 "inf", "infinity" -> Double.POSITIVE_INFINITY
                 "-inf", "-infinity" -> Double.NEGATIVE_INFINITY
                 "nan", "-nan" -> Double.NaN
-                else -> t.replace("_", "").toDoubleOrNull()?.takeIf { !t.contains("__") && !t.startsWith("_") && !t.endsWith("_") } ?: bad()
+                else -> parseAsciiFloat(t) ?: bad()
             }
         }
         if (!s.endsWith("j") && !s.endsWith("J")) return PyComplex(num(s), 0.0)
