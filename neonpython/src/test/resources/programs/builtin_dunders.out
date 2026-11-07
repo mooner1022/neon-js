@@ -1,0 +1,53 @@
+base -> (None, <class 'object'>, <class 'int'>, <class '__main__.part1.<locals>.A'>, <class '__main__.part1.<locals>.Q'>, <class 'int'>, <class 'object'>, <class 'BaseException'>)
+isinstance proxy -> (True, True, True, False)
+proxy class -> (<class 'int'>, 'Proxy')
+method get -> (True, True)
+complex kw -> ((666+42j), (1+0j), 2j)
+complex kw bad !! TypeError complex() got an unexpected keyword argument 'foo'
+str kw -> ('500', 'abc')
+set class dict !! AttributeError attribute '__dict__' of 'type' objects is not writable
+slot msg !! AttributeError 'part1.<locals>.slotmsg.<locals>.X' object has no attribute 'a'
+member type -> (True, 'member_descriptor')
+dir property -> ['fget', 'fset', 'fdel', 'getter', '__isabstractmethod__']
+dunders -> []
+classmethod attrs -> ({'__module__': '__main__', '__name__': 'f', '__qualname__': 'part1.<locals>.cm.<locals>.C.f', '__doc__': 'doc', 'x': 1}, {'__module__': '__main__', '__name__': 'g', '__qualname__': 'part1.<locals>.cm.<locals>.C.g', '__doc__': 'sdoc'}, 'doc', 'sdoc', 'f', 'part1.<locals>.cm.<locals>.C.g', True, '__main__')
+classmethod new -> ('<classmethod(None)>', None, '<staticmethod(None)>', None)
+super one arg -> ('BA', "<super: <class 'B'>, NULL>", 'B', None, None, 'A', 'B')
+getattr descriptor -> got foo
+special descriptor -> (5, [1, 2], True)
+set doc -> ('banana', 'banana')
+mutable bases -> ('C', 'E', 'C', 'C', (<class '__main__.part1.<locals>.mutable_bases.<locals>.D'>, <class '__main__.part1.<locals>.mutable_bases.<locals>.C'>))
+del unset !! AttributeError a
+get other !! TypeError descriptor 'a' for 'X' objects doesn't apply to a 'int' object
+set ro !! TypeError cannot set '__mro__' attribute of immutable type 'type'
+set mro !! AttributeError attribute '__mro__' of 'type' objects is not writable
+set base !! AttributeError readonly attribute
+set flags !! AttributeError readonly attribute
+member qual -> ('part2.<locals>.X.a', "<member 'a' of 'X' objects>", 'member_descriptor', 'member_descriptor')
+member is -> (True, True)
+m eq -> False
+meth eq -> (True, False, True, False, True)
+dir meth -> ['__func__', '__self__', '__get__']
+dir cm -> ['__func__', '__wrapped__', '__isabstractmethod__', '__dict__']
+dir super -> ['__thisclass__', '__self__', '__self_class__', '__get__']
+dup !! TypeError duplicate base class C
+del dict !! AttributeError attribute '__dict__' of 'type' objects is not writable
+prop fget !! AttributeError readonly attribute
+prop del !! AttributeError readonly attribute
+cm func !! AttributeError readonly attribute
+reversed views -> ([1], [(1, 2)], [2])
+reversible -> (True, True, False)
+buffer -> (True, True, True, False)
+set ops -> ({2}, frozenset({1, 2}), NotImplemented, {3})
+iand -> ({2}, {2})
+list ops -> ([1, 'a', 'b'], [1, 2, 1, 2], True, NotImplemented)
+complex ops -> ((2+1j), NotImplemented, (-4+0j), NotImplemented, True)
+complex pow mod !! ValueError complex modulo
+range -> (5, 4, [2, 1, 0], True)
+dict ops -> ({1: 2, 3: 4}, {3: 4, 1: 2}, NotImplemented, [3, 1])
+dict ior -> ({1: 2, 5: 6}, {1: 2, 5: 6})
+str mod -> ('x!', 'x?', NotImplemented)
+int divmod -> ((3, 1), (0, 2), (3.0, 1.5), NotImplemented, 2, 20, 2.67)
+bool ops -> (False, True, 1, False, 'True')
+super iadd -> [1, 2, 2]
+super sub -> ('sub', {2})
