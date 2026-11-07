@@ -124,10 +124,39 @@ class PySymtable private constructor() {
             t.top = top
             t.stmts(m.body)
             t.analyze(top, emptySet())
+            globalQualnames(top)
             return t
         }
 
         private fun err(msg: String, n: Node): Nothing = throw PySyntaxError(msg, n.line, n.col)
+
+        /**
+         * CPython's compiler_set_qualname's part the analysis decides: a def or class whose name the scope around it
+         * declares global is named from the top (`G`, not `f.<locals>.G`), and so are the scopes in it and its
+         * annotations' (`G.m`, `g.__annotate__`).
+         */
+        private fun globalQualnames(s: Scope) {
+            for (c in s.children.toList()) {
+                if ((c.type == Scope.Type.FUNCTION && c.name != "<lambda>") || c.type == Scope.Type.CLASS) {
+                    var p = c.parent
+                    while (p != null && (p.type == Scope.Type.TYPE_PARAMS || p.type == Scope.Type.ANNOTATION)) p = p.parent
+                    var k = p
+                    while (k != null && k.type != Scope.Type.CLASS) k = k.parent
+                    if (p != null && p.type != Scope.Type.MODULE && c.qualname != c.name &&
+                        p.kinds[mangle(k?.name, c.name)] == Scope.Kind.GLOBAL_EXPLICIT) {
+                        val old = c.qualname
+                        for (a in c.parent!!.children) if (a.type == Scope.Type.ANNOTATION && a.node === c.node) renamed(a, old, c.name)
+                        renamed(c, old, c.name)
+                    }
+                }
+                globalQualnames(c)
+            }
+        }
+
+        private fun renamed(s: Scope, old: String, new: String) {
+            if (s.qualname == old) s.qualname = new else if (s.qualname.startsWith("$old.")) s.qualname = new + s.qualname.substring(old.length)
+            for (c in s.children) renamed(c, old, new)
+        }
 
         /**
          * A private name in class [private] (_Py_Mangle): `__x` as `_C__x`, the class's leading underscores dropped;
