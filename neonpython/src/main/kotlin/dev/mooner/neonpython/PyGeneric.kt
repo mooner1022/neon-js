@@ -117,7 +117,8 @@ internal object PyGeneric {
         val fm = Generic.FMT
         t[PyOp.FORMAT_VALUE] = Generic("formatValue", "va", pops = 1, result = true, owner = fm)
         t[PyOp.FORMAT_SPEC] = Generic("formatSpec", "vva", pops = 2, result = true, owner = fm)
-        t[PyOp.BUILD_STRING] = Generic("buildString", "n", pops = 0, popsPerA = 1, result = true, throws = false, owner = fm)
+        // (an AST object's f-string may join other than strs: a TypeError)
+        t[PyOp.BUILD_STRING] = Generic("buildString", "n", pops = 0, popsPerA = 1, result = true, owner = fm)
         val ss = Generic.SETS
         t[PyOp.BUILD_SET] = Generic("buildSet", "n", pops = 0, popsPerA = 1, result = true, owner = ss)
         t[PyOp.SET_ADD] = Generic("setAdd", "vv", pops = 2, result = true, owner = ss)

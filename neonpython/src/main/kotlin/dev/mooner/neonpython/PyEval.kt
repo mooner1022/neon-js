@@ -52,6 +52,13 @@ object PyEval {
     @JvmStatic
     fun compile(source: Any?, filename: String, mode: String, flags: Int = 0): Any? {
         if (mode != "exec" && mode != "eval" && mode != "single") throw PyException("ValueError", "compile() mode must be 'exec', 'eval' or 'single'")
+        if (source !is PyStr && source !is PyBytes && PyAstCompile.isAst(PyContext.current(), source)) {
+            try {
+                return PyAstCompile.compile(PyContext.current(), source, filename, mode, flags, flags and FUTURE_ANNOTATIONS != 0)
+            } catch (e: PySyntaxError) {
+                throw syntaxError(e, filename, "", mode)
+            }
+        }
         val src = text(source, "compile() arg 1 must be a string, bytes or AST object")
         if (flags and ONLY_AST != 0) return PyAstObjects.parse(PyContext.current(), src, filename, mode)
         val incomplete = flags and ALLOW_INCOMPLETE_INPUT != 0

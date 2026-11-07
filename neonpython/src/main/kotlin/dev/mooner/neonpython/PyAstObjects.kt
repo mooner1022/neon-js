@@ -93,6 +93,12 @@ object PyAstObjects {
             e.stage = 2
             throw PyEval.syntaxError(e, filename, src, mode)
         }
+        // (its `from __future__` imports' features checked, as _PyCompile_AstPreprocess checks them)
+        try {
+            PyCompiler.futureFeatures((tree as? Module)?.body ?: (tree as? Interactive)?.body ?: emptyList())
+        } catch (e: PySyntaxError) {
+            throw PyEval.syntaxError(e, filename, src, mode)
+        }
         return toPython(ctx, tree, src)
     }
 }

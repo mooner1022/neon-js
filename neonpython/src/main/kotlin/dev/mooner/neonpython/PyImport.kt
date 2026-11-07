@@ -199,6 +199,8 @@ object PyImport {
     fun importName(f: VmFrame, level: Any?, fromlist: Any?, name: Any?): Any? {
         val pf = f as PyFrame
         val n = (name as PyStr).s
+        // (an AST object's `from  import x`: PyImport_ImportModuleLevelObject's check)
+        if (n.isEmpty() && level == 0L) throw PyException("ValueError", "Empty module name")
         val abs = resolve(n, pf.globals, (level as Long).toInt())
         val m = importModule(pf.ctx, abs)
         val hasFrom = fromlist is PyTuple && fromlist.items.isNotEmpty()

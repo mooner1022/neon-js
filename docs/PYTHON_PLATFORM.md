@@ -820,7 +820,8 @@ Made with what was left (M9c):
   namespaces the caller's, a function's locals a snapshot the call site takes (SET_EVAL_LOCALS, as `locals()`'s:
   compiled code has no registers to read), dir()'s too. A compile error is CPython's SyntaxError object: the
   parser's with its line's text, the compiler's without, the symbol table's with its message as its only argument.
-  'single' compiles as 'exec' (no display of expression values); no AST (PyCF_ONLY_AST).
+  PyCF_ONLY_AST gives `_ast` objects (`PyAstObjects`); an `ast.AST` given to compile() is read back into NeonPy's
+  tree (`PyAstCompile`) and compiled as a parsed source is (12.2).
 
 - **A statement gives its temporaries back** when it ends, so that the registers of one try or with serve the next:
   the tier's code keeps every register a handler may read in a home at the start of each block a handler covers
@@ -1037,6 +1038,16 @@ stand-ins until the real `unittest` imports: from then on CPython's own).
     no JVM or Android provider is needed, and there is no `pbkdf2_hmac` or `scrypt`.
   - A C `unsigned long` is 64 bits, as on Linux.
   - The hash objects' attributes are properties.
+- **compile() of an AST object takes CPython's three steps.**
+  - Its nodes are read as Python-ast.c's obj2ast reads them. `PyAsdl.kt` is the ASDL as data, and
+    `neonpython/tools/gen_ast.py` writes it beside `_ast.py`.
+  - They are checked as ast.c's `_PyAST_Validate` checks them, with its messages, then compiled from NeonPy's tree.
+  - With PyCF_ONLY_AST it gives a new tree (type comments kept), after checking its `from __future__` features.
+  - Columns are taken as given: there is no source to turn UTF-8 offsets into characters, and CPython reports them
+    the same way without one.
+  - Where CPython's compiler crashes on a None that its validator let through (an identifier, a pattern, a handler, a
+    type parameter), NeonPy raises the validator's ValueError ("None disallowed in identifier list").
+  - PyCF_OPTIMIZED_AST gives the tree unoptimized.
 
 ### 12.3 Progress (2026-11-07, later)
 
@@ -1068,8 +1079,7 @@ Since then:
   `sched`, `decimal` (`_pydecimal`), `fractions` and `statistics`.
 - `code` and `codeop`.
 
-Next: `array`, `unittest`, `csv`, `email`, `xml` (it needs `pyexpat`), `compile()` of an AST object, and `C1` on a
-core branch.
+Next: `xml` (it needs `pyexpat`), `str`'s Unicode tables from CPython, and `C1` on a core branch.
 
 ## References (checked in this review)
 

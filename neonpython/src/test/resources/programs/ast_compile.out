@@ -1,0 +1,619 @@
+-- modes
+m1 TypeError expected Module node, got Expression
+m2 TypeError expected Expression node, got Module
+m3 TypeError expected Interactive node, got Module
+m4 TypeError expected Module node, got Interactive
+m5 TypeError expected Module node, got Name
+m6 TypeError expected Interactive node, got Expression
+m7 TypeError expected Module node, got Expression
+m8 TypeError expected Module node, got FunctionType
+m9 TypeError compile() arg 1 must be a string, bytes or AST object
+m10 ok code <module>
+m11 ok code <module>
+m12 ok code <module>
+m13 ValueError compile() mode must be 'exec', 'eval' or 'single'
+m14 TypeError exec() arg 1 must be a string, bytes or code object
+-- required fields
+r1 TypeError required field "lineno" missing from stmt
+r2 TypeError required field "lineno" missing from expr
+r3 TypeError required field "lineno" missing from stmt
+r4 TypeError expected some sort of stmt, but got Name(id='x', ctx=Load())
+r5 TypeError Module field "body" must be a list, not a int
+r6 TypeError Module field "type_ignores" must be a list, not a int
+r7 ValueError field 'value' is required for Expr
+r8 TypeError AST identifier must be of type str
+r9 ValueError field 'id' is required for Name
+r10 TypeError expected some sort of expr_context, but got None
+r11 TypeError expected some sort of expr_context, but got 5
+r12 TypeError expected some sort of operator, but got Load()
+r13 TypeError AST identifier must be of type str
+r14 TypeError required field "value" missing from Constant
+r15 TypeError required field "ctx" missing from Name
+r16 TypeError required field "id" missing from Name
+r17 ok code <module>
+r18 ok code <module>
+-- field values
+v1 ValueError invalid integer value: 'a'
+v2 OverflowError Python int too large to convert to C int
+v3 ValueError Negative ImportFrom level
+v4 ValueError invalid integer value: '1'
+v5 ok code <module>
+v6 ValueError invalid integer value: 1.0
+v7 ok code <module>
+v8 TypeError AST string must be of type str
+v9 TypeError AST string must be of type str
+v10 ok code <module>
+v11 ok code <module>
+v12 ok code <module>
+v13 TypeError required field "value" missing from keyword
+v14 ValueError None disallowed in expression list
+v15 ValueError None disallowed in statement list
+v16 TypeError expected some sort of expr_context, but got <class 'ast.Load'>
+v17 TypeError expected some sort of unaryop, but got Add()
+v18 TypeError expected some sort of cmpop, but got Add()
+v19 TypeError expected some sort of boolop, but got Add()
+v20 TypeError AST identifier must be of type str
+v21 TypeError required field "lineno" missing from arg
+v22 ok code <module>
+v23 TypeError AST identifier must be of type str
+v24 ValueError field 'name' is required for alias
+v25 OverflowError Python int too large to convert to C int
+v26 ok code <module>
+v27 ValueError invalid integer value: 'r'
+v28 TypeError JoinedStr field "values" must be a list, not a int
+v29 TypeError List field "elts" must be a list, not a tuple
+v30 ok code <module>
+v31 ValueError None disallowed in expression list
+-- odd objects
+o1 KeyError 'boom'
+o2 ok code <module>
+o3 RuntimeError Module field "body" changed size during iteration
+o4 ok 4
+o5 ok 9
+-- positions
+p1 ValueError AST node line range (3, 2) is not valid
+p2 ValueError line 2, column 5-3 is not a valid range
+p3 ValueError AST node column range (0, 3) for line range (-1, 2) is not valid
+p4 ValueError AST node column range (-1, 3) for line range (1, 1) is not valid
+p5 ValueError AST node line range (5, 4) is not valid
+p6 ok code <module>
+p7 ok code <module>
+p8 ValueError line 1, column 3-2 is not a valid range
+p9 ValueError AST node line range (2, 1) is not valid
+p10 ValueError AST node line range (4, 3) is not valid
+p11 ok code <module>
+p12 ValueError AST node line range (3, 2) is not valid
+p13 ok code <module>
+p14 ok code <module>
+-- checks
+c1 TypeError NamedExpr target must be a Name
+c2 TypeError TypeAlias with non-Name name
+c3 TypeError AnnAssign with simple non-Name target
+c4 TypeError got an invalid type in Constant: list
+c5 TypeError got an invalid type in Constant: list
+c6 TypeError got an invalid type in Constant: I
+c7 ValueError identifier field can't represent 'None' constant
+c8 ValueError expression which can't be assigned to in Store context
+c9 ValueError expression which can't be assigned to in Del context
+c10 ValueError expression which can't be assigned to in Store context
+c11 ValueError expression which can't be assigned to in Store context
+c12 ValueError expression which can't be assigned to in Store context
+c13 ValueError expression which can't be assigned to in Store context
+c14 ValueError expression must have Load context but has Store instead
+c15 ValueError expression must have Store context but has Load instead
+c16 ValueError identifier field can't represent 'True' constant
+c17 ValueError expression must have Store context but has Del instead
+c18 ValueError expression must have Load context but has Del instead
+c19 ValueError expression must have Load context but has Store instead
+c20 SyntaxError 'yield' outside function 1 1 None
+c21 ValueError expression must have Load context but has Store instead
+c22 ok code <module>
+c23 TypeError got an invalid type in Constant: type
+c24 TypeError got an invalid type in Constant: object
+-- validation
+test_assert
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+test_assign
+    ValueError empty targets on Assign
+    ValueError None disallowed in expression list
+    ValueError expression must have Store context but has Load instead
+    ValueError expression must have Load context but has Store instead
+test_attribute
+    ValueError expression must have Load context but has Store instead
+test_augassign
+    ValueError expression must have Store context but has Load instead
+    ValueError expression must have Load context but has Store instead
+test_boolop
+    ValueError BoolOp with less than 2 values
+    ValueError BoolOp with less than 2 values
+    ValueError None disallowed in expression list
+    ValueError expression must have Load context but has Store instead
+test_call
+    ValueError expression must have Load context but has Store instead
+    ValueError None disallowed in expression list
+    ValueError expression must have Load context but has Store instead
+test_classdef
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+    ValueError empty body on ClassDef
+    ValueError None disallowed in statement list
+    ValueError expression must have Load context but has Store instead
+test_compare
+    ValueError Compare with no comparators
+    ValueError Compare has a different number of comparators and operands
+   ok
+   ok
+test_delete
+    ValueError empty targets on Delete
+    ValueError None disallowed in expression list
+    ValueError expression must have Del context but has Load instead
+test_dict
+    ValueError Dict doesn't have the same number of keys as values
+    ValueError None disallowed in expression list
+test_dictcomp
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+    ValueError comprehension with no generators
+    ValueError expression must have Store context but has Load instead
+    ValueError expression must have Load context but has Store instead
+    ValueError None disallowed in expression list
+    ValueError expression must have Load context but has Store instead
+test_expr
+    ValueError expression must have Load context but has Store instead
+test_for
+    ValueError empty body on For
+    ValueError expression must have Store context but has Load instead
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+test_funcdef
+    ValueError empty body on FunctionDef
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+   ok
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+    ValueError more positional defaults than args on arguments
+    ValueError length of kwonlyargs is not the same as kw_defaults on arguments
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+test_generatorexp
+    ValueError expression must have Load context but has Store instead
+    ValueError comprehension with no generators
+    ValueError expression must have Store context but has Load instead
+    ValueError expression must have Load context but has Store instead
+    ValueError None disallowed in expression list
+    ValueError expression must have Load context but has Store instead
+test_global
+    ValueError empty names on Global
+test_if
+    ValueError empty body on If
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+test_ifexp
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+test_import
+    ValueError empty names on Import
+test_importfrom
+    ValueError Negative ImportFrom level
+    ValueError empty names on ImportFrom
+test_lambda
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+    ValueError more positional defaults than args on arguments
+    ValueError length of kwonlyargs is not the same as kw_defaults on arguments
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+test_list
+    ValueError None disallowed in expression list
+    ValueError expression must have Load context but has Store instead
+test_listcomp
+    ValueError expression must have Load context but has Store instead
+    ValueError comprehension with no generators
+    ValueError expression must have Store context but has Load instead
+    ValueError expression must have Load context but has Store instead
+    ValueError None disallowed in expression list
+    ValueError expression must have Load context but has Store instead
+test_match_validation_pattern
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+    ValueError unexpected constant inside of a literal pattern
+    ValueError unexpected constant inside of a literal pattern
+    ValueError unexpected constant inside of a literal pattern
+    ValueError MatchSingleton can only contain True, False and None
+    ValueError MatchSingleton can only contain True, False and None
+    ValueError MatchSingleton can only contain True, False and None
+    ValueError MatchMapping doesn't have the same number of keys as patterns
+    ValueError identifier field can't represent 'True' constant
+    ValueError patterns may only match literals and attribute lookups
+    ValueError MatchClass cls field can only contain Name or Attribute nodes.
+    ValueError identifier field can't represent 'True' constant
+    ValueError MatchClass doesn't have the same number of keyword attributes as patterns
+    ValueError MatchSingleton can only contain True, False and None
+    ValueError can't use MatchStar here
+    ValueError MatchClass doesn't have the same number of keyword attributes as patterns
+    ValueError MatchClass cls field can only contain Name or Attribute nodes.
+    ValueError identifier field can't represent 'True' constant
+    ValueError identifier field can't represent 'False' constant
+    ValueError MatchOr requires at least 2 patterns
+    ValueError MatchOr requires at least 2 patterns
+    ValueError MatchSingleton can only contain True, False and None
+    ValueError can't capture name '_' in patterns
+    ValueError can't use MatchStar here
+    ValueError can't capture name '_' in patterns
+    ValueError can't capture name '_' in patterns
+test_module
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+test_nonlocal
+    ValueError empty names on Nonlocal
+test_raise
+    ValueError Raise with cause but no exception
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+test_set
+    ValueError None disallowed in expression list
+    ValueError expression must have Load context but has Store instead
+test_setcomp
+    ValueError expression must have Load context but has Store instead
+    ValueError comprehension with no generators
+    ValueError expression must have Store context but has Load instead
+    ValueError expression must have Load context but has Store instead
+    ValueError None disallowed in expression list
+    ValueError expression must have Load context but has Store instead
+test_starred
+    ValueError expression must have Store context but has Load instead
+test_subscript
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+   ok
+    ValueError expression must have Load context but has Store instead
+test_try
+    ValueError empty body on Try
+    ValueError expression must have Load context but has Store instead
+    ValueError Try has neither except handlers nor finalbody
+    ValueError Try has orelse but no except handlers
+    ValueError empty body on ExceptHandler
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+test_try_star
+    ValueError empty body on TryStar
+    ValueError expression must have Load context but has Store instead
+    ValueError TryStar has neither except handlers nor finalbody
+    ValueError TryStar has orelse but no except handlers
+    ValueError empty body on ExceptHandler
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+test_tuple
+    ValueError None disallowed in expression list
+    ValueError expression must have Load context but has Store instead
+test_unaryop
+    ValueError expression must have Load context but has Store instead
+test_while
+    ValueError empty body on While
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+test_with
+    ValueError empty items on With
+    ValueError empty body on With
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Store context but has Load instead
+test_yield
+    ValueError expression must have Load context but has Store instead
+    ValueError expression must have Load context but has Store instead
+-- compiler errors
+src  return 1 SyntaxError 'return' outside function 1 1 None
+tree return 1 SyntaxError 'return' outside function 1 1 None
+src  return SyntaxError 'return' outside function 2 1 None
+tree return SyntaxError 'return' outside function 2 1 None
+src      nonlocal x SyntaxError no binding for nonlocal 'x' found 2 5 None
+tree     nonlocal x SyntaxError no binding for nonlocal 'x' found 2 5 None
+src  nonlocal x SyntaxError nonlocal declaration not allowed at module level 1 1 None
+tree nonlocal x SyntaxError nonlocal declaration not allowed at module level 1 1 None
+src  break SyntaxError 'break' outside loop 1 1 None
+tree break SyntaxError 'break' outside loop 1 1 None
+src  continue SyntaxError 'continue' not properly in loop 1 1 None
+tree continue SyntaxError 'continue' not properly in loop 1 1 None
+src  def f(a, a): pass SyntaxError duplicate argument 'a' in function definition 1 10 None
+tree def f(a, a): pass SyntaxError duplicate argument 'a' in function definition 1 10 None
+src  f(a=1, a=2) SyntaxError keyword argument repeated: a 1 8 None
+tree f(a=1, a=2) SyntaxError keyword argument repeated: a 1 8 None
+src  await x SyntaxError 'await' outside function 1 1 None
+tree await x SyntaxError 'await' outside function 1 1 None
+src      await x SyntaxError 'await' outside async function 2 5 None
+tree     await x SyntaxError 'await' outside async function 2 5 None
+src  yield 1 SyntaxError 'yield' outside function 1 1 None
+tree yield 1 SyntaxError 'yield' outside function 1 1 None
+src  x = [(yield) for y in z] SyntaxError 'yield' inside list comprehension 1 7 None
+tree x = [(yield) for y in z] SyntaxError 'yield' inside list comprehension 1 7 None
+src      yield from x SyntaxError 'yield from' inside async function 2 5 None
+tree     yield from x SyntaxError 'yield from' inside async function 2 5 None
+src      return 2 SyntaxError 'return' with value in async generator 3 5 None
+tree     return 2 SyntaxError 'return' with value in async generator 3 5 None
+src  from __future__ import brace SyntaxError not a chance 1 24 None
+parse not a chance
+src  from __future__ import spam SyntaxError future feature spam is not defined 2 24 None
+parse future feature spam is not defined
+src  from __future__ import annot SyntaxError from __future__ imports must occur at the beginning of the file 2 1 None
+tree from __future__ import annot SyntaxError from __future__ imports must occur at the beginning of the file 2 1 None
+src      pass SyntaxError default 'except:' must be last 3 1 None
+tree     pass SyntaxError default 'except:' must be last 3 1 None
+src      global x SyntaxError name 'x' is assigned to before global declaration 3 5 None
+tree     global x SyntaxError name 'x' is assigned to before global declaration 3 5 None
+src  async with a: pass SyntaxError 'async with' outside async function 1 1 None
+tree async with a: pass SyntaxError 'async with' outside async function 1 1 None
+src  async for a in b: pass SyntaxError 'async for' outside async function 1 1 None
+tree async for a in b: pass SyntaxError 'async for' outside async function 1 1 None
+src          pass SyntaxError name capture 'a' makes remaining patterns unreachable 2 10 None
+tree         pass SyntaxError name capture 'a' makes remaining patterns unreachable 2 10 None
+src          pass SyntaxError multiple assignments to name 'a' in pattern 2 14 None
+tree         pass SyntaxError multiple assignments to name 'a' in pattern 2 14 None
+src          pass SyntaxError mapping pattern checks duplicate key (1) 2 10 None
+tree         pass SyntaxError mapping pattern checks duplicate key (1) 2 10 None
+src          pass SyntaxError name capture 'a' makes remaining patterns unreachable 2 10 None
+tree         pass SyntaxError name capture 'a' makes remaining patterns unreachable 2 10 None
+src  class C[T, T]: pass SyntaxError duplicate type parameter 'T' 1 12 None
+tree class C[T, T]: pass SyntaxError duplicate type parameter 'T' 1 12 None
+src  def f[T = int, U](): pass SyntaxError non-default type parameter 'U' follows default type parameter 1 16 None
+tree def f[T = int, U](): pass SyntaxError non-default type parameter 'U' follows default type parameter 1 16 None
+-- hand-made trees the compiler refuses
+h1 SyntaxError multiple starred expressions in assignment 1 1 None
+h2 SyntaxError starred assignment target must be in a list or tuple 1 1 None
+h3 SyntaxError can't use starred expression here 1 1 None
+h4 SyntaxError multiple starred expressions in assignment 1 1 None
+h5 SyntaxError too many expressions in star-unpacking assignment 1 1 None
+h6 SystemError invalid node type (28) for augmented assignment
+h7 SystemError invalid node type (27) for augmented assignment
+h8 SystemError invalid node type (25) for augmented assignment
+h9 SyntaxError can't use starred expression here 1 1 None
+h10 SystemError Unrecognized conversion character 120
+h11 SystemError Unrecognized conversion character 99
+h11b SystemError Unrecognized conversion character -5
+h11c SystemError Unrecognized conversion character -5
+h12 SyntaxError patterns may only match literals and attribute lookups 1 1 None
+h13 SyntaxError mapping pattern keys may only match literals and attribute lookups 1 1 None
+h14 ValueError Invalid CFG, stack underflow
+-- trees no parser makes
+q1 TypeError sequence item 0: expected str instance, int found
+q2 ok Template(strings=('a', 'b'), interpolations=())
+q3 ok Template(strings=(5, ''), interpolations=(Interpolation(5, 'x', None, ''),))
+q4 ok (('', '', ''), (5, 5), ['r', None])
+q5 SystemError Format specifier must be a string, not int
+q6 ok Template(strings=('', ''), interpolations=(Interpolation(3, 'x', None, 5),))
+q7 ok 3
+q8 ValueError Empty module name
+q9 ok 4
+q10 ok deleted
+q11 ok none
+q12 ok [1, 2]
+q13 KeyError ('a',)
+q14 ok 1
+q15 ok -0.0
+q16 ok five
+q17 ok cx
+q18 ok none
+q19 ok {}
+q20 TypeError int() got an unexpected keyword argument 'x'
+q21 SyntaxError 'yield' outside function 1 1 None
+q22 SyntaxError asynchronous comprehension outside of an asynchronous function 1 1 None
+q23 ok True
+q24 ok {'a': 1, 'b': 2}
+q25 ok slice(1, None, None)
+q26 ok True
+q27 ok u
+q28 ok 3
+-- round trips
+0 same
+7 -7 -8 False 49 3 3 3.5 14 3 3 15 2
+1 same
+0 [1, 2, 3, 4] 5
+x y
+1 2 3
+2 same
+(1, 2, 3, (), 4, 5, {})
+(1, 2, 3, (4, 5), 6, 5, {'z': 7})
+3 same
+2
+4 same
+20
+5 same
+('A', 1) 2 doc A
+6 same
+sub {'k': 1}
+B
+7 same
+deco w
+deco w
+4
+deco K
+8
+8 same
+got s
+1 0 1
+stop 5
+9 same
+([0, 2, 4], [1, 2])
+10 same
+[0, 0, 0, 2, 0, 2] {0: 0, 1: 1, 2: 4} {0, 1} [1, 2, 3]
+11 same
+small
+('seq', 1, [2, 3])
+('map', 1, {'z': 2})
+('cx', 3.0)
+('str', 'hi')
+neg
+('cx', 1.0)
+none
+other
+12 same
+zde division by zero
+fin
+v (ValueError(1),)
+t (TypeError(2),)
+13 same
+enter
+enter
+exit <class 'KeyError'>
+exit None
+after
+14 same
+42     42 x=42   42 'n' 0x2a a42b43c 3.14 q
+15 same
+Template ('a', 'b', '') [(5, 'x', 'r', '>3'), (6, 'x + 1', None, '')]
+16 same
+3 (T, Ts, P) dict[K, int] (K,)
+17 same
+(1, 2, (), 4, {}) 7
+18 same
+10
+[1, 2]
+19 same
+[2, 3] [1, 3, 5] [5, 4, 3, 2, 1] 5
+[9, 9, 3, 4, 5]
+{}
+20 same
+9
+3
+[6]
+21 same
+True False False True True True
+22 same
+assert msg
+23 same
+True deque([1]) OrderedDict({'a': 1})
+24 same
+{'a': <class 'int'>, 'b': list[int]}
+25 same
+{'a': 'undefined_name', 'return': 'List[int]'}
+26 same
+((1, 2, 3), {'a': 1, 'b': 2})
+[0, 1, 2, 'a', 'b'] {'x': 1, 'y': 2} {1, 2, 3}
+27 same
+6
+for else 2
+28 same
+finally runs
+try
+29 same
+1 generator
+30 same
+b'abc\x00' uv w \n 31 15 5 1000 1000.0 2j Ellipsis None True
+31 same
+True
+32 same
+1 ('x',)
+33 same
+TypeError('b') ValueError('a')
+bare raise No active exception to reraise
+34 same
+Docstring. f f ('x',) 1
+35 same
+__main__ True
+('a',) ('__private',)
+36 same
+ü∂ '\xfc'
+37 same
+matmul matmul 5 True 2 True 4
+38 same
+['in', 1, 2, 'else']
+-- line numbers
+11 16 15 inc.py
+ZeroDivisionError 13 inc.py f
+ValueError 17 inc.py m
+moved to 40
+g at 102 101
+-- hand-made trees
+FunctionDef(name='add', args=arguments(args=[arg(arg='a', lineno=1, col_offset=0, end_lineno=1, end_col_offset=0), arg(a
+15
+3 1 (10,) add
+42
+[0, 1, 4, 9]
+zde at 1
+3 Point Point.norm
+-- transformers
+12 ABC 10
+25
+x = 3 * 4
+print(x, 'ABC', 1 * 2 * 5)
+
+def g(n):
+    return n * n
+print(g(5))
+>> 0
+>> 1
+kept None
+-- single and eval
+Interactive
+2
+'shown'
+3
+10
+['a', 'b']
+None
+-- constants
+None True
+False True
+True True
+Ellipsis True
+b'' True
+123 True
+123.0 True
+123j True
+'unicode' True
+b'bytes' True
+('t', 'u', 'p') True
+frozenset({'a'}) True
+((1,), 2) True
+frozenset({frozenset({1}), 2}) True
+1267650600228229401496703205376 True
+(10+20j) [1, -2.5, {'a': (True, None)}]
+-- PyCF_ONLY_AST
+same object False Module True
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0, end_lineno=1, end_col_offset=1)], value=Constant(value=1, lineno=1, col_offset=4, end_lineno=1, end_col_offset=5), lineno=1, col_offset=0, end_lineno=1, end_col_offset=5), Expr(value=Call(func=Name(id='print', ctx=Load(), lineno=2, col_offset=0, end_lineno=2, end_col_offset=5), args=[Name(id='x', ctx=Load(), lineno=2, col_offset=6, end_lineno=2, end_col_offset=7)], lineno=2, col_offset=0, end_lineno=2, end_col_offset=8), lineno=2, col_offset=0, end_lineno=2, end_col_offset=8)])
+True False
+parse of a tree False True
+Expression(body=BinOp(left=Constant(value=2, lineno=1, col_offset=0, end_lineno=1, end_col_offset=1), op=Mult(), right=Constant(value=21, lineno=1, col_offset=0, end_lineno=1, end_col_offset=1), lineno=1, col_offset=0, end_lineno=1, end_col_offset=1))
+oa1 ValueError expression must have Load context but has Store instead
+oa2 SyntaxError not a chance 1 1 None
+oa3 SyntaxError future feature nope is not defined 2 24 None
+oa4 ok Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Constant(value=1)), ImportFrom(module='__future__', names=[alias(name='nope')], level=0)])
+oa5 SyntaxError not a chance 1 24 None
+oa6 ok Interactive(body=[Pass()])
+oa7 ok Interactive(body=[Pass()])
+Module(body=[FunctionDef(name='f', args=arguments(args=[arg(arg='a', annotation=Name(id='int', ctx=Load(), lineno=1, col_offset=9, end_lineno=1, end_col_offset=12), type_comment='atc', lineno=1, col_offset=6, end_lineno=1, end_col_offset=12)], vararg=arg(arg='b', lineno=1, col_offset=15, end_lineno=1, end_col_offset=16), kwonlyargs=[arg(arg='c', lineno=1, col_offset=18, end_lineno=1, end_col_offset=19)], kw_defaults=[Constant(value=1, lineno=1, col_offset=20, end_lineno=1, end_col_offset=21)], kwarg=arg(arg='d', lineno=1, col_offset=25, end_lineno=1, end_col_offset=26)), body=[Expr(value=Constant(value='doc', lineno=2, col_offset=4, end_lineno=2, end_col_offset=13), lineno=2, col_offset=4, end_lineno=2, end_col_offset=13), Return(value=Name(id='a', ctx=Load(), lineno=3, col_offset=11, end_lineno=3, end_col_offset=12), lineno=3, col_offset=4, end_lineno=3, end_col_offset=12)], returns=Name(id='str', ctx=Load(), lineno=1, col_offset=31, end_lineno=1, end_col_offset=34), type_comment='tc', lineno=1, col_offset=0, end_lineno=3, end_col_offset=12)], type_ignores=[TypeIgnore(lineno=3, tag='ignore')])
+-- library modules
+textwrap True True
+json True True
+string True True
+colorsys True True
+fnmatch True True
+shlex True True
+heapq True True
+bisect True True
+difflib True True
+keyword True True
+a
+  b
+The quick
+brown fox
+jumps over
+the lazy dog
+{"a": [1, 2.5, null, true]} {'x': [1, {'y': None}]}
+Hello Ast World tim likes ast
+[0.5, 0.5, 0.4] True
+['a', 'b c', 'd'] 'it'"'"'s'
+[1, 3] 1 2
+['--- ', '+++ ', '@@ -1,2 +1,2 @@', ' a\n', '-b\n', '+c\n']
+False True

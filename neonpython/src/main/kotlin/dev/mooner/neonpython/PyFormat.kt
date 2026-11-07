@@ -322,13 +322,19 @@ object PyFormat {
 
     /** FORMAT_SPEC: a field with its spec (a str, its own fields formatted). */
     @JvmStatic
-    fun formatSpec(v: Any?, spec: Any?, conv: Int): Any? = PyStr(format(convert(v, conv), (spec as PyStr).s))
+    fun formatSpec(v: Any?, spec: Any?, conv: Int): Any? {
+        // (an AST object's spec may be any expression: PyObject_Format's check)
+        val s = spec as? PyStr ?: throw PyException("SystemError", "Format specifier must be a string, not ${PyTypes.name(spec)}")
+        return PyStr(format(convert(v, conv), s.s))
+    }
 
-    /** BUILD_STRING: an f-string's parts joined. */
+    /** BUILD_STRING: an f-string's parts joined (an AST object's parts may be other than strs: _PyUnicode_JoinArray's error). */
     @JvmStatic
     fun buildString(parts: Array<Any?>): Any? {
         val sb = StringBuilder()
-        for (p in parts) sb.append((p as PyStr).s)
+        for ((i, p) in parts.withIndex()) {
+            sb.append((p as? PyStr ?: throw PyRt.typeError("sequence item $i: expected str instance, ${PyTypes.name(p)} found")).s)
+        }
         return PyStr(sb.toString())
     }
 

@@ -205,6 +205,39 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 e.stage = 2
                 throw e
             }
+            return compileParsed(m, mode, future)
+        }
+
+        /**
+         * compile()'s code of an AST object's tree (PyAstCompile's, validated): a Module, an Expression (mode eval) or
+         * an Interactive (mode single), compiled as a parsed source is.
+         */
+        @JvmStatic fun compileTree(tree: Node, mode: String, future: Boolean): CodeUnit {
+            val m = when (tree) {
+                is Expression -> Module(listOf(ExprStmt(tree.body).also { it.line = tree.body.line; it.col = tree.body.col })).also { it.line = 1 }
+                is Interactive -> Module(tree.body).also { it.line = 1 }
+                else -> tree as Module
+            }
+            return compileParsed(m, mode, future)
+        }
+
+        /**
+         * _PyFuture_FromAST: the `from __future__` imports a module starts with (after its docstring) of features
+         * CPython knows, an error at the feature's name (its location the exception's, not in its args).
+         */
+        @JvmStatic fun futureFeatures(body: List<Stmt>) {
+            val doc = ((body.firstOrNull() as? ExprStmt)?.value as? Constant)?.value.let { it is PyStr && PyTypes.typeOf(it) === PyTypes.STR }
+            for (s in body.subList(if (doc) 1 else 0, body.size)) {
+                if (s !is ImportFrom || s.level != 0 || s.module != "__future__") return
+                for (a in s.names) {
+                    if (a.name == "braces") throw PySyntaxError("not a chance", a.line, a.col)
+                    if (a.name !in PyImport.FUTURES) throw PySyntaxError("future feature ${a.name} is not defined", a.line, a.col)
+                }
+            }
+        }
+
+        private fun compileParsed(m: Module, mode: String, future: Boolean): CodeUnit {
+            futureFeatures(m.body)
             val st = PySymtable.build(m, checkFutures(m) || future)
             val c = PyCompiler(st, st.scopes[m]!!, "<module>")
             c.nameMode = true
@@ -409,6 +442,13 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     }
 
     private fun firstLineOf(body: List<Stmt>): Int = if (firstLine > 0) firstLine else body.firstOrNull()?.line ?: 1
+
+    /** A def's or class's first line, as co_firstlineno has it: its first decorator's. */
+    private fun firstLineOf(node: Node): Int = when (node) {
+        is FunctionDef -> node.decoratorList.firstOrNull()?.line ?: node.line
+        is ClassDef -> node.decoratorList.firstOrNull()?.line ?: node.line
+        else -> node.line
+    }
 
     /** The cells of [child]'s free variables, a tuple (MAKE_FUNCTION's closure), where it has any. */
     private fun closure(child: Scope) {
@@ -1089,21 +1129,38 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         val strings = ArrayList<Any?>()
         val fields = ArrayList<Interpolation>()
         var cur = StringBuilder()
-        for (v in e.values) when (v) {
-            is Interpolation -> {
-                strings.add(PyStr(cur.toString()))
-                cur = StringBuilder()
-                fields.add(v)
-            }
-            is Constant -> cur.append((v.value as PyStr).s)
-            else -> throw IllegalStateException("a t-string's part: $v")
+        // (an AST object's parts may be any expressions, two strings in a row: CPython's codegen_template_str, its
+        // strings evaluated, an empty one before an interpolation after another)
+        val parsed = e.values.withIndex().all { (i, v) ->
+            v is Interpolation || v is Constant && PyTypes.typeOf(v.value) === PyTypes.STR && e.values.getOrNull(i + 1) !is Constant
         }
-        strings.add(PyStr(cur.toString()))
-        loadConst(PyTuple(strings.toTypedArray()))
+        if (parsed) {
+            for (v in e.values) {
+                if (v is Interpolation) {
+                    strings.add(PyStr(cur.toString()))
+                    cur = StringBuilder()
+                    fields.add(v)
+                } else cur.append(((v as Constant).value as PyStr).s)
+            }
+            strings.add(PyStr(cur.toString()))
+            loadConst(PyTuple(strings.toTypedArray()))
+        } else {
+            var n = 0
+            var afterField = true
+            for (v in e.values) {
+                if (v is Interpolation) {
+                    if (afterField) { loadConst(PyStr.EMPTY); n++ }
+                    fields.add(v)
+                } else { expr(v); n++ }
+                afterField = v is Interpolation
+            }
+            if (afterField) { loadConst(PyStr.EMPTY); n++ }
+            emit(PyOp.BUILD_TUPLE, n)
+        }
         for (f in fields) {
             expr(f.value)
             loadConst(PyStr(f.str))
-            loadConst(if (f.conversion < 0) PyNone else PyStr(f.conversion.toChar().toString()))
+            loadConst(if (conversion(f.conversion) < 0) PyNone else PyStr(f.conversion.toChar().toString()))
             if (f.formatSpec != null) expr(f.formatSpec) else loadConst(PyStr.EMPTY)
             emit(PyOp.BUILD_INTERPOLATION)
         }
@@ -1121,10 +1178,16 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
         if (e.values.size > 1) emit(PyOp.BUILD_STRING, e.values.size)
     }
 
+    /** A field's conversion: -1 (none), 's', 'r' or 'a' (an AST object's another: CPython's SystemError). */
+    private fun conversion(c: Int): Int {
+        if (c != -1 && c != 's'.code && c != 'r'.code && c != 'a'.code) throw PyException("SystemError", "Unrecognized conversion character $c")
+        return c
+    }
+
     /** An f-string's field: its value, converted (!s, !r, !a) and formatted with its spec (an f-string itself). */
     private fun formatted(v: FormattedValue) {
         expr(v.value)
-        val conv = when (v.conversion) {
+        val conv = when (conversion(v.conversion)) {
             's'.code -> 1
             'r'.code -> 2
             'a'.code -> 3
@@ -1237,6 +1300,8 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 bind(p.name, p)
             }
             is MatchStar -> bind(p.name, p)
+            // (an AST object's value pattern may be an f-string, which CPython's codegen refuses; its numbers are folded)
+            is MatchValue -> if (!valueExpr(p.value)) throw PySyntaxError("patterns may only match literals and attribute lookups", p.line, p.col)
             is MatchSequence -> {
                 if (p.patterns.count { it is MatchStar } > 1) throw PySyntaxError("multiple starred names in sequence pattern", p.line, p.col)
                 p.patterns.forEach { checkPattern(it, names) }
@@ -1244,6 +1309,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             is MatchMapping -> {
                 val seen = HashSet<String>()
                 for (k in p.keys) {
+                    if (!valueExpr(k)) throw PySyntaxError("mapping pattern keys may only match literals and attribute lookups", p.line, p.col)
                     val r = constantKey(k) ?: continue
                     if (!seen.add(r)) throw PySyntaxError("mapping pattern checks duplicate key ($r)", p.line, p.col)
                 }
@@ -1271,6 +1337,9 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             else -> {}
         }
     }
+
+    /** CPython's MATCH_VALUE_EXPR, its numbers folded: a literal (a negated one, a complex one) or an attribute lookup. */
+    private fun valueExpr(e: Expr): Boolean = e is Constant || e is Attribute || e is UnaryOp || e is BinOp
 
     /** A mapping pattern's key as CPython's duplicate check writes it, where it is a literal. */
     private fun constantKey(k: Expr): String? = when {
@@ -1646,7 +1715,8 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 val m = temp()
                 val before = temp()
                 emit(PyOp.LOAD_FAST, st)
-                expr(h.type!!)
+                // (an AST object's except* without a type: CPython's compiler fails so)
+                expr(h.type ?: throw PyException("ValueError", "Invalid CFG, stack underflow"))
                 emit(PyOp.EXC_STAR_MATCH)
                 emit(PyOp.STORE_FAST, m)
                 emit(PyOp.LOAD_FAST, m)
@@ -1756,7 +1826,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             if (ann.frees.isNotEmpty()) emit(PyOp.SET_FUNCTION_ATTRIBUTE, 8)
             flags = flags or 16
         }
-        val cb = child(child, fname).also { it.firstLine = node.line }.compileBody(body, args)
+        val cb = child(child, fname).also { it.firstLine = firstLineOf(node) }.compileBody(body, args)
         emit(PyOp.MAKE_FUNCTION, const(cb))
         for (flag in intArrayOf(16, 8, 2, 1)) if (flags and flag != 0) emit(PyOp.SET_FUNCTION_ATTRIBUTE, flag)
     }
@@ -1783,7 +1853,7 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
     private fun generic(node: Stmt, name: String) {
         val tps = st.typeParamScopes[node]!!
         val c = child(tps, "<generic parameters of $name>")
-        c.firstLine = node.line
+        c.firstLine = firstLineOf(node)
         val cb = c.compileGeneric(node)
         closure(tps)
         emit(PyOp.MAKE_FUNCTION, const(cb))
@@ -1910,6 +1980,9 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             is TupleExpr, is ListExpr -> {
                 val elts = if (t is TupleExpr) t.elts else (t as ListExpr).elts
                 val star = elts.indexOfFirst { it is Starred }
+                // (CPython's unpack_helper: an AST object's target, which no parser checked)
+                if (star >= 256) throw PySyntaxError("too many expressions in star-unpacking assignment", t.line, t.col)
+                if (elts.count { it is Starred } > 1) throw PySyntaxError("multiple starred expressions in assignment", t.line, t.col)
                 if (star < 0) emit(PyOp.UNPACK, elts.size)
                 else emit(PyOp.UNPACK_EX, star, elts.size - star - 1)
                 for (e in elts) store(if (e is Starred) e.value else e)
@@ -1940,6 +2013,8 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
             }
             is TupleExpr -> t.elts.forEach { delete(it) }
             is ListExpr -> t.elts.forEach { delete(it) }
+            // (an AST object's `del *x`: CPython's codegen)
+            is Starred -> throw PySyntaxError("can't use starred expression here", t.line, t.col)
             else -> throw PySyntaxError("cannot delete expression", t.line, t.col)
         }
     }
@@ -1983,6 +2058,10 @@ class PyCompiler private constructor(private val st: PySymtable, private val sco
                 emit(PyOp.LOAD_FAST, o)
                 emit(PyOp.STORE_ATTR, name(mangle(t.attr)))
             }
+            // (an AST object's: CPython's codegen_augassign, the target's expr kind)
+            is Starred -> throw PyException("SystemError", "invalid node type (25) for augmented assignment")
+            is ListExpr -> throw PyException("SystemError", "invalid node type (27) for augmented assignment")
+            is TupleExpr -> throw PyException("SystemError", "invalid node type (28) for augmented assignment")
             else -> unsupported("augmented assignment to this target", s)
         }
     }
