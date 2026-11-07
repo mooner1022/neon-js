@@ -247,9 +247,10 @@ object PyDunder {
         val h = t.lookup("__hash__")
         if (h === PyNone) throw PyRt.typeError("unhashable type: '${t.tpName ?: t.name}'")
         if (h == null || h is PyBuiltin && !t.dispatchBuiltins) return if (v is PyValue) PyRt.hashValues(v) else System.identityHashCode(v)
+        // (its __hash__'s int as slot_tp_hash keeps it (-1 being -2, one past 64 bits reduced), folded as a builtin key's is)
         return when (val r = call(h, v)) {
-            is Long -> java.lang.Long.hashCode(r)
-            is BigInteger -> r.hashCode()
+            is Long -> PyRt.fold(if (r == -1L) -2L else r)
+            is BigInteger -> PyRt.fold(PyHash.int(r))
             is PyBool -> if (r.value) 1 else 0
             else -> throw PyRt.typeError("__hash__ method should return an integer")
         }
@@ -271,7 +272,7 @@ object PyDunder {
                 h === PyNone -> throw PyRt.typeError("unhashable type: '${t.tpName ?: t.name}'")
                 h == null || h is PyBuiltin && !t.dispatchBuiltins -> if (v is PyNumSub) hashValue(v.num) else if (v is PyValue) PyRt.hashValues(v).toLong() else System.identityHashCode(v).toLong()
                 else -> when (val r = call(h, v)) {
-                    is Long -> intHash(BigInteger.valueOf(r))
+                    is Long -> if (r == -1L) -2L else r
                     is BigInteger -> intHash(r)
                     is PyBool -> if (r.value) 1L else 0L
                     else -> throw PyRt.typeError("__hash__ method should return an integer")

@@ -463,38 +463,49 @@ object PyRt {
         return a.size.compareTo(b.size)
     }
 
+    /**
+     * A key's hash as dicts and sets use it: its Python hash (PyHash's, hash()'s) folded to an Int, one fold for every
+     * kind, so that equal keys of different kinds (1.5 and Fraction(3, 2), a str and a class whose __hash__ is the
+     * str's) meet. A hash an Int holds is itself; the common kinds keep their fast ways to it.
+     */
     @JvmStatic fun hash(v: Any?): Int = when (v) {
-        null, PyNone -> 0x5f3759
+        null, PyNone -> fold(PyHash.NONE)
         is PyBool -> if (v.value) 1 else 0
-        is Long -> java.lang.Long.hashCode(v)
-        is BigInteger -> v.hashCode()
-        is Double -> if (v == Math.rint(v) && !v.isInfinite()) {
-            if (v >= -9.223372036854776E18 && v < 9.223372036854776E18) java.lang.Long.hashCode(v.toLong())
-            else BigDecimal(v).toBigInteger().hashCode()
-        } else v.hashCode()
-        is PyStr -> if (v.sub == null) v.s.hashCode() else PyDunder.hash(v)
-        is PyTuple -> if (v.sub == null) v.hashCode() else PyDunder.hash(v)
+        is Long -> longHash(v)
+        is BigInteger -> fold(PyHash.int(v))
+        is Double -> if (v == Math.rint(v) && v > -9.2E18 && v < 9.2E18) longHash(v.toLong()) else fold(PyHash.float(v, v))
+        is PyStr -> if (v.sub == null) strHash(v.s) else PyDunder.hash(v)
+        is PyTuple -> if (v.sub == null) fold(PyHash.tuple(v.items)) else PyDunder.hash(v)
         is PyList, is PyDict -> if (special(v)) PyDunder.hash(v) else throw typeError("unhashable type: '${t(v)}'")
-        is PySet -> if (v.sub == null) (if (v.frozen) java.lang.Long.hashCode(v.frozenHash()) else throw typeError("unhashable type: '${t(v)}'")) else PyDunder.hash(v)
-        is PySlice -> java.lang.Long.hashCode(PyHash.hash(v))
-        is PyRange -> java.lang.Long.hashCode(PyRanges.hash(v))
+        is PySet -> if (v.sub == null) (if (v.frozen) fold(v.frozenHash()) else throw typeError("unhashable type: '${t(v)}'")) else PyDunder.hash(v)
+        is PySlice -> fold(PyHash.hash(v))
+        is PyRange -> fold(PyRanges.hash(v))
         is PyByteArray -> if (v.sub != null) PyDunder.hash(v) else throw typeError("unhashable type: 'bytearray'")
-        is PyMemoryView -> java.lang.Long.hashCode(PyByteSeqs.viewHash(v))
-        is PyBytes -> v.hashCode()
-        // (equal to an int or a float, a complex with no imaginary part hashes as it)
-        is PyComplex -> if (v.imag == 0.0) hash(v.real) else java.lang.Long.hashCode(PyHash.hash(v))
+        is PyMemoryView -> fold(PyByteSeqs.viewHash(v))
+        is PyBytes -> fold(PyHash.hash(v))
+        is PyComplex -> fold(PyHash.hash(v))
         is PyObject, is PyNumSub -> PyDunder.hash(v)
         is PyGenericAlias, is PyUnion, is PyParamSpecPart -> v.hashCode()
         else -> System.identityHashCode(v)
     }
 
+    /** A Python hash as an Int: itself where it fits, else its two halves folded. */
+    @JvmStatic fun fold(h: Long): Int = if (h == h.toInt().toLong()) h.toInt() else java.lang.Long.hashCode(h)
+
+    /** An int's dict hash: CPython's (modulo 2**61 - 1, -1 being -2), folded; most ints themselves. */
+    @JvmStatic fun longHash(v: Long): Int =
+        if (v > -0x1FFFFFFFFFFFFFFFL && v < 0x1FFFFFFFFFFFFFFFL) (if (v == -1L) fold(-2L) else fold(v)) else fold(PyHash.int(v))
+
+    /** A str's dict hash: its hash() (-1 being -2). */
+    @JvmStatic fun strHash(s: String): Int = s.hashCode().let { if (it == -1) -2 else it }
+
     /** A str's or tuple's hash (a subclass's instance as its base type's value); lists and dicts have none. */
     @JvmStatic fun hashValues(v: Any?): Int = when (v) {
         is PyNumSub -> hash(v.num)
-        is PyStr -> v.s.hashCode()
-        is PyTuple -> v.hashCode()
+        is PyStr -> strHash(v.s)
+        is PyTuple -> fold(PyHash.tuple(v.items))
         is PyList, is PyDict -> throw typeError("unhashable type: '${t(v)}'")
-        is PySet -> if (v.frozen) java.lang.Long.hashCode(v.frozenHash()) else throw typeError("unhashable type: '${t(v)}'")
+        is PySet -> if (v.frozen) fold(v.frozenHash()) else throw typeError("unhashable type: '${t(v)}'")
         else -> System.identityHashCode(v)
     }
 
