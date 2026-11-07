@@ -1,0 +1,37 @@
+ids -> (0, 1, 2, 5)
+events -> (1, 32, 16, 2048, 262144, 0, 131072, 256)
+unused -> None
+use -> (None, 'mine')
+again !! ValueError tool 3 is already in use
+bad id !! ValueError invalid tool 6 (must be between 0 and 5)
+neg id !! ValueError invalid tool -1 (must be between 0 and 5)
+name !! ValueError tool name must be a str
+events0 -> 0
+set -> (None, 33)
+set bad !! ValueError invalid event set 0x40000000
+set unused !! ValueError tool 4 is not in use
+register -> None
+register2 -> True
+local -> (None, 32)
+local other -> 0
+restart -> None
+clear -> (None, 'mine', 0, 32)
+free -> (None, None)
+sentinels -> (True, True)
+none -> (None, None)
+trace -> True
+cleared -> None
+profile -> True
+profile cleared -> None
+settrace args !! TypeError sys.settrace() takes exactly one argument (0 given)
+jit -> (False, False, False)
+getformat -> ('IEEE, little-endian', 'IEEE, little-endian')
+getformat bad !! ValueError __getformat__() argument 1 must be 'double' or 'float'
+many params -> 19999
+del param -> cannot access local variable 'a' where it is not associated with a value
+found -> [('sq', 2)]
+results -> (1, 2)
+report -> ['Expected:', '    5', 'Got:', '    4']
+parse -> [('1 + 1\n', '2\n'), ('print("a")\n', 'a\n')]
+bdb -> ('get_stack', 'Exception')
+pdb -> ('Bdb', True)
