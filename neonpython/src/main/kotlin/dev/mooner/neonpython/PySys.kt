@@ -364,8 +364,10 @@ object PySys {
             return r + 16
         }
         val n = when (v) {
-            null, PyNone, is PyBool -> 16L
-            is Long -> if (v == 0L) 24L else 28L + if (Math.abs(v) >= 1L shl 30) (if (Math.abs(v) >= 1L shl 60) 8L else 4L) else 0L
+            // (Linux CPython 3.14's sizes: a bool an int of one digit, 0 one digit too)
+            null, PyNone, PyNotImplemented, PyEllipsis -> 16L
+            is PyBool -> 28L
+            is Long -> 28L + if (Math.abs(v) >= 1L shl 30) (if (Math.abs(v) >= 1L shl 60) 8L else 4L) else 0L
             is java.math.BigInteger -> 24L + 4L * ((v.abs().bitLength() + 29) / 30)
             is Double -> 24L
             is PyStr -> {
@@ -373,18 +375,26 @@ object PySys {
                 val n = v.s.codePointCount(0, v.s.length).toLong()
                 when {
                     max < 128 -> 41L + n
-                    max < 256 -> 57L + n
+                    // (a one-character Latin-1 str is a cached one, its UTF-8 kept with it)
+                    max < 256 -> if (n == 1L) 61L else 57L + n
                     max < 65536 -> 58L + 2 * n
-                    else -> 76L + 4 * n
+                    else -> 60L + 4 * n
                 }
             }
             is PyBytes -> 33L + v.b.size
-            is PyByteArray -> 57L + v.b.size
-            is PyTuple -> if (v.items.isEmpty()) 40L else 40L + 8L * v.items.size
+            is PyByteArray -> if (v.size == 0) 56L else 57L + v.size
+            is PyTuple -> 48L + 8L * v.items.size
             is PyList -> 56L + 8L * v.items.size
             is PyDict -> if (v.size == 0) 64L else 184L + 40L * v.size
             is PySet -> 216L
             is PyComplex -> 32L
+            is PyRange -> 48L
+            is PySlice -> 56L
+            is PyFunction -> 168L
+            is PyBuiltin, is PyBoundMethod -> 72L
+            is PyType -> if (v.heap) 1720L else 416L
+            is PyObject -> if (v.type === PyTypes.OBJECT) 16L else 48L
+            is PyIterator -> 48L
             else -> 56L
         }
         return n
