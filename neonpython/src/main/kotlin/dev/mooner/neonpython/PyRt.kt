@@ -413,6 +413,8 @@ object PyRt {
             is PyGenericAlias, is PyUnion, is PyParamSpecPart -> a == b
             // (a builtin bound to its object: the same builtin of the same object, meth_richcompare's)
             is PyBoundMethod -> b is PyBoundMethod && a.self === b.self && a.fn === b.fn
+            // (a method's: its function's and object's identity, as method_richcompare)
+            is PyMethod -> b is PyMethod && a.self === b.self && a.fn === b.fn
             PyNone, null -> b === PyNone || b == null
             else -> false
         }
@@ -495,7 +497,7 @@ object PyRt {
         is PyComplex -> fold(PyHash.hash(v))
         is PyObject, is PyNumSub -> PyDunder.hash(v)
         is PyGenericAlias, is PyUnion, is PyParamSpecPart -> v.hashCode()
-        is PyBoundMethod -> fold(PyHash.hash(v))
+        is PyBoundMethod, is PyMethod -> fold(PyHash.hash(v))
         else -> System.identityHashCode(v)
     }
 

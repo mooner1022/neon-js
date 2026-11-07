@@ -298,9 +298,25 @@ object PyLiterals {
         prop(PyTypes.FLOAT, "real") { it }
         prop(PyTypes.FLOAT, "imag") { 0.0 }
         m(PyTypes.FLOAT, "conjugate") { a -> a[0] }
-        ct.newImpl = { _, _, a, kw ->
-            if (kw != null && kw.size > 0) throw PyRt.typeError("complex() takes no keyword arguments")
-            if (a.size > 2) throw PyRt.typeError("complex() takes at most 2 arguments (${a.size} given)")
+        ct.newImpl = { _, _, a0, kw ->
+            if (a0.size > 2) throw PyRt.typeError("complex() takes at most 2 arguments (${a0.size} given)")
+            // (its keywords: real and imag)
+            var a = a0
+            if (kw != null && kw.size > 0) {
+                val x = arrayOfNulls<Any?>(2)
+                a0.copyInto(x)
+                for ((k, v) in kw.map) {
+                    val n = (k.v as PyStr).s
+                    val i = when (n) {
+                        "real" -> 0
+                        "imag" -> 1
+                        else -> throw PyRt.typeError("complex() got an unexpected keyword argument '$n'")
+                    }
+                    if (i < a0.size) throw PyRt.typeError("argument for complex() given by name ('$n') and position (${i + 1})")
+                    x[i] = v
+                }
+                a = if (x[1] != null) x else arrayOf(x[0] ?: 0L)
+            }
             val re = a.getOrNull(0)
             if (re is PyStr) {
                 if (a.size > 1) throw PyRt.typeError("complex() can't take second arg if first is a string")

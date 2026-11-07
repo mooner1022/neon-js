@@ -18,7 +18,8 @@ object PyAttrDescrs {
     private val NO_ARGS = arrayOfNulls<Any?>(0)
 
     @JvmField val GETSET: PyType = PyTypes.newBuiltin("getset_descriptor", subclassable = false)
-    @JvmField val MEMBER: PyType = PyTypes.newBuiltin("member_descriptor", subclassable = false)
+    // (one member_descriptor type with the slots' members: PySlots' handles both kinds)
+    @JvmField val MEMBER: PyType = PySlots.MEMBER
 
     /** Each type's: name to (a member, read-only), as CPython 3.14's. */
     private val TABLE: Map<PyType, Map<String, Pair<Boolean, Boolean>>> = mapOf(
@@ -37,8 +38,14 @@ object PyAttrDescrs {
 
     /** The methods a builtin type's instances have where the runtime makes them (a code object's), for dir(). */
     private val METHODS: Map<PyType, List<String>> = mapOf(PyEval.CODE to listOf("__replace__", "co_lines", "co_positions", "replace"),
-        // (object's __class__, a getset in CPython's dict; NeonPy's attribute lookups answer it themselves)
-        PyTypes.OBJECT to listOf("__class__"))
+        // (object's __class__, a getset in CPython's dict; NeonPy's attribute lookups answer it themselves; so the
+        // attributes of a property, a staticmethod and classmethod, a method and super)
+        PyTypes.OBJECT to listOf("__class__"),
+        PyTypes.PROPERTY to listOf("fget", "fset", "fdel", "__isabstractmethod__", "__name__"),
+        PyTypes.STATICMETHOD to listOf("__func__", "__wrapped__", "__isabstractmethod__", "__dict__", "__annotations__", "__annotate__"),
+        PyTypes.CLASSMETHOD to listOf("__func__", "__wrapped__", "__isabstractmethod__", "__dict__", "__annotations__", "__annotate__"),
+        PyTypes.METHOD to listOf("__func__", "__self__"),
+        PyTypes.SUPER to listOf("__thisclass__", "__self__", "__self_class__"))
 
     /** The names of [t]'s attributes kept here, not in its dict (dir() lists them, as CPython's type dict has them). */
     @JvmStatic
@@ -119,28 +126,38 @@ object PyAttrDescrs {
     private fun readonly(d: PyAttrDescr): PyException = PyException("AttributeError",
         if (d.type === MEMBER) "readonly attribute" else "attribute '${d.name}' of '${d.owner.tpName ?: d.owner.name}' objects is not writable")
 
+    /** A builtin type's getset or member descriptor's __get__ (args: the descriptor, the object, its type). */
+    @JvmStatic
+    fun get(a: Array<Any?>): Any? {
+        val d = self(a)
+        val obj = a.getOrNull(1)
+        return if (obj == null || obj === PyNone) d else d.getter?.invoke(target(d, obj)) ?: PyRt.getAttr(target(d, obj), d.name)
+    }
+
+    @JvmStatic
+    fun set(a: Array<Any?>): Any? {
+        val d = self(a)
+        if (d.readonly) throw readonly(d)
+        val s = d.setter
+        if (s != null) s(target(d, a[1]), a[2]) else PyClasses.setAttr(target(d, a[1]), d.name, a[2])
+        return PyNone
+    }
+
+    @JvmStatic
+    fun delete(a: Array<Any?>): Any? {
+        val d = self(a)
+        if (d.readonly) throw readonly(d)
+        val del = d.deleter
+        if (del != null) del(target(d, a[1])) else PyClasses.delAttr(target(d, a[1]), d.name)
+        return PyNone
+    }
+
     init {
-        for (t in listOf(GETSET, MEMBER)) {
+        for (t in listOf(GETSET)) {
             t.dispatchBuiltins = true
-            t.def("__get__", PyBuiltin("__get__") { _, a ->
-                val d = self(a)
-                val obj = a.getOrNull(1)
-                if (obj == null || obj === PyNone) d else d.getter?.invoke(target(d, obj)) ?: PyRt.getAttr(target(d, obj), d.name)
-            })
-            t.def("__set__", PyBuiltin("__set__") { _, a ->
-                val d = self(a)
-                if (d.readonly) throw readonly(d)
-                val s = d.setter
-                if (s != null) s(target(d, a[1]), a[2]) else PyClasses.setAttr(target(d, a[1]), d.name, a[2])
-                PyNone
-            })
-            t.def("__delete__", PyBuiltin("__delete__") { _, a ->
-                val d = self(a)
-                if (d.readonly) throw readonly(d)
-                val del = d.deleter
-                if (del != null) del(target(d, a[1])) else PyClasses.delAttr(target(d, a[1]), d.name)
-                PyNone
-            })
+            t.def("__get__", PyBuiltin("__get__") { _, a -> get(a) })
+            t.def("__set__", PyBuiltin("__set__") { _, a -> set(a) })
+            t.def("__delete__", PyBuiltin("__delete__") { _, a -> delete(a) })
             t.def("__repr__", PyBuiltin("__repr__") { _, a ->
                 val d = self(a)
                 PyStr("<${if (d.type === MEMBER) "member" else "attribute"} '${d.name}' of '${d.owner.tpName ?: d.owner.name}' objects>")

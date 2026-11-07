@@ -252,12 +252,12 @@ object PyBuiltins {
         type(PyTypes.STATICMETHOD) { _, args, kw ->
             noKw("staticmethod", kw)
             one("staticmethod", args)
-            PyStaticMethod(args[0])
+            PyStaticMethod(args[0]).also { PyClasses.wraps(it, args[0]) }
         }
         type(PyTypes.CLASSMETHOD) { _, args, kw ->
             noKw("classmethod", kw)
             one("classmethod", args)
-            PyClassMethod(args[0])
+            PyClassMethod(args[0]).also { PyClasses.wraps(it, args[0]) }
         }
         fun propertyInit(p: PyProperty, args: Array<Any?>, kw: PyDict?) {
             if (args.size > 4) throw PyRt.typeError("property() takes at most 4 arguments (${args.size} given)")
@@ -297,11 +297,13 @@ object PyBuiltins {
                         noKw("staticmethod", kw)
                         one("staticmethod", rest)
                         self.fn = rest[0]
+                        PyClasses.wraps(self, rest[0])
                     }
                     is PyClassMethod -> {
                         noKw("classmethod", kw)
                         one("classmethod", rest)
                         self.fn = rest[0]
+                        PyClasses.wraps(self, rest[0])
                     }
                     else -> throw PyRt.typeError("descriptor '__init__' requires a '${t.name}' object but received a '${PyTypes.name(self)}'")
                 }
@@ -694,6 +696,158 @@ object PyBuiltins {
         // (what hash() gives: CPython's for a tuple, its items' combined)
         for (t in arrayOf(PyTypes.STR, PyTypes.TUPLE)) dunder(t, "__hash__", 0) { a -> PyHash.valueHash(a[0]) }
         dunder(PyTypes.STR, "__str__", 0) { a -> PyStr((a[0] as PyStr).s) }
+        moreDunders(::plainInt, ::plainReal, ::dunder)
+    }
+
+    /**
+     * The rest of CPython 3.14's operator slots in the builtin types' dicts: what super(), an explicit call
+     * (`set.__sub__(a, b)`, `complex.__radd__`), collections.abc's subclass hooks (dict.__reversed__) and
+     * functools.total_ordering find. Each takes its own kind's value (a subclass's instance as its base's) and gives
+     * NotImplemented for another kind's, never dispatching to a subclass's methods.
+     */
+    private fun moreDunders(plainInt: (Any?) -> Any?, plainReal: (Any?) -> Any?, dunder: (PyType, String, Int, (Array<Any?>) -> Any?) -> Unit) {
+        fun ctx() = PyContext.current()
+        val cmps = listOf("lt" to 0, "le" to 1, "gt" to 2, "ge" to 3)
+        // int and float: divmod and round
+        for (t in arrayOf(PyTypes.INT, PyTypes.FLOAT)) {
+            val plain = if (t === PyTypes.INT) plainInt else plainReal
+            dunder(t, "__divmod__", 1) { a ->
+                val x = plain(a[0]); val y = plain(a[1])
+                if (x == null || y == null) PyNotImplemented else PyTuple(arrayOf(PyRt.floordiv(x, y), PyRt.mod(x, y)))
+            }
+            dunder(t, "__rdivmod__", 1) { a ->
+                val x = plain(a[0]); val y = plain(a[1])
+                if (x == null || y == null) PyNotImplemented else PyTuple(arrayOf(PyRt.floordiv(y, x), PyRt.mod(y, x)))
+            }
+            t.def("__round__", PyBuiltin("__round__") { _, a -> PyLibrary.round(plain(a[0]), a.getOrNull(1)) })
+        }
+        PyTypes.INT.def("__sizeof__", PyBuiltin("__sizeof__") { c, a -> PySys.objectSize(c, a[0]) })
+        // bool: its own &, | and ^ (a bool of two bools, else int's), its repr
+        for ((n, op) in listOf("and" to PyOp.BITAND, "or" to PyOp.BITOR, "xor" to PyOp.BITXOR)) {
+            for (r in listOf(false, true)) dunder(PyTypes.BOOL, if (r) "__r${n}__" else "__${n}__", 1) { a ->
+                val x = a[0]
+                val y = a[1]
+                if (x is PyBool && y is PyBool) {
+                    PyBool.of(when (op) { PyOp.BITAND -> x.value && y.value; PyOp.BITOR -> x.value || y.value; else -> x.value != y.value })
+                } else {
+                    val px = plainInt(x); val py = plainInt(y)
+                    if (px == null || py == null) PyNotImplemented else if (r) PyDunder.byCode(op, py, px) else PyDunder.byCode(op, px, py)
+                }
+            }
+        }
+        dunder(PyTypes.BOOL, "__repr__", 0) { a -> PyStr(if ((a[0] as PyBool).value) "True" else "False") }
+        dunder(PyTypes.BOOL, "__invert__", 0) { a -> PyRt.invert(a[0]) }
+        // complex: its arithmetic with any number, == only
+        val cx = PyTypes.COMPLEX
+        fun cnum(v: Any?): Any? = when (val x = if (v is PyNumSub) v.num else v) {
+            is PyComplex, is Long, is BigInteger, is Double -> x
+            is PyBool -> if (x.value) 1L else 0L
+            else -> null
+        }
+        for ((n, op) in listOf("add" to PyOp.ADD, "sub" to PyOp.SUB, "mul" to PyOp.MUL, "truediv" to PyOp.TRUEDIV)) {
+            dunder(cx, "__${n}__", 1) { a -> val x = cnum(a[0]); val y = cnum(a[1]); if (x == null || y == null) PyNotImplemented else PyLiterals.complexOp(op, x, y) ?: PyNotImplemented }
+            dunder(cx, "__r${n}__", 1) { a -> val x = cnum(a[0]); val y = cnum(a[1]); if (x == null || y == null) PyNotImplemented else PyLiterals.complexOp(op, y, x) ?: PyNotImplemented }
+        }
+        for (r in listOf(false, true)) {
+            val n = if (r) "__rpow__" else "__pow__"
+            cx.def(n, PyBuiltin(n) { _, a ->
+                if (a.size < 2 || a.size > 3) throw PyRt.typeError("expected 1 or 2 arguments, got ${a.size - 1}")
+                val x = cnum(a[0]); val y = cnum(a[1])
+                if (x == null || y == null) PyNotImplemented
+                else if (a.size == 3 && a[2] !== PyNone) throw PyException("ValueError", "complex modulo")
+                else PyLiterals.complexOp(PyOp.POW, if (r) y else x, if (r) x else y) ?: PyNotImplemented
+            })
+        }
+        dunder(cx, "__eq__", 1) { a -> val y = cnum(a[1]); if (y == null) PyNotImplemented else PyBool.of(PyRt.eqValues(cnum(a[0]), y)) }
+        dunder(cx, "__ne__", 1) { a -> val y = cnum(a[1]); if (y == null) PyNotImplemented else PyBool.of(!PyRt.eqValues(cnum(a[0]), y)) }
+        for ((n, _) in cmps) dunder(cx, "__${n}__", 1) { _ -> PyNotImplemented }
+        dunder(cx, "__neg__", 0) { a -> PyRt.neg(cnum(a[0])) }
+        dunder(cx, "__pos__", 0) { a -> PyRt.pos(cnum(a[0])) }
+        dunder(cx, "__abs__", 0) { a -> val c = cnum(a[0]) as PyComplex; Math.hypot(c.real, c.imag) }
+        dunder(cx, "__bool__", 0) { a -> PyBool.of(PyRt.truthValues(cnum(a[0]))) }
+        dunder(cx, "__hash__", 0) { a -> PyDunder.hashValue(cnum(a[0])) }
+        dunder(cx, "__repr__", 0) { a -> PyStr(PyRt.reprValues(cnum(a[0]))) }
+        dunder(cx, "__complex__", 0) { a -> cnum(a[0]) }
+        dunder(cx, "__format__", 1) { a -> PyStr(PyFormat.builtinFormat(cnum(a[0]), (a[1] as? PyStr ?: throw PyRt.typeError("argument 1 must be str, not ${PyTypes.name(a[1])}")).s)) }
+        // str, list and tuple: their order, !=; str's %
+        fun sameKind(a: Any?, b: Any?) = a is PyStr && b is PyStr || a is PyList && b is PyList || a is PyTuple && b is PyTuple || a is PyDict && b is PyDict
+        for (t in arrayOf(PyTypes.STR, PyTypes.LIST, PyTypes.TUPLE)) {
+            for ((n, op) in cmps) dunder(t, "__${n}__", 1) { a -> if (sameKind(a[0], a[1])) PyBool.of(PyRt.orderValues(op, a[0], a[1])!!) else PyNotImplemented }
+        }
+        for (t in arrayOf(PyTypes.STR, PyTypes.LIST, PyTypes.TUPLE, PyTypes.DICT)) {
+            dunder(t, "__ne__", 1) { a -> if (sameKind(a[0], a[1])) PyBool.of(!PyRt.eqValues(a[0], a[1])) else PyNotImplemented }
+        }
+        for ((n, _) in cmps) dunder(PyTypes.DICT, "__${n}__", 1) { _ -> PyNotImplemented }
+        dunder(PyTypes.STR, "__mod__", 1) { a -> PyRt.values(PyOp.MOD, PyStr((a[0] as PyStr).s), a[1]) }
+        dunder(PyTypes.STR, "__rmod__", 1) { a -> if (a[1] is PyStr) PyRt.values(PyOp.MOD, PyStr((a[1] as PyStr).s), a[0]) else PyNotImplemented }
+        for (t in arrayOf(PyTypes.STR, PyTypes.LIST, PyTypes.DICT, PyTypes.SET, PyTypes.FROZENSET, PyTypes.BYTEARRAY)) {
+            t.def("__sizeof__", PyBuiltin("__sizeof__") { c, a -> PySys.objectSize(c, a[0]) })
+        }
+        // list: += and *= in place, reversed()
+        dunder(PyTypes.LIST, "__iadd__", 1) { a ->
+            val l = a[0] as PyList
+            l.items.addAll(toList(a[1]))
+            l
+        }
+        dunder(PyTypes.LIST, "__imul__", 1) { a ->
+            val l = a[0] as PyList
+            val n = PyRt.indexValue(a[1]) as? Long ?: throw PyRt.typeError("'${PyTypes.name(a[1])}' object cannot be interpreted as an integer")
+            if (n <= 0) l.items.clear() else if (n > 1) {
+                val once = ArrayList(l.items)
+                for (i in 1 until n) l.items.addAll(once)
+            }
+            l
+        }
+        for (t in arrayOf(PyTypes.LIST, PyTypes.DICT, PyTypes.RANGE)) dunder(t, "__reversed__", 0) { a -> PyLibrary.reversedValues(a[0]) }
+        // dict: | and |=
+        dunder(PyTypes.DICT, "__or__", 1) r@{ a ->
+            val o = a[1] as? PyDict ?: return@r PyNotImplemented
+            PyDict().also { d -> d.map.putAll((a[0] as PyDict).map); d.map.putAll(o.map) }
+        }
+        dunder(PyTypes.DICT, "__ror__", 1) r@{ a ->
+            val o = a[1] as? PyDict ?: return@r PyNotImplemented
+            PyDict().also { d -> d.map.putAll(o.map); d.map.putAll((a[0] as PyDict).map) }
+        }
+        dunder(PyTypes.DICT, "__ior__", 1) { a ->
+            PyContainers.update(a[0] as PyDict, a[1])
+            a[0]
+        }
+        // set and frozenset: &, |, ^, - (a set's in place too), subsets and supersets
+        for (t in arrayOf(PyTypes.SET, PyTypes.FROZENSET)) {
+            for ((n, op) in listOf("and" to PyOp.BITAND, "or" to PyOp.BITOR, "xor" to PyOp.BITXOR, "sub" to PyOp.SUB)) {
+                dunder(t, "__${n}__", 1) { a -> PySets.binary(op, a[0], a[1]) ?: PyNotImplemented }
+                dunder(t, "__r${n}__", 1) { a -> PySets.binary(op, a[1], a[0]) ?: PyNotImplemented }
+                if (t === PyTypes.SET) dunder(t, "__i${n}__", 1) r@{ a ->
+                    val s = a[0] as PySet
+                    val r = PySets.binary(op, s, a[1]) as? PySet ?: return@r PyNotImplemented
+                    s.clear()
+                    s.merge(r)
+                    s
+                }
+            }
+            for ((n, op) in cmps) dunder(t, "__${n}__", 1) { a -> if (a[1] is PySet) PyBool.of(PyRt.orderValues(op, a[0], a[1])!!) else PyNotImplemented }
+            dunder(t, "__eq__", 1) { a -> if (a[1] is PySet) PyBool.of(PyRt.eqValues(a[0], a[1])) else PyNotImplemented }
+            dunder(t, "__ne__", 1) { a -> if (a[1] is PySet) PyBool.of(!PyRt.eqValues(a[0], a[1])) else PyNotImplemented }
+        }
+        // range: its sequence methods, == by its values
+        val rg = PyTypes.RANGE
+        dunder(rg, "__len__", 0) { a -> PyRt.lenValues(a[0]) }
+        dunder(rg, "__getitem__", 1) { a -> PyRt.getItemValues(a[0], a[1]) }
+        dunder(rg, "__contains__", 1) { a -> PyBool.of(PyRt.containsValues(a[0], a[1])) }
+        dunder(rg, "__iter__", 0) { a -> PyRt.iterValues(a[0]) }
+        dunder(rg, "__bool__", 0) { a -> PyBool.of(PyRt.truthValues(a[0])) }
+        dunder(rg, "__repr__", 0) { a -> PyStr(PyRt.reprValues(a[0])) }
+        dunder(rg, "__hash__", 0) { a -> PyDunder.hashValue(a[0]) }
+        dunder(rg, "__eq__", 1) { a -> if (a[1] is PyRange) PyBool.of(PyRt.eqValues(a[0], a[1])) else PyNotImplemented }
+        dunder(rg, "__ne__", 1) { a -> if (a[1] is PyRange) PyBool.of(!PyRt.eqValues(a[0], a[1])) else PyNotImplemented }
+        for ((n, _) in cmps) dunder(rg, "__${n}__", 1) { _ -> PyNotImplemented }
+        // bytes and bytearray: the buffer protocol's methods (collections.abc.Buffer), bytes' hash
+        for (t in arrayOf(PyTypes.BYTES, PyTypes.BYTEARRAY)) dunder(t, "__buffer__", 1) { a ->
+            PyRt.indexValue(a[1]) as? Long ?: throw PyRt.typeError("'${PyTypes.name(a[1])}' object cannot be interpreted as an integer")
+            PyCalls.callWith(ctx(), PyTypes.MEMORYVIEW, arrayOf(a[0]), NO_ARGS, NO_ARGS)
+        }
+        dunder(PyTypes.BYTEARRAY, "__release_buffer__", 1) { _ -> PyNone }
+        dunder(PyTypes.BYTES, "__hash__", 0) { a -> PyDunder.hashValue(if (a[0] is PyNumSub) (a[0] as PyNumSub).num else a[0]) }
     }
 
     /** str(object='', encoding, errors): the object's str, or (an encoding or errors given) a bytes-like object decoded. */

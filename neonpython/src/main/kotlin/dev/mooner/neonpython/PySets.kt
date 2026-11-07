@@ -97,6 +97,8 @@ object PyHash {
         v is PyGenericAlias || v is PyUnion || v is PyParamSpecPart -> v.hashCode().toLong()
         // (a builtin bound to its object: its object's identity and the builtin's, meth_hash's)
         v is PyBoundMethod -> 31L * System.identityHashCode(v.self) + System.identityHashCode(v.fn)
+        // (a method: its object's identity and its function's, method_hash's)
+        v is PyMethod -> 31L * System.identityHashCode(v.self) + System.identityHashCode(v.fn)
         else -> System.identityHashCode(v).toLong()
     }
 

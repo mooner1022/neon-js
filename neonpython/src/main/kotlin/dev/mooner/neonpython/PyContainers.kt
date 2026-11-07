@@ -216,6 +216,7 @@ object PyContainers {
         for (t in arrayOf(KEYS_TYPE, VALUES_TYPE, ITEMS_TYPE)) {
             m(t, "__len__") { a, _ -> (a[0] as PyDictView).dict.size.toLong() }
             m(t, "__iter__") { a, _ -> (a[0] as PyDictView).let { iter(it.dict, it.kind) } }
+            m(t, "__reversed__") { a, _ -> PyLibrary.reversedValues(a[0]) }
         }
     }
 

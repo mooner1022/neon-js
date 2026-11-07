@@ -307,6 +307,18 @@ object PyLibrary {
     /** reversed(seq): its __reversed__, a list's, else by length and index. */
     private fun reversed(v: Any?): Any? {
         if (PyRt.special(v) || PyRt.metaSpecial(v)) PyDunder.userMethod(PyTypes.typeOf(v), "__reversed__")?.let { return call(PyClasses.descrGet(null, it, v, PyTypes.typeOf(v))) }
+        reversedValues(v)?.let { return it }
+        val t = PyTypes.typeOf(v)
+        if (v is PySet || v is PyDict || t.lookup("__getitem__") == null || t.lookup("__len__") == null && v !is PyValue) {
+            throw PyRt.typeError("'${t.name}' object is not reversible")
+        }
+        var k = PyRt.len(v) - 1
+        return iterator(type("reversed")) { if (k >= 0) PyRt.getItem(v, k--) else PyIterator.STOP }
+    }
+
+    /** A list's, a range's, a dict's or a dict view's reversed iterator, as its type's __reversed__ makes it; null for another value. */
+    @JvmStatic
+    fun reversedValues(v: Any?): Any? {
         when (v) {
             is PyList -> {
                 var k = v.items.size - 1
@@ -332,12 +344,7 @@ object PyLibrary {
                 return iterator(type("dict_reversekeyiterator")) { if (k < keys.size) keys[k++].v else PyIterator.STOP }
             }
         }
-        val t = PyTypes.typeOf(v)
-        if (v is PySet || v is PyDict || t.lookup("__getitem__") == null || t.lookup("__len__") == null && v !is PyValue) {
-            throw PyRt.typeError("'${t.name}' object is not reversible")
-        }
-        var k = PyRt.len(v) - 1
-        return iterator(type("reversed")) { if (k >= 0) PyRt.getItem(v, k--) else PyIterator.STOP }
+        return null
     }
 
     private val iterTypes = HashMap<String, PyType>()

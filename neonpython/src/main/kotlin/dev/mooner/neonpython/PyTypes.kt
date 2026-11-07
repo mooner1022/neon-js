@@ -63,6 +63,12 @@ class PyType(@JvmField var name: String, bases: Array<PyType>, @JvmField val dic
         refs.add(java.lang.ref.WeakReference(sub))
     }
 
+    /** Forgets [sub] as one deriving from it (its `__bases__` changed). */
+    fun removeSubclass(ctx: PyContext, sub: PyType) {
+        val refs = if (heap) subclassRefs else ctx.subclassRefs[this] ?: return
+        refs.removeAll { it.get() === sub || it.get() == null }
+    }
+
     /** Attribute [n] of the first type of the MRO that has it, or null. */
     fun lookup(n: String): Any? {
         val k = PyDict.Key(PyStr(n))
@@ -324,7 +330,7 @@ object PyTypes {
                 val meta = typeOf(cls)
                 val check = if (meta === TYPE) null else PyDunder.userMethod(meta, "__instancecheck__")
                 if (check != null) PyRt.truthy(PyCalls.callWith(PyContext.current(), check, arrayOf(cls, v), NO_ARGS, NO_ARGS))
-                else t.isSubtype(cls)
+                else t.isSubtype(cls) || claimedClass(v, t)?.isSubtype(cls) == true
             }
         }
         is PyTuple -> cls.items.any { isInstance(v, it) }
@@ -335,6 +341,21 @@ object PyTypes {
                 ?: throw PyRt.typeError("isinstance() arg 2 must be a type, a tuple of types, or a union")
             PyRt.truthy(PyCalls.callWith(PyContext.current(), check, arrayOf(cls, v), NO_ARGS, NO_ARGS))
         }
+    }
+
+    /**
+     * The class an instance says it is (its `__class__`) where that is not its type, as CPython's object_isinstance
+     * asks after the type: a proxy's or a mock's property. Only a class that defines `__class__` (or its own
+     * __getattribute__) can say so.
+     */
+    private fun claimedClass(v: Any?, t: PyType): PyType? {
+        if (!t.heap || t.hooks and 1 == 0 && t.mro.none { it.heap && it.dict.containsKey(PyStr("__class__")) }) return null
+        val c = try {
+            PyRt.getAttr(v, "__class__")
+        } catch (e: PyException) {
+            if (e.matches(PyExceptions.type("AttributeError"))) return null else throw e
+        }
+        return (c as? PyType)?.takeIf { it !== t }
     }
 
     /** cls's metaclass's (or class's) own __subclasscheck__, or null. */

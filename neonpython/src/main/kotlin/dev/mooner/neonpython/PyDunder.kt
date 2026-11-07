@@ -583,12 +583,20 @@ object PyDunder {
         val cr = copyregModule(ctx)
         val exArgs = t.lookup("__getnewargs_ex__")?.let { PyCalls.callWith(ctx, PyRt.getAttr(v, "__getnewargs_ex__"), NO_ARGS, NO_ARGS, NO_ARGS) }
         val (fn, args) = if (exArgs != null) {
-            val pair = exArgs as? PyTuple ?: throw PyRt.typeError("__getnewargs_ex__ should return a tuple of length 2, not '${PyTypes.name(exArgs)}'")
-            val kw = pair.items.getOrNull(1) as? PyDict
-            if (kw != null && kw.size > 0) PyRt.getAttr(cr, "__newobj_ex__") to PyTuple(arrayOf(t, pair.items[0], kw))
-            else PyRt.getAttr(cr, "__newobj__") to PyTuple(arrayOf(t, *(pair.items[0] as PyTuple).items))
+            // (its checks and messages, as _PyObject_GetNewArguments's)
+            val pair = exArgs as? PyTuple ?: throw PyRt.typeError("__getnewargs_ex__ should return a tuple, not '${PyTypes.name(exArgs)}'")
+            if (pair.items.size != 2) throw PyException("ValueError", "__getnewargs_ex__ should return a tuple of length 2, not ${pair.items.size}")
+            val pos = pair.items[0] as? PyTuple
+                ?: throw PyRt.typeError("first item of the tuple returned by __getnewargs_ex__ must be a tuple, not '${PyTypes.name(pair.items[0])}'")
+            val kw = pair.items[1] as? PyDict
+                ?: throw PyRt.typeError("second item of the tuple returned by __getnewargs_ex__ must be a dict, not '${PyTypes.name(pair.items[1])}'")
+            if (kw.size > 0) PyRt.getAttr(cr, "__newobj_ex__") to PyTuple(arrayOf(t, pos, kw))
+            else PyRt.getAttr(cr, "__newobj__") to PyTuple(arrayOf(t, *pos.items))
         } else {
-            val na = t.lookup("__getnewargs__")?.let { PyCalls.callWith(ctx, PyRt.getAttr(v, "__getnewargs__"), NO_ARGS, NO_ARGS, NO_ARGS) as PyTuple }
+            val na = t.lookup("__getnewargs__")?.let {
+                val r = PyCalls.callWith(ctx, PyRt.getAttr(v, "__getnewargs__"), NO_ARGS, NO_ARGS, NO_ARGS)
+                r as? PyTuple ?: throw PyRt.typeError("__getnewargs__ should return a tuple, not '${PyTypes.name(r)}'")
+            }
             PyRt.getAttr(cr, "__newobj__") to PyTuple(arrayOf(t, *(na?.items ?: NO_ARGS)))
         }
         val state = PyCalls.callWith(ctx, PyRt.getAttr(v, "__getstate__"), NO_ARGS, NO_ARGS, NO_ARGS)

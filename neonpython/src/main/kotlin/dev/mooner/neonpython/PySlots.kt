@@ -11,29 +11,38 @@ class PyMemberDescr(@JvmField val owner: PyType, @JvmField val name: String, @Jv
 object PySlots {
     private val NO_ARGS = arrayOfNulls<Any?>(0)
 
+    /**
+     * member_descriptor: a slot's (PyMemberDescr), and a builtin type's member (PyAttrDescr, FunctionType.__globals__):
+     * one type, as CPython's (types.MemberDescriptorType), each kind its own behavior.
+     */
     @JvmField val MEMBER: PyType = PyTypes.newBuiltin("member_descriptor", subclassable = false).also { t ->
         t.dispatchBuiltins = true
         fun self(a: Array<Any?>) = a[0] as PyMemberDescr
+        fun name(a: Array<Any?>) = (a[0] as? PyMemberDescr)?.name ?: (a[0] as PyAttrDescr).name
+        fun owner(a: Array<Any?>) = (a[0] as? PyMemberDescr)?.owner ?: (a[0] as PyAttrDescr).owner
         fun check(d: PyMemberDescr, obj: Any?) {
             if (!PyTypes.typeOf(obj).isSubtype(d.owner)) {
                 throw PyRt.typeError("descriptor '${d.name}' for '${d.owner.name}' objects doesn't apply to a '${PyTypes.name(obj)}' object")
             }
         }
         t.def("__get__", PyBuiltin("__get__") { _, a ->
+            if (a[0] is PyAttrDescr) return@PyBuiltin PyAttrDescrs.get(a)
             val d = self(a)
             val obj = a.getOrNull(1)
             if (obj == null || obj === PyNone) return@PyBuiltin d
             check(d, obj)
             slotsOf(obj, false)?.getOrNull(d.index)
-                ?: throw PyException.attributeError(obj, d.name, "'${PyTypes.typeOf(obj).name}' object has no attribute '${d.name}'")
+                ?: throw PyException.attributeError(obj, d.name, "'${PyTypes.fullName(PyTypes.typeOf(obj))}' object has no attribute '${d.name}'")
         })
         t.def("__set__", PyBuiltin("__set__") { _, a ->
+            if (a[0] is PyAttrDescr) return@PyBuiltin PyAttrDescrs.set(a)
             val d = self(a)
             check(d, a[1])
             slotsOf(a[1], true)!![d.index] = a[2]
             PyNone
         })
         t.def("__delete__", PyBuiltin("__delete__") { _, a ->
+            if (a[0] is PyAttrDescr) return@PyBuiltin PyAttrDescrs.delete(a)
             val d = self(a)
             check(d, a[1])
             val s = slotsOf(a[1], false)
@@ -41,10 +50,10 @@ object PySlots {
             s[d.index] = null
             PyNone
         })
-        t.def("__repr__", PyBuiltin("__repr__") { _, a -> PyStr("<member '${self(a).name}' of '${self(a).owner.name}' objects>") })
-        t.def("__name__", PyProperty(PyBuiltin("__name__") { _, a -> PyStr(self(a).name) }, null, null, null).also { it.name = "__name__" })
-        t.def("__qualname__", PyProperty(PyBuiltin("__qualname__") { _, a -> PyStr("${self(a).owner.qualname}.${self(a).name}") }, null, null, null).also { it.name = "__qualname__" })
-        t.def("__objclass__", PyProperty(PyBuiltin("__objclass__") { _, a -> self(a).owner }, null, null, null).also { it.name = "__objclass__" })
+        t.def("__repr__", PyBuiltin("__repr__") { _, a -> PyStr("<member '${name(a)}' of '${owner(a).tpName ?: owner(a).name}' objects>") })
+        t.def("__name__", PyProperty(PyBuiltin("__name__") { _, a -> PyStr(name(a)) }, null, null, null).also { it.name = "__name__" })
+        t.def("__qualname__", PyProperty(PyBuiltin("__qualname__") { _, a -> PyStr("${owner(a).qualname}.${name(a)}") }, null, null, null).also { it.name = "__qualname__" })
+        t.def("__objclass__", PyProperty(PyBuiltin("__objclass__") { _, a -> owner(a) }, null, null, null).also { it.name = "__objclass__" })
         t.def("__doc__", PyNone)
     }
 
@@ -165,8 +174,9 @@ object PySlots {
         return lt[FLAGS] and (MANAGED_DICT or MANAGED_WEAKREF) == lf[FLAGS] and (MANAGED_DICT or MANAGED_WEAKREF)
     }
 
-    /** [t]'s tp_base: a class's base whose solid base the others' derive from (CPython's best_base), a builtin type's first. */
-    private fun tpBase(t: PyType): PyType? {
+    /** [t]'s tp_base (its `__base__`): a class's base whose solid base the others' derive from (CPython's best_base), a builtin type's first. */
+    @JvmStatic
+    fun tpBase(t: PyType): PyType? {
         if (!isClass(t)) return t.bases.firstOrNull()
         var base: PyType? = null
         var winner: PyType? = null

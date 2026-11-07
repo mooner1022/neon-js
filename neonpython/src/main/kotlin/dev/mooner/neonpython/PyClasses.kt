@@ -9,7 +9,8 @@ class PyMethod(@JvmField val fn: Any?, @JvmField val self: Any?) {
 
 /** super(type, obj): attribute lookup in obj's MRO after [type]. */
 class PySuper(@JvmField val type: PyType, @JvmField val obj: Any?) {
-    override fun toString() = "<super: <class '${type.name}'>, <${PyTypes.name(obj)} object>>"
+    // (super(type) alone, unbound: obj null)
+    override fun toString() = "<super: <class '${type.name}'>, ${if (obj == null) "NULL" else "<${PyTypes.name(obj)} object>"}>"
 }
 
 /**
@@ -326,6 +327,11 @@ object PyClasses {
             genericDelAttr(self(a, "__delattr__"), attrName(a[1]))
             PyNone
         })
+        PyTypes.SUPER.def("__get__", PyBuiltin("__get__") { _, a ->
+            val s = a[0] as? PySuper ?: throw PyRt.typeError("descriptor '__get__' requires a 'super' object but received a '${PyTypes.name(a.getOrNull(0))}'")
+            val obj = a.getOrNull(1)
+            if (s.obj != null || obj == null || obj === PyNone) s else newSuper(arrayOf(s.type, obj))
+        })
         PyTypes.TYPE.def("__subclasses__", PyBuiltin("__subclasses__") { ctx, a -> PyList(ArrayList<Any?>(self(a, "__subclasses__").subclasses(ctx))) })
         PyTypes.TYPE.def("mro", PyBuiltin("mro") { _, a -> val t = self(a, "mro"); PyList(ArrayList<Any?>(PyTypes.c3(t, t.bases).toList())) })
         PyTypes.TYPE.def("__instancecheck__", PyBuiltin("__instancecheck__") { _, a -> PyBool.of(PyTypes.typeOf(a[1]).isSubtype(self(a, "__instancecheck__"))) })
@@ -349,6 +355,14 @@ object PyClasses {
             }
             t.def("__call__", PyBuiltin("__call__", { ctx, a -> call(ctx, a, null) }, { ctx, a, kw -> call(ctx, a, kw) }))
         }
+        // (a method's own __get__, itself whatever it is bound to (gh-113157), and its == and hash by its function and object)
+        PyTypes.METHOD.def("__get__", PyBuiltin("__get__") { _, a ->
+            if (a.size < 2 || a.size > 3) throw PyRt.typeError("expected 1 or 2 arguments, got ${a.size - 1}")
+            a[0]
+        })
+        PyTypes.METHOD.def("__eq__", PyBuiltin("__eq__") { _, a -> if (a.getOrNull(1) is PyMethod) PyBool.of(PyRt.eqValues(a[0], a[1])) else PyNotImplemented })
+        PyTypes.METHOD.def("__ne__", PyBuiltin("__ne__") { _, a -> if (a.getOrNull(1) is PyMethod) PyBool.of(!PyRt.eqValues(a[0], a[1])) else PyNotImplemented })
+        PyTypes.METHOD.def("__hash__", PyBuiltin("__hash__") { _, a -> PyDunder.hashValue(a[0]) })
         // (a builtin type's method a descriptor: str.upper.__get__('a') bound to it, its class's objects only)
         for (t in listOf(PyTypes.METHOD_DESCRIPTOR, PyTypes.WRAPPER_DESCRIPTOR)) {
             t.def("__get__", PyBuiltin("__get__") { _, a ->
@@ -452,6 +466,8 @@ object PyClasses {
         is PyBuiltin -> if (obj == null || !d.method) d else PyBoundMethod(obj, d)
         is PyStaticMethod -> d.fn
         is PyClassMethod -> d.fn.let { fn -> if (fn is PyBuiltin) PyBoundMethod(type, fn) else PyMethod(fn, type) }
+        // (an unbound super bound to the instance, super_descr_get)
+        is PySuper -> if (d.obj != null || obj == null) d else newSuper(arrayOf(d.type, obj))
         is PyProperty -> if (obj == null) d else {
             val g = d.fget ?: throw PyException("AttributeError", "property ${d.nameFor()}of '${type.name}' object has no getter")
             PyCalls.callWith(ctx ?: PyContext.current(), g, arrayOf(if (obj is PyNumSub && g is PyBuiltin && g.numSelf) obj.num else obj), NO_ARGS, NO_ARGS)
@@ -500,12 +516,22 @@ object PyClasses {
     private fun hookedAttr(type: PyType, obj: Any?, name: String): Any? {
         val gab = PyDunder.userMethod(type, "__getattribute__")!!
         try {
-            return PyCalls.callWith(PyContext.current(), gab, arrayOf(obj, PyStr(name)), NO_ARGS, NO_ARGS)
+            return callHook(gab, obj, type, PyStr(name))
         } catch (e: PyException) {
             val ga = type.lookup("__getattr__")
             if (!e.matches(PyExceptions.type("AttributeError")) || ga == null) throw e
-            return PyCalls.callWith(PyContext.current(), ga, arrayOf(obj, PyStr(name)), NO_ARGS, NO_ARGS)
+            return callHook(ga, obj, type, PyStr(name))
         }
+    }
+
+    /**
+     * An attribute hook [m] (__getattribute__, __getattr__, __setattr__, __delattr__) of [obj]'s class called: a
+     * function with [obj] first, anything else as its __get__ binds it (slot_tp_getattr_hook's way).
+     */
+    private fun callHook(m: Any?, obj: Any?, type: PyType, vararg args: Any?): Any? {
+        val ctx = PyContext.current()
+        if (m is PyFunction) return PyCalls.callWith(ctx, m, arrayOf(obj, *args), NO_ARGS, NO_ARGS)
+        return PyCalls.callWith(ctx, descrGet(ctx, m, obj, type), arrayOf(*args), NO_ARGS, NO_ARGS)
     }
 
     /** A module's attribute: its dict's, then its module-level __getattr__ (PEP 562). */
@@ -554,13 +580,13 @@ object PyClasses {
         if (d != null) return descrGet(null, d, obj, type)
         special(obj, name)?.let { return it }
         val ga = if (hook) type.lookup("__getattr__") else null
-        if (ga != null) return PyCalls.callWith(PyContext.current(), ga, arrayOf(obj, PyStr(name)), NO_ARGS, NO_ARGS)
+        if (ga != null) return callHook(ga, obj, type, PyStr(name))
         throw PyException.attributeError(obj, name, "'${type.tpName ?: type.name}' object has no attribute '$name'")
     }
 
     /** The attributes every object of a kind has (not in a type's dict). */
     private fun wrapperAttr(fn: Any?, name: String): Any? = when (name) {
-        "__func__", "__wrapped__" -> fn
+        "__func__", "__wrapped__" -> fn ?: PyNone
         "__module__", "__qualname__", "__name__", "__doc__", "__annotations__" -> getAttr(fn, name)
         "__isabstractmethod__" -> PyBool.of(isAbstract(fn))
         else -> null
@@ -583,6 +609,7 @@ object PyClasses {
 
     private fun special(obj: Any?, name: String): Any? {
         if (name == "__class__") return PyTypes.typeOf(obj)
+        if ((obj is PyStaticMethod || obj is PyClassMethod) && name == "__dict__") return wrapperDict(obj as PyValue)
         if (obj is PyValue && name == "__dict__") obj.sub?.let { s -> if (s.cls.hasDict) return s.dict ?: PyDict().also { s.dict = it } }
         return when (obj) {
             is PyObject -> if (name == "__dict__" && obj.type.hasDict) obj.dict ?: PyDict().also { obj.dict = it } else null
@@ -694,6 +721,26 @@ object PyClasses {
         }
     }
 
+    /** A staticmethod's or classmethod's dict (its subclass's instance's), made where it has none yet. */
+    @JvmStatic
+    fun wrapperDict(obj: PyValue): PyDict {
+        obj.sub?.let { s -> return s.dict ?: PyDict().also { s.dict = it } }
+        return when (obj) {
+            is PyStaticMethod -> obj.dict ?: PyDict().also { obj.dict = it }
+            is PyClassMethod -> obj.dict ?: PyDict().also { obj.dict = it }
+            else -> throw IllegalArgumentException()
+        }
+    }
+
+    /**
+     * CPython's functools_wraps, as staticmethod's and classmethod's __init__ call it: [fn]'s __module__, __name__,
+     * __qualname__ and __doc__ set on [w] where [fn] has them.
+     */
+    @JvmStatic
+    fun wraps(w: PyValue, fn: Any?) {
+        for (n in arrayOf("__module__", "__name__", "__qualname__", "__doc__")) attrOrNull(fn, n)?.let { setAttr(w, n, it) }
+    }
+
     /** An instance's dict, made where it has none yet (a class's `__dict__` descriptor's). */
     @JvmStatic
     fun ownDict(obj: Any?): Any? = when (obj) {
@@ -714,6 +761,8 @@ object PyClasses {
 
     @JvmStatic fun instanceDict(obj: Any?): PyDict? = when (obj) {
         is PyObject -> obj.dict
+        is PyStaticMethod -> obj.sub?.dict ?: obj.dict
+        is PyClassMethod -> obj.sub?.dict ?: obj.dict
         is PyValue -> obj.sub?.dict
         is PyFunction -> obj.dict
         is PyModule -> obj.dict
@@ -794,6 +843,7 @@ object PyClasses {
             "__qualname__" -> return PyStr(t.qualname)
             "__mro__" -> return PyTuple(arrayOf(*t.mro))
             "__bases__" -> return PyTuple(arrayOf(*t.bases))
+            "__base__" -> return PySlots.tpBase(t) ?: PyNone
             // (its layout, as CPython 3.14 gives it: copyreg, dataclasses and inspect read them)
             "__flags__" -> return PySlots.layout(t)[PySlots.FLAGS]
             "__weakrefoffset__" -> return PySlots.layout(t)[PySlots.WEAKREFOFFSET]
@@ -838,7 +888,7 @@ object PyClasses {
     fun setAttr(obj: Any?, name: String, v: Any?) {
         val cls = hookClass(obj)
         if (cls != null && cls.hooks and 2 != 0) {
-            PyCalls.callWith(PyContext.current(), PyDunder.userMethod(cls, "__setattr__")!!, arrayOf(obj, PyStr(name), v), NO_ARGS, NO_ARGS)
+            callHook(PyDunder.userMethod(cls, "__setattr__")!!, obj, cls, PyStr(name), v)
             return
         }
         genericSetAttr(obj, name, v)
@@ -892,6 +942,44 @@ object PyClasses {
     @JvmStatic
     fun immutable(t: PyType): Boolean = !t.heap || t.tpName != null
 
+    /**
+     * C.__bases__ = (...) (type_set_bases): a non-empty tuple of classes, none of them deriving from C, whose best base
+     * lays its instances out as C's did; C's MRO and its subclasses' made again, C noted as each new base's
+     * subclass. The old ones stay where the MRO cannot be made.
+     */
+    private fun setBases(t: PyType, v: Any?) {
+        val tup = v as? PyTuple ?: throw PyRt.typeError("can only assign tuple to ${t.name}.__bases__, not ${PyTypes.name(v)}")
+        if (tup.items.isEmpty()) throw PyRt.typeError("can only assign non-empty tuple to ${t.name}.__bases__, not ()")
+        val bases = tup.items.map { b -> b as? PyType ?: throw PyRt.typeError("${t.name}.__bases__ must be tuple of classes, not '${PyTypes.name(b)}'") }
+        for (b in bases) if (b.isSubtype(t)) throw PyRt.typeError("a __bases__ item causes an inheritance cycle")
+        for ((i, b) in bases.withIndex()) if (bases.subList(0, i).any { it === b }) throw PyRt.typeError("duplicate base class ${b.name}")
+        val oldBases = t.bases
+        val oldBase = PySlots.tpBase(t)
+        t.bases = bases.toTypedArray()
+        val newBase = PySlots.tpBase(t)
+        if (oldBase != null && newBase != null && oldBase !== newBase && !PySlots.compatibleForAssignment(newBase, oldBase)) {
+            t.bases = oldBases
+            throw PyRt.typeError("__bases__ assignment: '${newBase.name}' object layout differs from '${oldBase.name}'")
+        }
+        val ctx = PyContext.current()
+        val saved = HashMap<PyType, Array<PyType>>()
+        fun remro(c: PyType) {
+            saved.putIfAbsent(c, c.mro)
+            c.mro = PyTypes.c3(c, c.bases)
+            c.hooks = hooksOf(c)
+            for (s in c.subclasses(ctx)) if (s.heap) remro(s)
+        }
+        try {
+            remro(t)
+        } catch (e: Throwable) {
+            t.bases = oldBases
+            for ((c, m) in saved) c.mro = m
+            throw e
+        }
+        for (b in oldBases) if (b !in bases) b.removeSubclass(ctx, t)
+        for (b in bases) if (b !in oldBases) b.addSubclass(ctx, t)
+    }
+
     private fun dictValue(v: Any?): PyDict =
         v as? PyDict ?: throw PyRt.typeError("__dict__ must be set to a dictionary, not a '${PyTypes.name(v)}'")
 
@@ -939,11 +1027,21 @@ object PyClasses {
         if (obj is PyTypeAlias) PyTyping.aliasTypeSet(name)
         if (obj is PyType) {
             if (immutable(obj)) throw PyRt.typeError("cannot set '$name' attribute of immutable type '${obj.tpName ?: obj.name}'")
+            // (type's read-only getsets and members)
+            when (name) {
+                "__dict__", "__mro__" -> throw PyException("AttributeError", "attribute '$name' of 'type' objects is not writable")
+                "__base__", "__flags__", "__basicsize__", "__itemsize__", "__dictoffset__", "__weakrefoffset__" ->
+                    throw PyException("AttributeError", "readonly attribute")
+            }
             if (PyAnnotations.isName(name)) {
                 PyAnnotations.typeSet(obj, name, v)
                 return
             }
             if (name == "__abstractmethods__") obj.isAbstract = PyRt.truthy(v)
+            if (name == "__bases__") {
+                setBases(obj, v)
+                return
+            }
             // (the type's names, not its dict's)
             if (name == "__name__" || name == "__qualname__") {
                 val s = v as? PyStr ?: throw PyRt.typeError("can only assign string to ${obj.name}.$name, not '${PyTypes.name(v)}'")
@@ -1015,6 +1113,19 @@ object PyClasses {
                     obj.doc = v
                     return
                 }
+                // (the members of a property, a staticmethod and a classmethod: read only)
+                if (obj is PyProperty && (name == "fget" || name == "fset" || name == "fdel") ||
+                    (obj is PyStaticMethod || obj is PyClassMethod) && (name == "__func__" || name == "__wrapped__")) {
+                    throw PyException("AttributeError", "readonly attribute")
+                }
+                // (a staticmethod's or classmethod's attributes: its own dict)
+                if ((obj is PyStaticMethod || obj is PyClassMethod) && obj.sub == null) {
+                    if (name == "__dict__") {
+                        val d = dictValue(v)
+                        if (obj is PyStaticMethod) obj.dict = d else (obj as PyClassMethod).dict = d
+                    } else wrapperDict(obj)[PyStr(name)] = v
+                    return
+                }
                 val s = obj.sub ?: throw PyException("AttributeError", "'${type.tpName ?: type.name}' object has no attribute '$name' and no __dict__ for setting new attributes")
                 if (!s.cls.hasDict) throw PyException("AttributeError", "'${s.cls.tpName ?: s.cls.name}' object has no attribute '$name' and no __dict__ for setting new attributes")
                 if (name == "__dict__") {
@@ -1032,7 +1143,7 @@ object PyClasses {
     fun delAttr(obj: Any?, name: String) {
         val cls = hookClass(obj)
         if (cls != null && cls.hooks and 4 != 0) {
-            PyCalls.callWith(PyContext.current(), PyDunder.userMethod(cls, "__delattr__")!!, arrayOf(obj, PyStr(name)), NO_ARGS, NO_ARGS)
+            callHook(PyDunder.userMethod(cls, "__delattr__")!!, obj, cls, PyStr(name))
             return
         }
         genericDelAttr(obj, name)
@@ -1074,6 +1185,11 @@ object PyClasses {
         if (obj is PyType) {
             // (CPython's message says "set" for a deletion too)
             if (immutable(obj)) throw PyRt.typeError("cannot set '$name' attribute of immutable type '${obj.tpName ?: obj.name}'")
+            when (name) {
+                "__dict__", "__mro__" -> throw PyException("AttributeError", "attribute '$name' of 'type' objects is not writable")
+                "__base__", "__flags__", "__basicsize__", "__itemsize__", "__dictoffset__", "__weakrefoffset__" ->
+                    throw PyException("AttributeError", "readonly attribute")
+            }
             if (obj.heap && PyAnnotations.isName(name)) {
                 PyAnnotations.typeSet(obj, name, null)
                 return
@@ -1112,6 +1228,10 @@ object PyClasses {
             }
             if (d.type.lookup("__set__") != null) throw PyException("AttributeError", "__delete__")
         }
+        if (obj is PyProperty && (name == "fget" || name == "fset" || name == "fdel") ||
+            (obj is PyStaticMethod || obj is PyClassMethod) && (name == "__func__" || name == "__wrapped__")) {
+            throw PyException("AttributeError", "readonly attribute")
+        }
         val dict = instanceDict(obj)
         if (dict == null || dict.map.remove(PyDict.Key(PyStr(name))) == null) {
             throw PyException("AttributeError", "'${type.tpName ?: type.name}' object has no attribute '$name'")
@@ -1125,7 +1245,8 @@ object PyClasses {
     fun newSuper(args: Array<Any?>): Any? {
         if (args.isEmpty()) throw PyException("RuntimeError", "super(): no arguments")
         val t = args[0] as? PyType ?: throw PyRt.typeError("super() argument 1 must be a type, not ${PyTypes.name(args[0])}")
-        if (args.size == 1) throw PyRt.typeError("super() with one argument is not supported yet")
+        // (an unbound super: its __get__ binds it, a class attribute's way)
+        if (args.size == 1) return PySuper(t, null)
         val obj = args[1]
         if (!(obj is PyType && obj.isSubtype(t)) && !PyTypes.typeOf(obj).isSubtype(t)) {
             throw PyRt.typeError("super(type, obj): obj (instance of ${PyTypes.name(obj)}) is not an instance or subtype of type (${t.name}).")
@@ -1135,16 +1256,30 @@ object PyClasses {
 
     @JvmStatic
     fun superAttr(s: PySuper, name: String): Any? {
-        val objType = if (s.obj is PyType && s.obj.isSubtype(s.type)) s.obj else PyTypes.typeOf(s.obj)
-        val mro = objType.mro
-        var i = mro.indexOf(s.type) + 1
-        val key = PyDict.Key(PyStr(name))
-        while (i < mro.size) {
-            val d = mro[i].dict.map[key]
-            if (d != null) return descrGet(null, d, if (s.obj === objType) null else s.obj, objType)
-            i++
+        val objType = when {
+            s.obj == null -> null
+            s.obj is PyType && s.obj.isSubtype(s.type) -> s.obj
+            else -> PyTypes.typeOf(s.obj)
         }
-        if (name == "__class__") return PyTypes.typeOf(s)
+        // (the class of the super object itself, not the object's: super_getattro skips it)
+        if (objType != null && name != "__class__") {
+            val mro = objType.mro
+            var i = mro.indexOf(s.type) + 1
+            val key = PyDict.Key(PyStr(name))
+            while (i < mro.size) {
+                val d = mro[i].dict.map[key]
+                if (d != null) return descrGet(null, d, if (s.obj === objType) null else s.obj, objType)
+                i++
+            }
+        }
+        // (the super object's own attributes)
+        when (name) {
+            "__class__" -> return PyTypes.typeOf(s)
+            "__thisclass__" -> return s.type
+            "__self__" -> return s.obj ?: PyNone
+            "__self_class__" -> return objType ?: PyNone
+        }
+        PyTypes.SUPER.lookup(name)?.let { return descrGet(null, it, s, PyTypes.SUPER) }
         throw PyException("AttributeError", "'super' object has no attribute '$name'")
     }
 
@@ -1204,12 +1339,16 @@ object PyClasses {
 
 /** staticmethod(f): a function a class gives as it is (a subclass's instance: one with its class, [sub]). */
 class PyStaticMethod(@JvmField var fn: Any?) : PyValue() {
-    override fun toString() = "<staticmethod(${PyRt.repr(fn)})>"
+    /** Its attributes (CPython's __dict__): its function's __module__, __name__, __qualname__ and __doc__ copied in. */
+    @JvmField var dict: PyDict? = null
+    override fun toString() = "<staticmethod(${PyRt.repr(fn ?: PyNone)})>"
 }
 
 /** classmethod(f): a function a class binds to itself (or to an instance's class). */
 class PyClassMethod(@JvmField var fn: Any?) : PyValue() {
-    override fun toString() = "<classmethod(${PyRt.repr(fn)})>"
+    /** Its attributes (CPython's __dict__): its function's __module__, __name__, __qualname__ and __doc__ copied in. */
+    @JvmField var dict: PyDict? = null
+    override fun toString() = "<classmethod(${PyRt.repr(fn ?: PyNone)})>"
 }
 
 /** property(fget, fset, fdel, doc). */
