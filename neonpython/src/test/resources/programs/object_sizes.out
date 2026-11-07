@@ -40,3 +40,9 @@ type 416
 slice 56
 list_iterator 48
 ellipsis 16
+['__class__', 'a', 'b'] True True True True
+True list
+148 116 16 16 40 40 43 28
+['__class__', '__delattr__', '__dir__', '__doc__', '__eq__', '__format__', '__ge__', '__getattribute__', '__getstate__', '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__', '__lt__', '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__', '__subclasshook__']
+48 32 56 24 42
+72 40

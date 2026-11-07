@@ -33,7 +33,9 @@ object PyAttrDescrs {
     )
 
     /** The methods a builtin type's instances have where the runtime makes them (a code object's), for dir(). */
-    private val METHODS: Map<PyType, List<String>> = mapOf(PyEval.CODE to listOf("__replace__", "co_lines", "co_positions", "replace"))
+    private val METHODS: Map<PyType, List<String>> = mapOf(PyEval.CODE to listOf("__replace__", "co_lines", "co_positions", "replace"),
+        // (object's __class__, a getset in CPython's dict; NeonPy's attribute lookups answer it themselves)
+        PyTypes.OBJECT to listOf("__class__"))
 
     /** The names of [t]'s attributes kept here, not in its dict (dir() lists them, as CPython's type dict has them). */
     @JvmStatic

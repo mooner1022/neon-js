@@ -63,6 +63,16 @@ object PyClasses {
         PyTypes.OBJECT.def("__init__", OBJECT_INIT)
         // (no docstrings are kept of the builtins: object's None, which the builtin types and their instances inherit)
         PyTypes.OBJECT.dict[PyStr("__doc__")] = PyNone
+        // (object.__dir__: dir()'s names, unsorted, a class's own __dir__ calling it through super(); __sizeof__: its size
+        // less what sys.getsizeof adds, a collected object's header)
+        PyTypes.OBJECT.def("__dir__", PyBuiltin("__dir__") { _, a ->
+            if (a.size != 1) throw PyRt.typeError("object.__dir__() takes no arguments (${a.size - 1} given)")
+            PyList(ArrayList(PyEval.defaultDir(a[0])))
+        })
+        PyTypes.OBJECT.def("__sizeof__", PyBuiltin("__sizeof__") { c, a ->
+            if (a.size != 1) throw PyRt.typeError("object.__sizeof__() takes no arguments (${a.size - 1} given)")
+            PySys.objectSize(c, a[0])
+        })
         PyDunder.defineObjectMethods()
     }
 

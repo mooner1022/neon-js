@@ -354,15 +354,37 @@ object PySys {
      * sys.getsizeof: an object's own __sizeof__ where its class has one, else near what CPython 3.14 (64 bits) gives
      * for the builtin kinds as it lays them out (the JVM's sizes are not the program's to see).
      */
+    /** CPython's pre-header of a class's instances: its managed dict and weak references' pointers (16), where it has them. */
+    private fun preheader(t: PyType): Long = if (t.hasDict || t.hasWeakref) 16L else 0L
+
+    /** object.__sizeof__: sys.getsizeof's size less a collected object's header (an instance's, its dict pointers too). */
+    @JvmStatic
+    fun objectSize(ctx: PyContext, v: Any?): Long {
+        val n = baseSize(v)
+        return n - when (v) {
+            is PyList, is PyDict, is PySet, is PyTuple, is PyFunction, is PyBuiltin, is PyBoundMethod, is PyIterator -> 16L
+            is PyObject -> if (v.type === PyTypes.OBJECT) 0L else 16L + preheader(v.type)
+            else -> 0L
+        } - when (val sub = (v as? PyValue)?.sub) {
+            null -> 0L
+            else -> preheader(sub.cls)
+        }
+    }
+
     private fun sizeOf(ctx: PyContext, v: Any?, default: Any?): Any? {
         val cls = PyClasses.classOf(v)
         if (cls != null) PyDunder.userMethod(cls, "__sizeof__")?.let {
             val r = PyRt.indexValue(PyCalls.callWith(ctx, it, arrayOf(v), NO_ARGS, NO_ARGS))
             if (r !is Long) return default ?: throw PyRt.typeError("an integer is required")
             if (r < 0) throw PyException("ValueError", "__sizeof__() should return >= 0")
-            // (a gc-tracked object's header)
-            return r + 16
+            // (a gc-tracked object's header, and an instance's dict and weakref pointers before it)
+            return r + 16 + preheader(cls)
         }
+        return baseSize(v)
+    }
+
+    /** sys.getsizeof's size of [v] by its kind (CPython's tp_basicsize, items and the collector's header). */
+    private fun baseSize(v: Any?): Long {
         val n = when (v) {
             // (Linux CPython 3.14's sizes: a bool an int of one digit, 0 one digit too)
             null, PyNone, PyNotImplemented, PyEllipsis -> 16L
@@ -393,10 +415,12 @@ object PySys {
             is PyFunction -> 168L
             is PyBuiltin, is PyBoundMethod -> 72L
             is PyType -> if (v.heap) 1720L else 416L
-            is PyObject -> if (v.type === PyTypes.OBJECT) 16L else 48L
+            is PyObject -> if (v.type === PyTypes.OBJECT) 16L else 32L + 8L * v.type.slotCount + preheader(v.type)
             is PyIterator -> 48L
             else -> 56L
         }
-        return n
+        // (a subclass's instance: its pre-header and its slots too)
+        val sub = (v as? PyValue)?.sub ?: return n
+        return n + preheader(sub.cls) + 8L * sub.cls.slotCount
     }
 }

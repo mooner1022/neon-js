@@ -197,21 +197,26 @@ object PyEval {
             val o = a[0]
             val t = PyTypes.typeOf(o)
             val user = t.lookup("__dir__")?.takeIf { it !is PyBuiltin }
-            fun classNames(c: PyType): List<Any?> = c.mro.flatMap { m -> m.dict.map.keys.map { it.v } + PyAttrDescrs.names(m).map { PyStr(it) } }
-            when {
-                user != null -> {
-                    val r = PyCalls.callWith(PyContext.current(), PyClasses.descrGet(null, user, o, t), NO_ARGS, NO_ARGS, NO_ARGS)
-                    val out = ArrayList<Any?>()
-                    val it = PyRt.iter(r)
-                    while (true) { val x = it.next(); if (x === PyIterator.STOP) break; out.add(x) }
-                    out
-                }
-                o is PyModule -> o.dict.map.keys.map { it.v }
-                o is PyType -> classNames(o).distinct()
-                else -> ((PyClasses.instanceDict(o)?.map?.keys?.map { it.v } ?: emptyList()) + classNames(t)).distinct()
-            }
+            if (user != null) {
+                val r = PyCalls.callWith(PyContext.current(), PyClasses.descrGet(null, user, o, t), NO_ARGS, NO_ARGS, NO_ARGS)
+                val out = ArrayList<Any?>()
+                val it = PyRt.iter(r)
+                while (true) { val x = it.next(); if (x === PyIterator.STOP) break; out.add(x) }
+                out
+            } else defaultDir(o)
         }
         return PyList(ArrayList(names.sortedWith(compareBy { (it as? PyStr)?.s ?: PyRt.str(it) })))
+    }
+
+    /** object.__dir__ (type's for a class, module's for a module): the names dir() lists where no __dir__ of a class says. */
+    @JvmStatic
+    fun defaultDir(o: Any?): List<Any?> {
+        fun classNames(c: PyType): List<Any?> = c.mro.flatMap { m -> m.dict.map.keys.map { it.v } + PyAttrDescrs.names(m).map { PyStr(it) } }
+        return when (o) {
+            is PyModule -> o.dict.map.keys.map { it.v }
+            is PyType -> classNames(o).distinct()
+            else -> ((PyClasses.instanceDict(o)?.map?.keys?.map { it.v } ?: emptyList()) + classNames(PyTypes.typeOf(o))).distinct()
+        }
     }
 
     @JvmStatic
