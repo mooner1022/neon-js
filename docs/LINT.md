@@ -254,6 +254,8 @@ rounds more. The change in the median, over every run made:
 
 The medians are 0.4 to 3.0 points above the control's: up to 2–4% beyond the noise. One run tells little. The +11.0%
 is one run (903.5 ms before, 1,002.5 after), and the control itself gave +6.7% and +4.5% in the last set.
+Two more pairs at P1, with C1 alone (`-XX:TieredStopAtLevel=1`, to see whether C2's profiles are the cause), told
+nothing: the recovery mode −5.0% and +11.7%, the control +0.2% and +19.2%.
 
 The recovery mode on valid programs has no such effect, though it goes through the same hooks. The cost comes from
 sharing the parser's code with a mode that runs past errors: HotSpot compiles the shared methods with those paths
