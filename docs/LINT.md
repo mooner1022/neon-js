@@ -283,6 +283,8 @@ taken. This cost was accepted. Not measured on ART.
   and the declaration was kept before too. What they add is the rest of the statement, checked. Mending a parameter
   list left open adds 0.2 points with one error, and 0.1 with a name lost in Test262. Those 4 mutants destroy the name
   themselves (`obj)` becomes `objlet`); without the mending, the function's body was never read, so nothing was lost.
+  A failed pattern no longer declares the names in its default values and computed keys, which were never its own:
+  Node.js's names lost go to 10.4%.
 
 ### Linting
 

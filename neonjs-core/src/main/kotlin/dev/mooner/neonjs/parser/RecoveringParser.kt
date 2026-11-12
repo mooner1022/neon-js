@@ -42,6 +42,11 @@ internal class RecoveringParser(
     /** Where the statement (class member) being read begins, and the lexer there. */
     private var statementStart = 0
     private var statementFrom: LexState? = null
+    /**
+     * Where the last statement list's statement (class member) read without an error begins: a repair before it was
+     * read past, so the errors after it are no echoes of that repair, even in a statement around both.
+     */
+    private var settledBefore = 0
     /** Where the parse last went on with no token read (a token taken as there, an expression missing): once a token. */
     private var lastPretended = -1
     /** Where expressions were missing: the early errors there are their echoes. */
@@ -78,7 +83,7 @@ internal class RecoveringParser(
     private fun record(pos: Int, msg: String, kind: ProblemKind, related: Int = -1, force: Boolean = false, diagnosis: Diagnosis? = null): ParseProblem? {
         if (stopped != null) return null
         val structural = kind != ProblemKind.EARLY
-        if (structural && !force && (structuralInStatement || repairedBetween(statementStart, pos))) return null
+        if (structural && !force && (structuralInStatement || echoOfRepair(pos))) return null
         // (an early error about an expression missing: `toAssignable` of what stands for it, say)
         if (!structural && pos in placeholders) return null
         // (the same error found twice: chains of checks on one token, a destructuring error checked again outside, the
@@ -96,9 +101,13 @@ internal class RecoveringParser(
         record(pos, msg, ProblemKind.EARLY)
     }
 
-    /** Whether the source was repaired in [from, to]: the statement's first syntax error was there. */
-    private fun repairedBetween(from: Int, to: Int): Boolean {
-        for (r in repaired) if (r in from..to) return true
+    /**
+     * Whether the source was repaired in the statement being read before [pos], and not read past since: the statement's
+     * first syntax error was there.
+     */
+    private fun echoOfRepair(pos: Int): Boolean {
+        val from = maxOf(statementStart, settledBefore)
+        for (r in repaired) if (r in from..pos) return true
         return false
     }
 
@@ -135,7 +144,7 @@ internal class RecoveringParser(
     }
 
     /** Whether a syntax error at the current token would be recorded (none was in the statement): worth diagnosing. */
-    private fun recordsSyntaxError(): Boolean = stopped == null && !structuralInStatement && !repairedBetween(statementStart, lex.start)
+    private fun recordsSyntaxError(): Boolean = stopped == null && !structuralInStatement && !echoOfRepair(lex.start)
 
     /** Whether the parse can go on as if [t] were before the current token: the token can follow it. */
     private fun canPretend(t: T): Boolean = when (t) {
@@ -445,6 +454,7 @@ internal class RecoveringParser(
             val st = if (isKw("else")) elseWithoutIf(list, previous) else parseStatement(null, list == LIST_TOP)
             // nothing around a top-level statement can fail and undo what it declared
             if (list == LIST_TOP) declared.clear()
+            settledBefore = maxOf(settledBefore, m.startPos)
             return st
         } catch (e: Recover) {
             errorAt = e.at
@@ -524,6 +534,7 @@ internal class RecoveringParser(
             var errorAt: Int
             try {
                 ctor = parseClassMember(body, derived, ctor)
+                settledBefore = maxOf(settledBefore, m.startPos)
                 continue
             } catch (e: Recover) {
                 errorAt = e.at
@@ -664,7 +675,8 @@ internal class RecoveringParser(
     /**
      * [node] with the names of a failed `var`/`let`/`const` declaration's pattern that the parser had not declared yet
      * (`const { a, b } = (;` fails after them, `const ( { a, b } = x` before): read from the tokens before its first `=`
-     * outside brackets, a name not followed by `:` (a key), `(` or `.`.
+     * outside brackets, a name not followed by `:` (a key), `(` or `.`, nor in a default value or a computed key
+     * (`{ a = b, [c]: d }` declares `a` and `d`).
      */
     private fun withPatternNames(node: ErrorNode, from: LexState): ErrorNode {
         lex.restore(from)
@@ -676,15 +688,29 @@ internal class RecoveringParser(
         }
         val found = ArrayList<Identifier>()
         var depth = 0
+        // what is open, and the depth a default value or a computed key is at (-1: none), names in which are read
+        val open = StringBuilder()
+        var expressionAt = -1
         var prev: T? = null
         var count = 0
         while (skipNextOrFail() && type != T.EOF && count++ < 1000) {
             if (lex.nlBefore && depth == 0 && count > 1 && startsStatement(true)) break
             when (type) {
-                T.LBRACE, T.LBRACKET, T.LPAREN -> depth++
-                T.RBRACE, T.RBRACKET, T.RPAREN -> depth = maxOf(0, depth - 1)
+                T.LBRACE, T.LBRACKET, T.LPAREN -> {
+                    // (a computed key: a `[` where an object pattern's key begins)
+                    if (type == T.LBRACKET && expressionAt < 0 && open.endsWith("{") && (prev == T.LBRACE || prev == T.COMMA)) expressionAt = depth + 1
+                    open.append(if (type == T.LBRACE) '{' else if (type == T.LBRACKET) '[' else '(')
+                    depth++
+                }
+                T.RBRACE, T.RBRACKET, T.RPAREN -> {
+                    if (open.isNotEmpty()) open.setLength(open.length - 1)
+                    depth = maxOf(0, depth - 1)
+                    if (depth < expressionAt) expressionAt = -1
+                }
+                T.COMMA -> if (depth == expressionAt) expressionAt = -1
+                T.ASSIGN -> if (depth > 0 && expressionAt < 0) expressionAt = depth
                 T.SEMI -> break
-                T.NAME -> if (!lex.escaped && prev != T.DOT && prev != T.QDOT && lex.value !in keywords) {
+                T.NAME -> if (expressionAt < 0 && !lex.escaped && prev != T.DOT && prev != T.QDOT && lex.value !in keywords) {
                     val name = lex.value as String
                     val pos = lex.start
                     val s = lex.save()

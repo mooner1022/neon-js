@@ -34,6 +34,7 @@ class SyntaxCodesTest {
         Example("syntax/illegal-return", "return 1;", "function f() { return 1; }", SourceType.SCRIPT),
         Example("syntax/illegal-break", "break;", "for (;;) break;"),
         Example("syntax/import-export-placement", "function f() { import a from 'a'; }", "import a from 'a';"),
+        Example("syntax/import-export-placement", "export const a = 1;", "const a = 1;", SourceType.SCRIPT),
         Example("syntax/await-yield", "function f() { let await = 1; }", "async function f() { await x; }"),
         Example("syntax/super-new-target", "function f() { super.x(); }", "class A extends B { m() { super.x(); } }"),
         Example("syntax/class", "class A { constructor() {} constructor() {} }", "class A { constructor() {} }"),

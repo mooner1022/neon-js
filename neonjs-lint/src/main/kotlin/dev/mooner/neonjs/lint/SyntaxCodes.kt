@@ -14,7 +14,7 @@ internal object SyntaxCodes {
 
     val entries: List<Entry> = listOf(
         e("syntax/unexpected-end", "Unexpected end of input", emptyList(), "The source ends where more is needed (a `}` or `)` left open)."),
-        e("syntax/unexpected-token", "Unexpected (identifier '.*'|string|number|end of input|token '.*')", listOf("token"), "A token where none of its kind can be."),
+        e("syntax/unexpected-token", "Unexpected (identifier '.*'|string|number|end of input|token '(?!export'$).*')", listOf("token"), "A token where none of its kind can be."),
         e("syntax/missing-token", "Expected '(.+?)' but found (.+)", listOf("expected", "found"), "A token is missing before another."),
         e("syntax/unterminated-string", "Unterminated string constant", emptyList(), "A string has no closing quote on its line."),
         e("syntax/unterminated-template", "Unterminated template literal", emptyList(), "A template has no closing backtick."),
@@ -36,14 +36,14 @@ internal object SyntaxCodes {
         e("syntax/missing-initializer", "Missing initializer in .*", emptyList(), "A declaration needs an initializer."),
         e("syntax/illegal-return", "Illegal return statement", emptyList(), "`return` outside a function."),
         e("syntax/illegal-break", "Illegal break statement|Illegal continue statement.*|Undefined label '(.+)'|Label '(.+)' has already been declared", emptyList(), "`break` or `continue` with nothing (no such label) to go to."),
-        e("syntax/import-export-placement", "Cannot use import statement outside a module|'import' and 'export' may only appear at the top level|Cannot use 'import\\.meta' outside a module", emptyList(), "`import` or `export` where it cannot be."),
+        e("syntax/import-export-placement", "Cannot use import statement outside a module|Unexpected token 'export'|'import' and 'export' may only appear at the top level|Cannot use 'import\\.meta' outside a module", emptyList(), "`import` or `export` where it cannot be."),
         e("syntax/await-yield", ".*'(await|yield)'.*|for await is only valid .*|(Await|Yield) expression cannot be a default value", emptyList(), "`await` or `yield` where it cannot be."),
         e("syntax/super-new-target", "'super' keyword unexpected here|Unexpected private field access on super|'new\\.target' can only be used .*|The only valid meta property for new is 'new\\.target'|Cannot use new with import\\(\\)", emptyList(), "`super` or `new.target` where it cannot be."),
         e("syntax/class", "A class may only have one constructor|Class constructor may not be .*|Classes may not have .*|Getter must not have any formal parameters|Setter must have exactly one formal parameter|Decorators .*|Unexpected arrow function in class heritage|Identifier '#.+' has already been declared|Private fields can not be deleted|Private identifier can only be left side of binary expression|'arguments' is not allowed .*", emptyList(), "A class or its members are malformed."),
         e("syntax/strict-mode", "Strict mode code may not include a with statement|In strict mode code, functions can only be declared .*|Deleting local variable in strict mode|Illegal 'use strict' directive .*", emptyList(), "What strict code does not allow."),
         e("syntax/declaration-placement", "Lexical declaration cannot appear in a single-statement context|Function declarations are not allowed in this context|Async functions can only be declared .*|Using declaration.*|Using declarations cannot be exported|using declarations are not allowed in for-in", emptyList(), "A declaration where only a statement can be."),
         e("syntax/statement", "Missing catch or finally after try|More than one default clause in switch statement|Illegal newline after throw|Malformed arrow function parameter list|Logical expressions and coalesce expressions cannot be mixed\\..*|(for-in|for-of) loop variable declaration may not have an initializer|The left-hand side of a for-of loop .*|Optional chaining cannot appear in the (callee|tag) .*", emptyList(), "A statement or expression is malformed."),
-        e("syntax/module", "String import names must be followed by 'as'|A string literal cannot be used as an exported binding without 'from'|An export name cannot include a lone surrogate|Duplicate import attribute '(.+)'|Unexpected token 'export'", emptyList(), "An import or export is malformed."),
+        e("syntax/module", "String import names must be followed by 'as'|A string literal cannot be used as an exported binding without 'from'|An export name cannot include a lone surrogate|Duplicate import attribute '(.+)'", emptyList(), "An import or export is malformed."),
     )
 
     /** A message no entry matches. */

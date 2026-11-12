@@ -40,9 +40,11 @@ object NeonLint {
     } catch (e: StackOverflowError) {
         LintResult(listOf(Diagnostic(TOO_DEEP, Severity.ERROR, 0, 0, "The source is nested too deeply to check.", emptyList())), 0, false, false)
     } catch (e: Exception) {
-        val detail = e.toString()
-        LintResult(listOf(Diagnostic(INTERNAL_ERROR, Severity.WARNING, 0, 0, "The linter failed: $detail", listOf(detail))), 0, false, false)
+        LintResult(listOf(internalError(e.toString())), 0, false, false)
     }
+
+    private fun internalError(detail: String) =
+        Diagnostic(INTERNAL_ERROR, Severity.WARNING, 0, 0, "The linter failed: $detail", listOf(detail))
 
     private fun run(source: String, options: LintOptions): LintResult {
         val module = options.sourceType == SourceType.MODULE
@@ -65,9 +67,18 @@ object NeonLint {
 
         val findings = ArrayList<Diagnostic>()
         val analyzer = ScopeAnalyzer(if (module) CodeMode.MODULE else CodeMode.SCRIPT)
-        analyzer.analyze(parsed.program)
-        val tree = Tree(parsed.program, options.isCancelled)
-        val facts = Facts(tree, options.sourceType, analyzer)
+        val tree: Tree
+        val facts: Facts
+        try {
+            analyzer.analyze(parsed.program)
+            tree = Tree(parsed.program, options.isCancelled)
+            facts = Facts(tree, options.sourceType, analyzer)
+        } catch (e: Exception) {
+            if (e is Tree.Cancelled) throw e
+            // (no rule can run, but the syntax errors are still told)
+            val kept = (syntax.take(max) + internalError(e.toString())).take(max).sortedWith(compareBy({ it.start }, { it.end }))
+            return LintResult(kept, parsed.problems.size, parsed.stopped == ParseStop.LIMIT || syntax.size + 1 > kept.size, false)
+        }
         for (rule in BuiltinRules.all + options.extraRules) {
             val setting = options.rules[rule.code]
             if (setting == RuleSetting.OFF) continue
@@ -85,8 +96,7 @@ object NeonLint {
             } catch (e: Exception) {
                 if (e is Tree.Cancelled) throw e
                 // (a rule that fails takes only its own findings with it)
-                val detail = "${rule.code}: $e"
-                findings.add(Diagnostic(INTERNAL_ERROR, Severity.WARNING, 0, 0, "The linter failed: $detail", listOf(detail)))
+                findings.add(internalError("${rule.code}: $e"))
             }
         }
 

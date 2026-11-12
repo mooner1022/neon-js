@@ -71,6 +71,26 @@ class RecoveryTest {
     }
 
     @Test
+    fun aFailedPatternDeclaresNoNameOfItsDefaultsOrComputedKeys() {
+        val src = "const { a = fallback, [key]: v, b = { k: w } } = (;\na; v; b; fallback; key; w;"
+        val prog = parse(src, module = true).program
+        ScopeAnalyzer(CodeMode.MODULE).analyze(prog)
+        for (n in listOf("a", "v", "b")) assertTrue(identifiers(prog, n).all { it.ref is LocalRef }, "$n declared")
+        for (n in listOf("fallback", "key", "w")) assertTrue(identifiers(prog, n).all { it.ref is GlobalRef }, "$n not declared")
+    }
+
+    @Test
+    fun aRepairInANestedStatementHidesNoErrorAfterIt() {
+        // the string's repair is read past by `g();`: the `(;` of the statement around both is still told
+        assertEquals(
+            listOf("2 Unterminated string constant", "4 Unexpected token ';'"),
+            errors("(function(){\n  var s = \"abc;\n  g();\n})(;"),
+        )
+        // the statement the repair is in still takes the errors after it as its echoes
+        assertEquals(listOf("1 Unterminated string constant"), errors("f(\"abc, x);\ng();"))
+    }
+
+    @Test
     fun theRealDeclarationWins() {
         // the failed `let` comes first, the const after it: the binding is the const's
         val prog = parse("let a = (;\nconst a = 1;\na;", module = true).program

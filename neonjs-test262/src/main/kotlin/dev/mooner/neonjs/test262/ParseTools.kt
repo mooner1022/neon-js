@@ -230,6 +230,13 @@ object ParseBench {
         val tolerantParse = if (!tolerant) null else Parser::class.java.methods.firstOrNull {
             it.name == "parseTolerant" && it.parameterCount == 2 && it.parameterTypes[0] == String::class.java
         } ?: run { System.err.println("--tolerant: this engine has no Parser.parseTolerant"); exitProcess(2) }
+        // (nesting too deep throws StackOverflowError, as the engine's parse does; reflection wraps it)
+        fun tolerantly(c: ParseCase): Int = try {
+            tolerantParse!!.invoke(null, c.src, c.options).hashCode() and 1
+        } catch (e: java.lang.reflect.InvocationTargetException) {
+            if (e.cause !is StackOverflowError) throw e
+            0
+        }
         val invalid = cases.filter { it.negativeParse }
         if (pollute != null) {
             val set = if (pollute == "valid") valid.take(invalid.size) else invalid
@@ -245,7 +252,7 @@ object ParseBench {
             val before = List(10) { round() }
             repeat(passes) {
                 for (c in set) {
-                    if (tolerantParse != null) sink += tolerantParse.invoke(null, c.src, c.options).hashCode() and 1
+                    if (tolerantParse != null) sink += tolerantly(c)
                     else try { Parser.parse(c.src, c.options) } catch (e: JSSyntaxError) { sink += e.pos and 1 } catch (e: StackOverflowError) {}
                 }
             }
@@ -266,7 +273,7 @@ object ParseBench {
         var sink = 0
         for (r in 0 until rounds) {
             for (c in untimedSet) {
-                if (tolerantParse != null) sink += tolerantParse.invoke(null, c.src, c.options).hashCode() and 1
+                if (tolerantParse != null) sink += tolerantly(c)
                 else try { Parser.parse(c.src, c.options) } catch (e: JSSyntaxError) { sink += e.pos and 1 } catch (e: StackOverflowError) {}
             }
             if (untimed != null) System.gc()

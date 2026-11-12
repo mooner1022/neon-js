@@ -80,9 +80,10 @@ class Diagnostic(
 }
 
 /**
- * The diagnostics of a source, ordered by offset: its syntax errors ([syntaxErrorCount] of them, those a diagnostic
- * limit left out included) and its rules' findings. [truncated]: the limit left some out. [cancelled]: the check was
- * cancelled before its end; the diagnostics are then those found before (possibly none).
+ * The diagnostics of a source, ordered by offset: its syntax errors and its rules' findings. [syntaxErrorCount]: the
+ * syntax errors found. The parse stops at the diagnostic limit, so when [truncated] it counts those found up to it, and
+ * the source may have more. [truncated]: the limit left some out. [cancelled]: the check was cancelled before its end;
+ * the diagnostics are then those found before (possibly none).
  */
 class LintResult(val diagnostics: List<Diagnostic>, val syntaxErrorCount: Int, val truncated: Boolean, val cancelled: Boolean)
 
