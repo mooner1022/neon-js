@@ -17,9 +17,11 @@ import kotlin.system.exitProcess
  *
  *   ParseBaseline --root DIR --out FILE            every file's result: accepted (and its tree's digest) or the error
  *   ParseBaseline --root DIR --compare FILE      the same, compared with FILE: exit status 1 when anything differs
- *   ParseBench --root DIR [--rounds 14] [--drop 4] [--tolerant]   Parser.parse over the files it accepts, the median
- *                                                  round; --tolerant: each round reads the files expected to fail with
- *                                                  the recovery mode first (untimed), so that both parsers share the JVM
+ *   ParseBench --root DIR [--rounds 14] [--drop 4] [--untimed negatives|valid [--tolerant]]   Parser.parse over the
+ *                                                  files it accepts, the median round. With --untimed, each round first
+ *                                                  reads the files expected to fail (or as many it accepts), untimed,
+ *                                                  with Parser.parse or with the recovery mode (--tolerant: both parsers
+ *                                                  then share the JVM); then a garbage collection
  *   ParseBench --once FILE [--module]              one parse of one file in this JVM (a new JVM each time: cold)
  */
 
@@ -188,6 +190,7 @@ object ParseBench {
         var once: File? = null
         var module = false
         var tolerant = false
+        var untimed: String? = null
         var i = 0
         while (i < args.size) {
             when (args[i]) {
@@ -197,6 +200,7 @@ object ParseBench {
                 "--once" -> once = File(args[++i])
                 "--module" -> module = true
                 "--tolerant" -> tolerant = true
+                "--untimed" -> untimed = args[++i]
                 else -> { System.err.println("unknown argument ${args[i]}"); exitProcess(2) }
             }
             i++
@@ -220,10 +224,20 @@ object ParseBench {
             it.name == "parseTolerant" && it.parameterCount == 2 && it.parameterTypes[0] == String::class.java
         } ?: run { System.err.println("--tolerant: this engine has no Parser.parseTolerant"); exitProcess(2) }
         val invalid = cases.filter { it.negativeParse }
+        val untimedSet = when (untimed) {
+            null -> emptyList()
+            "negatives" -> invalid
+            "valid" -> valid.take(invalid.size)
+            else -> { System.err.println("--untimed negatives|valid"); exitProcess(2) }
+        }
         val times = ArrayList<Long>()
         var sink = 0
         for (r in 0 until rounds) {
-            if (tolerantParse != null) for (c in invalid) sink += tolerantParse.invoke(null, c.src, c.options).hashCode() and 1
+            for (c in untimedSet) {
+                if (tolerantParse != null) sink += tolerantParse.invoke(null, c.src, c.options).hashCode() and 1
+                else try { Parser.parse(c.src, c.options) } catch (e: JSSyntaxError) { sink += e.pos and 1 } catch (e: StackOverflowError) {}
+            }
+            if (untimed != null) System.gc()
             val t0 = System.nanoTime()
             for (c in valid) sink += Parser.parse(c.src, c.options).body.size
             val ms = (System.nanoTime() - t0) / 1_000_000
