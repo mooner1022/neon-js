@@ -177,8 +177,8 @@ internal class RecoveringParser(
 
     /**
      * `if`, `while`, `for`, `switch` or `with` with no `(` after it: no condition at all (`if {`: the body is read as a
-     * block, the keyword passed over), or one without its parentheses (`if a == b {`: they are put in place of the
-     * spaces around it).
+     * block, the keyword passed over; not a loop's, whose `break`s would be errors in a block), or one without its
+     * parentheses (`if a == b {`: they are put in place of the spaces around it).
      */
     private fun conditionWithoutParens(keyword: String, message: String) {
         if (!recordsSyntaxError()) return
@@ -186,7 +186,7 @@ internal class RecoveringParser(
         if (type == T.LBRACE) {
             val d = Diagnosis("syntax/missing-condition", "'$keyword' needs a condition in parentheses before its body.", listOf(keyword), kwStart, lex.prevEnd)
             val p = record(lex.start, message, ProblemKind.MISSING, diagnosis = d) ?: return
-            if (keyword != "switch") repairs.add(Repair((kwStart until lex.prevEnd).map { it to ' ' }, p))
+            if (keyword == "if") repairs.add(Repair((kwStart until lex.prevEnd).map { it to ' ' }, p))
             return
         }
         val end = conditionEnd()

@@ -64,14 +64,15 @@ class Test262LintTest {
         val errorsInAccepted = accepted.filter { o -> o.diagnostics.any { it.severity == Severity.ERROR } }
         val internal = outs.filter { o -> o.diagnostics.any { it.code == NeonLint.INTERNAL_ERROR } }
         val rejected = outs.filter { !it.accepted && it.engineError != "stack overflow" }
-        // the engine's error is a syntax diagnostic: at its offset or over it, or one of the recovery mode's own diagnoses
-        // (which may point elsewhere: `elseif` for the `{` after it)
-        val diagnosisCodes = SyntaxCodes.diagnoses.map { it.code }.toSet()
-        val firstDiffers = rejected.filter { o ->
+        // the engine's error is a syntax diagnostic at its offset or over it; or one of the three diagnoses that point
+        // elsewhere (docs/LINT.md: `elseif` rather than the `{` after it, the keyword, the body's `{`) stands for it
+        val elsewhere = setOf("syntax/elseif", "syntax/missing-condition", "syntax/unclosed-parameters")
+        fun at(o: Out): Boolean {
             val pos = o.engineError!!.substringBefore(':').toInt()
-            o.diagnostics.none { d -> d.code.startsWith("syntax/") && (d.start == pos || (pos >= d.start && pos < d.end) || d.code in diagnosisCodes) }
+            return o.diagnostics.any { d -> d.code.startsWith("syntax/") && (d.start == pos || (pos >= d.start && pos < d.end)) }
         }
-        val byDiagnosis = rejected.count { o -> o.diagnostics.any { it.code in diagnosisCodes } }
+        val firstDiffers = rejected.filter { o -> !at(o) && o.diagnostics.none { it.code in elsewhere } }
+        val byDiagnosis = rejected.count { o -> !at(o) && o.diagnostics.any { it.code in elsewhere } }
         val listed = NeonLint.rules.map { it.code }.toSet()
         val unlisted = outs.flatMap { o -> o.diagnostics.map { it.code } }.filter { it !in listed }.toSet()
         val uncoded = rejected.flatMap { o -> o.diagnostics.filter { it.code == "syntax/error" }.map { it.message } }.groupingBy { it }.eachCount()
@@ -83,7 +84,7 @@ class Test262LintTest {
             appendLine("cases ${outs.size}: accepted ${accepted.size}, rejected ${rejected.size}")
             appendLine("internal errors ${internal.size}; walks missing a node ${walk.size}")
             appendLine("accepted programs with an error diagnostic ${errorsInAccepted.size}, by rule $byRule")
-            appendLine("rejected programs whose engine error is not among the diagnostics ${firstDiffers.size}; told by a diagnosis of the recovery mode's own $byDiagnosis")
+            appendLine("rejected programs whose engine error is not among the diagnostics ${firstDiffers.size}; told by a diagnosis pointing elsewhere $byDiagnosis")
             appendLine("codes emitted that NeonLint.rules does not list: $unlisted")
             appendLine("syntax errors left without a code: ${uncoded.values.sum()} (${uncoded.size} messages)")
             appendLine("diagnostics in accepted programs, by code: $warnings")

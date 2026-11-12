@@ -4,10 +4,10 @@
 as one types. It reports every syntax error and still checks the code around and after them. Its rules report mistakes
 that are valid code. It has no style rules.
 
-Each syntax error is reported where the engine finds it, with the engine's own message; the first is the one the
-engine throws. Where the parser's recovery mode can tell what the mistake is, it says so instead, in its own words (an
-expression missing, a `)` left out, `elseif` for `else if`). The list of those is in "Diagnoses of the recovery
-mode's own" below.
+Each syntax error is reported where the engine finds it, with the engine's own message. The parse records first the
+error the engine throws; the linter lists all of them by offset. Where the parser's recovery mode can tell what the
+mistake is, it says so instead, in its own words (an expression missing, a `)` left out, `elseif` for `else if`). The
+list of those is in "Diagnoses of the recovery mode's own" below.
 
 ```
 source ──▶ Parser.parseTolerant ──▶ Program (an ErrorNode for each statement it could not read) + syntax errors
@@ -131,8 +131,9 @@ also let the parse go on, or have the source mended, with the same length, and r
 | `syntax/catch-parens` | none | `Expected '{' but found …` | the parameter | `catch e {` is read as `catch(e){` |
 | `syntax/unclosed-parameters` | none | the error where the parameter list failed | the body's `{`; related: the list's `(` | `function f(a, {` is read as `function f(a) {` |
 
-So the linter's first syntax diagnostic is at the engine's position, except with `syntax/elseif`,
-`syntax/missing-condition` and `syntax/unclosed-parameters`.
+So every syntax diagnostic is at the position the engine reports, except those of `syntax/elseif`,
+`syntax/missing-condition` and `syntax/unclosed-parameters`. Only an `if`'s missing condition is mended: a loop's body
+read as a block would make its `break` an error.
 
 ### Where the rules differ from ESLint
 
@@ -167,10 +168,12 @@ checks confirm it:
 - **Called once per declared name:** `declareName`, which the recovery mode logs so a failed statement's names can be
   undone.
 - **Called once per class body:** `parseClassMembers`.
+- **Called once per function or method:** `parseParams`, its parameter list.
 - **Called only on an error's path:**
   - `raise`, an early error;
   - `fail`, an error the parse cannot go on from;
   - `expectFailed` and `semicolonFailed`;
+  - `expressionExpected`, where no expression begins and one must;
   - `blockEndsEarly` and `casesEndEarly`;
   - `readFirstToken`, `declaredAtTop` and `declarePrivate`.
 - **ScopeAnalyzer:** declares an `ErrorNode`'s names. A declaration of the same name in the statement list wins. It

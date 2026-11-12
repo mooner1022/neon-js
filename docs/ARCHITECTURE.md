@@ -27,7 +27,8 @@ subclass of `ParserImpl`, overrides only:
 - `parseListedStatement`, called at a statement list's statements;
 - `declareName`, called for each declared name;
 - `parseClassMembers`, called once per class body;
-- the methods called on an error's path.
+- `parseParams`, called once per function;
+- the methods called on an error's path (`raise`, `fail`, `expectFailed`, `expressionExpected`, ...).
 
 The engine's parse is unchanged. Each error is handled as follows:
 - An early error (`raise`) is recorded, and the parse goes on from it.
