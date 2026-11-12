@@ -99,12 +99,15 @@ internal abstract class ParserBase(val src: String, val options: ParseOptions) {
      * target, a reserved word). The engine throws it here; nothing after the call runs. The linter's recovery mode
      * records it and goes on, so the code after a call must leave the parser in a state it can go on from.
      */
-    fun raise(pos: Int, msg: String) {
+    open fun raise(pos: Int, msg: String) {
         lex.error(msg, pos)
     }
 
-    /** A syntax error the parse cannot go on from where it is (a token missing or out of place): thrown in every mode. */
-    fun fail(pos: Int, msg: String): Nothing = lex.error(msg, pos)
+    /**
+     * A syntax error the parse cannot go on from where it is (a token missing or out of place): thrown in every mode
+     * (the recovery mode records it first, and goes on from the statement's end).
+     */
+    open fun fail(pos: Int, msg: String): Nothing = lex.error(msg, pos)
 
     fun unexpected(pos: Int = lex.start): Nothing {
         if (lex.type == T.EOF && pos == lex.start) fail(pos, "Unexpected end of input")
@@ -324,7 +327,8 @@ internal abstract class ParserBase(val src: String, val options: ParseOptions) {
     fun treatFunctionsAsVarInScope(s: PScope): Boolean =
         s.flags and SCOPE_FUNCTION != 0 || (!inModule && s.flags and SCOPE_TOP != 0) || s.flags and SCOPE_CLASS_STATIC_BLOCK != 0
 
-    fun declareName(name: String, bind: Bind, pos: Int, fromForOf: Boolean = false) {
+    /** (Open for the recovery mode, which keeps what each statement declared, to undo it when the statement fails.) */
+    open fun declareName(name: String, bind: Bind, pos: Int, fromForOf: Boolean = false) {
         var redeclared = false
         when (bind) {
             Bind.LEXICAL -> {

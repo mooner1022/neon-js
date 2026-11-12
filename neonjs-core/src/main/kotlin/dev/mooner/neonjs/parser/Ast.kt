@@ -184,6 +184,14 @@ class VariableDeclaration(val kind: VarKind, val declarations: List<VariableDecl
 class FunctionDeclaration(val function: FunctionNode) : Node()
 class ClassDeclaration(val cls: ClassNode) : Node()
 
+/**
+ * The recovery mode's (Parser.parseTolerant), never the engine's: stands for a statement the parser could not read,
+ * over the source it passed over. [lexicalNames] and [varNames] are the names the statement had declared when it failed
+ * (let/const/class, and var/function), so that scope analysis still finds them; a declaration of the same name elsewhere
+ * wins over them.
+ */
+class ErrorNode(val lexicalNames: List<Identifier>, val varNames: List<Identifier>) : Node()
+
 // ---------------------------------------------------------------- modules
 
 /**

@@ -237,6 +237,8 @@ class ScopeAnalyzer(val mode: CodeMode, val evalStrict: Boolean = false, val eva
             is SwitchStatement -> n.cases.forEach { c -> c.consequent.forEach { collectVars(it, varScope) } }
             is WithStatement -> collectVars(n.body, varScope)
             is ExportNamedDeclaration -> collectVars(n.declaration, varScope)
+            // (the linter's recovery mode: a statement it could not read, with the vars it had declared)
+            is ErrorNode -> n.varNames.forEach { declareVar(it.name, varScope) }
             else -> {}
         }
     }
@@ -298,6 +300,12 @@ class ScopeAnalyzer(val mode: CodeMode, val evalStrict: Boolean = false, val eva
                         val b = scope.declare(sp.local.name, BKind.IMPORT)
                         b.captured = true
                     }
+                }
+                // (the linter's recovery mode: names a statement it could not read had declared; a declaration of the
+                // name in the statement list wins)
+                is ErrorNode -> for (id in st.lexicalNames) {
+                    if (scope.kind == ScopeKind.GLOBAL) globalLexNames.putIfAbsent(id.name, false)
+                    else if (scope.bindings[id.name] == null) scope.declare(id.name, BKind.LET)
                 }
                 else -> {}
             }
@@ -477,6 +485,7 @@ class ScopeAnalyzer(val mode: CodeMode, val evalStrict: Boolean = false, val eva
                 else visitExpr(d)
             }
             is ExportAllDeclaration -> {}
+            is ErrorNode -> {}
             else -> throw IllegalStateException("Unknown statement ${n::class.simpleName}")
         }
     }
@@ -638,6 +647,7 @@ class ScopeAnalyzer(val mode: CodeMode, val evalStrict: Boolean = false, val eva
             is ClassNode -> visitClass(n)
             is ObjectPattern, is ArrayPattern -> visitPattern(n, false)
             is AssignmentPattern -> visitPattern(n, false)
+            is ErrorNode -> {}
             else -> throw IllegalStateException("Unknown expression ${n::class.simpleName}")
         }
     }
