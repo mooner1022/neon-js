@@ -318,3 +318,7 @@ taken. This cost was accepted. Not measured on ART.
 - **Without the checkouts.** Tests that read Test262 or Node.js are skipped when `third_party/test262` (`TEST262`) or
   `third_party/node` is missing. In CI, `build` runs before Test262 is checked out, so they are skipped there.
 - **Running them.** `tools/check.sh quick` runs neonjs-lint's tests too.
+- **Their reports.** `TolerantProbeTest`, `MutationTest`, `Test262LintTest` and `LintBenchTest` write what they found
+  in their module's `build/` (`tolerant-probe.txt`, `recovery-mutations.txt`, `test262-lint.txt`, `lint-bench.txt`).
+  These are not Gradle outputs: when a test's inputs have not changed, Gradle skips it or takes it from its cache, and
+  the old report stays. `--rerun` writes it again (`./gradlew :neonjs-lint:test --rerun --tests '*LintBenchTest'`).
