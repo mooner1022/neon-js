@@ -235,17 +235,25 @@ Measured on 2026-11-12/13, HotSpot (Temurin 25), 8 cores, nothing else running.
 | P1a | 911–918.5 ms | 913.5–930 ms |
 | P1b | 914–949 ms | 921–952 ms |
 | P2, the negative tests also read between rounds | 913–942.5 ms | 924–942 ms |
+| P4's hooks, the same | 929.5–954 ms | 933–996 ms |
+| P4 done, the same | 930–943 ms | 920–953 ms |
 
 In one JVM, the engine's warm parse can be slower after the recovery mode has read the 4,660 negative tests, and stays
-so. Six runs over P1 and P2 gave:
-- after the recovery mode: −1.5 to +4.0% (+3.8, +3.2, +1.8, +1.1, −1.5, +4.0);
-- the control, after the engine itself reads them: −3.1 to +1.1%.
+so. `ParseBench --pollute` times 10 rounds of the engine, lets a mode read a set of programs 3 times, and times 10
+rounds more. The change in the median, over every run made:
 
-That is up to 2–4% beyond the noise.
+| Build | The recovery mode reads the negative tests | The control: the engine reads them | The recovery mode reads as many valid programs |
+|---|---|---|---|
+| P1, P2 | 6 runs: −1.5 to +4.0%, median +2.5 | 6 runs: −3.1 to +1.1%, median −0.5 | 3 runs: −2.2 to +1.0%, median −1.8 |
+| P4's hooks | 5 runs: +1.2 to +11.0%, median +2.2 | 5 runs: +0.1 to +2.2%, median +0.7 | |
+| P4 done | 5 runs: −0.7 to +4.9%, median +1.4 | 5 runs: +0.2 to +6.7%, median +1.0 | 5 runs: −0.6 to +2.6%, median +0.4 |
 
-The recovery mode on valid programs has no such effect. The cost comes from sharing the parser's code with a mode that
-runs past errors: HotSpot compiles the shared methods with those paths taken. It does not come from the hooks. This
-cost was accepted. Not measured on ART.
+The medians are 0.4 to 3.0 points above the control's: up to 2–4% beyond the noise. One run tells little. The +11.0%
+is one run (903.5 ms before, 1,002.5 after), and the control itself gave +6.7% and +4.5% in the last set.
+
+The recovery mode on valid programs has no such effect, though it goes through the same hooks. The cost comes from
+sharing the parser's code with a mode that runs past errors: HotSpot compiles the shared methods with those paths
+taken. This cost was accepted. Not measured on ART.
 
 ### Recovery quality
 
@@ -272,22 +280,26 @@ cost was accepted. Not measured on ART.
 
 ### Linting
 
-- **Test262** (`Test262LintTest`), each accepted program:
+- **Test262** (`Test262LintTest`), every program in each mode:
   - No `internal-error`.
-  - The walk reaches every node.
-  - The engine's error is among each rejected program's diagnostics.
+  - In each accepted program, the walk reaches every node.
+  - In each rejected program, the engine's error is among the diagnostics: a syntax diagnostic at its offset or over
+    it, or, in 8 programs, one of the diagnoses that point elsewhere.
+  - Every code is one `NeonLint.rules` lists.
   - Error-severity diagnostics appear in 202 accepted programs; each file was read. Each is a test of that very
     runtime error (`*-use-before-initialization-*`, `*-put-const`, `assert.throws(TypeError, …)`,
     `super-must-be-called`), or a derived class the test never constructs. Reading them found one rule bug, now
     fixed: a constructor calling `super()` through a direct `eval`.
-- **Node.js's `lib/events.js`** (1,257 lines, as a script, `LintBenchTest`):
+- **Node.js's `lib/events.js`** (1,256 lines, as a script, `LintBenchTest`), four runs. Each gives the median of 100
+  lints after 500, and the median of 5 new JVMs' first lint:
 
-  | | Warm | First lint in a new JVM |
+  | | After 500 lints | First lint in a new JVM |
   |---|---|---|
-  | As it is | 4.8 ms | 175 ms |
-  | With a syntax error | 3.8 ms | 207 ms |
+  | As it is | 1.9 ms | 176–183 ms |
+  | With a syntax error | 1.9–2.1 ms | 185–190 ms |
 
-  StarLight's ESLint-based check took about 110 ms for 1,350 lines.
+  After only 50 lints, the median was still 3.4–7.0 ms: HotSpot was still compiling. StarLight's ESLint-based check
+  took about 110 ms for 1,350 lines.
 
 ## Tests and tools
 

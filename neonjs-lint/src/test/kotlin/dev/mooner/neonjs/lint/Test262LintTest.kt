@@ -14,12 +14,14 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 /**
- * The linter over Test262 (third_party/test262; skipped without it), each file in each mode the runner parses it in:
- * - in a program the engine accepts, no diagnostic is an error (a rule's error is a runtime error the program may well
- *   test: those are listed in build/test262-lint.txt, which a reader checks);
- * - in one it rejects, the first diagnostic is the engine's error, and each syntax error has a code of its own (the
- *   messages left to `syntax/error` are listed);
- * - the tree walk reaches every node the tree has.
+ * The linter over Test262 (third_party/test262; skipped without it), each file in each mode the runner parses it in.
+ * Asserted:
+ * - no `internal-error`, and in a program the engine accepts, the tree walk reaches every node the tree has;
+ * - in one it rejects, the engine's error is a syntax diagnostic at its offset or over it, or one of the diagnoses that
+ *   point elsewhere (docs/LINT.md) stands for it;
+ * - every code is one NeonLint.rules lists.
+ * Listed in build/test262-lint.txt, for a reader to check: the errors in programs the engine accepts (a rule's bug, or
+ * a runtime error the program tests), and the syntax errors left to `syntax/error`.
  */
 class Test262LintTest {
 

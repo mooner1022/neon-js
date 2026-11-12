@@ -7,7 +7,7 @@ import java.io.File
 /**
  * How long a lint takes (written to build/lint-bench.txt; nothing is asserted): Node.js's lib/events.js (1,256 lines,
  * third_party/node; skipped without it) and the same with a syntax error in its middle, the first lint in a new JVM
- * (each of 5 JVMs) and the median of 50 after 50 to warm up.
+ * (each of 5 JVMs) and the median of 100 after 500 to warm up (about the lints of a long edit).
  */
 class LintBenchTest {
     @Test
@@ -16,12 +16,12 @@ class LintBenchTest {
         assumeTrue(node != null && node.isFile, "no third_party/node")
         val src = node!!.readText()
         val broken = src.substring(0, src.length / 2) + "\nlet broken = (;\n" + src.substring(src.length / 2)
-        val out = StringBuilder("${node.name}: ${src.lines().size} lines, ${src.length} chars\n")
+        val out = StringBuilder("${node.name}: ${src.count { it == '\n' }} lines, ${src.length} chars\n")
         for ((name, text) in listOf("as it is" to src, "with a syntax error" to broken)) {
             val file = File.createTempFile("lint-bench", ".js").also { it.writeText(text); it.deleteOnExit() }
             val cold = (1..5).map { coldRun(file) }.sorted()
-            repeat(50) { NeonLint.lint(text, LintOptions(SourceType.SCRIPT, EngineGlobals.of(node = true))) }
-            val warm = (1..50).map {
+            repeat(500) { NeonLint.lint(text, LintOptions(SourceType.SCRIPT, EngineGlobals.of(node = true))) }
+            val warm = (1..100).map {
                 val t0 = System.nanoTime()
                 NeonLint.lint(text, LintOptions(SourceType.SCRIPT, EngineGlobals.of(node = true)))
                 (System.nanoTime() - t0) / 1e6
