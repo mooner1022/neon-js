@@ -187,6 +187,9 @@ class LintTest {
         clean("class A extends B { }", "missing-super-call")
         clean("class A extends null { constructor() { } }", "missing-super-call")
         clean("class A extends B { constructor() { throw new Error('no'); } }", "missing-super-call")
+        // (a direct eval may call super(): neither rule can tell)
+        clean("class A extends B { constructor() { eval('super()'); } }", "missing-super-call")
+        clean("class A extends B { constructor() { this.a = 1; eval('super()'); super(); } }", "this-before-super")
     }
 
     // ------------------------------------------------------------ warnings

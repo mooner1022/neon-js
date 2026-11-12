@@ -553,12 +553,17 @@ internal object BuiltinRules {
         else -> false
     }
 
-    /** The constructors of the classes with an `extends` (not `null`): the FunctionNodes. */
+    /**
+     * The constructors of the classes with an `extends` (not `null`): the FunctionNodes. Not one with a direct eval,
+     * which may call `super()` where no rule sees it.
+     */
     private fun derivedConstructors(c: LintContext): List<FunctionNode> = c.tree.visits.mapNotNull { v ->
         val cls = v.node as? ClassNode ?: return@mapNotNull null
         val sup = cls.superClass ?: return@mapNotNull null
         if (sup is NullLiteral || sup is NumberLiteral || sup is StringLiteral || sup is BooleanLiteral) return@mapNotNull null
-        cls.constructor?.takeIf { it.kind == FunctionKind.DERIVED_CONSTRUCTOR }
+        val ctor = cls.constructor?.takeIf { it.kind == FunctionKind.DERIVED_CONSTRUCTOR } ?: return@mapNotNull null
+        if ((ctor.scope as? Scope)?.fn?.containsEval == true) return@mapNotNull null
+        ctor
     }
 
     /** `super(...)` calls in [ctor]'s code ([arrowsToo]: and in its arrow functions'), not in a nested class's. */

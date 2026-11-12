@@ -201,10 +201,12 @@ Measured on 2026-11-12/13, HotSpot (Temurin 25), 8 cores, nothing else running.
 | P1b | 914–949 ms | 921–952 ms |
 | P2, the negative tests also read between rounds | 913–942.5 ms | 924–942 ms |
 
-In one JVM, after the recovery mode has read the 4,660 negative tests, the engine's warm parse is 2–4% slower and stays
-so:
-- after the recovery mode: +1.8 to +4.0%;
+In one JVM, the engine's warm parse can be slower after the recovery mode has read the 4,660 negative tests, and stays
+so. Six runs over P1 and P2 gave:
+- after the recovery mode: −1.5 to +4.0% (+3.8, +3.2, +1.8, +1.1, −1.5, +4.0);
 - the control, after the engine itself reads them: −3.1 to +1.1%.
+
+That is up to 2–4% beyond the noise.
 
 The recovery mode on valid programs has no such effect. The cost comes from sharing the parser's code with a mode that
 runs past errors: HotSpot compiles the shared methods with those paths taken. It does not come from the hooks. This
@@ -233,9 +235,10 @@ cost was accepted. Not measured on ART.
   - No `internal-error`.
   - The walk reaches every node.
   - The engine's error is among each rejected program's diagnostics.
-  - Error-severity diagnostics appear in 208 accepted programs. Each is a test of that very runtime error
-    (`*-use-before-initialization-*`, `*-put-const`, `super-must-be-called`), or a derived class the test never
-    constructs.
+  - Error-severity diagnostics appear in 202 accepted programs; each file was read. Each is a test of that very
+    runtime error (`*-use-before-initialization-*`, `*-put-const`, `assert.throws(TypeError, …)`,
+    `super-must-be-called`), or a derived class the test never constructs. Reading them found one rule bug, now
+    fixed: a constructor calling `super()` through a direct `eval`.
 - **Node.js's `lib/events.js`** (1,257 lines, as a script, `LintBenchTest`):
 
   | | Warm | First lint in a new JVM |

@@ -5,6 +5,7 @@ import dev.mooner.neonjs.compiler.GlobalRef
 import dev.mooner.neonjs.compiler.LocalRef
 import dev.mooner.neonjs.compiler.ScopeAnalyzer
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
@@ -19,7 +20,8 @@ import java.util.zip.CRC32
  * engine accepts; skipped without Test262) and Node.js's library (third_party/node/lib, when there), each mutation the
  * engine rejects. It must read each without a crash, within 2 s, recording something; how many errors it records and
  * how often a name the program declares is no longer declared after the mutation are measured and reported
- * (build/recovery-mutations.txt).
+ * (build/recovery-mutations.txt). They may not get worse than [THRESHOLDS] by more than a point (the user's
+ * targets, set at their first measurement).
  */
 @OptIn(UnstableParserApi::class)
 class MutationTest {
@@ -91,6 +93,14 @@ class MutationTest {
         }
         File("build/recovery-mutations.txt").writeText(report)
         assertEquals(0, crashes.size + slow.size + silent.size, report)
+        for ((corpus, limits) in THRESHOLDS) {
+            val os = outcomes.filter { it.mutant.source.corpus == corpus && it.crash == null }
+            if (os.isEmpty()) continue
+            val one = os.count { it.problems == 1 } * 100.0 / os.size
+            val lost = os.count { it.lostNames.isNotEmpty() } * 100.0 / os.size
+            assertTrue(one >= limits.first - 1.0, "%s: one error recorded in %.1f%%, the target %.1f%%".format(corpus, one, limits.first) + "\n" + report)
+            assertTrue(lost <= limits.second + 1.0, "%s: a declared name lost in %.1f%%, the target %.1f%%".format(corpus, lost, limits.second) + "\n" + report)
+        }
     }
 
     private fun accepts(src: String, module: Boolean): Boolean = try {
@@ -196,6 +206,9 @@ class MutationTest {
     private fun crc(s: String): Long = CRC32().also { it.update(s.toByteArray()) }.value
 
     private companion object {
+        /** Per corpus: the share of mutants with one error recorded, and with a declared name lost (P2's, in %). */
+        val THRESHOLDS = mapOf("test262" to (79.3 to 4.3), "node" to (69.1 to 10.2))
+
         val PUNCTUATION = listOf(")", "(", ";", ",", "{", "}", "]", "=", ".", "=>", "let", "if")
     }
 }
