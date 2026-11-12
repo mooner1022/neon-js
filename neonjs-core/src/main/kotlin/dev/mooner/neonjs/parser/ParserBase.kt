@@ -94,10 +94,20 @@ internal abstract class ParserBase(val src: String, val options: ParseOptions) {
         lex.next()
     }
 
-    fun raise(pos: Int, msg: String): Nothing = lex.error(msg, pos)
+    /**
+     * An early error: a rule broken where the syntax around it is intact (a name declared twice, an invalid assignment
+     * target, a reserved word). The engine throws it here; nothing after the call runs. The linter's recovery mode
+     * records it and goes on, so the code after a call must leave the parser in a state it can go on from.
+     */
+    fun raise(pos: Int, msg: String) {
+        lex.error(msg, pos)
+    }
+
+    /** A syntax error the parse cannot go on from where it is (a token missing or out of place): thrown in every mode. */
+    fun fail(pos: Int, msg: String): Nothing = lex.error(msg, pos)
 
     fun unexpected(pos: Int = lex.start): Nothing {
-        if (lex.type == T.EOF && pos == lex.start) raise(pos, "Unexpected end of input")
+        if (lex.type == T.EOF && pos == lex.start) fail(pos, "Unexpected end of input")
         val tokText = when (lex.type) {
             T.NAME -> "identifier '${lex.value}'"
             T.STRING -> "string"
@@ -105,7 +115,7 @@ internal abstract class ParserBase(val src: String, val options: ParseOptions) {
             T.EOF -> "end of input"
             else -> "token '${lex.type.text}'"
         }
-        raise(pos, "Unexpected $tokText")
+        fail(pos, "Unexpected $tokText")
     }
 
     fun eat(t: T): Boolean {
@@ -115,8 +125,8 @@ internal abstract class ParserBase(val src: String, val options: ParseOptions) {
 
     fun expect(t: T) {
         if (!eat(t)) {
-            if (lex.type == T.EOF) raise(lex.start, "Unexpected end of input")
-            raise(lex.start, "Expected '${t.text}' but found ${describeToken()}")
+            if (lex.type == T.EOF) fail(lex.start, "Unexpected end of input")
+            fail(lex.start, "Expected '${t.text}' but found ${describeToken()}")
         }
     }
 
@@ -151,7 +161,7 @@ internal abstract class ParserBase(val src: String, val options: ParseOptions) {
     }
 
     fun expectKw(kw: String) {
-        if (!eatKw(kw)) raise(lex.start, "Expected '$kw' but found ${describeToken()}")
+        if (!eatKw(kw)) fail(lex.start, "Expected '$kw' but found ${describeToken()}")
     }
 
     fun canInsertSemicolon(): Boolean = lex.type == T.EOF || lex.type == T.RBRACE || lex.nlBefore

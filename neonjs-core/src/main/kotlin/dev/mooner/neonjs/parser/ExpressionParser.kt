@@ -1109,6 +1109,8 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
             is ChainExpression -> raise(node.start, "Optional chaining cannot appear in left-hand side")
             else -> raise(node.start, if (isBinding) "Invalid destructuring assignment target" else "Invalid left-hand side in assignment")
         }
+        // (the target the early errors above were about, kept by the recovery mode)
+        return node
     }
 
     /** Validates simple assignment target / binding identifier. [bind] declares the name when not NONE. */
