@@ -68,6 +68,20 @@ internal class Facts(val tree: Tree, val sourceType: SourceType, val scopes: Sco
     val topClasses = HashSet<String>()
     /** Per function (or program), each var's first declaring identifier. */
     val varStart = HashMap<Node, HashMap<String, Int>>()
+    /** The nodes with one of the recovery mode's ErrorNodes in them (an expression missing, a statement it could not read). */
+    private val withErrorNodes: Set<Node> = run {
+        val visitOf = java.util.IdentityHashMap<Node, Visit>()
+        for (v in tree.visits) visitOf[v.node] = v
+        val out = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Node, Boolean>())
+        for (v in tree.visits) if (v.node is ErrorNode) {
+            var at: Visit? = v
+            while (at != null && out.add(at.node)) at = at.parent?.let { visitOf[it] }
+        }
+        out
+    }
+
+    /** Whether [n] has an ErrorNode in it: two such are never the same (one stands for something missing). */
+    fun hasErrorNode(n: Node): Boolean = n in withErrorNodes
     /**
      * Where a declared name is initialized in its pattern, and the pattern: in the pattern, a name is initialized once
      * its element (with its default) is bound (`let [a, b = a] = x` reads `a` initialized, `let { x = x } = o` does
@@ -378,6 +392,7 @@ internal object BuiltinRules {
                 val seen = HashSet<String>()
                 for (case in sw.cases) {
                     val test = case.test ?: continue
+                    if (c.facts.hasErrorNode(test)) continue
                     if (!seen.add(tokens(c.source, test))) c.report(test, "Duplicate case label.")
                 }
             }
@@ -390,6 +405,7 @@ internal object BuiltinRules {
                 var cur: IfStatement? = head
                 while (cur != null) {
                     val test = cur.test
+                    if (c.facts.hasErrorNode(test)) break
                     val candidates = listOf(test) + (if (test is LogicalExpression && test.op == "&&") splitAnd(test) else emptyList())
                     val covered = candidates.any { cand ->
                         var groups = splitOr(cand).map { g -> splitAnd(g).mapTo(HashSet()) { tokens(c.source, it) } }

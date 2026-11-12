@@ -29,11 +29,27 @@ enum class ParseStop { LIMIT, CANCELLED }
 /**
  * A syntax error the recovery mode recorded: the engine's message, and where. [pos] is the UTF-16 offset the engine
  * reports; [end] the end of the token there when the error is about the current token, otherwise -1. [related]: for
- * the source ending inside a block, the innermost `{` it leaves open (-1 otherwise).
+ * the source ending inside a block, the innermost `{` it leaves open (-1 otherwise). [diagnosis]: what the recovery
+ * mode found the mistake to be, when it could tell more than the engine's message does.
  */
 @UnstableParserApi
-class ParseProblem(val pos: Int, val end: Int, val message: String, val kind: ProblemKind, val related: Int = -1) {
+class ParseProblem(
+    val pos: Int, val end: Int, val message: String, val kind: ProblemKind, val related: Int = -1,
+    val diagnosis: Diagnosis? = null,
+) {
+    internal fun with(d: Diagnosis) = ParseProblem(pos, end, message, kind, related, d)
+
     override fun toString() = "$pos: $message"
+}
+
+/**
+ * The recovery mode's own reading of a syntax error (an expression missing, a `)` left out, `elseif` for `else if`):
+ * a code (a linter's `syntax/…`), its message, the message's arguments, the span [start, end) it points at, and a
+ * related position such as the bracket left open (-1 if none).
+ */
+@UnstableParserApi
+class Diagnosis(val code: String, val message: String, val args: List<String>, val start: Int, val end: Int, val related: Int = -1) {
+    override fun toString() = "$code $start-$end: $message"
 }
 
 /** Bounds of a tolerant parse: it stops at [maxProblems] errors, and when [isCancelled] (asked at each statement) says so. */

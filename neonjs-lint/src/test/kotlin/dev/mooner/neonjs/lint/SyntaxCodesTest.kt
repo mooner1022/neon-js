@@ -11,8 +11,8 @@ class SyntaxCodesTest {
 
     private val examples = listOf(
         Example("syntax/unexpected-end", "function f() {", "function f() {}"),
-        Example("syntax/unexpected-token", "let a = ;", "let a = 1;"),
-        Example("syntax/missing-token", "if (a { }", "if (a) { }"),
+        Example("syntax/unexpected-token", "a b;", "a; b;"),
+        Example("syntax/missing-token", "for (let i = 0 i < 3; i++) {}", "for (let i = 0; i < 3; i++) {}"),
         Example("syntax/unterminated-string", "let s = 'abc", "let s = 'abc'"),
         Example("syntax/unterminated-template", "let s = `abc", "let s = `abc`"),
         Example("syntax/unterminated-comment", "let a; /* abc", "let a; /* abc */"),
@@ -41,6 +41,19 @@ class SyntaxCodesTest {
         Example("syntax/declaration-placement", "if (a) const b = 1;", "if (a) { const b = 1; }"),
         Example("syntax/statement", "try {}", "try {} finally {}"),
         Example("syntax/module", "export { 'a' };", "const a = 1; export { a as 'a' };"),
+        // the recovery mode's own diagnoses
+        Example("syntax/missing-expression", "let x = ;", "let x = 1;"),
+        Example("syntax/missing-paren", "if (a {\n}", "if (a) {\n}"),
+        Example("syntax/missing-bracket", "a[i;", "a[i];"),
+        Example("syntax/missing-brace", "f({ a: 1;\nlet b;", "f({ a: 1 });\nlet b;"),
+        Example("syntax/missing-comma", "const o = {a: 1 b: 2};", "const o = {a: 1, b: 2};"),
+        Example("syntax/missing-colon", "x = a ? b c;", "x = a ? b : c;"),
+        Example("syntax/else-without-if", "if (a)\n  f();\n  g();\nelse {\n}", "if (a) {\n  f();\n  g();\n} else {\n}"),
+        Example("syntax/elseif", "if (a) {\n} elseif (b) {\n}", "if (a) {\n} else if (b) {\n}"),
+        Example("syntax/missing-condition", "if {\n}", "if (a) {\n}"),
+        Example("syntax/condition-parens", "if a == b {\n}", "if (a == b) {\n}"),
+        Example("syntax/catch-parens", "try {} catch e {}", "try {} catch (e) {}"),
+        Example("syntax/unclosed-parameters", "function f(a, {\n  g();\n}", "function f(a) {\n  g();\n}"),
     )
 
     @Test
@@ -51,7 +64,7 @@ class SyntaxCodesTest {
             val right = NeonLint.lint(e.right, LintOptions(e.type)).diagnostics.filter { it.code.startsWith("syntax/") }
             assertEquals(emptyList<Diagnostic>(), right, e.right)
         }
-        val listed = SyntaxCodes.entries.map { it.code }.toSet()
+        val listed = (SyntaxCodes.entries.map { it.code } + SyntaxCodes.diagnoses.map { it.code }).toSet()
         assertEquals(listed, examples.map { it.code }.toSet())
     }
 }

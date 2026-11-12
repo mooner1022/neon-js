@@ -45,7 +45,7 @@ class RecoveryTest {
 
     @Test
     fun aFailedDeclarationIsNoRedeclaration() {
-        assertEquals(listOf("1 Unexpected token ';'"), errors("let a = ;\nlet a = 1;"))
+        assertEquals(listOf("1 Unexpected token ';'"), errors("let a = (;\nlet a = 1;"))
         assertEquals(listOf("1 Unexpected token ';'"), errors("function f() { const b = (; const b = 1; }"))
         // var goes up to the function: both its scopes forget it
         assertEquals(
@@ -276,6 +276,81 @@ class RecoveryTest {
         assertTrue(ms < 3000, "$ms ms")
         val all = parse(src)
         assertTrue(all.problems.isNotEmpty())
+    }
+
+    // ------------------------------------------------------------ P4: the recovery mode's own diagnoses
+
+    /** The errors, as "line code" (the diagnosis's code and line when there is one, else the engine's message). */
+    private fun diagnoses(src: String, module: Boolean = false): List<String> = parse(src, module).problems.map {
+        val at = it.diagnosis?.start ?: it.pos
+        "${src.substring(0, at).count { c -> c == '\n' } + 1} ${it.diagnosis?.code ?: it.message}"
+    }
+
+    @Test
+    fun anExpressionMissingIsStoodInAndTheStatementRead() {
+        assertEquals(listOf("1 syntax/missing-expression", "2 Identifier 'k' has already been declared"), diagnoses("let x = ;\nlet k; let k;"))
+        assertEquals(listOf("1 syntax/missing-expression"), diagnoses("f(1, , 2);"))
+        assertEquals(listOf("1 syntax/missing-expression"), diagnoses("function g(a) { return a + ; }"))
+        assertEquals(listOf("1 syntax/missing-expression", "2 Identifier 'k' has already been declared"), diagnoses("if () {\n  let k; let k;\n}"))
+        assertEquals(listOf("1 syntax/missing-expression"), diagnoses("let o = { a: , b: 1 };"))
+        assertEquals(listOf("1 syntax/missing-expression"), diagnoses("x = `a \${} b`;"))
+        // the engine's message and position stay the error's
+        val p = parse("let x = ;").problems.single()
+        assertEquals("Unexpected token ';'", p.message)
+        assertEquals(8, p.pos)
+        // not at a statement's first token, nor where no operand is due (`f(;` misses its `)`: the engine's error)
+        assertEquals(listOf("1 Unexpected token ')'"), diagnoses(")"))
+        assertEquals(listOf("1 Unexpected token ';'"), diagnoses("f(;"))
+        // a declaration whose value is missing declares its name
+        assertEquals(listOf("1 syntax/missing-expression", "2 Identifier 'a' has already been declared"), diagnoses("let a = ;\nlet a = 1;"))
+        // an early error about what stands in is its echo
+        assertEquals(listOf("1 syntax/missing-expression"), diagnoses("const f = (a, , b) => a;"))
+    }
+
+    @Test
+    fun aMissingTokenIsNamedWithTheBracketItBelongsTo() {
+        val src = "if (a {\n  f();\n}"
+        val d = parse(src).problems.single().diagnosis!!
+        assertEquals("syntax/missing-paren", d.code)
+        assertEquals(src.indexOf('('), d.related)
+        assertEquals(listOf("3 syntax/missing-comma"), diagnoses("const o = {\n  a: 1\n  b: 2\n};"))
+        assertEquals("properties", parse("const o = {a: 1 b: 2};").problems.single().diagnosis!!.args.single())
+        assertEquals("elements", parse("const a = [1 2];").problems.single().diagnosis!!.args.single())
+        assertEquals(listOf("1 syntax/missing-paren"), diagnoses("foo(a, b;\nlet c;"))
+        assertEquals(listOf("1 syntax/missing-bracket"), diagnoses("a[i;"))
+        assertEquals(listOf("1 syntax/missing-colon"), diagnoses("x = a ? b c;"))
+    }
+
+    @Test
+    fun anElseWithoutIfAndElseifAreTold() {
+        val src = "if (a)\n  f();\n  g();\nelse {\n  let k; let k;\n}"
+        assertEquals(listOf("4 syntax/else-without-if", "5 Identifier 'k' has already been declared"), diagnoses(src))
+        // `elseif (b) {`: told once, for the `else` after it too
+        assertEquals(listOf("2 syntax/elseif", "3 Identifier 'k' has already been declared"),
+            diagnoses("if (a) {\n} elseif (b) {\n  let k; let k;\n} else {\n}"))
+        // a function named elseif is no mistake
+        assertEquals(emptyList<String>(), diagnoses("elseif(b);"))
+    }
+
+    @Test
+    fun aConditionOrACatchParameterWithoutParenthesesIsMended() {
+        assertEquals(listOf("1 syntax/condition-parens", "2 Identifier 'k' has already been declared"), diagnoses("if a == b {\n  let k; let k;\n}"))
+        assertEquals(listOf("1 syntax/condition-parens"), diagnoses("while x < 10 { x++; }"))
+        assertEquals(listOf("1 syntax/missing-condition", "2 Identifier 'k' has already been declared"), diagnoses("if (x) {} else if {\n  let k; let k;\n}"))
+        assertEquals(listOf("1 syntax/catch-parens", "1 Identifier 'k' has already been declared"), diagnoses("try { f(); } catch e { let k; let k; }"))
+        // the source as given, its offsets the source's
+        val src = "try { f(); } catch e { g(); }"
+        assertEquals(src, parse(src).program.source)
+    }
+
+    @Test
+    fun aParameterListLeftOpenEndsBeforeTheBody() {
+        assertEquals(listOf("1 syntax/unclosed-parameters", "2 Identifier 'k' has already been declared"), diagnoses("function f(a, {\n  let k; let k;\n}\nf();"))
+        assertEquals(listOf("1 syntax/unclosed-parameters", "2 Identifier 'k' has already been declared"), diagnoses("function f(a {\n  let k; let k;\n}"))
+        val d = parse("function f(a, {\n  g();\n}").problems.single().diagnosis!!
+        assertEquals(10, d.related)
+        // a destructuring parameter is no body
+        assertEquals(emptyList<String>(), diagnoses("function f(a, { b }) {\n  g();\n}"))
     }
 
     private fun identifiers(n: Any?, name: String, out: MutableList<Identifier> = ArrayList()): List<Identifier> {

@@ -88,27 +88,27 @@ class LintTest {
     fun eachBrokenStatementIsToldAndTheCodeAfterChecked() {
         val cases = mapOf(
             "function f() {\n  let a = ;\n  let b = 1;\n  let c = ;\n  const k = 1; k = 2;\n}\n" to
-                listOf("L2 e syntax/unexpected-token", "L4 e syntax/unexpected-token", "L5 e const-assign"),
+                listOf("L2 e syntax/missing-expression", "L4 e syntax/missing-expression", "L5 e const-assign"),
             "function f() {\n  if (a {\n    g();\n  }\n  if (b {\n    g();\n  }\n}\nconst k = 1; k = 2;\n" to
-                listOf("L2 e syntax/missing-token", "L5 e syntax/missing-token", "L9 e const-assign"),
+                listOf("L2 e syntax/missing-paren", "L5 e syntax/missing-paren", "L9 e const-assign"),
             "let a = 1;\n) ;\nlet b = 2 +;\nconst k = 1; k = 2;\n" to
-                listOf("L2 e syntax/unexpected-token", "L3 e syntax/unexpected-token", "L4 e const-assign"),
+                listOf("L2 e syntax/unexpected-token", "L3 e syntax/missing-expression", "L4 e const-assign"),
             "let a = \"abc;\nlet b = 1;\nconst k = 1; k = 2;\n" to
                 listOf("L1 e syntax/unterminated-string", "L3 e const-assign"),
             "class A {\n  foo( { }\n  bar() { const k = 1; k = 2; }\n  #x = ;\n}\n" to
-                listOf("L3 e syntax/missing-token", "L3 e const-assign", "L4 e syntax/unexpected-token"),
+                listOf("L3 e syntax/missing-paren", "L3 e const-assign", "L4 e syntax/missing-expression"),
             "function f(a, {\n  g();\n}\nfunction h() { const k = 1; k = 2; }\n" to
-                listOf("L2 e syntax/unexpected-token", "L4 e const-assign"),
+                listOf("L1 e syntax/unclosed-parameters", "L4 e const-assign"),
             "const o = {\n  a: 1\n  b: 2,\n};\nconst k = 1; k = 2;\n" to
-                listOf("L3 e syntax/missing-token", "L5 e const-assign"),
+                listOf("L3 e syntax/missing-comma", "L5 e const-assign"),
             "function f() {\n  if (a) { g(); }\n  else if { h(); }\n  const k = 1; k = 2;\n}\n" to
-                listOf("L3 e syntax/missing-token", "L4 e const-assign"),
+                listOf("L3 e syntax/missing-condition", "L4 e const-assign"),
             // (both early errors of the second export: the engine throws the first)
             "export function a() {}\nexport function a() {}\nconst k = 1; k = 2;\n" to
                 listOf("L2 e syntax/redeclared", "L2 e syntax/duplicate-export", "L3 e const-assign"),
         )
         for ((code, expected) in cases) assertEquals(expected, marks(code), code)
-        assertEquals(listOf("L2 e syntax/unexpected-token", "L3 e const-assign"),
+        assertEquals(listOf("L2 e syntax/missing-expression", "L3 e const-assign"),
             marks("function response(room, msg) {\n  with (Math) { var x = ; }\n  const k = 1; k = 2;\n}\n", SourceType.SCRIPT))
     }
 
@@ -119,6 +119,27 @@ class LintTest {
         val many = NeonLint.lint("let z = ;\n".repeat(30), LintOptions(maxDiagnostics = 10))
         assertEquals(10, many.diagnostics.size)
         assertTrue(many.truncated)
+    }
+
+    @Test
+    fun theRecoveryModesOwnDiagnoses() {
+        assertEquals(listOf("L1 e syntax/missing-expression"), marks("let x = ;"))
+        assertEquals(listOf("L1 e syntax/missing-expression"), marks("f(1, , 2);"))
+        assertEquals(listOf("L1 e syntax/missing-expression"), marks("function g(a) { return a + ; }"))
+        // (one error in the statement; what stands in for the conditions makes no duplicate of them)
+        assertEquals(listOf("L1 e syntax/missing-expression"), marks("if () {} else if () {}"))
+        assertEquals(listOf("L1 e syntax/missing-expression"), marks("switch (x) { case 1 + : break; case 1 + : break; }"))
+        assertEquals(listOf("L1 e syntax/missing-paren"), marks("if (a {\n  f();\n}"))
+        assertEquals(listOf("L3 e syntax/missing-comma"), marks("const o = {\n  a: 1\n  b: 2\n};"))
+        assertEquals(listOf("L4 e syntax/else-without-if"), marks("if (a)\n  f();\n  g();\nelse {\n}"))
+        assertEquals(listOf("L2 e syntax/elseif"), marks("if (a) {\n} elseif (b) {\n} else {\n}"))
+        assertEquals(listOf("L1 e syntax/condition-parens", "L2 e const-assign"), marks("if a == b {\n  const k = 1; k = 2;\n}"))
+        assertEquals(listOf("L1 e syntax/missing-condition", "L2 e const-assign"), marks("if {\n  const k = 1; k = 2;\n}"))
+        assertEquals(listOf("L1 e syntax/catch-parens", "L1 e const-assign"), marks("try { f(); } catch e { const k = 1; k = 2; }"))
+        assertEquals(listOf("L1 e syntax/unclosed-parameters", "L2 e const-assign"), marks("function f(a, {\n  const k = 1; k = 2;\n}"))
+        val d = NeonLint.lint("if (a {\n  f();\n}").diagnostics.single()
+        assertEquals("A ')' is missing to close the '('.", d.message)
+        assertEquals(3, d.related.single().start)
     }
 
     // ------------------------------------------------------------ errors

@@ -49,6 +49,34 @@ internal object SyntaxCodes {
     /** A message no entry matches. */
     const val FALLBACK = "syntax/error"
 
+    /** What the recovery mode tells of some mistakes itself (a Diagnosis), in place of the engine's message. */
+    class Known(val code: String, val args: List<String>, val description: String)
+
+    val diagnoses: List<Known> = listOf(
+        Known("syntax/missing-expression", emptyList(), "An expression is missing where an operand is due: `let x = ;`, `f(1, , 2)`, `if () {`."),
+        Known("syntax/missing-paren", emptyList(), "A `)` is missing (related: the `(` it would close)."),
+        Known("syntax/missing-bracket", emptyList(), "A `]` is missing (related: the `[` it would close)."),
+        Known("syntax/missing-brace", emptyList(), "A `}` is missing before the statement goes on (related: the `{` it would close)."),
+        Known("syntax/missing-comma", listOf("items"), "A `,` is missing between a list's items: properties, elements or other items."),
+        Known("syntax/missing-colon", emptyList(), "A conditional expression's `:` is missing."),
+        Known("syntax/else-without-if", emptyList(), "An `else` with no `if` before it, often an `if` of several statements without braces."),
+        Known("syntax/elseif", emptyList(), "`elseif` written for `else if`."),
+        Known("syntax/missing-condition", listOf("keyword"), "`if`, `while`, `for`, `switch` or `with` with no condition before its body."),
+        Known("syntax/condition-parens", listOf("keyword"), "A condition without its parentheses: `if a == b {`."),
+        Known("syntax/catch-parens", emptyList(), "A `catch` parameter without its parentheses: `catch e {`."),
+        Known("syntax/unclosed-parameters", emptyList(), "A parameter list not closed before the function's body (related: its `(`)."),
+    )
+
+    /** What a diagnosis's related position is. */
+    fun relatedMessage(code: String): String = when (code) {
+        "syntax/missing-paren" -> "The '(' it would close."
+        "syntax/missing-bracket" -> "The '[' it would close."
+        "syntax/missing-brace" -> "The '{' it would close."
+        "syntax/missing-comma" -> "Where the list begins."
+        "syntax/unclosed-parameters" -> "The parameter list's '('."
+        else -> "Here."
+    }
+
     fun codeOf(message: String): Pair<String, List<String>> {
         for (e in entries) {
             val m = e.pattern.matchEntire(message) ?: continue

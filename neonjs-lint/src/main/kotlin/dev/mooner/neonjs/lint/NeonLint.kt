@@ -24,6 +24,7 @@ object NeonLint {
     @JvmStatic
     val rules: List<RuleInfo> by lazy {
         SyntaxCodes.entries.map { RuleInfo(it.code, Severity.ERROR, it.args, it.description) } +
+            SyntaxCodes.diagnoses.map { RuleInfo(it.code, Severity.ERROR, it.args, it.description) } +
             RuleInfo(SyntaxCodes.FALLBACK, Severity.ERROR, listOf("message"), "A syntax error with no code of its own: the engine's message.") +
             RuleInfo(TOO_DEEP, Severity.ERROR, emptyList(), "The source is nested too deeply to read (the engine could not run it either).") +
             RuleInfo(INTERNAL_ERROR, Severity.WARNING, listOf("detail"), "The linter failed on this source (a bug): nothing more could be checked.") +
@@ -50,9 +51,16 @@ object NeonLint {
         if (parsed.stopped == ParseStop.CANCELLED || options.isCancelled()) return LintResult(emptyList(), 0, false, true)
 
         val syntax = parsed.problems.map { p ->
-            val (code, args) = SyntaxCodes.codeOf(p.message)
-            val related = if (p.related >= 0) listOf(Related(p.related, p.related + 1, "The '{' left open.")) else emptyList()
-            Diagnostic(code, Severity.ERROR, p.pos, endOf(source, p.pos, p.end), p.message, args, related)
+            val d = p.diagnosis
+            if (d != null) {
+                // the recovery mode's own reading of the error: its code, message and span
+                val related = if (d.related >= 0) listOf(Related(d.related, d.related + 1, SyntaxCodes.relatedMessage(d.code))) else emptyList()
+                Diagnostic(d.code, Severity.ERROR, d.start, maxOf(d.end, d.start), d.message, d.args, related)
+            } else {
+                val (code, args) = SyntaxCodes.codeOf(p.message)
+                val related = if (p.related >= 0) listOf(Related(p.related, p.related + 1, "The '{' left open.")) else emptyList()
+                Diagnostic(code, Severity.ERROR, p.pos, endOf(source, p.pos, p.end), p.message, args, related)
+            }
         }
 
         val findings = ArrayList<Diagnostic>()

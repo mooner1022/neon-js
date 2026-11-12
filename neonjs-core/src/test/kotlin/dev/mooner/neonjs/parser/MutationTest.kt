@@ -92,6 +92,9 @@ class MutationTest {
             }
         }
         File("build/recovery-mutations.txt").writeText(report)
+        // (every mutant with a name lost, to compare two versions of the recovery mode)
+        File("build/recovery-mutations-lost.txt").writeText(outcomes.filter { it.lostNames.isNotEmpty() }
+            .joinToString("") { "${it.mutant.source.corpus} ${it.mutant.source.rel} ${it.mutant.what} at ${it.mutant.at}: ${it.lostNames.distinct()}\n" })
         assertEquals(0, crashes.size + slow.size + silent.size, report)
         for ((corpus, limits) in THRESHOLDS) {
             val os = outcomes.filter { it.mutant.source.corpus == corpus && it.crash == null }

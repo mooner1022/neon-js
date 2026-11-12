@@ -7,20 +7,25 @@ package dev.mooner.neonjs.parser
  *
  * - An early error ([raise]: a rule broken where the syntax is intact) is recorded, and the parse goes on from it.
  * - A token missing where the token after it can follow it (`if (a {`, `{a: 1 b: 2}`, `let a = 1 let b = 2`) is
- *   recorded, and the parse goes on as if it were there.
+ *   recorded, and the parse goes on as if it were there; so is an expression missing where an operand is due
+ *   (`let x = ;`, `f(1, , 2)`), with an [ErrorNode] standing for it.
  * - Any other syntax error ([fail], or the lexer's) ends the statement, or the class member, being read. What it changed
  *   in the parser's state is undone, the tokens up to where a statement (a member) can begin again are passed over, and
  *   an [ErrorNode] stands for it in the tree, with the names it had declared so that scope analysis still finds them.
  * - Once a syntax error is recorded in a statement, the next ones in it are its echoes: they are not recorded (early
  *   errors are).
  * - The source ending inside blocks is one error; the blocks keep their statements.
+ * - Where the mistake can be told (an expression or a `)` missing, `elseif`, `catch e {`, ...), a [Diagnosis] says so;
+ *   where the source can be mended with the same length (`catch e {` as `catch(e){`), the mending is asked for
+ *   ([repairs]) and [parseTolerantly] reads the source again.
  *
- * The engine never makes one: it differs from [ParserImpl] only in the methods ParserImpl calls at statements and class
- * members, before the first token, when a name is declared and when an error is found.
+ * Every error recorded has the engine's message and position. The engine never makes one: it differs from
+ * [ParserImpl] only in the methods ParserImpl calls at statements, class members and parameter lists, before the
+ * first token, when a name is declared and when an error is found.
  */
 internal class RecoveringParser(
     src: String, options: ParseOptions, private val limits: ParseLimits,
-    /** Where tokens the lexer could not read were repaired, in order: the errors after one in its statement are its echoes. */
+    /** Where the source was repaired, in order: the errors after one in its statement are its echoes. */
     private val repaired: IntArray = IntArray(0),
 ) : ParserImpl(src, options) {
 
@@ -28,14 +33,22 @@ internal class RecoveringParser(
     /** Why the parse stopped before the end of the source, or null. */
     var stopped: ParseStop? = null
         private set
+    /** Mendings of the source this parse asks for, in the order found. */
+    val repairs = ArrayList<Repair>()
 
     private val recorded = HashSet<String>()
     /** A syntax error was recorded in the statement being read: the ones after it in that statement are its echoes. */
     private var structuralInStatement = false
-    /** Where the statement (class member) being read begins. */
+    /** Where the statement (class member) being read begins, and the lexer there. */
     private var statementStart = 0
-    /** Where the parse last went on as if a token were there: not twice at one token. */
+    private var statementFrom: LexState? = null
+    /** Where the parse last went on with no token read (a token taken as there, an expression missing): once a token. */
     private var lastPretended = -1
+    /** Where expressions were missing: the early errors there are their echoes. */
+    private val placeholders = HashSet<Int>()
+    /** The statement list's statement read last, and the `{` of the block after an `elseif (…)` (for the `else` after). */
+    private var lastListed: Node? = null
+    private var elseifBlock = -1
     /** The innermost `{` the source leaves open, once asked (-2: not yet). */
     private var unclosedBrace = -2
 
@@ -45,6 +58,9 @@ internal class RecoveringParser(
     private val recoveredTopNames = HashSet<String>()
 
     private class Declared(val scope: PScope, val depth: Int, val kind: Int, val name: String, val pos: Int)
+
+    /** A mending of the source, of the same length: characters replaced. [problem] the error it mends. */
+    class Repair(val edits: List<Pair<Int, Char>>, val problem: ParseProblem)
 
     /** Unwinds to the statement being read: its syntax error was recorded where it was found. */
     private class Recover(val at: Int) : RuntimeException(null, null, false, false)
@@ -56,24 +72,31 @@ internal class RecoveringParser(
 
     /**
      * Records an error, unless it was recorded already or, for a syntax error, one was recorded in the statement
-     * ([force]: all the same). At the limit, [stopped] is set, and the next statement list's statement stops the parse.
+     * ([force]: all the same), and returns it (null if not). At the limit, [stopped] is set, and the next statement
+     * list's statement stops the parse.
      */
-    private fun record(pos: Int, msg: String, kind: ProblemKind, related: Int = -1, force: Boolean = false) {
-        if (stopped != null) return
+    private fun record(pos: Int, msg: String, kind: ProblemKind, related: Int = -1, force: Boolean = false, diagnosis: Diagnosis? = null): ParseProblem? {
+        if (stopped != null) return null
         val structural = kind != ProblemKind.EARLY
-        if (structural && !force && (structuralInStatement || repairedBetween(statementStart, pos))) return
+        if (structural && !force && (structuralInStatement || repairedBetween(statementStart, pos))) return null
+        // (an early error about an expression missing: `toAssignable` of what stands for it, say)
+        if (!structural && pos in placeholders) return null
         // (the same error found twice: chains of checks on one token, a destructuring error checked again outside, the
         // end of the source in each block around)
-        if (!recorded.add("$pos\u0000$msg")) return
+        if (!recorded.add("$pos\u0000$msg")) return null
         if (structural) structuralInStatement = true
         val end = if (pos == lex.start && lex.end > lex.start) lex.end else -1
-        problems.add(ParseProblem(pos, end, msg, kind, related))
+        val p = ParseProblem(pos, end, msg, kind, related, diagnosis)
+        problems.add(p)
         if (problems.size >= limits.maxProblems) stopped = ParseStop.LIMIT
+        return p
     }
 
-    override fun raise(pos: Int, msg: String) = record(pos, msg, ProblemKind.EARLY)
+    override fun raise(pos: Int, msg: String) {
+        record(pos, msg, ProblemKind.EARLY)
+    }
 
-    /** Whether a token in [from, to] was repaired: the statement's first syntax error was the lexer's there. */
+    /** Whether the source was repaired in [from, to]: the statement's first syntax error was there. */
     private fun repairedBetween(from: Int, to: Int): Boolean {
         for (r in repaired) if (r in from..to) return true
         return false
@@ -89,13 +112,30 @@ internal class RecoveringParser(
     }
 
     override fun expectFailed(t: T) {
-        if (type != T.EOF && lex.start != lastPretended && canPretend(t)) {
+        if (type == T.EOF) return super.expectFailed(t)
+        val message = "Expected '${t.text}' but found ${describeToken()}"
+        if (t == T.LPAREN) {
+            val keyword = CONDITION_KEYWORDS.firstOrNull { wordBefore(it) }
+            if (keyword != null) {
+                conditionWithoutParens(keyword, message)
+                super.expectFailed(t)
+            }
+        }
+        if (t == T.LBRACE && type == T.NAME && wordBefore("catch")) {
+            catchWithoutParens(message)
+            super.expectFailed(t)
+        }
+        if (lex.start != lastPretended && canPretend(t)) {
             lastPretended = lex.start
-            record(lex.start, "Expected '${t.text}' but found ${describeToken()}", ProblemKind.MISSING)
+            record(lex.start, message, ProblemKind.MISSING, diagnosis = if (recordsSyntaxError()) missing(t, pretended = true) else null)
             return
         }
+        record(lex.start, message, ProblemKind.MISSING, diagnosis = if (recordsSyntaxError()) missing(t, pretended = false) else null)
         super.expectFailed(t)
     }
+
+    /** Whether a syntax error at the current token would be recorded (none was in the statement): worth diagnosing. */
+    private fun recordsSyntaxError(): Boolean = stopped == null && !structuralInStatement && !repairedBetween(statementStart, lex.start)
 
     /** Whether the parse can go on as if [t] were before the current token: the token can follow it. */
     private fun canPretend(t: T): Boolean = when (t) {
@@ -107,13 +147,156 @@ internal class RecoveringParser(
         else -> false
     }
 
+    /**
+     * What a missing [t] is, as far as the brackets open in the statement tell: a closer (with the opener it closes),
+     * a comma between a list's items ([pretended]: the next item is there), a conditional's `:`.
+     */
+    private fun missing(t: T, pretended: Boolean): Diagnosis? {
+        if (t != T.RPAREN && t != T.RBRACKET && t != T.COMMA && t != T.COLON) return null
+        val open = innermostOpen()
+        fun closer(kind: Char?, at: Int): Diagnosis? = when (kind) {
+            '(', 'f' -> Diagnosis("syntax/missing-paren", "A ')' is missing to close the '('.", emptyList(), lex.start, lex.end, at)
+            '[' -> Diagnosis("syntax/missing-bracket", "A ']' is missing to close the '['.", emptyList(), lex.start, lex.end, at)
+            '{' -> Diagnosis("syntax/missing-brace", "A '}' is missing to close the '{'.", emptyList(), lex.start, lex.end, at)
+            else -> null
+        }
+        return when (t) {
+            T.RPAREN -> closer('(', if (open != null && (open.first == '(' || open.first == 'f')) open.second else -1)
+            T.RBRACKET -> closer('[', if (open?.first == '[') open.second else -1)
+            T.COLON -> Diagnosis("syntax/missing-colon", "A ':' is missing in the conditional expression.", emptyList(), lex.start, lex.end)
+            else -> if (pretended) {
+                val what = when (open?.first) {
+                    '{' -> "properties"
+                    '[' -> "elements"
+                    else -> "items"
+                }
+                Diagnosis("syntax/missing-comma", "A ',' is missing between these $what.", listOf(what), lex.start, lex.end, open?.second ?: -1)
+            } else if (open != null) closer(open.first, open.second) else null
+        }
+    }
+
+    /**
+     * `if`, `while`, `for`, `switch` or `with` with no `(` after it: no condition at all (`if {`: the body is read as a
+     * block, the keyword passed over), or one without its parentheses (`if a == b {`: they are put in place of the
+     * spaces around it).
+     */
+    private fun conditionWithoutParens(keyword: String, message: String) {
+        if (!recordsSyntaxError()) return
+        val kwStart = lex.prevEnd - keyword.length
+        if (type == T.LBRACE) {
+            val d = Diagnosis("syntax/missing-condition", "'$keyword' needs a condition in parentheses before its body.", listOf(keyword), kwStart, lex.prevEnd)
+            val p = record(lex.start, message, ProblemKind.MISSING, diagnosis = d) ?: return
+            if (keyword != "switch") repairs.add(Repair((kwStart until lex.prevEnd).map { it to ' ' }, p))
+            return
+        }
+        val end = conditionEnd()
+        val d = Diagnosis("syntax/condition-parens", "The condition after '$keyword' needs parentheses around it.", listOf(keyword), lex.start,
+            if (end != null) trimEnd(end.first) else lex.end)
+        val p = record(lex.start, message, ProblemKind.MISSING, diagnosis = d) ?: return
+        val open = lex.prevEnd
+        if (end == null || open >= lex.start || !isBlank(src[open])) return
+        val edits = arrayListOf(open to '(')
+        if (end.second) {
+            val close = end.first - 1
+            if (close <= open || close < lex.start || !isBlank(src[close])) return
+            edits.add(close to ')')
+        }
+        repairs.add(Repair(edits, p))
+    }
+
+    /**
+     * Where a condition with no parentheses ends: the `{` of the body on its line (outside brackets), and whether a
+     * `)` is missing too (`if 4 == x) {` has its own); null if there is none.
+     */
+    private fun conditionEnd(): Pair<Int, Boolean>? {
+        val saved = lex.save()
+        try {
+            val sc = Scanner()
+            var close = true
+            var first = true
+            while (type != T.EOF && (first || !lex.nlBefore)) {
+                first = false
+                if (sc.stack.isEmpty()) {
+                    when (type) {
+                        T.LBRACE -> return lex.start to close
+                        T.RPAREN -> close = false
+                        T.SEMI, T.RBRACE -> return null
+                        else -> {}
+                    }
+                }
+                sc.take()
+                sc.advance()
+            }
+            return null
+        } finally {
+            lex.restore(saved)
+        }
+    }
+
+    /** `catch e {`: the parameter without its parentheses, put in place of the spaces around it. */
+    private fun catchWithoutParens(message: String) {
+        if (!recordsSyntaxError()) return
+        val nameStart = lex.start
+        val nameEnd = lex.end
+        val d = Diagnosis("syntax/catch-parens", "The 'catch' parameter needs parentheses: catch (e).", emptyList(), nameStart, nameEnd)
+        val p = record(nameStart, message, ProblemKind.MISSING, diagnosis = d) ?: return
+        val brace = try {
+            lookahead { if (type == T.LBRACE) lex.start else -1 }
+        } catch (e: JSSyntaxError) {
+            -1
+        }
+        val open = lex.prevEnd
+        val close = brace - 1
+        if (brace > 0 && open < nameStart && isBlank(src[open]) && close >= nameEnd && isBlank(src[close])) {
+            repairs.add(Repair(listOf(open to '(', close to ')'), p))
+        }
+    }
+
     override fun semicolonFailed() {
         if (type != T.EOF && lex.start != lastPretended && startsStatementHere()) {
             lastPretended = lex.start
-            record(lex.start, unexpectedMessage(), ProblemKind.UNEXPECTED)
+            // `elseif (a) {`: a call of `elseif` with a block after it, for `else if`
+            val elseif = type == T.LBRACE && wordAt(statementStart, "elseif")
+            val d = if (elseif) Diagnosis("syntax/elseif", "'elseif' is no keyword: write 'else if'.", emptyList(), statementStart, statementStart + 6) else null
+            if (elseif) elseifBlock = lex.start
+            record(lex.start, unexpectedMessage(), ProblemKind.UNEXPECTED, diagnosis = d)
             return
         }
         super.semicolonFailed()
+    }
+
+    override fun expressionExpected(): Node {
+        if (!standsIn()) return super.expressionExpected()
+        lastPretended = lex.start
+        placeholders.add(lex.start)
+        record(lex.start, unexpectedMessage(), ProblemKind.UNEXPECTED,
+            diagnosis = Diagnosis("syntax/missing-expression", "An expression is missing here.", emptyList(), lex.start, lex.end))
+        val n = ErrorNode(emptyList(), emptyList())
+        n.start = lex.start
+        n.end = lex.start
+        n.line = lex.tokLine
+        n.col = lex.tokCol
+        return n
+    }
+
+    /**
+     * Whether an expression missing at the current token can be stood in for: an operand was due (after an operator, an
+     * `=`, a `(` or `[`, a `,`) and the token is one that ends an expression (`;`, `)`, `]`, `}`, `,`, `:`). Not at a
+     * statement's first token, nor twice at one.
+     */
+    private fun standsIn(): Boolean {
+        if (type == T.EOF || lex.start == lastPretended || lex.start <= statementStart || lex.prevEnd <= 0) return false
+        val prev = src[lex.prevEnd - 1]
+        val operator = prev in OPERATOR_ENDS
+        return when (type) {
+            T.SEMI -> operator
+            T.RPAREN -> operator || prev == '('
+            T.RBRACKET -> operator || prev == '['
+            T.RBRACE -> operator || prev == '{'
+            T.COMMA -> operator || prev == '(' || prev == '['
+            T.COLON -> operator && prev != ':'
+            else -> false
+        }
     }
 
     /** Whether the current token can begin an expression, a list's element or a property. */
@@ -136,6 +319,25 @@ internal class RecoveringParser(
     }
 
     override fun casesEndEarly() = blockEndsEarly()
+
+    /** Whether the token before the current one is the word [w]. */
+    private fun wordBefore(w: String): Boolean = wordAt(lex.prevEnd - w.length, w) && lex.prevEnd - w.length >= 0 &&
+        (lex.prevEnd - w.length == 0 || !isWordChar(src[lex.prevEnd - w.length - 1]))
+
+    /** Whether the word [w], and no longer one, is at [at]. */
+    private fun wordAt(at: Int, w: String): Boolean =
+        at >= 0 && src.regionMatches(at, w, 0, w.length) && (at + w.length >= src.length || !isWordChar(src[at + w.length]))
+
+    private fun isWordChar(c: Char) = c.isLetterOrDigit() || c == '_' || c == '$'
+
+    private fun isBlank(c: Char) = c == ' ' || c == '\t'
+
+    /** [end] less the blanks before it. */
+    private fun trimEnd(end: Int): Int {
+        var e = end
+        while (e > 0 && isBlank(src[e - 1])) e--
+        return e
+    }
 
     // ============================================================ declarations
 
@@ -215,23 +417,32 @@ internal class RecoveringParser(
     }
 
     override fun parseListedStatement(list: Int): Node {
+        val node = listedStatement(list)
+        lastListed = node
+        return node
+    }
+
+    private fun listedStatement(list: Int): Node {
         if (stopped == null && limits.isCancelled?.invoke() == true) stopped = ParseStop.CANCELLED
         if (stopped != null) {
             if (list != LIST_TOP) throw Stop()
             return stopHere()
         }
         val m = Mark()
+        val previous = lastListed
         val exported = if (list == LIST_TOP && isKw("export")) HashSet(exportedNames) else null
         val undefinedExported = if (exported != null) LinkedHashMap(undefinedExports) else null
         val outerStructural = structuralInStatement
         val outerStart = statementStart
+        val outerFrom = statementFrom
         structuralInStatement = false
         statementStart = m.startPos
+        statementFrom = m.from
         // (left by an early error after decorators, P:204; never set at a list's statement otherwise)
         pendingDecorators = null
         var errorAt: Int
         try {
-            val st = parseStatement(null, list == LIST_TOP)
+            val st = if (isKw("else")) elseWithoutIf(list, previous) else parseStatement(null, list == LIST_TOP)
             // nothing around a top-level statement can fail and undo what it declared
             if (list == LIST_TOP) declared.clear()
             return st
@@ -247,6 +458,7 @@ internal class RecoveringParser(
         } finally {
             structuralInStatement = outerStructural
             statementStart = outerStart
+            statementFrom = outerFrom
         }
         // undo what the statement changed, keeping the names it declared in the scopes around it
         m.restore()
@@ -269,6 +481,29 @@ internal class RecoveringParser(
         return m.finish(node)
     }
 
+    /**
+     * A statement that begins with `else`, no `if` before it (`if (a) f(); g(); else ...`): the `else` is passed over
+     * and what follows it read as a statement. Its error is the engine's (`else` read as a name); after an `elseif (…)
+     * {…}`, already told, it is not recorded again.
+     */
+    private fun elseWithoutIf(list: Int, previous: Node?): Node {
+        val start = lex.start
+        val end = lex.end
+        val line = lex.tokLine
+        val col = lex.tokCol
+        if (!(previous is BlockStatement && previous.start == elseifBlock)) {
+            record(start, "Unexpected reserved word 'else'", ProblemKind.EARLY, diagnosis = Diagnosis("syntax/else-without-if",
+                "'else' has no 'if' before it: an 'if' whose body has more than one statement needs braces.", emptyList(), start, end))
+        }
+        next()
+        if (type == T.EOF || (type == T.RBRACE && list != LIST_TOP) || (list == LIST_CASE && (isKw("case") || isKw("default")))) {
+            val n = ErrorNode(emptyList(), emptyList())
+            n.start = start; n.end = end; n.line = line; n.col = col
+            return n
+        }
+        return parseStatement(null, list == LIST_TOP)
+    }
+
     override fun parseClassMembers(body: ArrayList<Node>, derived: Boolean): FunctionNode? {
         var ctor: FunctionNode? = null
         val pn = privateNames!!
@@ -282,8 +517,10 @@ internal class RecoveringParser(
             val m = Mark()
             val outerStructural = structuralInStatement
             val outerStart = statementStart
+            val outerFrom = statementFrom
             structuralInStatement = false
             statementStart = m.startPos
+            statementFrom = m.from
             var errorAt: Int
             try {
                 ctor = parseClassMember(body, derived, ctor)
@@ -296,6 +533,7 @@ internal class RecoveringParser(
             } finally {
                 structuralInStatement = outerStructural
                 statementStart = outerStart
+                statementFrom = outerFrom
             }
             m.restore()
             // (a member declares nothing outside its own scopes)
@@ -306,6 +544,65 @@ internal class RecoveringParser(
             body.add(m.finish(ErrorNode(emptyList(), emptyList())))
         }
         return ctor
+    }
+
+    override fun parseParams(): MutableList<Node> {
+        val open = lex.prevEnd - 1
+        val from = lex.save()
+        val before = problems.size
+        try {
+            return super.parseParams()
+        } catch (e: Recover) {
+            // (the syntax error the list's failure recorded; none: an echo)
+            var i = before
+            while (i < problems.size && problems[i].kind == ProblemKind.EARLY) i++
+            if (i < problems.size) unclosedParameters(from, open, i)
+            throw e
+        }
+    }
+
+    /**
+     * A parameter list that failed with no `)` before a `{` that begins the function's body (a line break after it):
+     * `function f(a, {`. The `)` is put in place of the `,` before the `{`, or of the space before it.
+     */
+    private fun unclosedParameters(from: LexState, open: Int, index: Int) {
+        val p = problems[index]
+        val saved = lex.save()
+        var brace = -1
+        try {
+            lex.restore(from)
+            val sc = Scanner()
+            while (type != T.EOF && lex.start <= p.pos) {
+                if (sc.stack.isEmpty()) {
+                    if (type == T.RPAREN) return
+                    if (type == T.LBRACE) {
+                        val s = lex.save()
+                        val body = skipNextOrFail() && lex.nlBefore
+                        lex.restore(s)
+                        if (body) {
+                            brace = lex.start
+                            break
+                        }
+                    }
+                }
+                sc.take()
+                sc.advance()
+            }
+        } finally {
+            lex.restore(saved)
+        }
+        if (brace < 0) return
+        var i = brace - 1
+        while (i > open && isBlank(src[i])) i--
+        val at = when {
+            src[i] == ',' -> i
+            brace - 1 > i -> brace - 1
+            else -> return
+        }
+        val diagnosed = p.with(Diagnosis("syntax/unclosed-parameters", "The parameter list is not closed: a ')' is missing before the function's body.",
+            emptyList(), brace, brace + 1, open))
+        problems[index] = diagnosed
+        repairs.add(Repair(listOf(at to ')'), diagnosed))
     }
 
     /** The private name a member that begins at [from] declares (`static async *#m(`), if any. */
@@ -414,38 +711,29 @@ internal class RecoveringParser(
         return id
     }
 
-    // ============================================================ passing over what failed
+    // ============================================================ reading tokens past what failed
+
+    /** What [Scanner.take] found a token to be. */
+    private enum class Event { OTHER, BLOCK_END, STRAY_BRACE, SEMI }
 
     /**
-     * Reads the failed statement ([MEMBER]: member) again from its start ([from]), past the token it failed at
-     * ([errorAt]), to where the next can begin:
-     * - a `;` outside the brackets the statement opened (and outside a `for (`), or the `}` of a block of its own;
-     * - a line that begins with a statement's keyword (a member's name), outside the statement's blocks;
-     * - the `}` of the block (class body) around, or a switch's next case.
-     *
-     * Brackets are counted from the statement's start, so that those opened before the error close with it, and a
-     * closer closes what was left open inside it (`f(a, {)`). A regular expression and a template are read as one
-     * token (no `}` or quote in one counts), which only the parser decides as it reads: here a `/` begins a regular
-     * expression after a token no expression ends with.
+     * Reads tokens on from the lexer's current one as brackets go. Only the parser decides, as it reads, what a `/` and
+     * a `}` are: here a `/` begins a regular expression after a token no expression ends with, and a `}` in a
+     * template's substitution goes on with the template, so that no bracket or quote in either counts. The lexer's
+     * errors are passed over. [stack] holds what is open: `(`, `f` (a for's, whose `;`s are in it), `[`, `{` and '`'
+     * (a template's substitution), with their offsets in [opens].
      */
-    private fun skip(from: LexState, startPos: Int, errorAt: Int, list: Int) {
-        lex.restore(from)
-        // open brackets: ( [ { , `f` a for's (whose `;`s are in it), '`' a template's substitution
+    private inner class Scanner {
         val stack = StringBuilder()
+        val opens = ArrayList<Int>()
         var braces = 0
-        var prevType: T? = null
-        var prevWord: String? = null
-        var prevPrevWord: String? = null
-        var prevTail = true
-        while (type != T.EOF) {
-            val past = lex.start >= errorAt
-            if (lex.start > startPos && lex.nlBefore && braces == 0) {
-                if (list == MEMBER) {
-                    if (past && startsMember()) return
-                } else if (startsStatement(stack.isEmpty()) && (past || stack.isEmpty())) return
-            }
-            // (reserved words: in a case's statement, the next case)
-            if (lex.start > startPos && list == LIST_CASE && braces == 0 && (isKw("case") || isKw("default"))) return
+        private var prevType: T? = null
+        private var prevWord: String? = null
+        private var prevPrevWord: String? = null
+        private var prevTail = true
+
+        /** Takes the current token in (rescanning a regular expression, a template's continuation). */
+        fun take(): Event {
             when (type) {
                 T.SLASH, T.SLASH_ASSIGN -> if (regexAllowed(prevType, prevWord, prevTail)) {
                     try {
@@ -454,54 +742,122 @@ internal class RecoveringParser(
                         resumeAfterLexError()
                     }
                 }
-                T.LPAREN -> stack.append(if (prevWord == "for" || (prevWord == "await" && prevPrevWord == "for")) 'f' else '(')
-                T.LBRACKET -> stack.append('[')
-                T.LBRACE -> { stack.append('{'); braces++ }
+                T.LPAREN -> push(if (prevWord == "for" || (prevWord == "await" && prevPrevWord == "for")) 'f' else '(')
+                T.LBRACKET -> push('[')
+                T.LBRACE -> push('{')
                 T.RPAREN, T.RBRACKET -> {
                     val open = if (type == T.RBRACKET) "[" else "(f"
                     // closes its opener, and whatever was opened after it and left open (`f(a, {)`), not past a template
                     var i = stack.length - 1
                     while (i >= 0 && stack[i] != '`' && stack[i] !in open) i--
-                    if (i >= 0 && stack[i] in open) {
-                        for (k in i until stack.length) if (stack[k] == '{') braces--
-                        stack.setLength(i)
-                    }
+                    if (i >= 0 && stack[i] in open) popTo(i)
                 }
-                T.RBRACE -> when {
+                T.RBRACE -> return when {
                     stack.isNotEmpty() && stack[stack.length - 1] == '`' -> {
-                        stack.setLength(stack.length - 1)
+                        popTo(stack.length - 1)
                         try {
                             lex.rescanTemplateContinuation()
-                            if (!lex.templateTail) stack.append('`')
+                            if (!lex.templateTail) push('`')
                         } catch (e: JSSyntaxError) {
                             resumeAfterLexError()
                         }
+                        Event.OTHER
                     }
                     braces > 0 -> {
-                        stack.setLength(stack.lastIndexOf("{"))
-                        braces--
-                        // a block's end ends the statement, unless an expression goes on after it: `f({ ... })`
-                        if (past && braces == 0 && (stack.isEmpty() || !nextContinuesExpression())) {
-                            skipNext()
-                            return
-                        }
+                        popTo(stack.lastIndexOf("{"))
+                        Event.BLOCK_END
                     }
-                    // the end of the block (class body) around; at the top level, a `}` that closes nothing goes with
-                    // the statement
-                    list != LIST_TOP -> return
+                    else -> Event.STRAY_BRACE
                 }
-                T.SEMI -> if (past && braces == 0 && stack.indexOf("f") < 0) {
-                    skipNext()
-                    return
-                }
-                T.TEMPLATE -> if (!lex.templateTail) stack.append('`')
+                T.SEMI -> return Event.SEMI
+                T.TEMPLATE -> if (!lex.templateTail) push('`')
                 else -> {}
             }
+            return Event.OTHER
+        }
+
+        /** Goes on to the next token. */
+        fun advance() {
             prevType = type
             prevPrevWord = prevWord
             prevWord = if (type == T.NAME && !lex.escaped) lex.value as String else null
             prevTail = type != T.TEMPLATE || lex.templateTail
             skipNext()
+        }
+
+        /** Whether a `for (` is open (its `;`s end nothing). */
+        fun inFor() = stack.indexOf("f") >= 0
+
+        private fun push(c: Char) {
+            stack.append(c)
+            opens.add(lex.start)
+            if (c == '{') braces++
+        }
+
+        private fun popTo(i: Int) {
+            for (k in i until stack.length) if (stack[k] == '{') braces--
+            stack.setLength(i)
+            while (opens.size > i) opens.removeAt(opens.size - 1)
+        }
+    }
+
+    /**
+     * Reads the failed statement ([MEMBER]: member) again from its start ([from]), past the token it failed at
+     * ([errorAt]), to where the next can begin:
+     * - a `;` outside the brackets the statement opened (and outside a `for (`), or the `}` of a block of its own;
+     * - a line that begins with a statement's keyword (a member's name), outside the statement's blocks;
+     * - the `}` of the block (class body) around, or a switch's next case.
+     *
+     * Brackets are counted from the statement's start ([Scanner]), so that those opened before the error close with it,
+     * and a closer closes what was left open inside it (`f(a, {)`).
+     */
+    private fun skip(from: LexState, startPos: Int, errorAt: Int, list: Int) {
+        lex.restore(from)
+        val sc = Scanner()
+        while (type != T.EOF) {
+            val past = lex.start >= errorAt
+            if (lex.start > startPos && lex.nlBefore && sc.braces == 0) {
+                if (list == MEMBER) {
+                    if (past && startsMember()) return
+                } else if (startsStatement(sc.stack.isEmpty()) && (past || sc.stack.isEmpty())) return
+            }
+            // (reserved words: in a case's statement, the next case)
+            if (lex.start > startPos && list == LIST_CASE && sc.braces == 0 && (isKw("case") || isKw("default"))) return
+            when (sc.take()) {
+                // a block's end ends the statement, unless an expression goes on after it: `f({ ... })`
+                Event.BLOCK_END -> if (past && sc.braces == 0 && (sc.stack.isEmpty() || !nextContinuesExpression())) {
+                    skipNext()
+                    return
+                }
+                // the end of the block (class body) around; at the top level, a `}` that closes nothing goes with the
+                // statement
+                Event.STRAY_BRACE -> if (list != LIST_TOP) return
+                Event.SEMI -> if (past && sc.braces == 0 && !sc.inFor()) {
+                    skipNext()
+                    return
+                }
+                Event.OTHER -> {}
+            }
+            sc.advance()
+        }
+    }
+
+    /** The innermost bracket open before the current token in the statement being read: its kind and offset. */
+    private fun innermostOpen(): Pair<Char, Int>? {
+        val from = statementFrom ?: return null
+        val at = lex.start
+        val saved = lex.save()
+        try {
+            lex.restore(from)
+            val sc = Scanner()
+            while (type != T.EOF && lex.start < at) {
+                sc.take()
+                sc.advance()
+            }
+            for (i in sc.stack.length - 1 downTo 0) if (sc.stack[i] != '`') return sc.stack[i] to sc.opens[i]
+            return null
+        } finally {
+            lex.restore(saved)
         }
     }
 
@@ -541,46 +897,18 @@ internal class RecoveringParser(
     private fun unclosedBrace(): Int {
         if (unclosedBrace != -2) return unclosedBrace
         val saved = lex.save()
-        val opens = ArrayList<Int>()
-        // (as skip's stack, with positions: a '`' is a template substitution, -1)
         lex.pos = 0
         lex.line = 1
         lex.lineStart = 0
         skipNext()
-        var prevType: T? = null
-        var prevWord: String? = null
-        var prevTail = true
+        val sc = Scanner()
         while (type != T.EOF) {
-            when (type) {
-                T.SLASH, T.SLASH_ASSIGN -> if (regexAllowed(prevType, prevWord, prevTail)) {
-                    try {
-                        lex.rescanRegExp()
-                    } catch (e: JSSyntaxError) {
-                        resumeAfterLexError()
-                    }
-                }
-                T.LBRACE -> opens.add(lex.start)
-                T.TEMPLATE -> if (!lex.templateTail) opens.add(-1)
-                T.RBRACE -> if (opens.isNotEmpty()) {
-                    val top = opens.removeAt(opens.size - 1)
-                    if (top == -1) {
-                        try {
-                            lex.rescanTemplateContinuation()
-                            if (!lex.templateTail) opens.add(-1)
-                        } catch (e: JSSyntaxError) {
-                            resumeAfterLexError()
-                        }
-                    }
-                }
-                else -> {}
-            }
-            prevType = type
-            prevWord = if (type == T.NAME && !lex.escaped) lex.value as String else null
-            prevTail = type != T.TEMPLATE || lex.templateTail
-            skipNext()
+            sc.take()
+            sc.advance()
         }
         lex.restore(saved)
-        unclosedBrace = opens.lastOrNull { it >= 0 } ?: -1
+        val i = sc.stack.lastIndexOf("{")
+        unclosedBrace = if (i >= 0) sc.opens[i] else -1
         return unclosedBrace
     }
 
@@ -637,6 +965,10 @@ internal class RecoveringParser(
         /** Words that begin declarations at a line's start, and expressions inside brackets (`f(\n function () {})`). */
         val DECLARATION_WORDS = hashSetOf("function", "class", "async")
         val MEMBER_MODIFIERS = hashSetOf("static", "async", "get", "set", "accessor")
+        /** The statements with a condition in parentheses after their keyword. */
+        val CONDITION_KEYWORDS = listOf("if", "while", "for", "switch", "with")
+        /** The last characters of a token after which an operand is due. */
+        const val OPERATOR_ENDS = "=+-*/%&|^<>!~?:,"
         /** Words after which a `/` begins a regular expression. */
         val REGEX_AFTER_WORDS = hashSetOf(
             "return", "typeof", "instanceof", "in", "of", "new", "delete", "void", "throw", "case", "do", "else", "yield",
@@ -654,31 +986,45 @@ internal class RecoveringParser(
 }
 
 /**
- * Parser.parseTolerant: the recovery mode's parse, then again over a copy of the source in which the token the lexer
- * could not read is replaced by one it can, of the same length (so that every offset stays the source's): an
- * unterminated string by `""` and spaces to the line's end, a regular expression left open by `0`, a template or
- * comment left open by its close at the source's end, a bad escape's `\` by `_`, a malformed number by `0`, a
- * character no token begins with by a space. The parser then reads on in the statement where the lexer stopped (and
- * the one before it, still reading its last token). At most [MAX_REPAIRS] times; the lexer's errors after those end
- * their statements.
+ * Parser.parseTolerant: the recovery mode's parse, then again over a copy of the source mended, with the same length
+ * (so that every offset stays the source's), where the parse asked for it:
+ * - A token the lexer could not read is replaced by one it can: an unterminated string by `""` and spaces to the line's
+ *   end, a regular expression left open by `0`, a template or comment left open by its close at the source's end, a
+ *   bad escape's `\` by `_`, a malformed number by `0`, a character no token begins with by a space. The parser then
+ *   reads on in the statement where the lexer stopped, and the one before it (still reading its last token).
+ * - A mistake the recovery mode could mend ([RecoveringParser.Repair]): `catch e {` as `catch(e){`, `if a {` as
+ *   `if(a){`, `if {` as `   {`, `function f(a, {` as `function f(a) {`.
+ *
+ * At most [MAX_REPAIRS] times. Each mended error is kept, with its engine message and position.
  */
 @UnstableParserApi
 internal fun parseTolerantly(src: String, options: ParseOptions, limits: ParseLimits): TolerantParse {
     var source = src
     val repaired = ArrayList<ParseProblem>()
+    val repairedAt = ArrayList<Int>()
     val repairedKeys = HashSet<String>()
     var first: ParseProblem? = null
     var parser: RecoveringParser
     var program: Program
     while (true) {
-        parser = RecoveringParser(source, options, limits, repaired.map { it.pos }.sorted().toIntArray())
+        parser = RecoveringParser(source, options, limits, repairedAt.sorted().toIntArray())
         program = parser.parseTopLevel()
         if (source === src) first = parser.problems.firstOrNull()
         if (repaired.size == MAX_REPAIRS || parser.stopped != null) break
-        val lexical = parser.problems.firstOrNull { it.kind == ProblemKind.LEXICAL } ?: break
-        if (!repairedKeys.add("${lexical.pos}\u0000${lexical.message}")) break
-        source = repairToken(source, lexical) ?: break
-        repaired.add(lexical)
+        val lexical = parser.problems.firstOrNull { it.kind == ProblemKind.LEXICAL }
+        if (lexical != null) {
+            if (!repairedKeys.add("${lexical.pos}\u0000${lexical.message}")) break
+            source = repairToken(source, lexical) ?: break
+            repaired.add(lexical)
+            repairedAt.add(lexical.pos)
+            continue
+        }
+        val r = parser.repairs.firstOrNull { repairedKeys.add("${it.problem.pos}\u0000${it.problem.message}") } ?: break
+        val b = StringBuilder(source)
+        for ((at, c) in r.edits) b.setCharAt(at, c)
+        source = b.toString()
+        repaired.add(r.problem)
+        repairedAt.add(r.edits.minOf { it.first })
     }
     program.source = src
     // the errors in the source's order, the engine's first
@@ -698,7 +1044,7 @@ internal fun parseTolerantly(src: String, options: ParseOptions, limits: ParseLi
     return TolerantParse(program, problems, stopped)
 }
 
-/** How many times [parseTolerantly] repairs a token and reads the source again. */
+/** How many times [parseTolerantly] mends the source and reads it again. */
 private const val MAX_REPAIRS = 20
 
 /** [s] with the token the lexer could not read at [p] replaced by one it can, of the same length; null if it cannot. */

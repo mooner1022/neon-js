@@ -1,8 +1,13 @@
 # The linter (`neonjs-lint`)
 
 `neonjs-lint` checks JavaScript as NeonJS reads it. An editor or a tool calls it, for example StarLight's script editor
-as one types. It reports every syntax error with the engine's own message, the first being the one the engine throws,
-and still checks the code around and after them. Its rules report mistakes that are valid code. It has no style rules.
+as one types. It reports every syntax error and still checks the code around and after them. Its rules report mistakes
+that are valid code. It has no style rules.
+
+Each syntax error is reported where the engine finds it, with the engine's own message; the first is the one the
+engine throws. Where the parser's recovery mode can tell what the mistake is, it says so instead, in its own words (an
+expression missing, a `)` left out, `elseif` for `else if`). The list of those is in "Diagnoses of the recovery
+mode's own" below.
 
 ```
 source ──▶ Parser.parseTolerant ──▶ Program (an ErrorNode for each statement it could not read) + syntax errors
@@ -105,6 +110,30 @@ A message none of them matches is `syntax/error`, with the message as its argume
 When the source ends inside a block, `syntax/unexpected-end` has a related position: the innermost `{` the source
 leaves open.
 
+### Diagnoses of the recovery mode's own
+
+For some mistakes, the recovery mode says what the mistake is rather than what the engine found. Their code, message
+and span replace the engine's; the engine's message and position stay on the parse's record (`ParseProblem`). Some
+also let the parse go on, or have the source mended, with the same length, and read again.
+
+| Code | Args | Instead of the engine's | Where it points | The parse |
+|---|---|---|---|---|
+| `syntax/missing-expression` | none | `Unexpected token` at the token | the same token | goes on with an `ErrorNode` for the expression |
+| `syntax/missing-paren` | none | `Expected ',' / ')' but found …` | the same token; related: the `(` | goes on as if the `)` were there, or passes over the statement |
+| `syntax/missing-bracket` | none | `Expected ',' / ']' but found …` | the same token; related: the `[` | the same |
+| `syntax/missing-brace` | none | `Expected ',' but found …` | the same token; related: the `{` | passes over the statement |
+| `syntax/missing-comma` | items: properties, elements or items | `Expected ',' but found …` | the same token; related: the list's opener | goes on as if the `,` were there |
+| `syntax/missing-colon` | none | `Expected ':' but found …` | the same token | goes on as if the `:` were there |
+| `syntax/else-without-if` | none | `Unexpected reserved word 'else'` | the same `else` | reads the statement after the `else` |
+| `syntax/elseif` | none | `Unexpected token '{'` | the word `elseif`, not the `{` after it | reads the block; the `else` after it is not told again |
+| `syntax/missing-condition` | keyword | `Expected '(' but found '{'` | the keyword, not the `{` | `if {` is read as `   {` |
+| `syntax/condition-parens` | keyword | `Expected '(' but found …` | the condition | `if a {` is read as `if(a){` |
+| `syntax/catch-parens` | none | `Expected '{' but found …` | the parameter | `catch e {` is read as `catch(e){` |
+| `syntax/unclosed-parameters` | none | the error where the parameter list failed | the body's `{`; related: the list's `(` | `function f(a, {` is read as `function f(a) {` |
+
+So the linter's first syntax diagnostic is at the engine's position, except with `syntax/elseif`,
+`syntax/missing-condition` and `syntax/unclosed-parameters`.
+
 ### Where the rules differ from ESLint
 
 The rules follow ESLint's rules of the same purpose (named in the code's description), with these differences:
@@ -173,6 +202,9 @@ checks confirm it:
 - **Echoes are not recorded.** After one syntax error in a statement, the next ones in it are its echoes. Early errors
   still are.
 - **The source ending in blocks** is one error. The blocks keep what was read.
+- **The recovery mode's own diagnoses** ("Diagnoses of the recovery mode's own" above) come from the errors the engine
+  finds, and from a statement beginning with `else`, which nothing valid does. Some mend the source the same way as
+  the lexer's errors below.
 - **A token the lexer cannot read** is repaired in a copy of the source, then the source is read again. The replacement
   has the same length, so every offset is still the source's:
   - an unterminated string becomes `""` and spaces;
@@ -228,6 +260,12 @@ cost was accepted. Not measured on ART.
 
   In the samples read, most of the lost names come from a `}` inserted or moved, which really does change which
   function the code is in.
+
+  The recovery mode's own diagnoses (P4) leave these numbers as they were: 79.4% and 69.3% with one error, 4.4% and
+  10.2% with a name lost. Placeholders for a missing expression change neither number: the mistake is still one error,
+  and the declaration was kept before too. What they add is the rest of the statement, checked. Mending a parameter
+  list left open adds 0.2 points with one error, and 0.1 with a name lost in Test262. Those 4 mutants destroy the name
+  themselves (`obj)` becomes `objlet`); without the mending, the function's body was never read, so nothing was lost.
 
 ### Linting
 
