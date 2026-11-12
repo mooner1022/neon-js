@@ -417,9 +417,15 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
             T.LBRACE -> return parseObj(false, refErrors)
             T.TEMPLATE -> return parseTemplate(false)
             T.PRIVATE_NAME -> unexpected()
-            else -> unexpected()
+            else -> return expressionExpected()
         }
     }
+
+    /**
+     * No expression begins at the current token where one must. The engine throws; the recovery mode may record that
+     * and go on with a node standing for the expression missing.
+     */
+    protected open fun expressionExpected(): Node = unexpected()
 
     open fun validateRegExp(node: RegExpLiteral) {
         val err = RegExpSyntaxValidator.validate(node.pattern, node.flags)
@@ -852,7 +858,7 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
                 or (if (kind == FunctionKind.DERIVED_CONSTRUCTOR) SCOPE_SUPER or SCOPE_DIRECT_SUPER else 0))
         val srcStart = p.start
         expect(T.LPAREN)
-        val params = parseBindingList(T.RPAREN, false, true)
+        val params = parseParams()
         checkYieldAwaitInDefaultParams()
         val fn = FunctionNode(id, params, EmptyStatement(), kind, isAsync, isGenerator)
         fn.isDeclaration = isStatement
@@ -875,7 +881,7 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
         if (kind == FunctionKind.DERIVED_CONSTRUCTOR) flags = flags or SCOPE_DIRECT_SUPER
         enterScope(flags)
         expect(T.LPAREN)
-        val params = parseBindingList(T.RPAREN, false, true)
+        val params = parseParams()
         checkYieldAwaitInDefaultParams()
         val fn = FunctionNode(null, params, EmptyStatement(), kind, isAsync, isGenerator)
         fn.isStatic = isStatic
@@ -906,6 +912,12 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
         fn.srcEnd = lex.prevEnd
         return fn
     }
+
+    /**
+     * A function's or method's parameters after its `(`, up to and with its `)`. (Open for the recovery mode, which
+     * diagnoses a list left open before the body.)
+     */
+    protected open fun parseParams(): MutableList<Node> = parseBindingList(T.RPAREN, false, true)
 
     fun isSimpleParamList(params: List<Node>): Boolean = params.all { it is Identifier }
 
