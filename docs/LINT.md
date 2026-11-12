@@ -238,6 +238,10 @@ Measured on 2026-11-12/13, HotSpot (Temurin 25), 8 cores, nothing else running.
 | P4's hooks, the same | 929.5–954 ms | 933–996 ms |
 | P4 done, the same | 930–943 ms | 920–953 ms |
 
+The first parse in a new JVM (`ParseBench --once`, Node.js's `lib/events.js`), 8 rounds of 15 JVMs taking turns
+with BASE: each round's median 81.5–85.7 ms, BASE's 80.9–85.5 ms; the median over the rounds 83.3 ms, BASE's 82.4.
+Both load the same 1,110 classes, none of the recovery mode's.
+
 In one JVM, the engine's warm parse can be slower after the recovery mode has read the 4,660 negative tests, and stays
 so. `ParseBench --pollute` times 10 rounds of the engine, lets a mode read a set of programs 3 times, and times 10
 rounds more. The change in the median, over every run made:
