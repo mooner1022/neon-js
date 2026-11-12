@@ -109,8 +109,11 @@ internal abstract class ParserBase(val src: String, val options: ParseOptions) {
      */
     open fun fail(pos: Int, msg: String): Nothing = lex.error(msg, pos)
 
-    fun unexpected(pos: Int = lex.start): Nothing {
-        if (lex.type == T.EOF && pos == lex.start) fail(pos, "Unexpected end of input")
+    fun unexpected(pos: Int = lex.start): Nothing = fail(pos, unexpectedMessage(pos))
+
+    /** What [unexpected] says of the current token at [pos]. */
+    fun unexpectedMessage(pos: Int = lex.start): String {
+        if (lex.type == T.EOF && pos == lex.start) return "Unexpected end of input"
         val tokText = when (lex.type) {
             T.NAME -> "identifier '${lex.value}'"
             T.STRING -> "string"
@@ -118,7 +121,7 @@ internal abstract class ParserBase(val src: String, val options: ParseOptions) {
             T.EOF -> "end of input"
             else -> "token '${lex.type.text}'"
         }
-        fail(pos, "Unexpected $tokText")
+        return "Unexpected $tokText"
     }
 
     fun eat(t: T): Boolean {
@@ -127,10 +130,16 @@ internal abstract class ParserBase(val src: String, val options: ParseOptions) {
     }
 
     fun expect(t: T) {
-        if (!eat(t)) {
-            if (lex.type == T.EOF) fail(lex.start, "Unexpected end of input")
-            fail(lex.start, "Expected '${t.text}' but found ${describeToken()}")
-        }
+        if (!eat(t)) expectFailed(t)
+    }
+
+    /**
+     * [t] is not the current token. The engine throws; the recovery mode may record that and go on as if it were there,
+     * where the current token can follow it.
+     */
+    open fun expectFailed(t: T) {
+        if (lex.type == T.EOF) fail(lex.start, "Unexpected end of input")
+        fail(lex.start, "Expected '${t.text}' but found ${describeToken()}")
     }
 
     fun describeToken(): String = when (lex.type) {
@@ -170,7 +179,15 @@ internal abstract class ParserBase(val src: String, val options: ParseOptions) {
     fun canInsertSemicolon(): Boolean = lex.type == T.EOF || lex.type == T.RBRACE || lex.nlBefore
 
     fun semicolon() {
-        if (!eat(T.SEMI) && !canInsertSemicolon()) unexpected()
+        if (!eat(T.SEMI) && !canInsertSemicolon()) semicolonFailed()
+    }
+
+    /**
+     * A statement ends with no `;` and none can be inserted. The engine throws; the recovery mode may record that and go
+     * on as if there were one, where the current token can begin a statement.
+     */
+    open fun semicolonFailed() {
+        unexpected()
     }
 
     fun isLineTerminatorBefore(): Boolean = lex.nlBefore

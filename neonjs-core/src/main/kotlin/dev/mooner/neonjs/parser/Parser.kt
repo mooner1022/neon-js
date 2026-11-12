@@ -16,11 +16,8 @@ object Parser {
     @UnstableParserApi
     @JvmStatic
     @JvmOverloads
-    fun parseTolerant(src: String, options: ParseOptions = ParseOptions(), limits: ParseLimits = ParseLimits()): TolerantParse {
-        val p = RecoveringParser(src, options, limits)
-        val program = p.parseTopLevel()
-        return TolerantParse(program, p.problems, p.stopped)
-    }
+    fun parseTolerant(src: String, options: ParseOptions = ParseOptions(), limits: ParseLimits = ParseLimits()): TolerantParse =
+        parseTolerantly(src, options, limits)
 
     /**
      * Parses the parts of a dynamic function (Function / GeneratorFunction / AsyncFunction constructors).
@@ -73,6 +70,19 @@ internal open class ParserImpl(src: String, options: ParseOptions) : ExpressionP
         prog.source = src
         exitScope()
         return prog
+    }
+
+    /**
+     * The source ends in a block. The engine throws; the recovery mode records it and keeps the block's statements (its
+     * end then ends every block around it).
+     */
+    protected open fun blockEndsEarly() {
+        unexpected()
+    }
+
+    /** The source ends in a switch's cases. The engine throws; the recovery mode records it and keeps the cases. */
+    protected open fun casesEndEarly() {
+        unexpected()
     }
 
     /** The source's first token. (The recovery mode reads on past the lexer's errors.) */
@@ -156,7 +166,10 @@ internal open class ParserImpl(src: String, options: ParseOptions) : ExpressionP
         var firstOctal = -1
         val end = if (endsWithBrace) T.RBRACE else T.EOF
         while (type != end) {
-            if (type == T.EOF) unexpected()
+            if (type == T.EOF) {
+                blockEndsEarly()
+                break
+            }
             val stmt = parseListedStatement(LIST_BLOCK)
             if (allowDirectives) {
                 val d = directiveOf(stmt)
@@ -471,6 +484,10 @@ internal open class ParserImpl(src: String, options: ParseOptions) : ExpressionP
             if (curStmts != null) cases.add(fin(SwitchCase(curTest, curStmts!!), curP!!))
         }
         while (type != T.RBRACE) {
+            if (type == T.EOF) {
+                casesEndEarly()
+                break
+            }
             if (isKw("case") || isKw("default")) {
                 val isCase = isKw("case")
                 flush()

@@ -22,6 +22,9 @@ import kotlin.system.exitProcess
  *                                                  reads the files expected to fail (or as many it accepts), untimed,
  *                                                  with Parser.parse or with the recovery mode (--tolerant: both parsers
  *                                                  then share the JVM); then a garbage collection
+ *   ParseBench --root DIR --pollute negatives|valid [--tolerant] [--passes 3]   in one JVM: 8 warm-up rounds, 10
+ *                                                  timed, [passes] untimed reads of the set (as --untimed), 10 timed:
+ *                                                  the two medians, whether reading after errors changes the engine's
  *   ParseBench --once FILE [--module]              one parse of one file in this JVM (a new JVM each time: cold)
  */
 
@@ -191,6 +194,8 @@ object ParseBench {
         var module = false
         var tolerant = false
         var untimed: String? = null
+        var pollute: String? = null
+        var passes = 3
         var i = 0
         while (i < args.size) {
             when (args[i]) {
@@ -201,6 +206,8 @@ object ParseBench {
                 "--module" -> module = true
                 "--tolerant" -> tolerant = true
                 "--untimed" -> untimed = args[++i]
+                "--pollute" -> pollute = args[++i]
+                "--passes" -> passes = args[++i].toInt()
                 else -> { System.err.println("unknown argument ${args[i]}"); exitProcess(2) }
             }
             i++
@@ -224,6 +231,31 @@ object ParseBench {
             it.name == "parseTolerant" && it.parameterCount == 2 && it.parameterTypes[0] == String::class.java
         } ?: run { System.err.println("--tolerant: this engine has no Parser.parseTolerant"); exitProcess(2) }
         val invalid = cases.filter { it.negativeParse }
+        if (pollute != null) {
+            val set = if (pollute == "valid") valid.take(invalid.size) else invalid
+            var sink = 0
+            fun round(): Long {
+                val t0 = System.nanoTime()
+                for (c in valid) sink += Parser.parse(c.src, c.options).body.size
+                return (System.nanoTime() - t0) / 1_000_000
+            }
+            fun median(xs: List<Long>): Double = xs.sorted().let { if (it.size % 2 == 1) it[it.size / 2].toDouble() else (it[it.size / 2 - 1] + it[it.size / 2]) / 2.0 }
+            repeat(8) { round() }
+            System.gc()
+            val before = List(10) { round() }
+            repeat(passes) {
+                for (c in set) {
+                    if (tolerantParse != null) sink += tolerantParse.invoke(null, c.src, c.options).hashCode() and 1
+                    else try { Parser.parse(c.src, c.options) } catch (e: JSSyntaxError) { sink += e.pos and 1 } catch (e: StackOverflowError) {}
+                }
+            }
+            System.gc()
+            val after = List(10) { round() }
+            val a = median(before)
+            val b = median(after)
+            println("before %.1f ms, after %.1f ms (%+.1f%%) [%s %s] [%d]".format(a, b, (b - a) / a * 100, pollute, if (tolerant) "tolerant" else "engine", sink))
+            return
+        }
         val untimedSet = when (untimed) {
             null -> emptyList()
             "negatives" -> invalid

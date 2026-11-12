@@ -1219,25 +1219,7 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
         privateNames = pn
         expect(T.LBRACE)
         val body = ArrayList<Node>()
-        var ctor: FunctionNode? = null
-        while (!eat(T.RBRACE)) {
-            if (eat(T.SEMI)) continue
-            val decStart = lex.start
-            val decs = if (type == T.AT) parseDecorators() else emptyList()
-            val el = parseClassElement(superClass != null)
-            if (el is MethodDefinition && el.kind == MethodKind.CONSTRUCTOR) {
-                if (ctor != null) raise(el.start, "A class may only have one constructor")
-                ctor = el.value
-            }
-            if (decs.isNotEmpty()) {
-                when (el) {
-                    is MethodDefinition if el.kind != MethodKind.CONSTRUCTOR -> el.decorators = decs
-                    is PropertyDefinition -> el.decorators = decs
-                    else -> raise(decStart, "Decorators are not valid here")
-                }
-            }
-            body.add(el)
-        }
+        val ctor = parseClassMembers(body, superClass != null)
         strict = oldStrict
         // validate private names
         privateNames = pn.parent
@@ -1255,6 +1237,40 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
         cls.srcStart = p.start
         cls.srcEnd = lex.prevEnd
         return cls
+    }
+
+    /**
+     * A class body's members after its `{`, up to and with its `}`, into [body]; returns its constructor. (Open for the
+     * recovery mode, which goes on after a member it could not read.)
+     */
+    protected open fun parseClassMembers(body: ArrayList<Node>, derived: Boolean): FunctionNode? {
+        var ctor: FunctionNode? = null
+        while (!eat(T.RBRACE)) {
+            if (eat(T.SEMI)) continue
+            ctor = parseClassMember(body, derived, ctor)
+        }
+        return ctor
+    }
+
+    /** A class member with its decorators, into [body]; returns the class's constructor so far ([ctor] or this one). */
+    protected fun parseClassMember(body: ArrayList<Node>, derived: Boolean, ctor: FunctionNode?): FunctionNode? {
+        var constructor = ctor
+        val decStart = lex.start
+        val decs = if (type == T.AT) parseDecorators() else emptyList()
+        val el = parseClassElement(derived)
+        if (el is MethodDefinition && el.kind == MethodKind.CONSTRUCTOR) {
+            if (constructor != null) raise(el.start, "A class may only have one constructor")
+            constructor = el.value
+        }
+        if (decs.isNotEmpty()) {
+            when (el) {
+                is MethodDefinition if el.kind != MethodKind.CONSTRUCTOR -> el.decorators = decs
+                is PropertyDefinition -> el.decorators = decs
+                else -> raise(decStart, "Decorators are not valid here")
+            }
+        }
+        body.add(el)
+        return constructor
     }
 
     private fun parseClassElement(derived: Boolean): Node {
@@ -1379,7 +1395,8 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
         return pd
     }
 
-    private fun declarePrivate(key: PrivateIdentifier, kind: String, isStatic: Boolean) {
+    /** (Open for the recovery mode, whose failed members' names may be declared again by the members after them.) */
+    protected open fun declarePrivate(key: PrivateIdentifier, kind: String, isStatic: Boolean) {
         val pn = privateNames!!
         val existing = pn.declared[key.name]
         val k = (if (isStatic) "s" else "i") + kind

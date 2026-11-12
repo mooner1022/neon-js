@@ -28,10 +28,11 @@ enum class ParseStop { LIMIT, CANCELLED }
 
 /**
  * A syntax error the recovery mode recorded: the engine's message, and where. [pos] is the UTF-16 offset the engine
- * reports; [end] the end of the token there when the error is about the current token, otherwise -1.
+ * reports; [end] the end of the token there when the error is about the current token, otherwise -1. [related]: for
+ * the source ending inside a block, the innermost `{` it leaves open (-1 otherwise).
  */
 @UnstableParserApi
-class ParseProblem(val pos: Int, val end: Int, val message: String, val kind: ProblemKind) {
+class ParseProblem(val pos: Int, val end: Int, val message: String, val kind: ProblemKind, val related: Int = -1) {
     override fun toString() = "$pos: $message"
 }
 

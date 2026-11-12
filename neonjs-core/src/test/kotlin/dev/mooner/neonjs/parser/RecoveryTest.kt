@@ -176,6 +176,108 @@ class RecoveryTest {
         assertTrue(parsed.program.strict)
     }
 
+    // ------------------------------------------------------------ P2: class members, the end, missing tokens, the lexer
+
+    @Test
+    fun aClassMemberThatFailsLeavesTheOthers() {
+        val src = """
+            class A {
+              foo( { }
+              bar() { let k; let k; }
+              #baz() {}
+              qux() { return this.#baz }
+            }
+        """.trimIndent()
+        assertEquals(listOf("3 Expected ',' but found 'bar'", "3 Identifier 'k' has already been declared"), errors(src))
+        val cls = (parse(src).program.body.single() as ClassDeclaration).cls
+        assertEquals(listOf("ErrorNode", "MethodDefinition", "MethodDefinition", "MethodDefinition"), cls.body.map { it.javaClass.simpleName })
+    }
+
+    @Test
+    fun aFailedMembersPrivateNameIsDeclared() {
+        // `#m` fails in its parameters: the member using it is no error, nor is a member declaring it again
+        assertEquals(listOf("2 Unexpected token ')'"), errors("class A {\n  #m(a, {) {}\n  n() { return this.#m }\n}"))
+        assertEquals(listOf("2 Unexpected token ','"), errors("class A {\n  get #m(, ) {}\n  set #m(v) {}\n}"))
+    }
+
+    @Test
+    fun theEndKeepsTheBlocksStatementsAndPointsAtTheOpenBrace() {
+        val src = "function f() {\n  if (x) {\n    y();\n  let k; let k;\n"
+        val parsed = parse(src)
+        assertEquals(listOf("4 Identifier 'k' has already been declared", "5 Unexpected end of input"), errors(src))
+        // the brace left open is the if's, the innermost
+        assertEquals(src.indexOf("{", src.indexOf("if")), parsed.problems.last().related)
+        // the function is kept, with its statements
+        assertTrue(parsed.program.body.single() is FunctionDeclaration)
+        assertEquals(listOf("4 Unexpected end of input"), errors("class C {\n  m() {}\n  n() {\n"))
+        assertTrue(parse("class C {\n  m() {}\n  n() {\n").program.body.single() is ClassDeclaration)
+        assertEquals(listOf("3 Unexpected end of input"), errors("switch (x) {\n  case 1:\n    f();"))
+    }
+
+    @Test
+    fun aMissingTokenIsTakenAsThere() {
+        // the body after `if (a {` is read: the redeclaration in it is found
+        assertEquals(
+            listOf("1 Expected ')' but found '{'", "2 Identifier 'k' has already been declared"),
+            errors("if (a {\n  let k; let k;\n}"),
+        )
+        assertEquals(listOf("3 Expected ',' but found 'b'"), errors("const o = {\n  a: 1\n  b: 2\n};\no.b;"))
+        assertEquals(listOf("1 Expected ',' but found number"), errors("f(1 2);"))
+        assertEquals(listOf("1 Expected ']' but found ';'"), errors("a[i;"))
+        assertEquals(listOf("1 Unexpected token 'let'".replace("token 'let'", "identifier 'let'"), "1 Identifier 'b' has already been declared"),
+            errors("let a = 1 let b = 2; let b = 3;"))
+        // one token missing in a statement: what follows in it is its echo, not another error
+        assertEquals(listOf("1 Expected ',' but found 'b'"), errors("let x = (a b c) d;"))
+        // a statement in the block read after one is a statement of its own
+        assertEquals(listOf("1 Expected ')' but found '{'", "2 Unexpected token ';'"), errors("while (a {\n  f(;\n}"))
+    }
+
+    @Test
+    fun aListsEndMissingBeforeAStatementIsNotACommaMissing() {
+        assertEquals(
+            listOf("2 Expected ',' but found 'let'", "2 Identifier 'c' has already been declared"),
+            errors("foo(a, b\nlet c = 1; let c = 2;").take(2),
+        )
+    }
+
+    @Test
+    fun theLexersErrorsAreRepairedAndTheStatementsAroundRead() {
+        // the statement before the string left open is kept: its last token was read as the lexer failed
+        assertEquals(
+            listOf("1 Identifier 'a' has already been declared", "2 Unterminated string constant", "3 Identifier 'c' has already been declared"),
+            errors("let a; let a;\nconst s = 'abc\nlet c; let c;"),
+        )
+        // the rest of the statement with the string is read too
+        val parsed = parse("function f() {}\n'abc\nf();", module = true)
+        assertTrue(parsed.program.body[0] is FunctionDeclaration)
+        assertEquals(listOf("2 Unterminated string constant"), parsed.problems.map { "${"function f() {}\n'abc\nf();".substring(0, it.pos).count { c -> c == '\n' } + 1} ${it.message}" })
+        assertEquals(listOf("1 Invalid hexadecimal escape sequence", "2 Identifier 'e' has already been declared"), errors("x = '\\xZZ';\nlet e; let e;"))
+        // (the engine's position: the `}` the template goes on from)
+        assertEquals(listOf("2 Unterminated template literal"), errors("x = `abc\n\${y}\ndef"))
+        assertEquals(listOf("1 Unterminated comment"), errors("x = 1; /* abc\nlet e; let e;"))
+        assertEquals(listOf("1 Invalid or unexpected token", "2 Identifier 'e' has already been declared"), errors("x = 3in;\nlet e; let e;"))
+        assertEquals(listOf("1 Invalid regular expression: missing /", "2 Identifier 'e' has already been declared"), errors("x = /abc\nlet e; let e;"))
+        // offsets are the source's
+        val src = "let s = 'abc\nlet q = s;"
+        val p = parse(src)
+        assertEquals(src, p.program.source)
+        assertEquals(src.indexOf("let q"), p.program.body[1].start)
+    }
+
+    @Test
+    fun garbageIsReadQuickly() {
+        val rnd = java.util.Random(7)
+        val chars = "abc{}()[];,.=+-*/\\'\"`#@€ \n\t0123456789<>!?:&|^~%"
+        val src = String(CharArray(200_000) { chars[rnd.nextInt(chars.length)] })
+        val t0 = System.nanoTime()
+        val parsed = parse(src, limits = ParseLimits(maxProblems = 100))
+        val ms = (System.nanoTime() - t0) / 1_000_000
+        assertTrue(parsed.problems.isNotEmpty())
+        assertTrue(ms < 3000, "$ms ms")
+        val all = parse(src)
+        assertTrue(all.problems.isNotEmpty())
+    }
+
     private fun identifiers(n: Any?, name: String, out: MutableList<Identifier> = ArrayList()): List<Identifier> {
         when (n) {
             is Identifier -> if (n.name == name) out.add(n)
