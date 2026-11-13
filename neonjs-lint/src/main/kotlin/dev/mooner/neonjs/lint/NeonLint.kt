@@ -72,7 +72,10 @@ object NeonLint {
         try {
             analyzer.analyze(parsed.program)
             tree = Tree(parsed.program, options.isCancelled)
-            facts = Facts(tree, options.sourceType, analyzer)
+            // (a template left open pairs with the next one's "`": from the first "`" on, code may be read as text and text as code)
+            val openTemplate = parsed.problems.any { it.message == "Unterminated template literal" }
+            val misreadFrom = if (openTemplate) source.indexOf('`').let { if (it < 0) Int.MAX_VALUE else it } else Int.MAX_VALUE
+            facts = Facts(tree, options.sourceType, analyzer, parsed.problems.map { it.pos }.sorted().toIntArray(), misreadFrom)
         } catch (e: Exception) {
             if (e is Tree.Cancelled) throw e
             // (no rule can run, but the syntax errors are still told)
