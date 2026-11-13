@@ -147,7 +147,10 @@ full() {
     step "Node.js tests"
     java -Xss16m -cp "$LIB" dev.mooner.neonjs.test262.NodeTestsKt --root third_party/node \
       --known neonjs-test262/node-known-failures.txt --retries 1 || fail "Node.js tests"
-  else echo "(no third_party/node: Node.js tests skipped; CI runs them)"; fi
+    step "the linter's timing (neonjs-lint/build/lint-bench.txt)"
+    gradle :neonjs-lint:test --tests 'dev.mooner.neonjs.lint.LintBenchTest' -PlintBench --rerun
+    cat neonjs-lint/build/lint-bench.txt
+  else echo "(no third_party/node: Node.js tests and the linter's timing skipped; CI runs the tests)"; fi
 }
 
 case ${1:-quick} in

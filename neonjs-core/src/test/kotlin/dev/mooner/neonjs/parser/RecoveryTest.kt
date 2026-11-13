@@ -106,6 +106,15 @@ class RecoveryTest {
     }
 
     @Test
+    fun aFailedExportStatementTakesBackOnlyItsOwnExports() {
+        // its own are undone, so `a` and `b` are exported once; the exports before it stay, so `c` twice is still told
+        assertEquals(
+            listOf("2 Unexpected token '('", "4 Duplicate export of 'c'"),
+            errors("export const c = 1;\nexport { a, b } from (;\nexport const a = 1, b = 2;\nexport { c };", module = true),
+        )
+    }
+
+    @Test
     fun aRegularExpressionIsPassedOverAsOneToken() {
         assertEquals(
             listOf("1 Expected ',' but found 'bar'", "2 Identifier 'c' has already been declared"),

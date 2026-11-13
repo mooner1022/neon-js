@@ -22,4 +22,8 @@ tasks.test {
     val test262 = rootProject.file(System.getenv("TEST262") ?: "third_party/test262")
     systemProperty("neonjs.test262", test262.absolutePath)
     inputs.property("test262", providers.provider { File(test262, ".git/HEAD").takeIf { it.isFile }?.readText()?.trim() ?: "absent" })
+    // LintBenchTest, a timing that asserts nothing: only with -PlintBench (tools/check.sh full)
+    val lintBench = providers.gradleProperty("lintBench").isPresent
+    systemProperty("neonjs.lintBench", lintBench)
+    inputs.property("lintBench", lintBench)
 }

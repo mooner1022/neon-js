@@ -50,7 +50,8 @@ internal const val LIST_CASE = 2
 internal open class ParserImpl(src: String, options: ParseOptions) : ExpressionParser(src, options) {
 
     protected val undefinedExports = LinkedHashMap<String, Int>()
-    protected val exportedNames = HashSet<String>()
+    // (in the order exported: the recovery mode undoes a failed statement's exports by dropping the last ones)
+    protected val exportedNames = LinkedHashSet<String>()
 
     // ============================================================ entry points
 

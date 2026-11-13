@@ -7,11 +7,13 @@ import java.io.File
 /**
  * How long a lint takes (written to build/lint-bench.txt; nothing is asserted): Node.js's lib/events.js (1,256 lines,
  * third_party/node; skipped without it) and the same with a syntax error in its middle, the first lint in a new JVM
- * (each of 5 JVMs) and the median of 100 after 500 to warm up (about the lints of a long edit).
+ * (each of 5 JVMs) and the median of 100 after 500 to warm up (about the lints of a long edit). Run only with
+ * `-PlintBench` (tools/check.sh full), so that the unit tests stay quick.
  */
 class LintBenchTest {
     @Test
     fun timing() {
+        assumeTrue(System.getProperty("neonjs.lintBench") == "true", "a timing: run with -PlintBench")
         val node = System.getProperty("neonjs.test262")?.let { File(File(it).parentFile, "node/lib/events.js") }
         assumeTrue(node != null && node.isFile, "no third_party/node")
         val src = node!!.readText()

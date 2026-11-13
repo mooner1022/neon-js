@@ -439,8 +439,9 @@ internal class RecoveringParser(
         }
         val m = Mark()
         val previous = lastListed
-        val exported = if (list == LIST_TOP && isKw("export")) HashSet(exportedNames) else null
-        val undefinedExported = if (exported != null) LinkedHashMap(undefinedExports) else null
+        // (an export statement only adds to the export books, in order: what it added is dropped if it fails)
+        val exported = if (list == LIST_TOP && isKw("export")) exportedNames.size else -1
+        val undefinedExported = undefinedExports.size
         val outerStructural = structuralInStatement
         val outerStart = statementStart
         val outerFrom = statementFrom
@@ -472,9 +473,9 @@ internal class RecoveringParser(
         }
         // undo what the statement changed, keeping the names it declared in the scopes around it
         m.restore()
-        if (exported != null) {
-            exportedNames.clear(); exportedNames.addAll(exported)
-            undefinedExports.clear(); undefinedExports.putAll(undefinedExported!!)
+        if (exported >= 0) {
+            dropAfter(exportedNames, exported)
+            dropAfter(undefinedExports.keys, undefinedExported)
         }
         val node = withPatternNames(undoDeclarations(m.declaredMark, m.depth), m.from)
         if (list == LIST_TOP) {
@@ -489,6 +490,17 @@ internal class RecoveringParser(
             if (lex.start <= m.startPos && type != T.EOF) skipNext()
         }
         return m.finish(node)
+    }
+
+    /** Removes what [c] (in insertion order) has after its first [size]. */
+    private fun dropAfter(c: MutableCollection<String>, size: Int) {
+        if (c.size <= size) return
+        val it = c.iterator()
+        var i = 0
+        while (it.hasNext()) {
+            it.next()
+            if (i++ >= size) it.remove()
+        }
     }
 
     /**

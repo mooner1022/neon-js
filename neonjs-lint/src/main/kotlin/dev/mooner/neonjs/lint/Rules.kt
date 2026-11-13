@@ -82,6 +82,63 @@ internal class Facts(val tree: Tree, val sourceType: SourceType, val scopes: Sco
 
     /** Whether [n] has an ErrorNode in it: two such are never the same (one stands for something missing). */
     fun hasErrorNode(n: Node): Boolean = n in withErrorNodes
+
+    /**
+     * A derived class's constructor, and what the rules about `super()` ask of it: its `super(...)` calls (in its own
+     * code; [arrowSuperCalls]: in its arrow functions'), its `this` and `super.x`, whether it returns a value, whether an
+     * ErrorNode is in it, and its member.
+     */
+    class DerivedConstructor(val ctor: FunctionNode) {
+        val superCalls = ArrayList<CallExpression>()
+        var arrowSuperCalls = false
+        val thisAndSuper = ArrayList<Node>()
+        var returnsValue = false
+        var hasErrorNode = false
+        var member: MethodDefinition? = null
+    }
+
+    /** The derived classes' constructors (but those with a direct eval, which may call `super()`), found in one pass. */
+    val derivedConstructors: List<DerivedConstructor> by lazy {
+        val byCtor = java.util.IdentityHashMap<Node, DerivedConstructor>()
+        for (v in tree.visits) {
+            val cls = v.node as? ClassNode ?: continue
+            val sup = cls.superClass ?: continue
+            if (sup is NullLiteral || sup is NumberLiteral || sup is StringLiteral || sup is BooleanLiteral) continue
+            val ctor = cls.constructor?.takeIf { it.kind == FunctionKind.DERIVED_CONSTRUCTOR } ?: continue
+            if ((ctor.scope as? Scope)?.fn?.containsEval == true) continue
+            byCtor[ctor] = DerivedConstructor(ctor)
+        }
+        if (byCtor.isEmpty()) return@lazy emptyList()
+        // (each arrow function's enclosing function that is not one, found once)
+        val arrowOwner = java.util.IdentityHashMap<Node, Node?>()
+        fun ownerOf(arrow: FunctionNode): Node? = arrowOwner.getOrPut(arrow) {
+            var f: Node? = arrow
+            while (f is FunctionNode && f.kind == FunctionKind.ARROW) f = (f.scope as? Scope)?.fn?.parent?.node ?: break
+            f
+        }
+        val all = byCtor.values.sortedBy { it.ctor.start }
+        for (v in tree.visits) {
+            val n = v.node
+            if (n is ErrorNode) {
+                for (d in all) if (n.start >= d.ctor.start && n.end <= d.ctor.end) d.hasErrorNode = true
+                continue
+            }
+            if (n is MethodDefinition) byCtor[n.value]?.let { if (it.member == null) it.member = n }
+            val own = byCtor[v.function]
+            if (own != null) when {
+                n is CallExpression && n.callee is Super -> own.superCalls.add(n)
+                n is ThisExpression || (n is MemberExpression && n.obj is Super) -> own.thisAndSuper.add(n)
+                n is ReturnStatement && n.argument != null -> own.returnsValue = true
+            } else if (n is CallExpression && n.callee is Super) {
+                val f = v.function
+                if (f is FunctionNode && f.kind == FunctionKind.ARROW) {
+                    val d = byCtor[ownerOf(f)]
+                    if (d != null && n.start >= d.ctor.start && n.end <= d.ctor.end) d.arrowSuperCalls = true
+                }
+            }
+        }
+        all
+    }
     /**
      * Where a declared name is initialized in its pattern, and the pattern: in the pattern, a name is initialized once
      * its element (with its default) is bound (`let [a, b = a] = x` reads `a` initialized, `let { x = x } = o` does
@@ -216,34 +273,26 @@ internal object BuiltinRules {
             }
         },
         rule("this-before-super", Severity.ERROR, listOf("kind"), "`this` or `super.x` in a derived class's constructor before `super()`: a ReferenceError when it runs.") { c ->
-            for (ctor in derivedConstructors(c)) {
-                if (containsErrorNode(c, ctor)) continue
-                val calls = superCalls(c, ctor, arrowsToo = false)
-                val first = calls.minByOrNull { it.start } ?: continue
+            for (d in c.facts.derivedConstructors) {
+                if (d.hasErrorNode) continue
+                val ctor = d.ctor
+                val first = d.superCalls.minByOrNull { it.start } ?: continue
                 val body = (ctor.body as? BlockStatement)?.body ?: continue
                 val statement = body.firstOrNull { first.start >= it.start && first.start < it.end } ?: continue
-                for (v in c.tree.visits) {
-                    if (v.function !== ctor) continue
-                    val n = v.node
-                    val kind = when {
-                        n is ThisExpression -> "this"
-                        n is MemberExpression && n.obj is Super -> "super"
-                        else -> continue
-                    }
+                for (n in d.thisAndSuper) {
+                    val kind = if (n is MemberExpression) "super" else "this"
                     val before = n.start < statement.start || (n.start > first.start && n.end <= first.end && first.arguments.any { n.start >= it.start && n.end <= it.end })
                     if (before) c.report(n.start, if (n is MemberExpression) n.obj.end else n.end, "'$kind' is not allowed before 'super()'.", listOf(kind))
                 }
             }
         },
         rule("missing-super-call", Severity.ERROR, emptyList(), "A derived class's constructor that never calls `super()` (nor returns an object): a ReferenceError when it runs.") { c ->
-            for (ctor in derivedConstructors(c)) {
-                if (containsErrorNode(c, ctor)) continue
-                if (superCalls(c, ctor, arrowsToo = true).isNotEmpty()) continue
-                if (c.tree.visits.any { it.function === ctor && it.node is ReturnStatement && (it.node as ReturnStatement).argument != null }) continue
+            for (d in c.facts.derivedConstructors) {
+                if (d.hasErrorNode || d.superCalls.isNotEmpty() || d.arrowSuperCalls || d.returnsValue) continue
+                val ctor = d.ctor
                 // (a constructor that always throws never needs `this`)
                 if (throws(ctor.body)) continue
-                val member = c.tree.visits.firstOrNull { it.node is MethodDefinition && (it.node as MethodDefinition).value === ctor }?.node as MethodDefinition?
-                val at = member?.key ?: ctor
+                val at = d.member?.key ?: ctor
                 c.report(at, "A derived class's constructor must call 'super()'.")
             }
         },
@@ -573,36 +622,6 @@ internal object BuiltinRules {
      * The constructors of the classes with an `extends` (not `null`): the FunctionNodes. Not one with a direct eval,
      * which may call `super()` where no rule sees it.
      */
-    private fun derivedConstructors(c: LintContext): List<FunctionNode> = c.tree.visits.mapNotNull { v ->
-        val cls = v.node as? ClassNode ?: return@mapNotNull null
-        val sup = cls.superClass ?: return@mapNotNull null
-        if (sup is NullLiteral || sup is NumberLiteral || sup is StringLiteral || sup is BooleanLiteral) return@mapNotNull null
-        val ctor = cls.constructor?.takeIf { it.kind == FunctionKind.DERIVED_CONSTRUCTOR } ?: return@mapNotNull null
-        if ((ctor.scope as? Scope)?.fn?.containsEval == true) return@mapNotNull null
-        ctor
-    }
-
-    /** `super(...)` calls in [ctor]'s code ([arrowsToo]: and in its arrow functions'), not in a nested class's. */
-    private fun superCalls(c: LintContext, ctor: FunctionNode, arrowsToo: Boolean): List<CallExpression> = c.tree.visits.mapNotNull { v ->
-        val call = v.node as? CallExpression ?: return@mapNotNull null
-        if (call.callee !is Super) return@mapNotNull null
-        val f = v.function
-        val mine = f === ctor || (arrowsToo && f is FunctionNode && f.kind == FunctionKind.ARROW && call.start >= ctor.start && call.end <= ctor.end && enclosingNonArrow(c, f) === ctor)
-        if (mine) call else null
-    }
-
-    private fun enclosingNonArrow(c: LintContext, arrow: FunctionNode): Node? {
-        var f: Node? = arrow
-        while (f is FunctionNode && f.kind == FunctionKind.ARROW) {
-            val scope = f.scope as? Scope ?: return null
-            f = scope.fn.parent?.node
-        }
-        return f
-    }
-
-    private fun containsErrorNode(c: LintContext, f: FunctionNode): Boolean =
-        c.tree.visits.any { it.node is ErrorNode && it.node.start >= f.start && it.node.end <= f.end }
-
     @Suppress("unused")
     private fun isDynamic(id: Identifier) = id.ref is DynamicRef
 }
