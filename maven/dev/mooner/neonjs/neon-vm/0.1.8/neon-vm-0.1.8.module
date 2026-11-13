@@ -1,0 +1,123 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "dev.mooner.neonjs",
+    "module": "neon-vm",
+    "version": "0.1.8",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.8.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.environment": "standard-jvm",
+        "org.gradle.jvm.version": 21,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api",
+        "org.jetbrains.kotlin.platform.type": "jvm"
+      },
+      "dependencies": [
+        {
+          "group": "org.ow2.asm",
+          "module": "asm",
+          "version": {
+            "requires": "9.9.1"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.4.20"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "neon-vm-0.1.8.jar",
+          "url": "neon-vm-0.1.8.jar",
+          "size": 227084,
+          "sha512": "30c5cfa785823dad9a983bb9685ac1be288a7a3350a0c4813004282baaaa301ac3ec1642e2a1bc3af339078260898eb6e594f98145c6e95033f74cab921a0b7c",
+          "sha256": "c141a5c62a400559c8f22f5ba55b6f8665fcc3156db973b13e674d54d9ce7de6",
+          "sha1": "d0cfb2da68e8c63ef221114f2154f9334fbbb983",
+          "md5": "da9cc9830c10bec0f4bc91de7d8a2bf8"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.environment": "standard-jvm",
+        "org.gradle.jvm.version": 21,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime",
+        "org.jetbrains.kotlin.platform.type": "jvm"
+      },
+      "dependencies": [
+        {
+          "group": "org.ow2.asm",
+          "module": "asm-tree",
+          "version": {
+            "requires": "9.9.1"
+          }
+        },
+        {
+          "group": "org.ow2.asm",
+          "module": "asm",
+          "version": {
+            "requires": "9.9.1"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.4.20"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "neon-vm-0.1.8.jar",
+          "url": "neon-vm-0.1.8.jar",
+          "size": 227084,
+          "sha512": "30c5cfa785823dad9a983bb9685ac1be288a7a3350a0c4813004282baaaa301ac3ec1642e2a1bc3af339078260898eb6e594f98145c6e95033f74cab921a0b7c",
+          "sha256": "c141a5c62a400559c8f22f5ba55b6f8665fcc3156db973b13e674d54d9ce7de6",
+          "sha1": "d0cfb2da68e8c63ef221114f2154f9334fbbb983",
+          "md5": "da9cc9830c10bec0f4bc91de7d8a2bf8"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "neon-vm-0.1.8-sources.jar",
+          "url": "neon-vm-0.1.8-sources.jar",
+          "size": 75682,
+          "sha512": "635957da0e4ec135c36f8cd29309c13938f2605b831924128ad3c42f55c569a4871896e79181058561d97a10d07165798a956b05d971471b673ec72a71d84d8e",
+          "sha256": "42791a9bfa749edaa91fddee79c6adfa16bde0f80e1b5028f751baae694a1cf1",
+          "sha1": "b8f1f6bc8a42ac60639d973c2e62fa7f70e28f8b",
+          "md5": "39c27e684a113f810a0164b156b0ef18"
+        }
+      ]
+    }
+  ]
+}

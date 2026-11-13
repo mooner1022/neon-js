@@ -43,7 +43,7 @@
         </button>
         <div class="navigation-controls--break ui-kit_mobile-only"></div>
         <div class="library-version" id="library-version">
-0.1.7        </div>
+0.1.8        </div>
         <div class="navigation-controls">
         <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
                 <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
@@ -108,7 +108,7 @@
   <div class="cover ">
     <h1 class="cover"><span>await</span><wbr></wbr><span><span>External</span></span></h1>
   </div>
-  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">fun </span><a href="await-external.html"><span class="token function">awaitExternal</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">timeoutMillis<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-long/index.html">Long</a></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></div><p class="paragraph">Blocks the owner thread until an external job has been posted (true; <a href="run-jobs.html">runJobs</a> runs it) or <a href="await-external.html">timeoutMillis</a> elapse (false). Waits in slices of at most 50 ms and checks <a href="check-wait-limits.html">checkWaitLimits</a> between slices, so an interrupt or the execution deadline still terminates the wait (with <a href="../-runtime-config/limits-per-task.html">RuntimeConfig.limitsPerTask</a>, only an interrupt: the wait is no task's); a Java interrupt of the thread ends it as an interrupted execution.</p></div></div>
+  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">fun </span><a href="await-external.html"><span class="token function">awaitExternal</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">timeoutMillis<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-long/index.html">Long</a></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></div><p class="paragraph">Blocks the owner thread until an external job has been posted (true; <a href="run-jobs.html">runJobs</a> runs it) or <a href="await-external.html">timeoutMillis</a> elapse (false). Waits in slices of at most 50 ms and checks <a href="index.html#-862323960%2FFunctions%2F-941727813">checkWaitLimits</a> between slices, so an interrupt or the execution deadline still terminates the wait (with <a href="../-runtime-config/limits-per-task.html">RuntimeConfig.limitsPerTask</a>, only an interrupt: the wait is no task's); a Java interrupt of the thread ends it as an interrupted execution.</p></div></div>
 </div>
     <div class="footer">
         <div class="footer--container">

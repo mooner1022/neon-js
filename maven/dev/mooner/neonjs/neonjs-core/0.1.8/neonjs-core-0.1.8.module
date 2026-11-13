@@ -1,0 +1,137 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "dev.mooner.neonjs",
+    "module": "neonjs-core",
+    "version": "0.1.8",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.8.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.environment": "standard-jvm",
+        "org.gradle.jvm.version": 21,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api",
+        "org.jetbrains.kotlin.platform.type": "jvm"
+      },
+      "dependencies": [
+        {
+          "group": "dev.mooner.neonjs",
+          "module": "neon-vm",
+          "version": {
+            "requires": "0.1.8"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.4.20"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "neonjs-core-0.1.8.jar",
+          "url": "neonjs-core-0.1.8.jar",
+          "size": 2207407,
+          "sha512": "b7c066b1d8badf740a7a81062e0f041b4bcf596c53f0cf8760edd88ea1274d3c918fa65b49322de11e5dfcfc9c8afcecb828dda26df58c26ec9e026da8c9f169",
+          "sha256": "14464bc47e3372b903e6705bd6ab99be38ea601eab125b654fa66d923a39040b",
+          "sha1": "ce731d2a8bd3ef264488c799d1e7b6d46082c215",
+          "md5": "d1c8d17dcbc0ff6e46f367df6d7d3bd7"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.environment": "standard-jvm",
+        "org.gradle.jvm.version": 21,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime",
+        "org.jetbrains.kotlin.platform.type": "jvm"
+      },
+      "dependencies": [
+        {
+          "group": "org.ow2.asm",
+          "module": "asm",
+          "version": {
+            "requires": "9.9.1"
+          }
+        },
+        {
+          "group": "org.ow2.asm",
+          "module": "asm-tree",
+          "version": {
+            "requires": "9.9.1"
+          }
+        },
+        {
+          "group": "org.ow2.asm",
+          "module": "asm-util",
+          "version": {
+            "requires": "9.9.1"
+          }
+        },
+        {
+          "group": "dev.mooner.neonjs",
+          "module": "neon-vm",
+          "version": {
+            "requires": "0.1.8"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.4.20"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "neonjs-core-0.1.8.jar",
+          "url": "neonjs-core-0.1.8.jar",
+          "size": 2207407,
+          "sha512": "b7c066b1d8badf740a7a81062e0f041b4bcf596c53f0cf8760edd88ea1274d3c918fa65b49322de11e5dfcfc9c8afcecb828dda26df58c26ec9e026da8c9f169",
+          "sha256": "14464bc47e3372b903e6705bd6ab99be38ea601eab125b654fa66d923a39040b",
+          "sha1": "ce731d2a8bd3ef264488c799d1e7b6d46082c215",
+          "md5": "d1c8d17dcbc0ff6e46f367df6d7d3bd7"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "neonjs-core-0.1.8-sources.jar",
+          "url": "neonjs-core-0.1.8-sources.jar",
+          "size": 672416,
+          "sha512": "2318dc2ed63839f915835faa4e41c919892ff2c4a0f76b6870e1ad11510854352f07ddfb0534cab92936aed99f7e9f979ed036afda702908f8e8601b5c0d7f11",
+          "sha256": "961b9fda1fe45216a28c6f2e781cdf9543a0e59d8f719f2241822faee190b3df",
+          "sha1": "3ceb6d5e13a71aa6d2398315144ba091dd393fe2",
+          "md5": "689776fec14a76da12885bacaf9869f5"
+        }
+      ]
+    }
+  ]
+}

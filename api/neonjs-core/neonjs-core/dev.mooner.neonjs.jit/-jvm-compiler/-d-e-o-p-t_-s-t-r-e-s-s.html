@@ -43,7 +43,7 @@
         </button>
         <div class="navigation-controls--break ui-kit_mobile-only"></div>
         <div class="library-version" id="library-version">
-0.1.7        </div>
+0.1.8        </div>
         <div class="navigation-controls">
         <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
                 <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
@@ -108,7 +108,7 @@
   <div class="cover ">
     <h1 class="cover"><span>DEOPT_</span><wbr></wbr><span>STRESS</span></h1>
   </div>
-  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><div class="block"><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-jvm-field/index.html"><span class="token annotation builtin">JvmField</span></a></div><div class="block"><span class="token annotation builtin">@</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.jvm/-volatile/index.html"><span class="token annotation builtin">Volatile</span></a></div></div><span class="token keyword">var </span><a href="-d-e-o-p-t_-s-t-r-e-s-s.html">DEOPT_STRESS</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a></div><p class="paragraph">Testing deoptimization: with <code class="lang-kotlin">-Dneonjs.jit.deoptStress=N</code> (N > 0; 3 without a value), code compiled from then on has exits (Gen.stressExit) at its start, its loop headers, the start and loop headers of the bodies it inlines, and after each inlined call, and one in N exits reached (JitRt.stressExit) leaves the activation to the interpreter there (Deopt). Part of the class identity; tests change it between compilations.</p></div></div>
+  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">var </span><a href="-d-e-o-p-t_-s-t-r-e-s-s.html">DEOPT_STRESS</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a></div><p class="paragraph">Jit.DEOPT_STRESS (the core's: T1 and the tier alike).</p></div></div>
 </div>
     <div class="footer">
         <div class="footer--container">
