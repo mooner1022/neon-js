@@ -49,7 +49,8 @@ identifier to one of
 - `DynamicRef(name)` – resolved at run time (inside `with`, or code reachable from sloppy direct `eval`).
 
 It also decides TDZ checks (elided when the use is provably after the declaration in the same function), the
-`arguments` object kind (mapped arguments force parameters into the environment), Annex B block-function hoisting,
+`arguments` object kind (mapped arguments force parameters into the environment), Annex B block-function hoisting (but
+for a function with a `"use strict"` of its own: the README's known differences),
 the var scope receiving `eval`-declared variables, and pseudo-bindings for `this`, `new.target`, the home object
 and the active function when arrow functions or `eval` capture them.
 
