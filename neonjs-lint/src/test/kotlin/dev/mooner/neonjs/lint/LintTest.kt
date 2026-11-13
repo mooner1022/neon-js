@@ -49,9 +49,11 @@ class LintTest {
 
     @Test
     fun mistakesThatAreValidCodeAreTold() {
+        // (k, g, o and late are never read: each is also told)
         assertEquals(listOf(
-            "L1 e const-assign", "L2 w cond-assign", "L3 w unreachable", "L4 w fallthrough", "L5 w duplicate-key",
-            "L6 w nan-comparison", "L7 w invalid-typeof", "L8 w debugger", "L9 e use-before-define",
+            "L1 w unused-variable", "L1 e const-assign", "L2 w cond-assign", "L3 w unreachable", "L4 w unused-variable",
+            "L4 w fallthrough", "L5 w unused-variable", "L5 w duplicate-key", "L6 w nan-comparison", "L7 w invalid-typeof",
+            "L8 w debugger", "L9 e use-before-define", "L9 w unused-variable",
         ), marks(listOf(
             "const k = 1; k = 2;",
             "let v; if (v = 1) {}",
@@ -67,7 +69,7 @@ class LintTest {
 
     @Test
     fun styleAndUnknownNamesAreNotToldWithoutGlobals() {
-        assertEquals(emptyList<String>(), marks("let a = 1\nconst o = {}; o['a'] = new Date;;\nLog.i(fizz);\n"))
+        assertEquals(emptyList<String>(), marks("let a = 1\nconst o = {}; o['a'] = new Date;;\nLog.i(fizz, a);\n"))
     }
 
     @Test
@@ -161,7 +163,7 @@ class LintTest {
         flags("import mod from 'm'; mod = 1;", "const-assign")
         flags("let A = class A { b() { A = 0; } }", "const-assign")
         clean("let A = class A { }; A = 0;", "const-assign")
-        assertEquals(listOf("'a' is constant."), messages("const a = 0; a = 1;"))
+        assertEquals(listOf("'a' is constant."), messages("const a = 0; a = 1;", SourceType.SCRIPT))
     }
 
     @Test
@@ -343,13 +345,261 @@ class LintTest {
         clean("obj.debugger = 1;", "debugger")
     }
 
+    // ------------------------------------------------------------ warnings added later (docs/LINT.md)
+
+    /** The diagnostics of [rule], as "<start>-<end>". */
+    private fun spans(code: String, rule: String, type: SourceType = SourceType.MODULE): List<String> =
+        NeonLint.lint(code, LintOptions(type)).diagnostics.filter { it.code == rule }.map { "${it.start}-${it.end}" }
+
+    /** The `unused-variable` diagnostics, as their arguments: "<name> <kind>". */
+    private fun unused(code: String, type: SourceType = SourceType.MODULE): List<String> =
+        NeonLint.lint(code, LintOptions(type)).diagnostics.filter { it.code == "unused-variable" }.map { it.args.joinToString(" ") }
+
+    @Test
+    fun sparseArray() {
+        both { t ->
+            flags("const a = [1, , 2];", "sparse-array", t)
+            flags("const a = [, 1];", "sparse-array", t)
+            flags("const a = [1, ,];", "sparse-array", t)
+            flags("f([ , ]);", "sparse-array", t)
+            assertEquals(2, spans("const a = [1,,2,,3];", "sparse-array", t).size)
+            clean("const a = [1, 2,];", "sparse-array", t)
+            clean("const [, second] = pair;", "sparse-array", t)
+            clean("[, b] = arr;", "sparse-array", t)
+            clean("function f([, x]) {}", "sparse-array", t)
+            clean("for (const [, v] of entries) {}", "sparse-array", t)
+        }
+        // (the comma that makes the hole: the first when it leads, else the one after the hole)
+        assertEquals(listOf("14-15"), spans("const a = [1, , 2];", "sparse-array"))
+        assertEquals(listOf("11-12"), spans("const a = [, 1];", "sparse-array"))
+        assertEquals(listOf("14-15"), spans("const a = [1, ,];", "sparse-array"))
+        assertEquals(listOf("24-25"), spans("const a = [(1) /* , */, , 2];", "sparse-array"))
+        // (a default's value is an array literal: its hole is told; a destructuring target in a for-of or an arrow's is not)
+        flags("[a = [, 1]] = q;", "sparse-array")
+        clean("for ([, a] of x); ({ a: [, b] } = o); const g = ([, x]) => x;", "sparse-array")
+        assertEquals(listOf("This array has an empty slot: a ',' too many, or a value left out."), messages("f([1, , 2]);").filter { it.startsWith("This array") })
+        // (an array left as an invalid assignment's target is a pattern; a character the lexer cannot read is no space)
+        clean("let second;\n[, second] += pair;", "sparse-array", SourceType.SCRIPT)
+        clean("let value;\n[, value] ??= defaults;", "sparse-array", SourceType.SCRIPT)
+        clean("const a = [1, \u001F, 2];", "sparse-array", SourceType.SCRIPT)
+        clean("let a;\n[[, a]] += pairs;\n({ list: [, a] } ??= defaults);\n[...[, a]] ||= fallback;", "sparse-array", SourceType.SCRIPT)
+        flags("let a; a = [x, [, 1]];", "sparse-array")
+        // (nor an array a syntax error follows or comes from: a parameter list missing its `=>`, a template left open)
+        clean("export const pick = ([, second])\n  => second;", "sparse-array")
+        clean("export const pick = ([, second]) {\n  return second;\n};", "sparse-array")
+        clean("const header = `Report\nconst note = `expected = [1, , 3]`;", "sparse-array", SourceType.SCRIPT)
+    }
+
+    @Test
+    fun precisionLoss() {
+        val lossy = listOf(
+            "9007199254740993", "5123000000000000000000000000001", "1230000000000000000000000.0", ".1230000000000000000000000",
+            "0x20000000000001", "0b100000000000000000000000000000000000000000000000000001", "2e999", "9_007_199_254_740_993",
+            "123456789012345678", "1.0000000000000001", "1e-400",
+            // (halfway between two numbers of as many digits: JavaScript prints the even one, not the one written)
+            "1700000000000000.3", "1700000000000000.7", "3.0000228881835937",
+        )
+        val kept = listOf(
+            "9007199254740992", "5123000000000000000000000000000", "0.1", "0.3", "1.50", "12345.6789", "0.1000000000000000055511151231257827",
+            "0x1FFFFFFFFFFFFF", "0x20000000000000", "1e21", "1.5e300", "123e-5", "1_000_000", "0", "0.0", "9007199254740993n",
+            "12300000000000000000000000", "100", "5e-324", "0.000001", "9007199254740991",
+        )
+        both { t ->
+            for (n in lossy) flags("f($n);", "precision-loss", t)
+            for (n in kept) clean("f($n);", "precision-loss", t)
+        }
+        // (a value halfway between two numbers of as many digits as written keeps the even one: JavaScript prints it so)
+        for (n in listOf("95.00259399414062", "0.6981887817382812", "1700000000000000.2")) clean("f($n);", "precision-loss")
+        // (what JavaScript prints, as many digits as written: by a power of two the nearest such number may read back
+        // as another double, 2^-24 is printed 5.960464477539063e-8)
+        for (n in listOf("5.960464477539063e-8", "5.684341886080802e-14", "6.189700196426902e+26")) clean("f($n);", "precision-loss")
+        // (nor where a template left open may have made code of text)
+        clean("const header = `Report\nconst line = `total = 9007199254740993 + tax`;", "precision-loss", SourceType.SCRIPT)
+        // (a legacy octal literal, in a script; the minus sign is no part of the literal)
+        flags("f(0777777777777777777777);", "precision-loss", SourceType.SCRIPT)
+        clean("f(0777);", "precision-loss", SourceType.SCRIPT)
+        assertEquals(listOf("3-19"), spans("f(-9007199254740993);", "precision-loss"))
+        val m = NeonLint.lint("f(9007199254740993, 2e999, 1e-400);").diagnostics.filter { it.code == "precision-loss" }
+        assertEquals(listOf(
+            "This number cannot be kept exactly: it becomes 9007199254740992.",
+            "This number cannot be kept exactly: it becomes Infinity.",
+            "This number cannot be kept exactly: it becomes 0.",
+        ), m.map { it.message })
+        assertEquals(listOf(listOf("9007199254740992"), listOf("Infinity"), listOf("0")), m.map { it.args })
+    }
+
+    @Test
+    fun uselessEscape() {
+        both { t ->
+            flags(""" f("\d+"); """, "useless-escape", t)
+            flags(""" f('\s*'); """, "useless-escape", t)
+            flags(""" f("a\.b"); """, "useless-escape", t)
+            flags(" f(`\\w+`); ", "useless-escape", t)
+            flags(""" f("\D"); """, "useless-escape", t)
+            assertEquals(2, spans(""" f("\(x\)"); """, "useless-escape", t).size)
+            clean(""" f("\\d+", /\d+/); """, "useless-escape", t)
+            clean(""" f("\n\t\x41é\u{1F600}"); """, "useless-escape", t)
+            clean(""" f('It\'s', "say \"hi\"", "it\'s"); """, "useless-escape", t)
+            clean(" f(`\\\${name}`, `a\\`b`); ", "useless-escape", t)
+            clean(""" f("http:\/\/x"); """, "useless-escape", t)
+            clean(" f(String.raw`\\d+`); ", "useless-escape", t)
+            clean(""" f("\\\\d", "one line \""" + "\n" + """and the next"); """, "useless-escape", t)
+        }
+        // (`\\\d`: the third '\' alone; two units, the '\' and its character)
+        val src = """f("\\\d");"""
+        assertEquals(listOf("${src.indexOf('d') - 1}-${src.indexOf('d') + 1}"), spans(src, "useless-escape"))
+        assertEquals(listOf("'\\d' is no escape in a string: it is just 'd'. For a regular expression's \\d, write '\\\\d'."), messages(""" f("\d+"); """).filter { it.startsWith("'\\") })
+        assertEquals(listOf("'\\.' is no escape in a string: it is just '.'. For a regular expression's \\., write '\\\\.'."), messages(""" f("a\.b"); """).filter { it.startsWith("'\\") })
+        // (each piece of a template, between its expressions)
+        assertEquals(2, spans(" f(`\\d\${x}\\w`); ", "useless-escape").size)
+        // (a string the recovery mode cut short is read only as far as its node goes; a template left open, which it
+        // closes at the source's end, and one with an ErrorNode in it are not read)
+        clean(""" let a = "a\d;""" + "\nlet b = 1;", "useless-escape")
+        clean(" var greeting = `Hello\nfunction isNumber(s) {\n  return /^\\d+(\\.\\d+)?$/.test(s);\n}\n", "useless-escape", SourceType.SCRIPT)
+        clean(" const pattern = `\\d+-\${}`; log(`\\(\${a +})`); ", "useless-escape")
+        clean("var greeting = `Hello\nfunction isNumber(s) {\n  return /^\\d+(\\.\\d+)?\$/.test(s);\n}\nvar label = `Number`;", "useless-escape", SourceType.SCRIPT)
+        clean("const title = `Report\nexport const html = String.raw`<input pattern=\"\\d{4}\">`;", "useless-escape")
+        // (nor what the recovery mode reads on its line after a statement it passed over: here a regular expression's text)
+        clean("if (a b) /;\"\\d\"/g.exec(s);", "useless-escape", SourceType.SCRIPT)
+        clean("if (a b) /;[1,,2]/g.test(s);", "sparse-array", SourceType.SCRIPT)
+        // (a template that is a tag is no tagged template)
+        assertEquals(1, spans(" const patterns = [`^\\d+\$` `^\\w+\$`]; ", "useless-escape").size)
+    }
+
+    @Test
+    fun unusedVariable() {
+        // the spec's examples, in a module: a top-level function that is not exported is one too
+        assertEquals(listOf("f declared", "x declared"), unused("function f() { let x = 1; }"))
+        assertEquals(listOf("f declared", "x assigned"), unused("function f() { let x; x = 1; }"))
+        assertEquals(listOf("f declared", "g declared"), unused("function f() { const g = () => 1; }"))
+        assertEquals(listOf("f declared", "inner declared"), unused("function f() { function inner() {} }"))
+        assertEquals(listOf("a declared"), unused("import { a } from \"./a.js\";"))
+        assertEquals(listOf("onMessage declared"), unused("function onMessage(event) {}"))
+        assertEquals(listOf("helper declared"), unused("const helper = 1;"))
+        assertEquals(listOf("item declared"), unused("for (const item of list) { n++; }"))
+        assertEquals(listOf("f declared"), unused("function f() { let x = 1; return x; }"))
+        assertEquals(listOf("f declared"), unused("function f(a, b) { return b; }"))
+        for (code in listOf(
+            "try { f(); } catch (e) { }", "export function onMessage(event) {}", "const a = 1; export { a };", "for (const _ of list) n++;",
+            "const { password, ...rest } = user; use(rest);", "function f() { let x = 1; eval(\"x\"); }", "let v = 1; typeof v;",
+        )) assertEquals(emptyList<String>(), unused(code), code)
+        // ... and in a script, where the top level is global
+        for (code in listOf("function f() { let x = 1; return x; }", "function f(a, b) { return b; }", "var cache = {}; function response(room, msg) {}", "const helper = 1;"))
+            assertEquals(emptyList<String>(), unused(code, SourceType.SCRIPT), code)
+        assertEquals(listOf("unused declared"), unused("function response() { var unused = 1; }", SourceType.SCRIPT))
+
+        // reads: an update or compound assignment whose value is used, a function or class inside itself, a sloppy
+        // block function through its var, `export`, a name in `with`
+        fun inScript(body: String) = unused("function f() { $body }", SourceType.SCRIPT)
+        assertEquals(listOf("x assigned"), inScript("let x = 0; x++;"))
+        assertEquals(listOf("x assigned"), inScript("let x = 0; x += 1;"))
+        assertEquals(listOf("x assigned"), inScript("let x = 0; for (;; x++) {}"))
+        assertEquals(listOf("x assigned"), inScript("let x = 0, y = 0; x++, y++; return y;").filter { it.startsWith("x") })
+        assertEquals(emptyList<String>(), inScript("let x = 0; return x++;"))
+        assertEquals(emptyList<String>(), inScript("let x = 0; g(x += 1);"))
+        assertEquals(emptyList<String>(), inScript("let x = 0; y = x++;"))
+        assertEquals(emptyList<String>(), inScript("let i; i ??= g(); let j; j ||= g(); let k = 1; k &&= g();"))
+        assertEquals(emptyList<String>(), inScript("let immediate; w = () => { immediate ??= setImmediate(() => { immediate = undefined; }); };"))
+        assertEquals(emptyList<String>(), inScript("for (const x of xs) return true; for (const k in o) { return false; } for (const [a, b] of e) return;"))
+        assertEquals(listOf("x declared"), inScript("for (const x of xs) { n++; return; }"))
+        assertEquals(emptyList<String>(), inScript("function g() { g(); }"))
+        assertEquals(emptyList<String>(), inScript("class C { static make() { return new C(); } }"))
+        assertEquals(emptyList<String>(), inScript("if (a) { function g() {} } g();"))
+        assertEquals(emptyList<String>(), unused("{ function g() {} }", SourceType.SCRIPT))
+        assertEquals(emptyList<String>(), unused("function f(o) { let x = 1; with (o) { x; } }", SourceType.SCRIPT))
+        assertEquals(emptyList<String>(), unused("export default function f() {} export class C {} export const a = 1, { b } = o; import * as ns from 'm'; ns.x;"))
+        assertEquals(emptyList<String>(), unused("import d, { a as b } from 'm'; export { d, b as default };"))
+        assertEquals(emptyList<String>(), unused("function f() { using r = open(); await using s = open(); } export { f };"))
+        assertEquals(emptyList<String>(), unused("let { a, b: [c], ...rest } = o; export { rest };"))
+        assertEquals(listOf("C declared"), unused("class C { m() { return 1; } }"))
+        // (a function with a `with` in it may read any of its names through it, as the spec's eval)
+        assertEquals(emptyList<String>(), unused("function response(room, msg, sender, isGroupChat, replier) {\n  var prefix = \"!\";\n" +
+            "  with (new JavaImporter(java.lang)) {\n    replier.reply(String.valueOf(msg));\n  }\n}", SourceType.SCRIPT))
+        // (a sloppy block function with a "use strict" of its own: the engine makes it no var, but the language does)
+        assertEquals(emptyList<String>(), inScript("if (flag) function chosen() { \"use strict\"; return 1; } return typeof chosen === \"function\" ? chosen() : 0;"))
+        assertEquals(emptyList<String>(), inScript("if (msg) { function command(t) { \"use strict\"; return t; } } if (typeof command === \"function\") g(command(msg));"))
+        assertEquals(emptyList<String>(), unused("if (typeof Api !== \"undefined\") {\n  function onStartCompile() { \"use strict\"; Api.reload(); }\n}", SourceType.SCRIPT))
+        assertEquals(emptyList<String>(), inScript("if (fast) { function handler(e) { \"use strict\"; return e; } } target.onMessage = handler ??= fallback;"))
+        // ... but not where the language makes no var either: an async function, a parameter's or a let's name
+        assertEquals(listOf("onStartCompile declared"), unused("if (typeof Api !== \"undefined\") {\n  async function onStartCompile() { Api.reload(); }\n}", SourceType.SCRIPT))
+        assertEquals(listOf("load declared"), inScript("if (m) { async function load() { r(); } } if (typeof load === \"function\") load();"))
+        assertEquals(listOf("transform declared"), unused("function format(text, transform) {\n  if (typeof transform !== \"function\") {\n    function transform(s) { return s; }\n  }\n  return transform(text);\n}", SourceType.SCRIPT))
+        assertEquals(listOf("handler declared"), inScript("let handler = d; if (fast) { function handler() { return 1; } } return handler;"))
+        // (a function of a parameter's name, which a sloppy function's `arguments` reads)
+        assertEquals(emptyList<String>(), unused("function f(a) {\n  function a() { return 1; }\n  return arguments[0];\n}\nf();", SourceType.SCRIPT))
+        assertEquals(listOf("a declared"), unused("\"use strict\";\nfunction f(a) {\n  function a() { return 1; }\n  return arguments[0];\n}\nf();", SourceType.SCRIPT))
+        // (a var of a parameter's name, where parameter expressions give it a binding of its own)
+        assertEquals(emptyList<String>(), unused("export function pick(primary, fallback = primary) {\n  var primary;\n  return fallback;\n}"))
+        assertEquals(emptyList<String>(), unused("function response(room, msg, sender, prefix = \"!\") {\n  if (!msg.startsWith(prefix)) { var sender = null; return; }\n}", SourceType.SCRIPT))
+        // (a class with a decorator or a static block registers itself)
+        assertEquals(emptyList<String>(), unused("import { customElement } from \"./elements.js\";\n@customElement(\"chat-badge\")\nclass ChatBadge { render() { return 1; } }"))
+        assertEquals(emptyList<String>(), unused("import { registry } from \"./registry.js\";\nclass EchoCommand { static { registry.add(\"echo\", this); } }"))
+        assertEquals(emptyList<String>(), unused("import { commands } from \"./commands.js\";\nclass PingCommand {\n  static registered = commands.register(\"ping\", this);\n}"))
+        assertEquals(emptyList<String>(), unused("import { on } from \"./events.js\";\nclass Greeter {\n  @on(\"message\")\n  static greet(event) { event.reply(\"hi\"); }\n}"))
+        assertEquals(listOf("Plain declared"), unused("class Plain { static count = 0; static #seen = []; m() { return 1; } }"))
+        // (a loop that does nothing drains an iterator: its names are needed)
+        assertEquals(emptyList<String>(), inScript("for (const x of xs); for (const k in o) {} return async () => { for await (const unused of it); };"))
+        // (a function of a parameter's name is told at its name)
+        val shadow = "function response(room, replier) {\n  function replier() {}\n}"
+        assertEquals(listOf("${shadow.indexOf("replier()")}-${shadow.indexOf("replier()") + 7}"), spans(shadow, "unused-variable", SourceType.SCRIPT))
+        // (a var declared twice is told once, at the first)
+        assertEquals(listOf("a declared"), inScript("var a; var a = 1;"))
+        assertEquals(listOf("19-20"), spans("function f() { var a; var a = 1; }", "unused-variable", SourceType.SCRIPT))
+        // (a syntax error anywhere turns the rule off: the use may be in what the parser could not read)
+        assertEquals(emptyList<String>(), unused("function f() { let x = 1; }\nlet y = (;"))
+        assertEquals(emptyList<String>(), unused("function f() { let x = 1; g(x }"))
+        val d = NeonLint.lint("function f() { let x = 1; let y; y = 2; } export { f };").diagnostics
+        assertEquals(listOf("'x' is declared and never used.", "'y' is assigned and never read."), d.map { it.message })
+        assertEquals(listOf(listOf("x", "declared"), listOf("y", "assigned")), d.map { it.args })
+    }
+
+    @Test
+    fun constantCondition() {
+        both { t ->
+            for (code in listOf(
+                "if (true) f();", "if (0) f();", "if (\"debug\") f();", "const v = null ? a : b;", "if ([]) f();", "if ({}) f();",
+                "if (typeof x) f();", "if (!0) f();", "if (undefined) f();",
+                "if (``) f();", "if (`x`) f();", "if (void 0) f();", "if (-0) f();", "if (0n) f();", "if (/re/) f();",
+                "if (function () {}) f();", "if (() => 1) f();", "if (class {}) f();", "if (new Foo()) f();", "if (!!1) f();",
+            )) flags(code, "constant-condition", t)
+            for (code in listOf(
+                "while (true) { if (done()) break; }", "for (;;) { }", "do { } while (false);", "const DEBUG = false; if (DEBUG) f();",
+                "if (typeof x === \"string\") f();", "if (a || true) f();", "function g(undefined) { if (undefined) f(); }",
+                "if (`\${a}`) f();", "if (-a) f();",
+            )) clean(code, "constant-condition", t)
+        }
+        assertEquals(listOf("L1 w cond-assign"), marks("if (a = 1) f();"))
+        assertEquals(listOf("This condition is always true.", "This condition is always false."), messages("if (true) f(); if (0) g();"))
+        assertEquals(listOf(listOf("true"), listOf("false")), NeonLint.lint("if (true) f(); if (0) g();").diagnostics.map { it.args })
+        // (the condition is the span; nothing is told of a condition, or a conditional, the parser could not read)
+        assertEquals(listOf("4-8"), spans("if (true) f();", "constant-condition"))
+        assertEquals(listOf("L1 e syntax/missing-expression"), marks("if () {}"))
+        assertEquals(listOf("L1 e syntax/missing-expression"), marks("f(true ? : b);"))
+        // (nor of a literal the recovery mode made, repairing the token: `"abc` is read as `""`, `1x` and an open
+        // regular expression as `0`); a condition beside a syntax error is still told
+        for (code in listOf("if (\"abc) f();", "if (1x) f();", "if (/abc) f();", "if (`abc) f();", "f(1if 1, 9007199254740993x);",
+            "if (0x) f();", "const v = 0.5x ? a : b;", "if (0_1) f();", "if (1e) run();", "f(100px);"))
+            assertTrue(marks(code).none { it.endsWith(" constant-condition") || it.endsWith(" precision-loss") }, "$code -> ${marks(code)}")
+        assertEquals(listOf("L1 w constant-condition", "L2 e syntax/unexpected-token"), marks("if (true) f();\nlet x = (;"))
+        // (nor of a condition the recovery mode made, pretending a `,` or `;` before it)
+        for (code in listOf("log(typeof value \"string\" ? \"text\" : \"other\");", "export const labels = [count !0 ? count : \"none\"];",
+            "let mode = config.debug true ? \"debug\" : \"release\";\nexport { mode };", "var shown = value undefined ? \"none\" : value;\nlog(shown);",
+            "var r = f(i++ (0) ? a : b);", "[i-- (!0) ? a : b];", "x = c ? a++ (0) ? b : d;",
+            // (after a token it repaired, the recovery mode tells no error for what it pretends there)
+            "var v = DEBUG # true ? \"debug\" : \"release\";", "x = \"\\x\" 0 ? a : b;", "x = 1_ 0 ? a : b;", "let v = a\\u0000 0 ? b : c;"))
+            clean(code, "constant-condition")
+        assertEquals(listOf("L1 e syntax/unexpected-token", "L2 w constant-condition"), marks("let x = (;\nif (true) f();"))
+        // (`undefined` may be a declaration's when the source declares one, which the engine misses in a case)
+        clean("function load(flag) {\n  if (flag) function undefined() { \"use strict\"; }\n  return undefined ? 1 : 0;\n}", "constant-condition", SourceType.SCRIPT)
+    }
+
     // ------------------------------------------------------------ the API
 
     @Test
     fun settingsTurnRulesOffOrChangeTheirSeverity() {
         assertEquals(emptyList<String>(), marks("debugger;", rules = mapOf("debugger" to RuleSetting.OFF)))
         assertEquals(listOf("L1 e debugger"), marks("debugger;", rules = mapOf("debugger" to RuleSetting.ERROR)))
-        assertEquals(listOf("L1 w const-assign"), marks("const a = 1; a = 2;", rules = mapOf("const-assign" to RuleSetting.WARNING)))
+        assertEquals(listOf("L1 w const-assign"), marks("const a = 1; a = 2;", rules = mapOf("const-assign" to RuleSetting.WARNING, "unused-variable" to RuleSetting.OFF)))
     }
 
     @Test
@@ -394,7 +644,8 @@ class LintTest {
         }
         @OptIn(LintTreeApi::class)
         val r = NeonLint.lint("function onMessage(e) {}\ndebugger;", LintOptions(extraRules = listOf(rule, failing)))
-        assertEquals(listOf("internal-error", "starlight/unexported-event", "debugger"), r.diagnostics.map { it.code })
+        // (the built-in unused-variable tells the same, in its own words)
+        assertEquals(listOf("internal-error", "unused-variable", "starlight/unexported-event", "debugger"), r.diagnostics.map { it.code })
     }
 
     @Test

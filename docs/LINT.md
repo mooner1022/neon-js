@@ -80,9 +80,45 @@ mistakes that run.
 | `invalid-typeof` | warning | value | `typeof x` compared with a string it never gives, or with `undefined` |
 | `unsafe-negation` | warning | operator | `!a in b`, `!a instanceof b` |
 | `debugger` | warning | | a `debugger` statement |
+| `sparse-array` | warning | | an empty slot in an array literal, `[1, , 2]`, told at the comma that makes it (not in a destructuring pattern; one trailing comma is no slot) |
+| `precision-loss` | warning | value | a number literal its value does not keep: `9007199254740993` becomes `9007199254740992`, while `0.1` keeps the one digit it has (`value`: what it becomes) |
+| `useless-escape` | warning | char | a `\` in a string or an untagged template before a letter that is no escape (not `b f n r t v x u`) or a regular expression's punctuation (`. * + ? ^ \| ( ) [ ] -`): `"\d+"` is `"d+"` |
+| `unused-variable` | warning | name, kind | a name declared and never read (`kind`: `assigned` when it is assigned, else `declared`). See below |
+| `constant-condition` | warning | value | an `if`'s or a `? :`'s condition that is a literal, an array, object, function, class or `new`, a `typeof` or `void`, or `!` of one (`value`: `true` or `false`). Not loops |
 | `syntax/…` | error | (see below) | the parser's errors |
 | `too-deep` | error | | the source is nested too deeply to read |
 | `internal-error` | warning | detail | the linter failed (a bug) |
+
+### `unused-variable`
+
+- **What it checks.** The let, const and var declarations, and the function and class declarations, of a function or of
+  a module (not those exported), and the imports.
+- **What it leaves alone.** Parameters, catch parameters, `using` declarations (a `using` is there to be disposed of), a
+  function or class expression's own name, and a script's top level, whose names are globals a host or another script
+  may read. Also left alone: names starting with `_`, the names beside a rest element (`const { password, ...rest } =
+  user`), a class that uses itself as it is declared, to register itself (a decorator on it or a member, a static
+  block, or a static field whose value calls something or uses `this`), a `var` of a parameter's name, and the names of
+  a function with a direct `eval` or a `with` in it.
+- **What counts as a read.** A reference that is not an assignment's target, `typeof x`, `export { x }` and
+  `export default x`. A logical assignment (`x ??= f()`) reads `x` to decide, and an update or compound assignment
+  reads it when its value is used (`y = x++`, but not `x++;`). A for-in or for-of loop's names count as read when its
+  body is a `return` (`for (const x of xs) return true`) or nothing (`for (const x of it);` drains an iterator). A
+  function or class used only inside itself counts as read. A sloppy function declared in a block with a `"use strict"`
+  of its own counts as read when its name is read anywhere, and is global at a script's top level: the language gives
+  it a var outside the block, which the engine does not.
+- **Syntax errors.** While the source has a syntax error, the rule is off: the only use of a name may be in what the
+  parser could not read.
+
+### The newer rules beside a syntax error
+
+The other four rules go on beside a syntax error, but tell nothing of what the recovery mode made rather than read:
+- an array, condition or template with an ErrorNode in it (a conditional's anywhere in it);
+- a literal it made by repairing a token: `"abc` read as `""`, `1x` and `0x` as `0`, a regular expression left open
+  as `0`;
+- an expression it started where it pretended a `,` or `;` (`value undefined ? a : b` is read as
+  `value; undefined ? a : b`), or an array a syntax error follows (`([, x]) {`, a parameter list without its `=>`);
+- anything from the first "`" on when a template was left open: it ends at the next template's "`", so text is read as
+  code and code as text.
 
 ### Syntax error codes
 
@@ -150,6 +186,11 @@ The rules follow ESLint's rules of the same purpose (named in the code's descrip
 | `fallthrough` | Same simplification as `unreachable`. |
 | `cond-assign` | Accepts the same parentheses as ESLint's `except-parens`. |
 | `duplicate-else-if` | Uses ESLint's algorithm: `||` and `&&` operands, conditions compared by tokens. |
+| `sparse-array` | Same as `no-sparse-arrays`. |
+| `precision-loss` | Same test as `no-loss-of-precision`, but a value halfway between two numbers of as many digits as written rounds to the even one, as JavaScript prints it: `95.00259399414062` is `95.002593994140625` and is printed as written, while ESLint's `toPrecision` rounds the tie up and reports it; `1700000000000000.3` is `1700000000000000.25`, printed `1700000000000000.2`, and is reported. A literal with more than 100 significant digits is judged the same way; ESLint reports every such literal. |
+| `useless-escape` | Narrower than `no-useless-escape`: only a letter that is no escape and a regular expression's punctuation, in strings and untagged templates. Not a needless `\'`, `\/` or `\$`, nor anything in a regular expression literal. |
+| `unused-variable` | Narrower than `no-unused-vars`: no parameters, catch parameters or `using` declarations, no names starting with `_` or beside a rest element (ESLint's options), no class that registers itself (a decorator, a static block as ESLint's `ignoreClassWithStaticInitBlock`, a static field calling something), no function with a `with`, and not a script's top level. A function or class used only inside itself, `x = x + 1`, and a for-in/of that does nothing count as reads; ESLint counts none of them. Like ESLint, a logical assignment reads, and a for-in/of whose body is a `return` uses its names. |
+| `constant-condition` | Narrower than `no-constant-condition`: no loops, and no constants made with operators (`a \|\| true`, `1 + 1`). |
 
 ## The parser's recovery mode
 
@@ -298,6 +339,23 @@ taken. This cost was accepted. Not measured on ART.
     runtime error (`*-use-before-initialization-*`, `*-put-const`, `assert.throws(TypeError, …)`,
     `super-must-be-called`), or a derived class the test never constructs. Reading them found one rule bug, now
     fixed: a constructor calling `super()` through a direct `eval`.
+- **The rules added later** (`sparse-array`, `precision-loss`, `useless-escape`, `unused-variable`,
+  `constant-condition`), all warnings:
+  - In Test262's accepted programs, each in each mode, they tell 1,296, 142, 510, 2,431 and 889 times. The
+    error-severity diagnostics are in the same 202 programs as before. In Node.js's `lib` (416 files, as scripts and
+    as modules), they tell one: an `unused-variable` the source already silences for ESLint.
+  - Seeded samples were read against their files: 47 `unused-variable`, 40 `useless-escape`, 40 `constant-condition`,
+    25 `sparse-array` and 25 `precision-loss`. All were accurate but `precision-loss`'s ties (11 of the 25), since
+    fixed. Most are tests of the very construct; 27 of the 40 escapes are real slips (`\p` and `\d` lost in RegExp
+    tests' message strings).
+  - Three rounds of made-up code (63, 35 and 732 sources) found the false warnings the exceptions above now leave alone.
+  - `LintMutationTest`, in the 18,280 mutants: no `unused-variable`, and none of the other four tells of what has an
+    ErrorNode in it.
+  - `precision-loss` agrees with the spec's reference computation on 5,547 literals, but on their 6 ties. It tells
+    none of 301,925 numbers written as JavaScript prints them: every power of two, and 300,000 random doubles.
+  - Their cost on `lib/events.js`, the five on and off in turn in one JVM: 0.21 ms more after warming up (1.94 against
+    1.73 ms), most of it `unused-variable`'s; about 15 ms more in a new JVM's first lint. `LintBenchTest`, before and
+    after, in runs hours apart: 1.84 and 2.05 ms warm, 179 and 197 ms first.
 - **Node.js's `lib/events.js`** (1,256 lines, as a script, `LintBenchTest`), four runs. Each gives the median of 100
   lints after 500, and the median of 5 new JVMs' first lint:
 
@@ -314,15 +372,16 @@ taken. This cost was accepted. Not measured on ART.
 | What | Where |
 |---|---|
 | `RecoveryTest`, `TolerantProbeTest`, `MutationTest` | neonjs-core, package `parser` |
-| `LintTest` (each rule's examples, StarLight's editor's cases), `EngineGlobalsTest`, `Test262LintTest`, `LintBenchTest` | neonjs-lint |
+| `LintTest` (each rule's examples, StarLight's editor's cases), `EngineGlobalsTest`, `Test262LintTest`, `LintMutationTest`, `LintBenchTest` | neonjs-lint |
 | `ParseBaseline`, `ParseBench` | neonjs-test262 (docs/TESTING.md) |
 
 - **Without the checkouts.** Tests that read Test262 or Node.js are skipped when `third_party/test262` (`TEST262`) or
   `third_party/node` is missing. In CI, `build` runs before Test262 is checked out, so they are skipped there.
 - **Running them.** `tools/check.sh quick` runs neonjs-lint's tests too, except `LintBenchTest`. That one is a timing
   and asserts nothing, so it runs only with `-PlintBench`, which `tools/check.sh full` passes.
-- **Their reports.** `TolerantProbeTest`, `MutationTest`, `Test262LintTest` and `LintBenchTest` write what they found
-  in their module's `build/` (`tolerant-probe.txt`, `recovery-mutations.txt`, `test262-lint.txt`, `lint-bench.txt`).
+- **Their reports.** `TolerantProbeTest`, `MutationTest`, `Test262LintTest`, `LintMutationTest` and `LintBenchTest`
+  write what they found in their module's `build/` (`tolerant-probe.txt`, `recovery-mutations.txt`, `test262-lint.txt`,
+  `lint-mutations.txt`, `lint-bench.txt`).
   These are not Gradle outputs: when a test's inputs have not changed, Gradle skips it or takes it from its cache, and
   the old report stays. `--rerun` writes it again
   (`./gradlew :neonjs-lint:test --rerun --tests '*LintBenchTest' -PlintBench`).
