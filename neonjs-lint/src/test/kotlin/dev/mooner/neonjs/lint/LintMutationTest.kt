@@ -18,9 +18,12 @@ import java.util.zip.CRC32
  * The rules on programs with a syntax error: the mutants neonjs-core's MutationTest makes (one token of a program
  * deleted, replaced or one inserted; Test262's 1 in 20 of the files, Node.js's library), each one the engine rejects.
  * Asserted:
+ * - no `internal-error`, in a mutant or a program as it is;
  * - no `unused-variable` (the use of a name may be in what the parser could not read);
  * - `sparse-array`, `precision-loss`, `useless-escape` and `constant-condition` tell nothing of what has an ErrorNode
- *   in it: the array, the literal, the `if`'s condition or the conditional.
+ *   in it: the array, the literal, the `if`'s condition or the conditional;
+ * - nor anything the program as it is does not have (the offsets after the mutation moved by its length): what they
+ *   tell in a mutant is the source's, not the recovery mode's.
  * Listed in build/lint-mutations.txt: how many each of these rules tells in the programs as they are (Node.js's as
  * scripts, as NeonJS's runner reads them, and as modules) and in their mutants.
  */
@@ -28,7 +31,7 @@ class LintMutationTest {
 
     private class Source(val corpus: String, val rel: String, val src: String, val module: Boolean)
     private class Mutant(val source: Source, val what: String, val at: Int, val src: String)
-    private class Outcome(val mutant: Mutant, val codes: List<String>, val unused: Int, val violations: List<String>)
+    private class Outcome(val mutant: Mutant, val codes: List<String>, val unused: Int, val violations: List<String>, val internal: String? = null, val added: List<String> = emptyList())
 
     @Test
     @Timeout(value = 20, unit = TimeUnit.MINUTES)
@@ -60,39 +63,51 @@ class LintMutationTest {
         val (originals, outcomes) = try {
             val o = pool.invokeAll(asTheyAre.map { (s, module) -> Callable {
                 val r = NeonLint.lint(s.src, LintOptions(if (module) SourceType.MODULE else SourceType.SCRIPT, maxDiagnostics = 10_000))
-                Triple(s, module, r.diagnostics.filter { it.code in RULES }.map { it.code })
+                Triple(s, module, r.diagnostics.filter { it.code in RULES || it.code == NeonLint.INTERNAL_ERROR }.map { it.code + "@" + it.start })
             } }).map { it.get() }
-            o to pool.invokeAll(mutants.map { m -> Callable { probe(m) } }).map { it.get() }
+            val told = o.filter { it.second == it.first.module }.associate { it.first to it.third.toSet() }
+            o to pool.invokeAll(mutants.map { m -> Callable { probe(m, told[m.source] ?: emptySet()) } }).map { it.get() }
         } finally {
             pool.shutdownNow()
         }
 
         val withUnused = outcomes.filter { it.unused > 0 }
         val violating = outcomes.filter { it.violations.isNotEmpty() }
+        val internal = outcomes.filter { it.internal != null }
+        val internalAsTheyAre = originals.count { o -> o.third.any { it.startsWith(NeonLint.INTERNAL_ERROR) } }
+        val adding = outcomes.filter { it.added.isNotEmpty() }
         val report = buildString {
             appendLine("sources ${accepted.size} (${accepted.groupingBy { it.corpus }.eachCount()}), mutations the engine rejects ${outcomes.size}")
             for ((label, os) in listOf(
                 "test262 as they are" to originals.filter { it.first.corpus == "test262" },
                 "node as scripts" to originals.filter { it.first.corpus == "node" && !it.second },
                 "node as modules" to originals.filter { it.first.corpus == "node" && it.second },
-            )) appendLine("$label: ${byRule(os.flatMap { it.third })}")
+            )) appendLine("$label: ${byRule(os.flatMap { o -> o.third.map { it.substringBefore('@') } })}")
             for (corpus in listOf("test262", "node")) appendLine("$corpus mutants: ${byRule(outcomes.filter { it.mutant.source.corpus == corpus }.flatMap { it.codes })}")
-            appendLine("mutants with unused-variable ${withUnused.size}; with a rule telling of what has an ErrorNode in it ${violating.size}")
+            appendLine("internal errors: in mutants ${internal.size}, in programs as they are $internalAsTheyAre")
+            appendLine("mutants with unused-variable ${withUnused.size}; with a rule telling of what has an ErrorNode in it ${violating.size}; " +
+                "telling what the program as it is does not ${adding.size}")
+            for (o in adding.take(10)) appendLine("  added ${o.mutant.source.rel} ${o.mutant.what} at ${o.mutant.at}: ${o.added.take(3)}")
+            for (o in internal.take(10)) appendLine("  internal ${o.mutant.source.rel} ${o.mutant.what} at ${o.mutant.at}: ${o.internal}")
             for (o in withUnused.take(10)) appendLine("  unused ${o.mutant.source.rel} ${o.mutant.what} at ${o.mutant.at}")
             for (o in violating.take(10)) appendLine("  ${o.mutant.source.rel} ${o.mutant.what} at ${o.mutant.at}: ${o.violations.take(3)}")
         }
         File("build/lint-mutations.txt").writeText(report)
-        assertEquals(0, withUnused.size + violating.size, report)
+        assertEquals(0, withUnused.size + violating.size + adding.size + internal.size + internalAsTheyAre, report)
     }
 
     private fun byRule(codes: List<String>): Map<String, Int> = RULES.associateWith { r -> codes.count { it == r } }
 
-    private fun probe(m: Mutant): Outcome {
+    private fun probe(m: Mutant, asItIs: Set<String>): Outcome {
         val module = m.source.module
         val r = NeonLint.lint(m.src, LintOptions(if (module) SourceType.MODULE else SourceType.SCRIPT, maxDiagnostics = 10_000))
+        r.diagnostics.firstOrNull { it.code == NeonLint.INTERNAL_ERROR }?.let { return Outcome(m, emptyList(), 0, emptyList(), it.message) }
         val told = r.diagnostics.filter { it.code in RULES }
         val checked = told.filter { it.code != "unused-variable" }
         if (checked.isEmpty()) return Outcome(m, told.map { it.code }, told.size, emptyList())
+        // (an offset after the mutation, as the program as it is has it)
+        val delta = m.src.length - m.source.src.length
+        val added = checked.filter { d -> d.code + "@" + (if (d.start < m.at) d.start else d.start - delta) !in asItIs }.map { "${it.code} at ${it.start}" }
         // the node each of these rules reads, and whether an ErrorNode is in it
         val tree = Tree(Parser.parseTolerant(m.src, ParseOptions(isModule = module)).program) { false }
         val parent = IdentityHashMap<Node, Node?>()
@@ -124,7 +139,7 @@ class LintMutationTest {
             if (subject == null) violations.add("${d.code} at ${d.start}: no node it reads")
             else if (errors.any { within(it, subject) }) violations.add("${d.code} at ${d.start}: an ErrorNode in the ${subject.javaClass.simpleName}")
         }
-        return Outcome(m, told.map { it.code }, told.count { it.code == "unused-variable" }, violations)
+        return Outcome(m, told.map { it.code }, told.count { it.code == "unused-variable" }, violations, added = added)
     }
 
     private fun accepts(src: String, module: Boolean): Boolean = try {

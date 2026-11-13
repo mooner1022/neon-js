@@ -589,6 +589,8 @@ class LintTest {
             "var v = DEBUG # true ? \"debug\" : \"release\";", "x = \"\\x\" 0 ? a : b;", "x = 1_ 0 ? a : b;", "let v = a\\u0000 0 ? b : c;"))
             clean(code, "constant-condition")
         assertEquals(listOf("L1 e syntax/unexpected-token", "L2 w constant-condition"), marks("let x = (;\nif (true) f();"))
+        // (nor of one with an early error in it, which leaves no ErrorNode: an arrow function with what is no parameter)
+        clean("try { f(); } catch (e) {\n  if ((e instanceof TypeError) => true) {\n    g();\n  }\n}", "constant-condition", SourceType.SCRIPT)
         // (`undefined` may be a declaration's when the source declares one, which the engine misses in a case)
         clean("function load(flag) {\n  if (flag) function undefined() { \"use strict\"; }\n  return undefined ? 1 : 0;\n}", "constant-condition", SourceType.SCRIPT)
     }

@@ -81,7 +81,7 @@ mistakes that run.
 | `unsafe-negation` | warning | operator | `!a in b`, `!a instanceof b` |
 | `debugger` | warning | | a `debugger` statement |
 | `sparse-array` | warning | | an empty slot in an array literal, `[1, , 2]`, told at the comma that makes it (not in a destructuring pattern; one trailing comma is no slot) |
-| `precision-loss` | warning | value | a number literal its value does not keep: `9007199254740993` becomes `9007199254740992`, while `0.1` keeps the one digit it has (`value`: what it becomes) |
+| `precision-loss` | warning | value | a number literal its value does not keep: `9007199254740993` becomes `9007199254740992`, while `0.1` keeps the one digit it has, and a number written as JavaScript prints it is kept (`value`: what it becomes) |
 | `useless-escape` | warning | char | a `\` in a string or an untagged template before a letter that is no escape (not `b f n r t v x u`) or a regular expression's punctuation (`. * + ? ^ \| ( ) [ ] -`): `"\d+"` is `"d+"` |
 | `unused-variable` | warning | name, kind | a name declared and never read (`kind`: `assigned` when it is assigned, else `declared`). See below |
 | `constant-condition` | warning | value | an `if`'s or a `? :`'s condition that is a literal, an array, object, function, class or `new`, a `typeof` or `void`, or `!` of one (`value`: `true` or `false`). Not loops |
@@ -97,7 +97,8 @@ mistakes that run.
   function or class expression's own name, and a script's top level, whose names are globals a host or another script
   may read. Also left alone: names starting with `_`, the names beside a rest element (`const { password, ...rest } =
   user`), a class that uses itself as it is declared, to register itself (a decorator on it or a member, a static
-  block, or a static field whose value calls something or uses `this`), a `var` of a parameter's name, and the names of
+  block, or a static field whose value calls something or uses `this`), a `var` of a parameter's name, a function of a
+  parameter's name in a sloppy function that uses `arguments` (which reads it), and the names of
   a function with a direct `eval` or a `with` in it.
 - **What counts as a read.** A reference that is not an assignment's target, `typeof x`, `export { x }` and
   `export default x`. A logical assignment (`x ??= f()`) reads `x` to decide, and an update or compound assignment
@@ -112,11 +113,15 @@ mistakes that run.
 ### The newer rules beside a syntax error
 
 The other four rules go on beside a syntax error, but tell nothing of what the recovery mode made rather than read:
-- an array, condition or template with an ErrorNode in it (a conditional's anywhere in it);
+- an array, condition or template with an ErrorNode in it (a conditional's anywhere in it), and an array or condition
+  with a syntax error in it (an early error leaves no ErrorNode: `if ((e instanceof E) => true)`);
 - a literal it made by repairing a token: `"abc` read as `""`, `1x` and `0x` as `0`, a regular expression left open
   as `0`;
-- an expression it started where it pretended a `,` or `;` (`value undefined ? a : b` is read as
-  `value; undefined ? a : b`), or an array a syntax error follows (`([, x]) {`, a parameter list without its `=>`);
+- what follows a syntax error on its line. From there the recovery mode may have made what it reads: it pretends a
+  `,`, `:` or `;` and starts a new expression (`value undefined ? a : b` is read as `value; undefined ? a : b`), tells
+  no error for what it pretends after a token it repaired, and reads on mid-line after a statement it passed over
+  (which may start inside a regular expression). The lines after it are checked;
+- an array a syntax error follows (`([, x]) {`, a parameter list without its `=>`);
 - anything from the first "`" on when a template was left open: it ends at the next template's "`", so text is read as
   code and code as text.
 
@@ -187,7 +192,7 @@ The rules follow ESLint's rules of the same purpose (named in the code's descrip
 | `cond-assign` | Accepts the same parentheses as ESLint's `except-parens`. |
 | `duplicate-else-if` | Uses ESLint's algorithm: `||` and `&&` operands, conditions compared by tokens. |
 | `sparse-array` | Same as `no-sparse-arrays`. |
-| `precision-loss` | Same test as `no-loss-of-precision`, but a value halfway between two numbers of as many digits as written rounds to the even one, as JavaScript prints it: `95.00259399414062` is `95.002593994140625` and is printed as written, while ESLint's `toPrecision` rounds the tie up and reports it; `1700000000000000.3` is `1700000000000000.25`, printed `1700000000000000.2`, and is reported. A literal with more than 100 significant digits is judged the same way; ESLint reports every such literal. |
+| `precision-loss` | Same test as `no-loss-of-precision`, but a value halfway between two numbers of as many digits as written rounds to the even one, as JavaScript prints it: `95.00259399414062` is `95.002593994140625` and is printed as written, while ESLint's `toPrecision` rounds the tie up and reports it; `1700000000000000.3` is `1700000000000000.25`, printed `1700000000000000.2`, and is reported. A number written as JavaScript prints it is kept: by a power of two the nearest number of as many digits may read back as another double, so JavaScript prints `2 ** -24` as `5.960464477539063e-8`, which the test alone would report. A literal with more than 100 significant digits is judged the same way; ESLint reports every such literal. |
 | `useless-escape` | Narrower than `no-useless-escape`: only a letter that is no escape and a regular expression's punctuation, in strings and untagged templates. Not a needless `\'`, `\/` or `\$`, nor anything in a regular expression literal. |
 | `unused-variable` | Narrower than `no-unused-vars`: no parameters, catch parameters or `using` declarations, no names starting with `_` or beside a rest element (ESLint's options), no class that registers itself (a decorator, a static block as ESLint's `ignoreClassWithStaticInitBlock`, a static field calling something), no function with a `with`, and not a script's top level. A function or class used only inside itself, `x = x + 1`, and a for-in/of that does nothing count as reads; ESLint counts none of them. Like ESLint, a logical assignment reads, and a for-in/of whose body is a `return` uses its names. |
 | `constant-condition` | Narrower than `no-constant-condition`: no loops, and no constants made with operators (`a \|\| true`, `1 + 1`). |
@@ -349,8 +354,9 @@ taken. This cost was accepted. Not measured on ART.
     fixed. Most are tests of the very construct; 27 of the 40 escapes are real slips (`\p` and `\d` lost in RegExp
     tests' message strings).
   - Three rounds of made-up code (63, 35 and 732 sources) found the false warnings the exceptions above now leave alone.
-  - `LintMutationTest`, in the 18,280 mutants: no `unused-variable`, and none of the other four tells of what has an
-    ErrorNode in it.
+  - `LintMutationTest`, in the 18,280 mutants: no `unused-variable`, and the other four tell nothing that has an
+    ErrorNode in it, nor anything the program as it is does not have: what they tell beside a syntax error is the
+    source's.
   - `precision-loss` agrees with the spec's reference computation on 5,547 literals, but on their 6 ties. It tells
     none of 301,925 numbers written as JavaScript prints them: every power of two, and 300,000 random doubles.
   - Their cost on `lib/events.js`, the five on and off in turn in one JVM: 0.21 ms more after warming up (1.94 against

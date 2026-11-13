@@ -92,6 +92,12 @@ internal class Facts(
         return p <= pos && pos <= src.length && (p until pos).none { src[it] == '\n' || src[it] == '\r' || src[it] == '\u2028' || src[it] == '\u2029' }
     }
 
+    /** Whether a syntax error is in [start, end): an early error, which leaves no ErrorNode (`(a instanceof B) => c`). */
+    fun errorWithin(start: Int, end: Int): Boolean {
+        val i = java.util.Arrays.binarySearch(problemsAt, start).let { if (it < 0) -it - 1 else it }
+        return i < problemsAt.size && problemsAt[i] < end
+    }
+
     /** Whether a syntax error follows [end] with only white space and ')' between: the code before it may be meant as something else. */
     fun errorRightAfter(src: String, end: Int): Boolean {
         val i = java.util.Arrays.binarySearch(problemsAt, end).let { if (it < 0) -it - 1 else it }
@@ -577,7 +583,8 @@ internal object BuiltinRules {
             for (v in c.tree.visits) {
                 val a = v.node as? ArrayLiteral ?: continue
                 if (a.elements.none { it == null } || c.facts.hasErrorNode(a)) continue
-                if (c.facts.misread(a.start) || c.facts.errorEarlierOnLine(c.source, a.start) || c.facts.errorRightAfter(c.source, a.end)) continue
+                if (c.facts.misread(a.start) || c.facts.errorEarlierOnLine(c.source, a.start) || c.facts.errorWithin(a.start, a.end) ||
+                    c.facts.errorRightAfter(c.source, a.end)) continue
                 // (an array literal in an assignment's target is a pattern the parser did not take: `[, x] += y`)
                 if (inTarget(a, v.parent, c.tree)) continue
                 for (comma in holeCommas(c.source, a) ?: continue) c.report(comma, comma + 1, "This array has an empty slot: a ',' too many, or a value left out.")
@@ -614,9 +621,9 @@ internal object BuiltinRules {
         rule("constant-condition", Severity.WARNING, listOf("value"), "An `if` or `? :` whose condition is a literal, an array, object, function, class or `new`, a `typeof` or `void`, or `!` of one: it always goes the same way. Not loops.") { c ->
             for (v in c.tree.visits) {
                 val test = when (val n = v.node) {
-                    is IfStatement -> n.test.takeUnless { c.facts.hasErrorNode(it) }
-                    // (a conditional with an ErrorNode anywhere in it is one expression the parse could not read)
-                    is ConditionalExpression -> n.test.takeUnless { c.facts.hasErrorNode(n) }
+                    is IfStatement -> n.test.takeUnless { c.facts.hasErrorNode(it) || c.facts.errorWithin(it.start, it.end) }
+                    // (a conditional with an ErrorNode or a syntax error anywhere in it is one expression the parse could not read)
+                    is ConditionalExpression -> n.test.takeUnless { c.facts.hasErrorNode(n) || c.facts.errorWithin(n.start, n.end) }
                     else -> null
                 } ?: continue
                 // (not a condition the recovery mode may have made: after a syntax error on its line)
