@@ -5,7 +5,7 @@ suite run once before a large pull request. `tools/check.sh` has the three level
 
 | level | command | what | time (8 cores) |
 |---|---|---|---|
-| quick | `tools/check.sh quick` | neon-vm's and neonjs-core's unit tests; a fixed 1 in 20 of Test262 in the interpreter and in the JIT's stress modes | ~2.5–3 min |
+| quick | `tools/check.sh quick` | neon-vm's, neonjs-core's and neonjs-lint's unit tests; a fixed 1 in 20 of Test262 in the interpreter and in the JIT's stress modes | ~3–4 min |
 | codegen | `tools/check.sh codegen [REF]` | the classes the JIT generates for that part of Test262, against those of REF (default `main`) | ~1.5 min (~3 the first time for a REF) |
 | full | `tools/check.sh full` | what CI runs, then all of Test262 in the stress modes | long: before a large pull request |
 
@@ -81,6 +81,31 @@ tree. `ClassDiffKt BEFORE AFTER [--show N] [--subset] [--equiv FILE]` can compar
 CI's runs (the three modes, compiled with every class translated by dx, intl402), then all of Test262 in the four
 stress modes; web-platform-tests and Node.js's tests where `third_party/wpt` and `third_party/node` are checked out (CI
 checks them out; see `.github/workflows/ci.yml`).
+
+## The parser
+
+A change to the parser should leave the engine's parse as it was. Two tools in neonjs-test262 check this. They use
+only the public parser API, so they build against an older engine too, as codegen's REF does.
+
+- **`ParseBaseline`** records what `Parser.parse` makes of every Test262 file, in each mode the runner parses it in.
+  For each it records the error (offset and message) or a digest of the whole tree. `--compare FILE` compares a build
+  with a saved table and fails on any difference:
+
+  ```
+  java -Xss64m -cp "neonjs-test262/build/install/neonjs-test262/lib/*" dev.mooner.neonjs.test262.ParseBaseline --root third_party/test262 --out base.tsv
+  ```
+- **`ParseBench`** times `Parser.parse` over the files it accepts, giving the median of rounds 5–14. Its options:
+  - `--once FILE`: one parse in a new JVM, the cold time.
+  - `--untimed negatives|valid [--tolerant]`: reads files untimed before each round, with the engine or with the
+    recovery mode.
+  - `--pollute negatives|valid [--tolerant]`: the engine's median before and after the recovery mode has read a set,
+    in one JVM.
+
+  To compare two commits, build REF in a worktree with this runner, as codegen does, and run the two builds in turn.
+
+The recovery mode's own tests (`RecoveryTest`, `TolerantProbeTest`, `MutationTest`) and the linter's are in `quick`.
+Those reading Test262 or Node.js are skipped without `third_party/test262` (`TEST262`) or `third_party/node`; see
+docs/LINT.md.
 
 ## Runner options
 

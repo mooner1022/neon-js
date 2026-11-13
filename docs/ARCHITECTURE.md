@@ -20,6 +20,24 @@ assignment targets, `using` placement, class private names, regular-expression l
 compiler, Unicode 17 identifiers from the generated tables). AST nodes carry two annotation slots filled by later
 passes: `scope` and `ref`.
 
+### Recovery mode
+
+`Parser.parseTolerant` reads on after errors, for the linter (`neonjs-lint`, docs/LINT.md). `RecoveringParser`, a
+subclass of `ParserImpl`, overrides only:
+- `parseListedStatement`, called at a statement list's statements;
+- `declareName`, called for each declared name;
+- `parseClassMembers`, called once per class body;
+- `parseParams`, called once per function;
+- the methods called on an error's path (`raise`, `fail`, `expectFailed`, `expressionExpected`, ...).
+
+The engine's parse is unchanged. Each error is handled as follows:
+- An early error (`raise`) is recorded, and the parse goes on from it.
+- A token missing where the next token can follow it is taken as there.
+- Any other error (`fail`, or the lexer's) ends the statement or class member. Its effects on the parser's state are
+  undone, the tokens are passed over to the next statement, and an `ErrorNode` keeps the names it declared.
+  `ScopeAnalyzer` declares those names.
+- A token the lexer cannot read is repaired, with the same length, in a copy of the source, which is then read again.
+
 ## Scope analysis (`compiler/Scopes.kt`)
 
 `ScopeAnalyzer` builds a `Scope` tree (function, block, catch, class, with, module, global, eval) and resolves every
@@ -460,6 +478,10 @@ took 10-20% less.
 
 ## Optional modules and extensions
 
+- **`neonjs-lint`** is a linter: the parser's recovery mode, the compiler's scope analysis and rules for mistakes that
+  are valid code, behind `NeonLint.lint` (no engine needed). `EngineGlobals` lists the globals of each engine
+  configuration. A host's own rules read the tree through `@LintTreeApi`. See docs/LINT.md.
+
 - **`neonjs-intl`** implements ECMA-402 on ICU4J. Core only defines the `IntlProvider` SPI (found with
   `ServiceLoader`); the provider is installed last in `Builtins.install`, so it can replace the locale-sensitive
   methods of Date, Number, BigInt, String, Array and %TypedArray%. ICU is loaded lazily on first use; non-thread-safe
@@ -521,6 +543,12 @@ commit's, or runs everything before a large pull request (docs/TESTING.md).
   repeats the essentials on ART; `SecurityTest` lists the compiled classes of the engine package, each of which must
   be denied or declared harmless.
 - `neonjs-intl` unit tests: Intl basics, default locale and host-locale hiding, input caps, threads, method sizes.
+- The parser's recovery mode, in neonjs-core:
+  - `RecoveryTest` covers its cases;
+  - `TolerantProbeTest` reads all of Test262 with it;
+  - `MutationTest` reads mutants of Test262's and Node.js's code.
+- The linter: neonjs-lint's `LintTest` (each rule), `EngineGlobalsTest`, `Test262LintTest` and `LintBenchTest`.
+- The parser's own checks: `ParseBaseline` and `ParseBench` in neonjs-test262 (docs/TESTING.md).
 - `neonjs-test262`: the Test262 runner, the mutation fuzzer `FuzzKt` (see the README), and `WptKt`, which runs
   web-platform-tests' `.any.js` tests as WPT's server runs them in a worker (testharness.js in its shell
   environment, all scripts one task, then the event loop until the harness completes; to idlharness.js the global

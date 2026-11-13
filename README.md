@@ -73,6 +73,7 @@ dependencies {
     implementation("dev.mooner.neonjs:neonjs-intl:…")   // optional: Intl and the non-ISO Temporal calendars (ICU4J)
     implementation("dev.mooner.neonjs:neonjs-net:…")    // optional: fetch and WebSocket (OkHttp), within a network policy
     implementation("dev.mooner.neonjs:neonjs-node:…")   // optional: Node.js APIs (node: modules, require, Buffer)
+    implementation("dev.mooner.neonjs:neonjs-lint:…")   // optional: a linter (syntax errors, mistakes that are valid code)
 }
 ```
 
@@ -598,6 +599,7 @@ their context).
 | `neonjs-android-d8` | optional `DexConverter` using D8 (r8 library) instead of dx |
 | `neonjs-net` | `fetch` and `WebSocket` over OkHttp: `NetExtension`, `NetOptions` (the policy), the `undici` and `ws` modules |
 | `neonjs-node` | Node.js APIs: `NodeExtension`, the `node:` modules (`lib/`: Node's own sources and NeonJS's), their Kotlin side |
+| `neonjs-lint` | linter: `NeonLint.lint` (the parser's recovery mode, the scope analysis, rules), `EngineGlobals`; see docs/LINT.md |
 | `neonjs-cli` | command-line runner and REPL |
 | `neonjs-test262` | Test262, web-platform-tests and Node.js test runners |
 

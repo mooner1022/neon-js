@@ -20,4 +20,9 @@ tasks.test {
     jvmArgs("-Xss16m")
     // frames and argument arrays are reused as on ART (off by default on HotSpot): FramePoolTest and the rest test that
     systemProperty("neonjs.framePool", "true")
+    // Test262, where tools/check.sh checks it out: TolerantProbeTest reads all of it (and is skipped without it); its
+    // revision is an input, so that a run without it is not reused once it is there
+    val test262 = rootProject.file(System.getenv("TEST262") ?: "third_party/test262")
+    systemProperty("neonjs.test262", test262.absolutePath)
+    inputs.property("test262", providers.provider { File(test262, ".git/HEAD").takeIf { it.isFile }?.readText()?.trim() ?: "absent" })
 }

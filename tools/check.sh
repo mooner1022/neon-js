@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Development checks (docs/TESTING.md).
 #
-#   tools/check.sh quick            unit tests, then a fixed 1/20 of Test262 in the interpreter and in the JIT's stress modes
+#   tools/check.sh quick            unit tests (vm, core, lint), then a fixed 1/20 of Test262 in the interpreter and in the JIT's stress modes
 #   tools/check.sh codegen [REF]    the classes the JIT generates for that part of Test262, against those of REF (default: main)
 #   tools/check.sh full             what CI runs, and all of Test262 in the stress modes: before a large pull request
 #
@@ -70,8 +70,8 @@ stress_modes() {
 
 quick() {
   test262_checkout
-  step "unit tests (neon-vm, neonjs-core), Test262 runner"
-  gradle :neon-vm:test :neonjs-core:test :neonjs-test262:installDist
+  step "unit tests (neon-vm, neonjs-core, neonjs-lint), Test262 runner"
+  gradle :neon-vm:test :neonjs-core:test :neonjs-lint:test :neonjs-test262:installDist
   step "Test262, 1 test in $SAMPLE"
   # (the generated Unicode property tests check RegExp's tables, slowly in the interpreter: full runs them)
   stress_modes --sample "$SAMPLE" --timeout 60000 --exclude built-ins/RegExp/property-escapes/generated
@@ -147,7 +147,10 @@ full() {
     step "Node.js tests"
     java -Xss16m -cp "$LIB" dev.mooner.neonjs.test262.NodeTestsKt --root third_party/node \
       --known neonjs-test262/node-known-failures.txt --retries 1 || fail "Node.js tests"
-  else echo "(no third_party/node: Node.js tests skipped; CI runs them)"; fi
+    step "the linter's timing (neonjs-lint/build/lint-bench.txt)"
+    gradle :neonjs-lint:test --tests 'dev.mooner.neonjs.lint.LintBenchTest' -PlintBench --rerun
+    cat neonjs-lint/build/lint-bench.txt
+  else echo "(no third_party/node: Node.js tests and the linter's timing skipped; CI runs the tests)"; fi
 }
 
 case ${1:-quick} in

@@ -13,7 +13,7 @@ plugins {
 
 // The libraries published as dev.mooner.neonjs:<module> to the GitHub Pages repository and, for some releases, Maven
 // Central (docs/RELEASING.md); the CLI and the Test262 runner are not published.
-val publishedModules = setOf("neon-vm", "neonjs-core", "neonjs-intl", "neonjs-net", "neonjs-node", "neonjs-android", "neonjs-android-d8")
+val publishedModules = setOf("neon-vm", "neonjs-core", "neonjs-intl", "neonjs-net", "neonjs-node", "neonjs-android", "neonjs-android-d8", "neonjs-lint")
 
 subprojects {
     apply(plugin = "org.jetbrains.kotlin.jvm")
