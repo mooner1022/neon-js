@@ -292,8 +292,12 @@ ctx.defineModule("host:db", mapOf("query" to queryFunction, "version" to 2))   /
   `ZonedDateTime`, an `OffsetDateTime` and a `java.util.Date`.
   - `Date.prototype`'s getters read its instant: `d.getTime()`, `d.toISOString()`, `JSON.stringify(d)`, `+d`,
     comparisons and `d instanceof Date`.
-  - It is read only: a setter is a TypeError.
-  - Java's members come first: `String(instant)` is `Instant.toString()`.
+  - `Date.prototype`'s setters are a TypeError on it.
+  - Java's members come first. `String(instant)` is `Instant.toString()`, and a `java.util.Date`'s own `setTime` is
+    Java's and changes it.
+  - A `ZonedDateTime`'s `getMonth()` and `getYear()` are Java's (`JANUARY`, 2026), while `getHours()` is
+    `Date.prototype`'s, in the context's time zone rather than the object's.
+  - `toLocale*String` (with neonjs-intl) and `toTemporalInstant` read it too.
   - A `LocalDateTime` or `LocalDate` names no instant and is not a Date (as in GraalJS).
   - This holds under `ALL` and `EXPLICIT`, not under `NONE`.
 - Under `HostAccess.ALL`, Java arrays and `List`s are JS arrays to scripts, as GraalJS's foreign arrays are, so an

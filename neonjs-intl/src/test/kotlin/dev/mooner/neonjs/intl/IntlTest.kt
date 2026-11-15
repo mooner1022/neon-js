@@ -1,5 +1,6 @@
 package dev.mooner.neonjs.intl
 
+import dev.mooner.neonjs.HostAccess
 import dev.mooner.neonjs.NeonEngine
 import dev.mooner.neonjs.NeonException
 import dev.mooner.neonjs.SandboxPolicy
@@ -18,6 +19,16 @@ import java.util.concurrent.TimeUnit
 class IntlTest {
     private fun ctx(policy: SandboxPolicy = SandboxPolicy.builder().defaultLocale("en-US").timeZone("UTC").build()) =
         NeonEngine.builder().sandbox(policy).build().newContext()
+
+    @Test
+    fun aHostDateTimeIsFormattedAsADate() {
+        // an Instant or ZonedDateTime is a JS Date to scripts (neonjs-core's interop): Intl's toLocale*String take it
+        NeonEngine.builder().hostAccess(HostAccess.ALL).sandbox(SandboxPolicy.builder().defaultLocale("en-US").timeZone("UTC").build())
+            .build().newContext().use { c ->
+                c["i"] = java.time.Instant.parse("2026-01-02T03:04:05Z")
+                assertEquals("1/2/2026|3:04:05 AM", c.eval("[i.toLocaleDateString('en-US'), i.toLocaleTimeString('en-US')].join('|')").asString())
+            }
+    }
 
     private fun eval(code: String, policy: SandboxPolicy? = null): String =
         (if (policy == null) ctx() else ctx(policy)).use { it.eval(code).asString() }

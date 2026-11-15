@@ -23,6 +23,8 @@ class Thrower {
 /** A non-public exception: JS sees it as its public superclass. */
 private class HiddenFailure : IllegalStateException("hidden")
 
+fun twice(x: Int) = x * 2
+
 class LongSink {
     fun take(x: Long) = x.toString()
     fun pick(x: Long) = "long $x"
@@ -286,10 +288,15 @@ class ForeignObjectsTest {
                 instant.getUTCFullYear(), JSON.stringify(instant), +instant, instant < new Date(10), Object.prototype.toString.call(instant), typeof instant].join('|')"""))
             assertEquals("1767290645000,1767290645000,86400000", c.str("[zoned.getTime(), offset.getTime(), legacy.getTime()].join()"))
             assertEquals("\"2026-01-01T18:04:05.000Z\"", c.str("JSON.stringify(zoned)"))
-            // Java's members come first: String(instant) is Instant.toString(); a host date-time is read only
+            // Java's members come first: String(instant) is Instant.toString(); Date.prototype's setters are a TypeError
             assertEquals("1970-01-01T00:00:00.005Z|TypeError|TypeError", c.str("""[String(instant),
                 (() => { try { instant.setTime(0) } catch (e) { return e.name } })(),
                 (() => { try { zoned.setFullYear(2000) } catch (e) { return e.name } })()].join('|')"""))
+            // ...but a java.util.Date's own setTime is Java's, and changes it; a ZonedDateTime's getMonth() is Java's
+            assertEquals("7,JANUARY,2026", c.str("[(legacy.setTime(7), legacy.getTime()), zoned.getMonth(), zoned.getYear()].join()"))
+            assertEquals(7L, (values["legacy"] as java.util.Date).time)
+            // Date.prototype.toTemporalInstant reads it too
+            assertEquals("1970-01-01T00:00:00.005Z", c.str("String(instant.toTemporalInstant())"))
         }
         // under EXPLICIT (members hidden) a Date still, as in GraalJS; under NONE nothing
         ctx(HostAccess.EXPLICIT).use { c ->
@@ -299,6 +306,40 @@ class ForeignObjectsTest {
         ctx(HostAccess.NONE).use { c ->
             c["instant"] = java.time.Instant.ofEpochMilli(5)
             assertEquals("false,undefined", c.str("[instant instanceof Date, typeof instant.getTime].join()"))
+        }
+    }
+
+    @Test
+    fun aSiteSeesJsFunctionsAndDatesThenHostOnes() {
+        // one function's sites (call, bind, apply.call; getTime, toISOString, +d) warmed by JS values, then given host ones
+        for (mode in ExecutionMode.entries) {
+            NeonEngine.builder().hostAccess(HostAccess.ALL).executionMode(mode).console(null).build().newContext().use { c ->
+                c["hf"] = LongSink().fn()
+                c["hd"] = java.time.Instant.ofEpochMilli(5)
+                c.eval("""
+                    function f(fn, d) {
+                        return fn.call(null, 1) + fn.bind(null, 2)() + Function.prototype.apply.call(fn, null, [3])
+                            + d.getTime() + d.toISOString().length + (+d) + (d instanceof Date ? 100 : 0);
+                    }
+                    var jf = x => x + 1, jd = new Date(5), sum = 0;
+                    for (var i = 0; i < 3000; i++) sum += f(jf, jd);
+                    for (var i = 0; i < 3000; i++) sum += f(hf, hd);
+                    for (var i = 0; i < 3000; i++) sum += f(i % 2 ? jf : hf, i % 3 ? jd : hd);
+                """)
+                // f gives 2 + 3 + 4 + 5 + 24 + 5 + 100 = 143 for both
+                assertEquals(143 * 9000, c.eval("sum").asInt(), mode.name)
+            }
+        }
+    }
+
+    @Test
+    fun aKotlinFunctionReferenceIsAFunction() {
+        ctx().use { c ->
+            c["kf"] = ::twice
+            c["out"] = null
+            assertEquals("function,6", c.str("[typeof kf, kf(3)].join()"))
+            // its call is Function.prototype.call (KCallable's reflective call is no member of the reference)
+            assertEquals("8,8", c.str("[kf.call(null, 4), Function.prototype.call.call(kf, null, 4)].join()"))
         }
     }
 
@@ -325,6 +366,9 @@ class ForeignObjectsTest {
             c["h"] = LongSink()
             assertEquals("1152921504606846976,-9223372036854775808,9007199254740994", c.str("[h.take(2 ** 60), h.take(-(2 ** 63)), h.take(2 ** 53 + 2)].join()"))
             assertEquals("TypeError,TypeError", c.str("[2 ** 63, 1.5].map(x => { try { h.take(x); return 'no' } catch (e) { return e.name } }).join()"))
+            // NeonValue.asLong: the same whole numbers (2 ** 63 converted to Long.MAX_VALUE before)
+            assertEquals(1L shl 60, c.eval("2 ** 60").asLong())
+            org.junit.jupiter.api.assertThrows<ArithmeticException> { c.eval("2 ** 63").asLong() }
             // a choice made for one number beyond 2^53 is not remembered for another: 2 ** 64 fits no long
             assertEquals("long 1152921504606846976,TypeError", c.str("[h.pick(2 ** 60), (() => { try { return h.pick(2 ** 64) } catch (e) { return e.name } })()].join()"))
         }

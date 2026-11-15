@@ -17,9 +17,7 @@ internal object DateBuiltins {
      */
     private fun thisTime(t: Any?, method: String): Double {
         if (t is JSDate) return t.timeValue
-        if (t is JSObject && t.special and JSObject.FOREIGN_DATE != 0 && t is ForeignDate) {
-            return DateTime.timeClip(t.foreignTimeValue() ?: Double.NaN)
-        }
+        foreignDateTimeValue(t)?.let { return it }
         return thisDate(t, method).timeValue
     }
 

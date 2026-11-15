@@ -113,8 +113,9 @@ internal object DateTimeFormatBuiltins {
     }
 
     private fun dateToLocale(realm: Realm, t: Any?, args: Array<Any?>, required: String, defaults: String, method: String): String {
-        val d = t as? JSDate ?: typeErr("Date.prototype.$method called on incompatible receiver ${Ops.toDisplayString(t)}")
-        val x = d.timeValue
+        // a Date, or a host date-time shown as one (an Instant, a ZonedDateTime...)
+        val x = (t as? JSDate)?.timeValue ?: foreignDateTimeValue(t)
+            ?: typeErr("Date.prototype.$method called on incompatible receiver ${Ops.toDisplayString(t)}")
         if (x.isNaN()) return "Invalid Date"
         val locales = args.arg(0)
         val options = args.arg(1)

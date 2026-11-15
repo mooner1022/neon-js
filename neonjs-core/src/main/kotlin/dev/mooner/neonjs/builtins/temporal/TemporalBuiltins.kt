@@ -54,7 +54,9 @@ object TemporalBuiltins {
     /** Date.prototype.toTemporalInstant */
     @JvmStatic
     fun dateToTemporalInstant(thisValue: Any?): Any {
-        val d = thisValue as? JSDate ?: throw JSException.typeError("Date.prototype.toTemporalInstant called on incompatible receiver")
-        return TCreate.instant(InstantBuiltins.msToNs(d.timeValue))
+        // a Date, or a host date-time shown as one
+        val tv = (thisValue as? JSDate)?.timeValue ?: foreignDateTimeValue(thisValue)
+            ?: throw JSException.typeError("Date.prototype.toTemporalInstant called on incompatible receiver")
+        return TCreate.instant(InstantBuiltins.msToNs(tv))
     }
 }
