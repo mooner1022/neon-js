@@ -208,6 +208,16 @@ private fun hostInterop(): String {
             "sl.push('c'), sl.splice(0, 1)[0], sl.length, (() => { try { fl.pop() } catch (e) { return e.name } })(), fl.length].join()")
         check(arrays == "true,6-2-4,[3,1,2],3,1,2,1,3,b,2,TypeError,2") { "host arrays: $arrays" }
         check(ints.toList() == listOf(1, 2, 3)) { "ia.sort() in place: ${ints.toList()}" }
+        // a Java Map is a JS Map, a JS Map given as a Java Map its entries, a host exception named after its class,
+        // and a host date-time read by new Date (ART's own Map, exception and java.time classes)
+        val hm = linkedMapOf<String, Any?>("a" to 1)
+        ctx["hm"] = hm
+        val maps = js("hm.set('b', 2); [hm instanceof Map, [...hm.keys()].join('-'), " +
+            "new (Java.type('java.util.HashMap'))(new Map([['k', 1]])).get('k'), " +
+            "(() => { try { Java.type('java.lang.Integer').parseInt('x') } catch (e) { return e.name + ':' + (e instanceof Java.type('java.lang.NumberFormatException')) } })(), " +
+            "new Date(Java.type('java.time.Instant').ofEpochMilli(5)).getTime()].join()")
+        check(maps == "true,a-b,1,java.lang.NumberFormatException:true,5") { "maps, exceptions, dates: $maps" }
+        check(hm["b"] == 2) { "hm.set on the host Map: $hm" }
         // a method naming a class missing at run time is left out; ART resolves signatures method by method, so the
         // class's other methods stay
         val definer = CodeDefiners.default
@@ -229,7 +239,7 @@ private fun hostInterop(): String {
             }
         }
         check(missing.isEmpty()) { "not members: $missing" }
-        return "StringBuilder, functions, round trip, longs, host arrays, missing classes; $methods methods of 5 classes are members"
+        return "StringBuilder, functions, round trip, longs, host arrays, maps, exceptions, dates, missing classes; $methods methods of 5 classes are members"
     }
 }
 
