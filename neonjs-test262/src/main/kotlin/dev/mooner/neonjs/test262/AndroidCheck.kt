@@ -223,6 +223,13 @@ private fun hostInterop(): String {
             "typeof Packages.android.os.Build].join()")
         val build = if (apiLevel > 0) "function" else "object"
         check(pkgs == "0,true,[JavaPackage java.util],$build") { "package globals: $pkgs" }
+        // android as a global; a lambda with Function.prototype; an Instant as a Date; Java.typeName; a long parameter
+        // beyond 2^53 (ART's own java.time, d8-desugared lambdas)
+        ctx["fn"] = java.util.function.Function<Int, Int> { it + 1 }
+        val more = js("[typeof android.os.Build === typeof Packages.android.os.Build, fn.call(null, 1), fn.bind(null, 2)(), " +
+            "Java.type('java.time.Instant').ofEpochMilli(5) instanceof Date, Java.type('java.time.Instant').ofEpochMilli(5).getTime(), " +
+            "Java.typeName(Java.type('int[]')), String(Java.type('java.lang.Long').valueOf(2 ** 60))].join()")
+        check(more == "true,2,3,true,5,int[],1152921504606846976") { "functions, dates, typeName, long: $more" }
         // a method naming a class missing at run time is left out; ART resolves signatures method by method, so the
         // class's other methods stay
         val definer = CodeDefiners.default
@@ -244,7 +251,7 @@ private fun hostInterop(): String {
             }
         }
         check(missing.isEmpty()) { "not members: $missing" }
-        return "StringBuilder, functions, round trip, longs, host arrays, maps, exceptions, dates, missing classes; $methods methods of 5 classes are members"
+        return "StringBuilder, functions, round trip, longs, host arrays, maps, exceptions, dates, packages, missing classes; $methods methods of 5 classes are members"
     }
 }
 
