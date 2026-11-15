@@ -47,6 +47,7 @@ class HostAccess private constructor(b: Builder) {
     val allowListAccess: Boolean = b.allowListAccess
     val allowMapAccess: Boolean = b.allowMapAccess
     val allowIterableAccess: Boolean = b.allowIterableAccess
+    val allowExceptionAccess: Boolean = b.allowExceptionAccess
     /** Allow JS objects/functions to be converted to host interfaces (callbacks, listeners). */
     val allowImplementations: Boolean = b.allowImplementations
 
@@ -238,6 +239,7 @@ class HostAccess private constructor(b: Builder) {
         var allowListAccess = level == Level.ALL
         var allowMapAccess = level == Level.ALL
         var allowIterableAccess = level == Level.ALL
+        var allowExceptionAccess = false
         var allowImplementations = true
 
         fun classFilter(f: (Class<*>) -> Boolean) = apply { classFilter = f }
@@ -291,6 +293,13 @@ class HostAccess private constructor(b: Builder) {
         fun allowMapAccess(b: Boolean) = apply { allowMapAccess = b }
         /** `Iterable`s and `Iterator`s are JS-iterable; on by default for [Level.ALL] only (see [allowArrayAccess]). */
         fun allowIterableAccess(b: Boolean) = apply { allowIterableAccess = b }
+        /**
+         * A host exception JS catches (a `HostError`, named after its Java class) also has the exception's methods:
+         * `e.getMessage()`, `e.getCause()`, `e.getStackTrace()`, as this policy shows them for its class (under
+         * [Level.EXPLICIT], the exported ones), as in GraalJS. Off by default at every level: the message and the class
+         * name are all JS learns of a host exception otherwise.
+         */
+        fun allowExceptionAccess(b: Boolean) = apply { allowExceptionAccess = b }
         fun allowImplementations(b: Boolean) = apply { allowImplementations = b }
         fun build() = HostAccess(this)
     }

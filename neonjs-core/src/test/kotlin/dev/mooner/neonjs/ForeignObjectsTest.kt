@@ -15,6 +15,10 @@ class CollectionSink {
     fun props(m: Map<String, Any?>): String = m.toString()
 }
 
+class Thrower {
+    fun io() { throw java.io.IOException("boom", IllegalStateException("inner")) }
+}
+
 /**
  * Host objects as GraalJS shows them to scripts, where NeonJS fell short: JS Maps and Sets
  * as Java ones, host date-times for `new Date`. Expectations are GraalJS 25.5's answers to the same scripts, except
@@ -102,6 +106,48 @@ class ForeignObjectsTest {
         ctx(HostAccess.builder(HostAccess.Level.EXPLICIT).allowMapAccess(true).build()).use { c ->
             c["m"] = linkedMapOf("a" to 1)
             assertEquals("true,true,1", c.str("[m instanceof Map, m.has('a'), m.get('a')].join()"), "Map.prototype's get: Java's is hidden here")
+        }
+    }
+
+    @Test
+    fun aHostExceptionIsNamedAfterItsClass() {
+        val lookup = HostAccess.builder(HostAccess.Level.ALL).allowLookup { true }.build()
+        ctx(lookup, SandboxPolicy.builder().exposeJavaGlobal(true).build()).use { c ->
+            c["t"] = Thrower()
+            assertEquals("java.io.IOException|java.io.IOException: boom|boom|true,true,true,false,false|undefined", c.str("""
+                try { t.io() } catch (e) {
+                    [e.name, String(e), e.message,
+                     [e instanceof Error, e instanceof Java.type('java.io.IOException'), e instanceof Java.type('java.lang.Exception'),
+                      e instanceof Java.type('java.lang.IllegalStateException'), ({}) instanceof Java.type('java.lang.Exception')].join(),
+                     typeof e.getMessage].join('|')
+                }"""), "its methods only where the policy allows them")
+        }
+        // a policy that shows nothing of the host: no class name either (a failed future's error, as a host call fails
+        // nowhere under NONE)
+        NeonEngine.builder().hostAccess(HostAccess.NONE).console(null).build().newContext().use { c ->
+            c["f"] = java.util.concurrent.CompletableFuture.failedFuture<Any>(java.io.IOException("x"))
+            c.eval("var out; f.catch(e => { out = String(e) })")
+            c.runEventLoop(5_000)
+            assertEquals("HostError: x", c.str("out"))
+        }
+    }
+
+    @Test
+    fun aHostExceptionsMethodsWhereThePolicyAllowsThem() {
+        val all = HostAccess.builder(HostAccess.Level.ALL).allowExceptionAccess(true).build()
+        ctx(all).use { c ->
+            c["t"] = Thrower()
+            assertEquals("boom|inner|java.io.IOException: boom|true", c.str("""
+                try { t.io() } catch (e) { [e.getMessage(), e.getCause().getMessage(), e.toString(), e.getStackTrace().length > 0].join('|') }"""),
+                "the error's own toString stays Error.prototype's")
+        }
+        // under EXPLICIT, the exported ones only (none of IOException's)
+        val explicit = HostAccess.builder(HostAccess.Level.EXPLICIT).allowExceptionAccess(true).build()
+        ctx(explicit).use { c ->
+            c["f"] = java.util.concurrent.CompletableFuture.failedFuture<Any>(java.io.IOException("x"))
+            c.eval("var out; f.catch(e => { out = [e.name, typeof e.getMessage].join() })")
+            c.runEventLoop(5_000)
+            assertEquals("java.io.IOException,undefined", c.str("out"))
         }
     }
 

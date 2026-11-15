@@ -513,7 +513,8 @@ class HostClassObject(@JvmField val bridge: HostBridge, @JvmField val cls: Class
         if (key === JSSymbol.hasInstance) {
             return NativeFunction(bridge.realm, "[Symbol.hasInstance]", 1, { _, _, a, _ ->
                 val v = a.arg(0)
-                v is HostObject && cls.isInstance(v.target)
+                // a host object of the class, or a HostError whose exception is one (`e instanceof IOException`)
+                v is HostObject && cls.isInstance(v.target) || v is JSObject && bridge.hostCauseOf(v)?.let { cls.isInstance(it) } == true
             })
         }
         if (key !is String) return NotFound

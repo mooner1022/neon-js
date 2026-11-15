@@ -127,7 +127,8 @@ class HostMemberSweepTest {
                     c["x"] = make()
                     c["n"] = m
                     val r = try {
-                        c.eval("try { x[n](); 'ok' } catch (e) { e && e.name === 'HostError' ? 'ok' : 'engine ' + e }").asString()
+                        // a host error is named after its Java class (a qualified name), an engine error is a TypeError...
+                        c.eval("try { x[n](); 'ok' } catch (e) { e && /^[\\w$]+(\\.[\\w$]+)+$/.test(e.name) ? 'ok' : 'engine ' + e }").asString()
                     } catch (e: Exception) {
                         "escaped $e"
                     }

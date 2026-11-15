@@ -243,20 +243,22 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
 
     private fun isSyntaxError(v: JSErrorObject): Boolean = v.proto === realm.errorPrototypes[ErrorKind.SYNTAX]
 
-    private val hostCauseKey = JSSymbol("hostCause")
+    private fun hostCauseOf(o: JSObject): Throwable? = bridge.hostCauseOf(o)
 
-    private fun hostCauseOf(o: JSObject): Throwable? {
-        val pm = o.props ?: return null
-        val i = pm.find(hostCauseKey)
-        if (i < 0) return null
-        return ((pm.values[i] as? HostObject)?.target as? Throwable)
-    }
-
+    /**
+     * A host exception as JS catches it: an Error with its message, named after its Java class where the policy shows
+     * the class at all (`java.io.IOException`, as GraalJS names it; else `HostError`), which `instanceof` a host class
+     * tests ([HostClassObject]), with the exception's methods where the policy allows them
+     * ([HostAccess.allowExceptionAccess]).
+     */
     private fun hostErrorToJS(e: HostException, r: Realm): Any? {
         val cause = e.hostCause
         val err = r.newError(ErrorKind.ERROR, cause.message ?: cause.javaClass.simpleName)
-        err.defineOwn("name", "HostError", Attr.WC)
-        err.defineOwn(hostCauseKey, HostObject(bridge, cause, dev.mooner.neonjs.interop.HostClassInfo.of(Any::class.java, HostAccess.NONE)), Attr.NONE)
+        val access = engine.hostAccess
+        val shown = access.isInstanceAccessible(cause.javaClass)
+        err.defineOwn("name", if (shown) cause.javaClass.name else "HostError", Attr.WC)
+        err.defineOwn(bridge.hostCauseKey, HostObject(bridge, cause, dev.mooner.neonjs.interop.HostClassInfo.of(Any::class.java, HostAccess.NONE)), Attr.NONE)
+        if (shown && access.allowExceptionAccess) bridge.exposeExceptionMembers(err, cause)
         return err
     }
 

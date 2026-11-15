@@ -122,7 +122,9 @@ differences between the interpreter and compiled code. Classes used on error pat
   symbolic links). Custom loaders must do their own confinement.
 - **Futures.** A `CompletionStage` given to JS counts as pending work until it completes: `runEventLoop` and
   `NeonValue.await` wait for it (bounded by the time limit and `interrupt()`). Its completion value goes through
-  the normal host → JS conversion, and a failure becomes a `HostError` carrying only the exception's message.
+  the normal host → JS conversion, and a failure becomes an Error carrying only the exception's message and class name
+  (`HostError` under `NONE`), as any host exception does unless `HostAccess.Builder.allowExceptionAccess` gives
+  scripts its methods.
 - **Timers** (`webGlobals(true)`). One shared daemon thread schedules all timers; it only queues jobs, and the
   callbacks run on the context's thread under its limits. Timers are capped per context (`maxTimers`, which
   `AbortSignal.timeout` counts against too), take no string callbacks, and are cancelled when the context is closed.

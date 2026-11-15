@@ -306,8 +306,14 @@ ctx.defineModule("host:db", mapOf("query" to queryFunction, "version" to 2))   /
 - JS functions convert to any functional interface (`Runnable`, `Consumer`, Kotlin `fun interface`s, …) and JS
   objects to any interface. The proxies re-enter the context safely from any thread, and come back to the context
   that made them as the original JS function or object.
-- Host exceptions surface in JS as `HostError` objects (catchable); uncaught JS errors surface in the host as
-  `NeonException` with `guestValue`, the JS stack trace (`jsStack`) and where the error arose: `sourceName`, `line`
+- Host exceptions surface in JS as catchable Errors named after their Java class, as in GraalJS:
+  - `e.name` is `java.io.IOException`, so `String(e)` is `java.io.IOException: …`. Where the policy shows nothing of
+    the host (`NONE`), the name is `HostError`.
+  - `e instanceof Java.type('java.io.IOException')` and its superclasses are true.
+  - Only the message and the class name reach JS unless `HostAccess.Builder.allowExceptionAccess(true)`. With it, the
+    error also has the exception's methods (`e.getMessage()`, `e.getCause()`, `e.getStackTrace()`), as the policy
+    shows them for its class.
+- Uncaught JS errors surface in the host as `NeonException` with `guestValue`, the JS stack trace (`jsStack`) and where the error arose: `sourceName`, `line`
   and `column`. That is the parser's position for a syntax error (`NeonSyntaxException`), the innermost frame where
   an error object was created, and the `throw` for any other value. `line` is 0 when no JS code was running (a sandbox
   limit).

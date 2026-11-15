@@ -132,6 +132,29 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
     }
 
     /** The JS array or object behind [v] if [v] is a `List` or `Map` view this bridge made, else null. */
+    /** The key of a HostError's host exception: a symbol of this bridge, so no script can name it. */
+    internal val hostCauseKey = JSSymbol("hostCause")
+
+    /** The host exception behind HostError [o], or null if [o] is no HostError. */
+    fun hostCauseOf(o: JSObject): Throwable? {
+        val pm = o.props ?: return null
+        val i = pm.find(hostCauseKey)
+        if (i < 0) return null
+        return ((pm.values[i] as? HostObject)?.target as? Throwable)
+    }
+
+    /**
+     * HostError [err] given the methods of its exception [cause], bound to it, as the policy shows them for its class
+     * ([HostAccess.allowExceptionAccess]); what the error has itself (`message`, `name`, `toString`...) stays.
+     */
+    internal fun exposeExceptionMembers(err: JSObject, cause: Throwable) {
+        val ho = toJS(cause) as? HostObject ?: return
+        for (name in ho.info.instanceMethods.keys) {
+            if (err.hasProperty(name)) continue
+            err.defineOwn(name, ho.get(name, ho), Attr.WC)
+        }
+    }
+
     private fun viewedBy(v: Any): JSObject? = when (v) {
         is JSListView -> if (v.bridge === this) v.arr else null
         is JSMapView -> if (v.bridge === this) v.obj else null
