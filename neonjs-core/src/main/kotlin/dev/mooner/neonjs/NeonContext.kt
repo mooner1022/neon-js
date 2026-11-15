@@ -398,7 +398,9 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
                 throw e
             } catch (e: TerminationException) {
                 throw e
-            } catch (e: RuntimeException) {
+            } catch (e: Exception) {
+                // a checked exception too (Kotlin and Java lambdas may throw an IOException): a host error, not an
+                // internal one
                 throw HostException(e)
             }
         })

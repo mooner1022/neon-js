@@ -331,6 +331,15 @@ class ForeignObjectsTest {
     }
 
     @Test
+    fun aHostFunctionsCheckedExceptionIsAHostError() {
+        // a Kotlin or Java lambda may throw a checked exception: it was an InternalError
+        NeonEngine.builder().hostAccess(HostAccess.ALL).console(null).build().newContext().use { c ->
+            c.setFunction("read") { throw java.io.IOException("no file") }
+            assertEquals("java.io.IOException: no file", c.str("try { read() } catch (e) { String(e) }"))
+        }
+    }
+
+    @Test
     fun newDateOfAHostDateTimeTakesItsInstant() {
         // a ZonedDateTime's text does not parse ("...+09:00[Asia/Seoul]"): it was an Invalid Date
         ctx(sandbox = SandboxPolicy.builder().timeZone("Asia/Seoul").build()).use { c ->
