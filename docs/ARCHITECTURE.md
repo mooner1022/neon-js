@@ -452,7 +452,13 @@ while objects of classes denied by name (a `Thread`, a `ClassLoader`, the engine
 opaque; and the
 bridges through which a method is called by its name are members (javac's for methods inherited from a non-public
 class, Kotlin's for the Java names of mapped types), while covariant and generic bridges are not. `HostObject` and
-`HostClassObject` are exotic objects exposing them. Interface implementations are `java.lang.reflect.Proxy`s whose
+`HostClassObject` are exotic objects exposing them. An array-like `HostObject` (a Java array or `List` under array or
+list access) is a foreign array as in GraalJS:
+- `Array.prototype` is its prototype, and `Ops.isArray` is true of it (`JSObject.FOREIGN_ARRAY`).
+- `Array.prototype`'s methods that change the length hand their work to `ForeignArray.spliceElements`. A `List`
+  changes in one step, and a fixed length fails before any element changes.
+
+Interface implementations are `java.lang.reflect.Proxy`s whose
 handler (`JSImplementation`) turns back into the JS object when the proxy returns to its context; `Java.extend`
 generates subclasses with ASM (`Adapters.kt`), each in its own class loader. All host→JS re-entry (callbacks,
 proxies, adapters, `List`/`Map` views) goes through the context's `ContextGate`, which takes the context lock.

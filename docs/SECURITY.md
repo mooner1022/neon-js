@@ -25,7 +25,7 @@ uncounted):
 | instruction budget | `maxStatements` | same as above |
 | call depth | `maxCallDepth` | every JS call (proper tail calls do not grow the depth but remain interruptible) |
 | string length | `maxStringLength` | every string a built-in or concatenation makes (a catchable `RangeError`, see below) |
-| allocated bytes | `maxAllocatedBytes` | sampled with the time checks; large allocations (buffers, Java arrays, long strings) are charged before they happen |
+| allocated bytes | `maxAllocatedBytes` | sampled with the time checks; large allocations (buffers, Java arrays, long strings) are charged before they happen; a host `List` padded through its `length` is checked every 1,024 elements |
 | host interrupt | `NeonContext.interrupt()` | same as time; also ends an event loop waiting in the context |
 
 Termination exceptions are not JS exceptions: `catch`, `finally` and promise reactions cannot intercept them. The
