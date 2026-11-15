@@ -28,8 +28,11 @@ internal object DateBuiltins {
                             if (value is JSDate) {
                                 value.timeValue
                             } else {
-                                val v = Ops.toPrimitive(value)
-                                if (v is CharSequence) DateParser.parse(v.toString()) else Ops.toNumber(v)
+                                // a host date-time gives its instant (its text would not always parse)
+                                (value as? ForeignDate)?.foreignTimeValue() ?: run {
+                                    val v = Ops.toPrimitive(value)
+                                    if (v is CharSequence) DateParser.parse(v.toString()) else Ops.toNumber(v)
+                                }
                             },
                         )
                     }

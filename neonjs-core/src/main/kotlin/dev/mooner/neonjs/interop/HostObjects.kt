@@ -52,7 +52,7 @@ class HostMethodFunction(
  * `push`, `pop`, `shift`, `unshift`, `splice`, a write just past its end and `length`; a Java array's length is fixed.
  */
 class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @JvmField val info: HostClassInfo) :
-    JSObject(if (info.arrayLike) bridge.realm.arrayPrototype else bridge.realm.objectPrototype), ForeignArray {
+    JSObject(if (info.arrayLike) bridge.realm.arrayPrototype else bridge.realm.objectPrototype), ForeignArray, ForeignDate {
 
     /** Bound methods by [HostClassInfo.methodIndex] (one function per name, as reading a method twice gives). */
     private var bound: Array<HostMethodFunction?>? = null
@@ -300,6 +300,24 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
         true
     } catch (_: UnsupportedOperationException) {
         false
+    }
+
+    /** As [ForeignDate] says; nothing for an object the policy shows nothing of. */
+    override fun foreignTimeValue(): Double? {
+        if (!info.instancesVisible) return null
+        return try {
+            when (target) {
+                is java.time.Instant -> target.toEpochMilli().toDouble()
+                is java.time.ZonedDateTime -> target.toInstant().toEpochMilli().toDouble()
+                is java.time.OffsetDateTime -> target.toInstant().toEpochMilli().toDouble()
+                is java.time.LocalDateTime -> target.atZone(dev.mooner.neonjs.builtins.DateTime.zone).toInstant().toEpochMilli().toDouble()
+                is java.time.LocalDate -> target.atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli().toDouble()
+                is java.util.Date -> target.time.toDouble()
+                else -> null
+            }
+        } catch (_: ArithmeticException) {
+            Double.NaN // beyond a long of milliseconds: far outside what a Date holds
+        }
     }
 
     /** "a Java array (int[])", or the List's class name, for messages. */
