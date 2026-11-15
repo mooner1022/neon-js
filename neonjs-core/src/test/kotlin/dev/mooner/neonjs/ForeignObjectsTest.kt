@@ -51,6 +51,61 @@ class ForeignObjectsTest {
     }
 
     @Test
+    fun aJavaMapIsAJsMap() {
+        ctx().use { c ->
+            val m = linkedMapOf<String, Any?>("a" to 1, "b" to 2)
+            c["m"] = m
+            assertEquals("true,true,[object Map]", c.str("[Object.getPrototypeOf(m) === Map.prototype, m instanceof Map, Object.prototype.toString.call(m)].join()"))
+            assertEquals("""a=1|b=2 [["a",1],["b",2]] 2 [["a",1],["b",2]] {"a":1,"b":2} a,b true false""", c.str("""[
+                (() => { const r = []; for (const [k, v] of m) r.push(k + '=' + v); return r.join('|') })(),
+                JSON.stringify([...m]), new Map(m).get('b'), JSON.stringify(Array.from(m)), JSON.stringify(Object.fromEntries(m)),
+                [...m.keys()].join(), m.has('a'), m.has('z')
+            ].join(' ')"""))
+            // Map.prototype's methods change the host's Map
+            assertTrue(c.eval("m.set('c', 3) === m").asBoolean())
+            assertEquals(3, m["c"])
+            assertEquals("true,false,3", c.str("[m.delete('c'), m.delete('c'), Map.prototype.get.call(m, 'c') === undefined ? 3 : 0].join()"))
+            assertEquals(listOf("a", "b"), m.keys.toList())
+            assertEquals("2|a=1,b=2|1|v", c.str("""[
+                Object.getOwnPropertyDescriptor(Map.prototype, 'size').get.call(m),
+                (() => { const r = []; Map.prototype.forEach.call(m, (v, k, mm) => r.push(k + '=' + v + (mm === m ? '' : '!'))); return r.join() })(),
+                m.getOrInsert('a', 9), m.getOrInsertComputed('v', k => k)
+            ].join('|')"""))
+            assertEquals("v", m["v"])
+            // a key the JS value converts back to: a number key is an Integer
+            c.eval("m.set(1, 'one')")
+            assertEquals("one", m[1 as Any?])
+            assertEquals("one,true,false", c.str("[m.get(1), m.has(1), m.has('1')].join()"))
+            // changing the Map during a for-of never throws (GraalJS throws ConcurrentModificationException): a removed
+            // key is skipped, an added one is not visited
+            c["x"] = linkedMapOf<String, Any?>("a" to 1, "b" to 2, "c" to 3)
+            assertEquals("a,c", c.str("var r = []; for (const [k] of x) { r.push(k); if (k === 'a') { x.delete('b'); x.set('n', 9) } } r.join()"))
+            // Java's members come first (as in GraalJS): size() and forEach((k, v)) are Java's, and an entry named like a
+            // Map method shadows it, as entries are properties
+            assertEquals("function,4,k=a", c.str("[typeof m.size, m.size(), (() => { let s; m.forEach((k, v) => { if (!s) s = 'k=' + k }); return s })()].join()"))
+            c["sh"] = linkedMapOf<String, Any?>("has" to 5, "a" to 1)
+            assertEquals("5,true", c.str("[sh.has, Map.prototype.has.call(sh, 'a')].join()"))
+            // a Map that cannot change
+            c["fixed"] = java.util.Map.of("k", 1)
+            assertEquals("TypeError,1", c.str("[(() => { try { fixed.set('j', 2) } catch (e) { return e.name } })(), fixed.get('k')].join()"))
+            // JSON and keys stay the entries with string keys (those are the properties), as before
+            assertEquals("""{"a":1,"b":2,"v":"v"}""", c.str("JSON.stringify(m)"))
+        }
+    }
+
+    @Test
+    fun aJavaMapIsAJsMapWhereThePolicyShowsItsEntries() {
+        ctx(HostAccess.EXPLICIT).use { c ->
+            c["m"] = linkedMapOf("a" to 1)
+            assertEquals("false,true,undefined", c.str("[m instanceof Map, Object.getPrototypeOf(m) === Object.prototype, typeof m.has].join()"))
+        }
+        ctx(HostAccess.builder(HostAccess.Level.EXPLICIT).allowMapAccess(true).build()).use { c ->
+            c["m"] = linkedMapOf("a" to 1)
+            assertEquals("true,true,1", c.str("[m instanceof Map, m.has('a'), m.get('a')].join()"), "Map.prototype's get: Java's is hidden here")
+        }
+    }
+
+    @Test
     fun newDateOfAHostDateTimeTakesItsInstant() {
         // a ZonedDateTime's text does not parse ("...+09:00[Asia/Seoul]"): it was an Invalid Date
         ctx(sandbox = SandboxPolicy.builder().timeZone("Asia/Seoul").build()).use { c ->

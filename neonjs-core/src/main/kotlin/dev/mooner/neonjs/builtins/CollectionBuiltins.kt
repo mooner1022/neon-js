@@ -134,6 +134,9 @@ class JSMapObject(proto: JSObject?, @JvmField val isSet: Boolean) : JSObject(pro
 
 class CollectionIterator(proto: JSObject?, @JvmField var cursor: TableCursor?, @JvmField val kind: Int) : JSObject(proto)
 
+/** A Map iterator over a host Map ([ForeignMap.mapCursor]): [kind] 0 keys, 1 values, 2 entries. */
+class ForeignMapIterator(proto: JSObject?, @JvmField var next: (() -> Array<Any?>?)?, @JvmField val kind: Int) : JSObject(proto)
+
 class JSWeakCollection(proto: JSObject?, @JvmField val isSet: Boolean) : JSObject(proto) {
     @JvmField val map = java.util.WeakHashMap<Any, Any?>()
 }
@@ -197,18 +200,48 @@ internal object CollectionBuiltins {
             if (t is JSMapObject && t.isSet == isSet) return t
             typeErr("Method $name.prototype.$m called on incompatible receiver ${Ops.describe(t)}")
         }
-        proto.method(realm, "clear", 0) { _, t, _, _ -> thisMap(t, "clear").table.clear(); Undefined }
-        proto.method(realm, "delete", 1) { _, t, args, _ -> thisMap(t, "delete").table.delete(args.arg(0)) }
-        proto.method(realm, "has", 1) { _, t, args, _ -> thisMap(t, "has").table.has(args.arg(0)) }
-        proto.method(realm, "forEach", 1) { _, t, args, _ ->
-            val m = thisMap(t, "forEach")
-            val cb = callable(args.arg(0))
-            m.table.forEachLive { k, v -> cb.call(args.arg(1), arrayOf(if (isSet) k else v, k, m)) }
+        // a host Map shown as a JS Map (Map's methods only: GraalJS gives Java Sets no Set methods)
+        fun foreign(t: Any?): ForeignMap? =
+            if (!isSet && t is JSObject && t.special and JSObject.FOREIGN_MAP != 0) t as? ForeignMap else null
+        proto.method(realm, "clear", 0) { _, t, _, _ ->
+            val fm = foreign(t)
+            if (fm != null) fm.mapClear() else thisMap(t, "clear").table.clear()
             Undefined
         }
-        proto.getter(realm, "size") { _, t, _, _ -> thisMap(t, "size").table.size.toDouble() }
+        proto.method(realm, "delete", 1) { _, t, args, _ -> foreign(t)?.mapDelete(args.arg(0)) ?: thisMap(t, "delete").table.delete(args.arg(0)) }
+        proto.method(realm, "has", 1) { _, t, args, _ -> foreign(t)?.mapHas(args.arg(0)) ?: thisMap(t, "has").table.has(args.arg(0)) }
+        proto.method(realm, "forEach", 1) { _, t, args, _ ->
+            val fm = foreign(t)
+            if (fm != null) {
+                val cb = callable(args.arg(0))
+                val next = fm.mapCursor()
+                while (true) {
+                    val e = next() ?: break
+                    cb.call(args.arg(1), arrayOf(e[1], e[0], t))
+                }
+            } else {
+                val m = thisMap(t, "forEach")
+                val cb = callable(args.arg(0))
+                m.table.forEachLive { k, v -> cb.call(args.arg(1), arrayOf(if (isSet) k else v, k, m)) }
+            }
+            Undefined
+        }
+        proto.getter(realm, "size") { _, t, _, _ -> (foreign(t)?.mapSize() ?: thisMap(t, "size").table.size).toDouble() }
         val iterProto = JSObject(realm.iteratorPrototype)
         iterProto.method(realm, "next", 0) { f, t, _, _ ->
+            if (t is ForeignMapIterator) {
+                val e = t.next?.invoke()
+                if (e == null) {
+                    t.next = null
+                    return@method Iteration.createIterResult(f.realm, Undefined, true)
+                }
+                val v: Any? = when (t.kind) {
+                    0 -> e[0]
+                    1 -> e[1]
+                    else -> Builtins.arrayOf(f.realm, listOf(e[0], e[1]))
+                }
+                return@method Iteration.createIterResult(f.realm, v, false)
+            }
             val it = t as? CollectionIterator ?: typeErr("next method called on incompatible receiver")
             val c = it.cursor
             if (c == null || !c.table.advance(c)) {
@@ -237,19 +270,40 @@ internal object CollectionBuiltins {
             proto.method(realm, "entries", 0) { _, t, _, _ -> CollectionIterator(iterProto, thisMap(t, "entries").table.cursor(), 2) }
             SetMethods.install(realm, proto)
         } else {
-            proto.method(realm, "get", 1) { _, t, args, _ -> thisMap(t, "get").table.get(args.arg(0)) }
+            proto.method(realm, "get", 1) { _, t, args, _ -> foreign(t)?.mapGet(args.arg(0)) ?: thisMap(t, "get").table.get(args.arg(0)) }
             proto.method(realm, "set", 2) { _, t, args, _ ->
+                val fm = foreign(t)
+                if (fm != null) {
+                    fm.mapSet(args.arg(0), args.arg(1))
+                    return@method t
+                }
                 val m = thisMap(t, "set")
                 m.table.set(args.arg(0), args.arg(1))
                 m
             }
             proto.method(realm, "getOrInsert", 2) { _, t, args, _ ->
+                val fm = foreign(t)
+                if (fm != null) {
+                    val k = args.arg(0)
+                    if (!fm.mapHas(k)) fm.mapSet(k, args.arg(1))
+                    return@method fm.mapGet(k)
+                }
                 val m = thisMap(t, "getOrInsert")
                 val k = args.arg(0)
                 if (!m.table.has(k)) m.table.set(k, args.arg(1))
                 m.table.get(k)
             }
             proto.method(realm, "getOrInsertComputed", 2) { _, t, args, _ ->
+                val fm = foreign(t)
+                if (fm != null) {
+                    val cb = callable(args.arg(1))
+                    var k = args.arg(0)
+                    if (k is Double && k == 0.0) k = 0.0
+                    if (fm.mapHas(k)) return@method fm.mapGet(k)
+                    val v = cb.call(Undefined, arrayOf(k))
+                    fm.mapSet(k, v)
+                    return@method v
+                }
                 val m = thisMap(t, "getOrInsertComputed")
                 val cb = callable(args.arg(1))
                 var k = args.arg(0)
@@ -261,9 +315,13 @@ internal object CollectionBuiltins {
                     v
                 }
             }
-            proto.method(realm, "keys", 0) { _, t, _, _ -> CollectionIterator(iterProto, thisMap(t, "keys").table.cursor(), 0) }
-            proto.method(realm, "values", 0) { _, t, _, _ -> CollectionIterator(iterProto, thisMap(t, "values").table.cursor(), 1) }
-            val entries = proto.method(realm, "entries", 0) { _, t, _, _ -> CollectionIterator(iterProto, thisMap(t, "entries").table.cursor(), 2) }
+            fun iterator(t: Any?, m: String, kind: Int): JSObject {
+                val fm = foreign(t)
+                return if (fm != null) ForeignMapIterator(iterProto, fm.mapCursor(), kind) else CollectionIterator(iterProto, thisMap(t, m).table.cursor(), kind)
+            }
+            proto.method(realm, "keys", 0) { _, t, _, _ -> iterator(t, "keys", 0) }
+            proto.method(realm, "values", 0) { _, t, _, _ -> iterator(t, "values", 1) }
+            val entries = proto.method(realm, "entries", 0) { _, t, _, _ -> iterator(t, "entries", 2) }
             proto.defineOwn(JSSymbol.iterator, entries, Attr.WC)
             ctor.method(realm, "groupBy", 2) { f, _, args, _ ->
                 val groups = ObjectBuiltins.groupBy(f.realm, args.arg(0), args.arg(1), false)

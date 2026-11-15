@@ -30,6 +30,8 @@ open class JSObject(@JvmField var proto: JSObject?) {
         const val HTMLDDA = 256
         /** A host collection shown as a JS array (a [ForeignArray]): `Array.isArray` is true of it, as in GraalJS. */
         const val FOREIGN_ARRAY = 512
+        /** A host Map shown as a JS Map (a [ForeignMap]), as in GraalJS. */
+        const val FOREIGN_MAP = 1024
         const val SPECIAL_ALL = EXOTIC_OWN or SPECIAL_GET or SPECIAL_SET or SPECIAL_HAS
     }
 

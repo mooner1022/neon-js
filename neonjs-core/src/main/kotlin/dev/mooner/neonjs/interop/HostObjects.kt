@@ -52,7 +52,7 @@ class HostMethodFunction(
  * `push`, `pop`, `shift`, `unshift`, `splice`, a write just past its end and `length`; a Java array's length is fixed.
  */
 class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @JvmField val info: HostClassInfo) :
-    JSObject(if (info.arrayLike) bridge.realm.arrayPrototype else bridge.realm.objectPrototype), ForeignArray, ForeignDate {
+    JSObject(prototypeFor(bridge, info)), ForeignArray, ForeignMap, ForeignDate {
 
     /** Bound methods by [HostClassInfo.methodIndex] (one function per name, as reading a method twice gives). */
     private var bound: Array<HostMethodFunction?>? = null
@@ -63,6 +63,7 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
         special = special or SPECIAL_ALL
         if (info.functionalMethod != null) special = special or CALLABLE
         if (info.arrayLike) special = special or FOREIGN_ARRAY
+        else if (info.mapLike) special = special or FOREIGN_MAP
         extensible = false
     }
 
@@ -320,6 +321,57 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
         }
     }
 
+    @Suppress("UNCHECKED_CAST")
+    private val map get() = target as MutableMap<Any?, Any?>
+
+    /** [block] on the Map, its refusal to change a TypeError and its other failures host errors. */
+    private inline fun <R> onMap(what: String, block: (MutableMap<Any?, Any?>) -> R): R = try {
+        block(map)
+    } catch (_: UnsupportedOperationException) {
+        throw JSException.typeError("Cannot $what ${target.javaClass.name}")
+    } catch (e: JSException) {
+        throw e
+    } catch (e: RuntimeException) {
+        throw bridge.hostError(e)
+    }
+
+    override fun mapGet(key: Any?): Any? = onMap("read") { m ->
+        val k = bridge.toObject(key)
+        if (m.containsKey(k)) bridge.toJS(m[k]) else Undefined
+    }
+
+    override fun mapSet(key: Any?, value: Any?) {
+        onMap("add to") { m -> m[bridge.toObject(key)] = bridge.toObject(value) }
+    }
+
+    override fun mapHas(key: Any?): Boolean = onMap("read") { m -> m.containsKey(bridge.toObject(key)) }
+
+    override fun mapDelete(key: Any?): Boolean = onMap("remove from") { m ->
+        val k = bridge.toObject(key)
+        if (!m.containsKey(k)) false else {
+            m.remove(k)
+            true
+        }
+    }
+
+    override fun mapClear() = onMap("clear") { m -> m.clear() }
+
+    override fun mapSize(): Int = onMap("read") { m -> m.size }
+
+    override fun mapCursor(): () -> Array<Any?>? {
+        val keys = onMap("read") { m -> ArrayList(m.keys) }
+        var i = 0
+        return fun(): Array<Any?>? {
+            while (i < keys.size) {
+                if (i and 1023 == 1023) bridge.realm.agent.checkInterrupt()
+                val k = keys[i++]
+                val present = onMap("read") { m -> if (m.containsKey(k)) m[k] else NotFound }
+                if (present !== NotFound) return arrayOf(bridge.toJS(k), bridge.toJS(present))
+            }
+            return null
+        }
+    }
+
     /** "a Java array (int[])", or the List's class name, for messages. */
     private fun describeTarget(): String = if (target.javaClass.isArray) "a Java array (${target.javaClass.typeName})" else target.javaClass.name
 
@@ -425,6 +477,16 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
     }
 
     override fun toString(): String = "HostObject[${target.javaClass.name}]"
+}
+
+/**
+ * The prototype a host object gets: `Array.prototype` for an array-like one, `Map.prototype` for a Map whose entries
+ * the policy shows, else `Object.prototype`. The policy decides first ([HostClassInfo.arrayLike], [HostClassInfo.mapLike]).
+ */
+private fun prototypeFor(bridge: HostBridge, info: HostClassInfo): JSObject = when {
+    info.arrayLike -> bridge.realm.arrayPrototype
+    info.mapLike -> bridge.realm.intrinsic("%Map.prototype%")
+    else -> bridge.realm.objectPrototype
 }
 
 /** JS view of a host class: static members, constructor (`new`), instanceof checks and nested classes. */
