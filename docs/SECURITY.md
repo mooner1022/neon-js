@@ -51,6 +51,8 @@ The contents are views a level other than `ALL` shows only where the embedder en
 presets do; an enabled view shows the contents of collections even under `NONE`, whose members stay hidden. No view
 applies to an instance of a class denied by name. A `List` view lets scripts change the List's length as well
 (`push`, `splice`, `length = 0`), as in GraalJS, even where its methods are hidden; a Java array's length is fixed.
+A `Map` view is a JS Map: through `Map.prototype`'s methods scripts reach entries of any key type, not only the
+string-keyed ones that are properties.
 
 At every level a deny list blocks `java.lang.Class`, class loaders, `System`, `Runtime`, processes, threads,
 `SecurityManager`, modules, `StackWalker`, `Unsafe`, `MethodHandles`, object serialization streams, reflection

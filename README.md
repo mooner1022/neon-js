@@ -221,7 +221,8 @@ types or `java.util.Date` from a JS `Date` or `Temporal.Instant` — local types
 `NeonValue.asInstant()` does the same). Host → JS:
 numbers, `String`s and `Character`s become primitives, `BigInteger`s become BigInts, `null` becomes `null`, everything
 else becomes a host object. `new Date(x)` of a host `Instant`, `ZonedDateTime`, `OffsetDateTime`, `LocalDateTime`
-(context time zone), `LocalDate` (UTC midnight, as GraalJS) or `java.util.Date` takes its instant.
+(context time zone), `LocalDate` (UTC midnight, as GraalJS) or `java.util.Date` takes its instant: under `ALL` and
+`EXPLICIT` (as in GraalJS), not of an object a policy shows nothing of (`NONE`).
 That includes the other `CharSequence`s (`StringBuilder`, `CharBuffer`, Android's `Spanned` and `Editable`), which
 may be mutable or carry more than text: JS reads their text with `String(x)` or `'' + x`, a `String` parameter
 receives their text, and `NeonValue.asString()` returns the text of a JS string or of a host `CharSequence`.

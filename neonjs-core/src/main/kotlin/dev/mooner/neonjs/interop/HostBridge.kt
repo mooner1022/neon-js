@@ -716,6 +716,9 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         is CharSequence -> if (v.length == 1) 8 else 9
         is BigInteger -> if (v.bitLength() < 64) 10 else 11
         is HostObject, is HostClassObject, is ProxyObject -> -1
+        // a JS Map or Set converts where a plain object does not (cost: a Map or Set view), so a choice remembered for
+        // objects must not decide for them
+        is dev.mooner.neonjs.builtins.JSMapObject -> -1
         is JSObject -> when {
             v is dev.mooner.neonjs.builtins.JSDate || v is dev.mooner.neonjs.builtins.temporal.JSTemporalInstant -> 12
             v.isCallable -> 13

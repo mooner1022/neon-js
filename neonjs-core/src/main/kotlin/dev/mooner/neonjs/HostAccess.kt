@@ -289,7 +289,11 @@ class HostAccess private constructor(b: Builder) {
          * `length = 0`), as in GraalJS. On by default for [Level.ALL] only (see [allowArrayAccess]).
          */
         fun allowListAccess(b: Boolean) = apply { allowListAccess = b }
-        /** `Map` entries are properties, read, written and deleted; on by default for [Level.ALL] only (see [allowArrayAccess]). */
+        /**
+         * `Map` entries are properties, read, written and deleted, and the Map is a JS Map: `Map.prototype`'s methods
+         * reach its entries of any key type (`m.get(1)`, `[...m]`), as in GraalJS. On by default for [Level.ALL] only
+         * (see [allowArrayAccess]).
+         */
         fun allowMapAccess(b: Boolean) = apply { allowMapAccess = b }
         /** `Iterable`s and `Iterator`s are JS-iterable; on by default for [Level.ALL] only (see [allowArrayAccess]). */
         fun allowIterableAccess(b: Boolean) = apply { allowIterableAccess = b }

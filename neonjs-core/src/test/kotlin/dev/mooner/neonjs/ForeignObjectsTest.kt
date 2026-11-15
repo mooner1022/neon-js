@@ -17,6 +17,17 @@ class CollectionSink {
 
 class Thrower {
     fun io() { throw java.io.IOException("boom", IllegalStateException("inner")) }
+    fun hidden() { throw HiddenFailure() }
+}
+
+/** A non-public exception: JS sees it as its public superclass. */
+private class HiddenFailure : IllegalStateException("hidden")
+
+class OverloadedSink {
+    fun take(s: Set<Any?>) = "Set"
+    fun take(o: Any?) = "Object"
+    fun takeMap(m: Map<Any?, Any?>) = "Map"
+    fun takeMap(o: Any?) = "Object"
 }
 
 /**
@@ -98,6 +109,56 @@ class ForeignObjectsTest {
     }
 
     @Test
+    fun aRememberedOverloadChoiceDoesNotMixObjectsWithMapsAndSets() {
+        // overload choices are remembered by the kinds of the arguments: a plain object and a JS Map or Set convert
+        // differently, in either order
+        for (first in listOf("{}", "new Set()")) {
+            ctx().use { c ->
+                c["h"] = OverloadedSink()
+                val second = if (first == "{}") "new Set()" else "{}"
+                val r = c.str("[h.take($first), h.take($second), h.take($first)].join()")
+                assertEquals(if (first == "{}") "Object,Set,Object" else "Set,Object,Set", r)
+                assertEquals("Object,Map,Object", c.str("[h.takeMap(1), h.takeMap(new Map()), h.takeMap(2)].join()"))
+            }
+        }
+    }
+
+    @Test
+    fun aKeyAMapRefusesIsNoEntry() {
+        // a TreeMap of Integer keys refuses String lookups (ClassCastException), Map.of refuses null: that is no entry,
+        // so Map.prototype's methods are not shadowed by a failed lookup (GraalJS throws on `tm.has`)
+        ctx().use { c ->
+            c["tm"] = java.util.TreeMap(mapOf(1 to "a"))
+            c["stm"] = java.util.TreeMap(mapOf("k" to 1))
+            c["mof"] = java.util.Map.of("k", 1)
+            assertEquals("function,true,,[[1,\"a\"]],false,,false,false", c.str("""[typeof tm.has, tm.has(1), tm.foo,
+                JSON.stringify([...tm]), stm.has(1), Map.prototype.get.call(stm, 1), mof.has(undefined), mof.delete(null)].join()"""))
+        }
+    }
+
+    @Test
+    fun aSiteSeesJsMapsThenHostMaps() {
+        for (mode in ExecutionMode.entries) {
+            NeonEngine.builder().hostAccess(HostAccess.ALL).executionMode(mode).console(null).build().newContext().use { c ->
+                c["hm"] = linkedMapOf<String, Any?>("a" to 1, "b" to 2)
+                c.eval("""
+                    function f(m) {
+                        let t = 0;
+                        for (const [k, v] of m) t += v;
+                        return t + Map.prototype.get.call(m, 'a') + (m.has('b') ? 10 : 0) + [...m.keys()].length + (m instanceof Map ? 100 : 0);
+                    }
+                    var js = new Map([['a', 1], ['b', 2]]), sum = 0;
+                    for (var i = 0; i < 3000; i++) sum += f(js);
+                    for (var i = 0; i < 3000; i++) sum += f(hm);
+                    for (var i = 0; i < 3000; i++) sum += f(i % 2 ? js : hm);
+                """)
+                // f gives 3 + 1 + 10 + 2 + 100 = 116 for both
+                assertEquals(116 * 9000, c.eval("sum").asInt(), mode.name)
+            }
+        }
+    }
+
+    @Test
     fun aJavaMapIsAJsMapWhereThePolicyShowsItsEntries() {
         ctx(HostAccess.EXPLICIT).use { c ->
             c["m"] = linkedMapOf("a" to 1)
@@ -121,6 +182,13 @@ class ForeignObjectsTest {
                       e instanceof Java.type('java.lang.IllegalStateException'), ({}) instanceof Java.type('java.lang.Exception')].join(),
                      typeof e.getMessage].join('|')
                 }"""), "its methods only where the policy allows them")
+        }
+        // a class the policy filters out, or one that is not public, is named after its nearest superclass JS may use
+        val filtered = HostAccess.builder(HostAccess.Level.ALL).filterClasses { it != java.io.IOException::class.java }.build()
+        ctx(filtered).use { c ->
+            c["t"] = Thrower()
+            assertEquals("java.lang.Exception,java.lang.IllegalStateException", c.str("""[(() => { try { t.io() } catch (e) { return e.name } })(),
+                (() => { try { t.hidden() } catch (e) { return e.name } })()].join()"""))
         }
         // a policy that shows nothing of the host: no class name either (a failed future's error, as a host call fails
         // nowhere under NONE)

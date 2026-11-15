@@ -154,7 +154,7 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
     private fun mapEntry(name: String): Any? {
         @Suppress("UNCHECKED_CAST") val m = target as Map<Any?, Any?>
         val v = try {
-            if (!m.containsKey(name)) return NotFound
+            if (!containsKey(m, name)) return NotFound
             m[name]
         } catch (e: RuntimeException) {
             throw bridge.hostError(e)
@@ -335,20 +335,33 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
         throw bridge.hostError(e)
     }
 
+    /**
+     * Whether Map [m] has [key]; a key it refuses to look up (a ClassCastException from a TreeMap of other keys, a
+     * NullPointerException from `Map.of` given null) is no key of it. So `m.has` on a TreeMap of Integer keys is
+     * Map.prototype's method rather than a failed lookup of the entry "has" (GraalJS throws there).
+     */
+    private fun containsKey(m: Map<Any?, Any?>, key: Any?): Boolean = try {
+        m.containsKey(key)
+    } catch (_: ClassCastException) {
+        false
+    } catch (_: NullPointerException) {
+        false
+    }
+
     override fun mapGet(key: Any?): Any? = onMap("read") { m ->
         val k = bridge.toObject(key)
-        if (m.containsKey(k)) bridge.toJS(m[k]) else Undefined
+        if (containsKey(m, k)) bridge.toJS(m[k]) else Undefined
     }
 
     override fun mapSet(key: Any?, value: Any?) {
         onMap("add to") { m -> m[bridge.toObject(key)] = bridge.toObject(value) }
     }
 
-    override fun mapHas(key: Any?): Boolean = onMap("read") { m -> m.containsKey(bridge.toObject(key)) }
+    override fun mapHas(key: Any?): Boolean = onMap("read") { m -> containsKey(m, bridge.toObject(key)) }
 
     override fun mapDelete(key: Any?): Boolean = onMap("remove from") { m ->
         val k = bridge.toObject(key)
-        if (!m.containsKey(k)) false else {
+        if (!containsKey(m, k)) false else {
             m.remove(k)
             true
         }

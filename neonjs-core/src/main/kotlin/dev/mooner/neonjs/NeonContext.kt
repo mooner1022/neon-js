@@ -252,12 +252,26 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
      * tests ([HostClassObject]), with the exception's methods where the policy allows them
      * ([HostAccess.allowExceptionAccess]).
      */
+    /**
+     * A host exception's name in JS: its class's name where the policy lets JS use the class (its filter and denied
+     * packages included), else that of its nearest superclass JS may use (a non-public exception shows as its public
+     * superclass), else `HostError`.
+     */
+    private fun exceptionName(c: Class<*>, access: HostAccess): String {
+        var k: Class<*>? = c
+        while (k != null && k != Any::class.java) {
+            if (access.isClassAccessible(k)) return k.name
+            k = k.superclass
+        }
+        return "HostError"
+    }
+
     private fun hostErrorToJS(e: HostException, r: Realm): Any? {
         val cause = e.hostCause
         val err = r.newError(ErrorKind.ERROR, cause.message ?: cause.javaClass.simpleName)
         val access = engine.hostAccess
         val shown = access.isInstanceAccessible(cause.javaClass)
-        err.defineOwn("name", if (shown) cause.javaClass.name else "HostError", Attr.WC)
+        err.defineOwn("name", exceptionName(cause.javaClass, access), Attr.WC)
         err.defineOwn(bridge.hostCauseKey, HostObject(bridge, cause, dev.mooner.neonjs.interop.HostClassInfo.of(Any::class.java, HostAccess.NONE)), Attr.NONE)
         if (shown && access.allowExceptionAccess) bridge.exposeExceptionMembers(err, cause)
         return err
