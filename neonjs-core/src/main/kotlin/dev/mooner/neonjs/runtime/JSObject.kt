@@ -28,6 +28,8 @@ open class JSObject(@JvmField var proto: JSObject?) {
         /** Object is a class constructor (throws when called without new). */
         const val CLASS_CONSTRUCTOR = 128
         const val HTMLDDA = 256
+        /** A host collection shown as a JS array (a [ForeignArray]): `Array.isArray` is true of it, as in GraalJS. */
+        const val FOREIGN_ARRAY = 512
         const val SPECIAL_ALL = EXOTIC_OWN or SPECIAL_GET or SPECIAL_SET or SPECIAL_HAS
     }
 

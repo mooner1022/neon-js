@@ -53,6 +53,10 @@ class HostClassInfo private constructor(val cls: Class<*>, val access: HostAcces
 
     init {
         if (instancesVisible) collect()
+        // a Java array shown as a JS array converts as one: its toString() would give only its type and identity hash,
+        // so Array.prototype.toString (its elements, joined) shows through instead. Here GraalJS calls Java's for
+        // `a.toString()` and joins the elements only for String(a)
+        if (cls.isArray && arrayLike) instanceMethods.remove("toString")
         functionalMethod = try {
             findFunctionalMethod(cls, access)
         } catch (_: LinkageError) {

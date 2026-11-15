@@ -42,9 +42,13 @@ class HostMethodFunction(
  * Maps expose entries through get/set and Iterables are JS-iterable. Functions (lambdas, `@FunctionalInterface` and Kotlin function
  * type implementations, see [HostClassInfo.findFunctionalMethod]) are callable. A signature key such as
  * `append(java.lang.String)` names one overload ([HostClassInfo.overload]).
+ *
+ * An array-like one is a JS array to scripts, as GraalJS's foreign arrays are: `Array.prototype` is its prototype
+ * (`map`, `filter`, `join`, `sort`, iteration by index...) and `Array.isArray` is true of it ([ForeignArray]). Its
+ * Java members still come first (a List's `indexOf`, `forEach` and `sort` are Java's).
  */
 class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @JvmField val info: HostClassInfo) :
-    JSObject(bridge.realm.objectPrototype) {
+    JSObject(if (info.arrayLike) bridge.realm.arrayPrototype else bridge.realm.objectPrototype), ForeignArray {
 
     /** Bound methods by [HostClassInfo.methodIndex] (one function per name, as reading a method twice gives). */
     private var bound: Array<HostMethodFunction?>? = null
@@ -54,6 +58,7 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
     init {
         special = special or SPECIAL_ALL
         if (info.functionalMethod != null) special = special or CALLABLE
+        if (info.arrayLike) special = special or FOREIGN_ARRAY
         extensible = false
     }
 
@@ -127,7 +132,8 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
             return NotFound
         }
         if (key is JSSymbol) {
-            if (key === JSSymbol.iterator && isIterable()) return iteratorFunction()
+            // (an array-like one iterates as arrays do, by index: Array.prototype's iterator, as in GraalJS)
+            if (key === JSSymbol.iterator && isIterable() && !isArrayLike()) return iteratorFunction()
             return NotFound
         }
         val name = key as String
@@ -157,18 +163,11 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
         throw JSException.typeError("Cannot access field ${f.name}")
     }
 
+    /** The iterator of an Iterable or Iterator that is not array-like. */
     private fun iteratorFunction(): JSObject = NativeFunction(bridge.realm, "[Symbol.iterator]", 0, { f, _, _, _ ->
         val it: Iterator<Any?> = when (target) {
             is Iterable<*> -> target.iterator()
-            is Iterator<*> -> target
-            else -> {
-                // live index-based view over arrays / lists
-                var i = 0
-                object : Iterator<Any?> {
-                    override fun hasNext() = i < length()
-                    override fun next(): Any? = element(i++)
-                }
-            }
+            else -> target as Iterator<*>
         }
         val o = JSObject(f.realm.iteratorPrototype)
         o.defineOwn("next", NativeFunction(f.realm, "next", 0, { nf, _, _, _ ->
@@ -215,24 +214,40 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
 
     override fun hasProperty(key: Any): Boolean = hasOwnProperty(key) || (proto?.hasProperty(key) ?: false)
 
+    /** Element [i] (within the length) set to JS [value]; false where the collection refuses it (an immutable List). */
+    private fun setElement(i: Int, value: Any?): Boolean = try {
+        when (target) {
+            is MutableList<*> -> {
+                @Suppress("UNCHECKED_CAST") val list = target as MutableList<Any?>
+                list[i] = bridge.toObject(value)
+            }
+            else -> java.lang.reflect.Array.set(target, i, bridge.toHost(value, target.javaClass.componentType))
+        }
+        true
+    } catch (_: UnsupportedOperationException) {
+        false
+    } catch (e: IllegalArgumentException) {
+        throw JSException.typeError("Cannot store ${Ops.describe(value)} in a ${target.javaClass.componentType.name} array: ${e.message}")
+    }
+
+    /** As [ForeignArray] says: the length of a Java array or List is fixed here, so only replacing elements works. */
+    override fun spliceElements(start: Int, deleteCount: Int, items: Array<Any?>): Array<Any?> {
+        if (items.size != deleteCount) throw JSException.typeError("Cannot change the length of ${describeTarget()}")
+        val removed = Array(deleteCount) { bridge.toJS(element(start + it)) }
+        for (i in items.indices) {
+            if (!setElement(start + i, items[i])) throw JSException.typeError("Cannot assign to element ${start + i} of ${describeTarget()}")
+        }
+        return removed
+    }
+
+    /** "a Java array (int[])", or the List's class name, for messages. */
+    private fun describeTarget(): String = if (target.javaClass.isArray) "a Java array (${target.javaClass.typeName})" else target.javaClass.name
+
     override fun set(key: Any, value: Any?, receiver: Any?): Boolean {
         if (receiver !== this) return false
         if (key is Int && isArrayLike()) {
             if (key >= length()) return false
-            return try {
-                when (target) {
-                    is MutableList<*> -> {
-                        @Suppress("UNCHECKED_CAST") val list = target as MutableList<Any?>
-                        list[key] = bridge.toObject(value)
-                    }
-                    else -> java.lang.reflect.Array.set(target, key, bridge.toHost(value, target.javaClass.componentType))
-                }
-                true
-            } catch (_: UnsupportedOperationException) {
-                false
-            } catch (e: IllegalArgumentException) {
-                throw JSException.typeError("Cannot store ${Ops.describe(value)} in a ${target.javaClass.componentType.name} array: ${e.message}")
-            }
+            return setElement(key, value)
         }
         if (key is Int && isMap()) return mapPut(key.toString(), value)
         if (key !is String) return false

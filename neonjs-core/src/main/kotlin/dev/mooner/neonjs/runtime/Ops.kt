@@ -710,6 +710,7 @@ object Ops {
         return out
     }
 
+    /** IsArray, also true of a host array or List shown as a JS array ([JSObject.FOREIGN_ARRAY]), as in GraalJS. */
     @JvmStatic
     fun isArray(v: Any?): Boolean {
         if (v is JSArray) return true
@@ -717,7 +718,7 @@ object Ops {
             val t = v.target ?: throw JSException.typeError("Cannot perform 'IsArray' on a proxy that has been revoked")
             return isArray(t)
         }
-        return false
+        return v is JSObject && v.special and JSObject.FOREIGN_ARRAY != 0
     }
 
     @JvmStatic
