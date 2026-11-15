@@ -277,6 +277,8 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
         try {
             val size = list.size
             if (newSize < size) list.subList(newSize, size).clear()
+            // charged before it happens, as a new Java array is (a reference each)
+            else bridge.realm.agent.reserveAllocation((newSize - size).toLong() * 4)
             var left = newSize - size
             while (left > 0) {
                 val chunk = minOf(left, 1024)

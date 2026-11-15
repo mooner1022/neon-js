@@ -189,6 +189,34 @@ class HostArrayTest {
                 c.str("[Array.isArray(a), a.map(x => x * 2)[0], a.reduce((t, x) => t + x, -2), a.length, Array.isArray(l)].join()"),
                 "Lists need allowListAccess")
         }
+        // with List access, a List's length changes even where its Java methods are hidden (as in GraalJS)
+        val lists = HostAccess.builder(HostAccess.Level.EXPLICIT).allowListAccess(true).build()
+        ctx(lists).use { c ->
+            val l = arrayListOf(1, 2)
+            c["l"] = l
+            assertEquals("undefined,3,1", c.str("[typeof l.add, l.push(3), l.shift()].join()"))
+            assertEquals(listOf(2, 3), l)
+            c.eval("l.length = 0")
+            assertEquals(emptyList<Int>(), l)
+        }
+    }
+
+    @Test
+    fun conversionsTakeAHostArray() {
+        // a host array is a JS array to the conversions too: Java.to copies it into another array type, Java.from into
+        // a JS array, and a parameter of its own type gets the array itself
+        val access = HostAccess.builder(HostAccess.Level.ALL).allowLookup { true }.build()
+        NeonEngine.builder().hostAccess(access).console(null).sandbox(SandboxPolicy.builder().exposeJavaGlobal(true).build())
+            .build().newContext().use { c ->
+                c["h"] = ArraySource()
+                assertEquals(listOf(3L, 1L, 2L), c.eval("Java.to(h.ints(), 'long[]')").asHostObject<LongArray>().toList())
+                assertEquals(listOf("3", "1", "2"), c.eval("Java.to(h.ints(), 'java.lang.String[]')").asHostObject<Array<String>>().toList())
+                assertTrue(c.eval("Java.from(h.ints())").isArray)
+                val a = intArrayOf(5, 6)
+                c["a"] = a
+                assertSame(a, c.eval("Java.to(a, 'int[]')").asHostObject<IntArray>())
+                assertEquals(11, c.eval("h.sum(a)").asInt())
+            }
     }
 
     @Test
