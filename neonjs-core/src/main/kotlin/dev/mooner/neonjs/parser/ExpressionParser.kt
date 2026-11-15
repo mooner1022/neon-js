@@ -417,9 +417,15 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
             T.LBRACE -> return parseObj(false, refErrors)
             T.TEMPLATE -> return parseTemplate(false)
             T.PRIVATE_NAME -> unexpected()
-            else -> unexpected()
+            else -> return expressionExpected()
         }
     }
+
+    /**
+     * No expression begins at the current token where one must. The engine throws; the recovery mode may record that
+     * and go on with a node standing for the expression missing.
+     */
+    protected open fun expressionExpected(): Node = unexpected()
 
     open fun validateRegExp(node: RegExpLiteral) {
         val err = RegExpSyntaxValidator.validate(node.pattern, node.flags)
@@ -852,7 +858,7 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
                 or (if (kind == FunctionKind.DERIVED_CONSTRUCTOR) SCOPE_SUPER or SCOPE_DIRECT_SUPER else 0))
         val srcStart = p.start
         expect(T.LPAREN)
-        val params = parseBindingList(T.RPAREN, false, true)
+        val params = parseParams()
         checkYieldAwaitInDefaultParams()
         val fn = FunctionNode(id, params, EmptyStatement(), kind, isAsync, isGenerator)
         fn.isDeclaration = isStatement
@@ -875,7 +881,7 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
         if (kind == FunctionKind.DERIVED_CONSTRUCTOR) flags = flags or SCOPE_DIRECT_SUPER
         enterScope(flags)
         expect(T.LPAREN)
-        val params = parseBindingList(T.RPAREN, false, true)
+        val params = parseParams()
         checkYieldAwaitInDefaultParams()
         val fn = FunctionNode(null, params, EmptyStatement(), kind, isAsync, isGenerator)
         fn.isStatic = isStatic
@@ -906,6 +912,12 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
         fn.srcEnd = lex.prevEnd
         return fn
     }
+
+    /**
+     * A function's or method's parameters after its `(`, up to and with its `)`. (Open for the recovery mode, which
+     * diagnoses a list left open before the body.)
+     */
+    protected open fun parseParams(): MutableList<Node> = parseBindingList(T.RPAREN, false, true)
 
     fun isSimpleParamList(params: List<Node>): Boolean = params.all { it is Identifier }
 
@@ -1109,6 +1121,8 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
             is ChainExpression -> raise(node.start, "Optional chaining cannot appear in left-hand side")
             else -> raise(node.start, if (isBinding) "Invalid destructuring assignment target" else "Invalid left-hand side in assignment")
         }
+        // (the target the early errors above were about, kept by the recovery mode)
+        return node
     }
 
     /** Validates simple assignment target / binding identifier. [bind] declares the name when not NONE. */
@@ -1217,25 +1231,7 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
         privateNames = pn
         expect(T.LBRACE)
         val body = ArrayList<Node>()
-        var ctor: FunctionNode? = null
-        while (!eat(T.RBRACE)) {
-            if (eat(T.SEMI)) continue
-            val decStart = lex.start
-            val decs = if (type == T.AT) parseDecorators() else emptyList()
-            val el = parseClassElement(superClass != null)
-            if (el is MethodDefinition && el.kind == MethodKind.CONSTRUCTOR) {
-                if (ctor != null) raise(el.start, "A class may only have one constructor")
-                ctor = el.value
-            }
-            if (decs.isNotEmpty()) {
-                when (el) {
-                    is MethodDefinition if el.kind != MethodKind.CONSTRUCTOR -> el.decorators = decs
-                    is PropertyDefinition -> el.decorators = decs
-                    else -> raise(decStart, "Decorators are not valid here")
-                }
-            }
-            body.add(el)
-        }
+        val ctor = parseClassMembers(body, superClass != null)
         strict = oldStrict
         // validate private names
         privateNames = pn.parent
@@ -1253,6 +1249,40 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
         cls.srcStart = p.start
         cls.srcEnd = lex.prevEnd
         return cls
+    }
+
+    /**
+     * A class body's members after its `{`, up to and with its `}`, into [body]; returns its constructor. (Open for the
+     * recovery mode, which goes on after a member it could not read.)
+     */
+    protected open fun parseClassMembers(body: ArrayList<Node>, derived: Boolean): FunctionNode? {
+        var ctor: FunctionNode? = null
+        while (!eat(T.RBRACE)) {
+            if (eat(T.SEMI)) continue
+            ctor = parseClassMember(body, derived, ctor)
+        }
+        return ctor
+    }
+
+    /** A class member with its decorators, into [body]; returns the class's constructor so far ([ctor] or this one). */
+    protected fun parseClassMember(body: ArrayList<Node>, derived: Boolean, ctor: FunctionNode?): FunctionNode? {
+        var constructor = ctor
+        val decStart = lex.start
+        val decs = if (type == T.AT) parseDecorators() else emptyList()
+        val el = parseClassElement(derived)
+        if (el is MethodDefinition && el.kind == MethodKind.CONSTRUCTOR) {
+            if (constructor != null) raise(el.start, "A class may only have one constructor")
+            constructor = el.value
+        }
+        if (decs.isNotEmpty()) {
+            when (el) {
+                is MethodDefinition if el.kind != MethodKind.CONSTRUCTOR -> el.decorators = decs
+                is PropertyDefinition -> el.decorators = decs
+                else -> raise(decStart, "Decorators are not valid here")
+            }
+        }
+        body.add(el)
+        return constructor
     }
 
     private fun parseClassElement(derived: Boolean): Node {
@@ -1377,7 +1407,8 @@ internal abstract class ExpressionParser(src: String, options: ParseOptions) : P
         return pd
     }
 
-    private fun declarePrivate(key: PrivateIdentifier, kind: String, isStatic: Boolean) {
+    /** (Open for the recovery mode, whose failed members' names may be declared again by the members after them.) */
+    protected open fun declarePrivate(key: PrivateIdentifier, kind: String, isStatic: Boolean) {
         val pn = privateNames!!
         val existing = pn.declared[key.name]
         val k = (if (isStatic) "s" else "i") + kind

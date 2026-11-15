@@ -11,6 +11,7 @@ The libraries are published as `dev.mooner.neonjs:<module>`:
 | `dev.mooner.neonjs:neonjs-node` | Node.js APIs (`node:` modules, `require`, `Buffer`) |
 | `dev.mooner.neonjs:neonjs-android` | dex code definer for the JIT and `Java.extend` on Android (dx) |
 | `dev.mooner.neonjs:neonjs-android-d8` | D8 converter for `neonjs-android` (depends on `com.android.tools:r8` from Google's Maven repository) |
+| `dev.mooner.neonjs:neonjs-lint` | linter: the engine's parser read on after syntax errors, and rules for mistakes that are valid code (depends on `neonjs-core`) |
 
 `neonjs-cli` and `neonjs-test262` are not published. Each artifact comes with a sources jar, an empty javadoc jar,
 Gradle module metadata and GPG signatures; the API docs (Dokka HTML) are published to GitHub Pages instead of the
@@ -26,7 +27,7 @@ with `-Pversion=`.
 
 Maven Central limits each organization's publishing per month (release size, file count and release count, shown
 under *Usage Overview* on [central.sonatype.com](https://central.sonatype.com); in October 2026 the limits were
-80 MB, 1,000 files and 7 releases). With the empty javadoc jars a release of all six modules is about 4.2 MB (the Dokka
+80 MB, 1,000 files and 7 releases). With the empty javadoc jars a release of all the modules was about 4.2 MB (the Dokka
 javadoc jars made it about 15 MB). Every release
 therefore goes to the Maven repository on GitHub Pages, which has no such quota, and only some (milestones, versions
 other projects pin for a long time) also go to Central. Both carry the same files, so a consumer that lists both

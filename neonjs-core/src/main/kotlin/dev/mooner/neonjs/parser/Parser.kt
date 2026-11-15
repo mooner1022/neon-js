@@ -9,6 +9,17 @@ object Parser {
     fun parse(src: String, options: ParseOptions = ParseOptions()): Program = ParserImpl(src, options).parseTopLevel()
 
     /**
+     * Parses a Script or Module in the recovery mode, for the linter: errors are recorded rather than thrown, and the
+     * parse goes on after each (the first recorded is the one [parse] throws). The tree has an [ErrorNode] for each
+     * statement that could not be read. It throws nothing but a StackOverflowError on input nested too deep.
+     */
+    @UnstableParserApi
+    @JvmStatic
+    @JvmOverloads
+    fun parseTolerant(src: String, options: ParseOptions = ParseOptions(), limits: ParseLimits = ParseLimits()): TolerantParse =
+        parseTolerantly(src, options, limits)
+
+    /**
      * Parses the parts of a dynamic function (Function / GeneratorFunction / AsyncFunction constructors).
      * Returns the function node and the synthesized source text used for toString.
      */
@@ -30,16 +41,23 @@ object Parser {
     }
 }
 
-internal class ParserImpl(src: String, options: ParseOptions) : ExpressionParser(src, options) {
+/** The statement lists [ParserImpl.parseListedStatement] reads a statement of: a script's or module's, a block's, a case's. */
+internal const val LIST_TOP = 0
+internal const val LIST_BLOCK = 1
+internal const val LIST_CASE = 2
 
-    private val undefinedExports = LinkedHashMap<String, Int>()
-    private val exportedNames = HashSet<String>()
+/** The engine's parser. Open for the recovery mode ([RecoveringParser]), which differs at the methods marked so. */
+internal open class ParserImpl(src: String, options: ParseOptions) : ExpressionParser(src, options) {
+
+    protected val undefinedExports = LinkedHashMap<String, Int>()
+    // (in the order exported: the recovery mode undoes a failed statement's exports by dropping the last ones)
+    protected val exportedNames = LinkedHashSet<String>()
 
     // ============================================================ entry points
 
     fun parseTopLevel(): Program {
         enterScope(SCOPE_TOP)
-        next()
+        readFirstToken()
         val body = parseStatementListTop()
         if (inModule) {
             resolvePendingExports()
@@ -55,12 +73,36 @@ internal class ParserImpl(src: String, options: ParseOptions) : ExpressionParser
         return prog
     }
 
+    /**
+     * The source ends in a block. The engine throws; the recovery mode records it and keeps the block's statements (its
+     * end then ends every block around it).
+     */
+    protected open fun blockEndsEarly() {
+        unexpected()
+    }
+
+    /** The source ends in a switch's cases. The engine throws; the recovery mode records it and keeps the cases. */
+    protected open fun casesEndEarly() {
+        unexpected()
+    }
+
+    /** The source's first token. (The recovery mode reads on past the lexer's errors.) */
+    protected open fun readFirstToken() {
+        next()
+    }
+
+    /**
+     * A statement of a statement list ([LIST_TOP], [LIST_BLOCK] or [LIST_CASE]): where the recovery mode goes on after
+     * a syntax error, with a node standing for the statement it could not read.
+     */
+    protected open fun parseListedStatement(list: Int): Node = parseStatement(null, topLevel = list == LIST_TOP)
+
     private fun parseStatementListTop(): List<Node> {
         val body = ArrayList<Node>()
         var allowDirectives = true
         var firstOctal = -1
         while (type != T.EOF) {
-            val stmt = parseStatement(null, topLevel = true)
+            val stmt = parseListedStatement(LIST_TOP)
             if (allowDirectives) {
                 val d = directiveOf(stmt)
                 if (d != null) {
@@ -125,8 +167,11 @@ internal class ParserImpl(src: String, options: ParseOptions) : ExpressionParser
         var firstOctal = -1
         val end = if (endsWithBrace) T.RBRACE else T.EOF
         while (type != end) {
-            if (type == T.EOF) unexpected()
-            val stmt = parseStatement(null)
+            if (type == T.EOF) {
+                blockEndsEarly()
+                break
+            }
+            val stmt = parseListedStatement(LIST_BLOCK)
             if (allowDirectives) {
                 val d = directiveOf(stmt)
                 if (d != null) {
@@ -294,7 +339,7 @@ internal class ParserImpl(src: String, options: ParseOptions) : ExpressionParser
         return fin(ExpressionStatement(expr), p)
     }
 
-    private var switchCaseDepth = -1
+    protected var switchCaseDepth = -1
 
     private fun isInSwitchCaseDirectly(): Boolean = switchCaseDepth == scopeStack.size
 
@@ -440,6 +485,10 @@ internal class ParserImpl(src: String, options: ParseOptions) : ExpressionParser
             if (curStmts != null) cases.add(fin(SwitchCase(curTest, curStmts!!), curP!!))
         }
         while (type != T.RBRACE) {
+            if (type == T.EOF) {
+                casesEndEarly()
+                break
+            }
             if (isKw("case") || isKw("default")) {
                 val isCase = isKw("case")
                 flush()
@@ -456,7 +505,7 @@ internal class ParserImpl(src: String, options: ParseOptions) : ExpressionParser
                 curStmts = ArrayList()
             } else {
                 if (curStmts == null) unexpected()
-                curStmts.add(parseStatement(null))
+                curStmts.add(parseListedStatement(LIST_CASE))
             }
         }
         flush()
@@ -777,7 +826,7 @@ internal class ParserImpl(src: String, options: ParseOptions) : ExpressionParser
         if (!exportedNames.add(name)) raise(pos, "Duplicate export of '$name'")
     }
 
-    private fun declaredAtTop(name: String): Boolean {
+    protected open fun declaredAtTop(name: String): Boolean {
         val top = scopeStack[0]
         return top.vars.contains(name) || top.lexical.contains(name) || top.functions.contains(name)
     }

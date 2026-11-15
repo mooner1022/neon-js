@@ -306,7 +306,7 @@ class HostAccess private constructor(b: Builder) {
             "com.ibm.icu.", "okhttp3.", "okio.",
             // the engine's own packages
             "dev.mooner.neonjs.android.", "dev.mooner.neonjs.builtins.", "dev.mooner.neonjs.cli.", "dev.mooner.neonjs.compiler.",
-            "dev.mooner.neonjs.ext.", "dev.mooner.neonjs.interop.", "dev.mooner.neonjs.intl.", "dev.mooner.neonjs.jit.", "dev.mooner.neonjs.net.", "dev.mooner.neonjs.node.",
+            "dev.mooner.neonjs.ext.", "dev.mooner.neonjs.interop.", "dev.mooner.neonjs.intl.", "dev.mooner.neonjs.jit.", "dev.mooner.neonjs.lint.", "dev.mooner.neonjs.net.", "dev.mooner.neonjs.node.",
             "dev.mooner.neonjs.parser.", "dev.mooner.neonjs.regexp.", "dev.mooner.neonjs.runtime.", "dev.mooner.neonjs.unicode.",
             "dev.mooner.neonjs.vm.",
         )

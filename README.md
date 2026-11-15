@@ -48,6 +48,18 @@ callers; Temporal computes offsets with the JDK's tz data while `Intl.DateTimeFo
 disagree for a few zones' history when the two databases are different releases; `Date.parse` of strings outside
 the specified formats follows the engine's own heuristics, which differ from SpiderMonkey's in places.
 
+Two known Annex B differences in block-level functions of sloppy code:
+- **A function with a `"use strict"` of its own gets no var outside its block.** In
+  `{ function g() { "use strict"; } }`, `g` stays block-scoped, so outside the block `typeof g` is `"undefined"`,
+  where the language gives a var holding the function, as it does for one without the directive. The scope analysis
+  checks the function's own strictness, where only the enclosing code's matters.
+- **A direct `eval` throws where it should skip.** Suppose it declares a block function whose name a `let`, `const` or
+  `class` already binds, in the calling function or at the global level. For example,
+  `function f() { let g = 1; eval("{ function g() {} }"); }`. Then it throws a SyntaxError, where the language
+  skips the var and leaves the `let` alone.
+
+Test262 has no test of either.
+
 ## Installation
 
 Releases are published as `dev.mooner.neonjs:<module>` to a Maven repository on GitHub Pages, and some of them to
@@ -73,6 +85,7 @@ dependencies {
     implementation("dev.mooner.neonjs:neonjs-intl:…")   // optional: Intl and the non-ISO Temporal calendars (ICU4J)
     implementation("dev.mooner.neonjs:neonjs-net:…")    // optional: fetch and WebSocket (OkHttp), within a network policy
     implementation("dev.mooner.neonjs:neonjs-node:…")   // optional: Node.js APIs (node: modules, require, Buffer)
+    implementation("dev.mooner.neonjs:neonjs-lint:…")   // optional: a linter (syntax errors, mistakes that are valid code)
 }
 ```
 
@@ -598,6 +611,7 @@ their context).
 | `neonjs-android-d8` | optional `DexConverter` using D8 (r8 library) instead of dx |
 | `neonjs-net` | `fetch` and `WebSocket` over OkHttp: `NetExtension`, `NetOptions` (the policy), the `undici` and `ws` modules |
 | `neonjs-node` | Node.js APIs: `NodeExtension`, the `node:` modules (`lib/`: Node's own sources and NeonJS's), their Kotlin side |
+| `neonjs-lint` | linter: `NeonLint.lint` (the parser's recovery mode, the scope analysis, rules), `EngineGlobals`; see docs/LINT.md |
 | `neonjs-cli` | command-line runner and REPL |
 | `neonjs-test262` | Test262, web-platform-tests and Node.js test runners |
 

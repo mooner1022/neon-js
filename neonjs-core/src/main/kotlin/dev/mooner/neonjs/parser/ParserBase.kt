@@ -94,10 +94,26 @@ internal abstract class ParserBase(val src: String, val options: ParseOptions) {
         lex.next()
     }
 
-    fun raise(pos: Int, msg: String): Nothing = lex.error(msg, pos)
+    /**
+     * An early error: a rule broken where the syntax around it is intact (a name declared twice, an invalid assignment
+     * target, a reserved word). The engine throws it here; nothing after the call runs. The linter's recovery mode
+     * records it and goes on, so the code after a call must leave the parser in a state it can go on from.
+     */
+    open fun raise(pos: Int, msg: String) {
+        lex.error(msg, pos)
+    }
 
-    fun unexpected(pos: Int = lex.start): Nothing {
-        if (lex.type == T.EOF && pos == lex.start) raise(pos, "Unexpected end of input")
+    /**
+     * A syntax error the parse cannot go on from where it is (a token missing or out of place): thrown in every mode
+     * (the recovery mode records it first, and goes on from the statement's end).
+     */
+    open fun fail(pos: Int, msg: String): Nothing = lex.error(msg, pos)
+
+    fun unexpected(pos: Int = lex.start): Nothing = fail(pos, unexpectedMessage(pos))
+
+    /** What [unexpected] says of the current token at [pos]. */
+    fun unexpectedMessage(pos: Int = lex.start): String {
+        if (lex.type == T.EOF && pos == lex.start) return "Unexpected end of input"
         val tokText = when (lex.type) {
             T.NAME -> "identifier '${lex.value}'"
             T.STRING -> "string"
@@ -105,7 +121,7 @@ internal abstract class ParserBase(val src: String, val options: ParseOptions) {
             T.EOF -> "end of input"
             else -> "token '${lex.type.text}'"
         }
-        raise(pos, "Unexpected $tokText")
+        return "Unexpected $tokText"
     }
 
     fun eat(t: T): Boolean {
@@ -114,10 +130,16 @@ internal abstract class ParserBase(val src: String, val options: ParseOptions) {
     }
 
     fun expect(t: T) {
-        if (!eat(t)) {
-            if (lex.type == T.EOF) raise(lex.start, "Unexpected end of input")
-            raise(lex.start, "Expected '${t.text}' but found ${describeToken()}")
-        }
+        if (!eat(t)) expectFailed(t)
+    }
+
+    /**
+     * [t] is not the current token. The engine throws; the recovery mode may record that and go on as if it were there,
+     * where the current token can follow it.
+     */
+    open fun expectFailed(t: T) {
+        if (lex.type == T.EOF) fail(lex.start, "Unexpected end of input")
+        fail(lex.start, "Expected '${t.text}' but found ${describeToken()}")
     }
 
     fun describeToken(): String = when (lex.type) {
@@ -151,13 +173,21 @@ internal abstract class ParserBase(val src: String, val options: ParseOptions) {
     }
 
     fun expectKw(kw: String) {
-        if (!eatKw(kw)) raise(lex.start, "Expected '$kw' but found ${describeToken()}")
+        if (!eatKw(kw)) fail(lex.start, "Expected '$kw' but found ${describeToken()}")
     }
 
     fun canInsertSemicolon(): Boolean = lex.type == T.EOF || lex.type == T.RBRACE || lex.nlBefore
 
     fun semicolon() {
-        if (!eat(T.SEMI) && !canInsertSemicolon()) unexpected()
+        if (!eat(T.SEMI) && !canInsertSemicolon()) semicolonFailed()
+    }
+
+    /**
+     * A statement ends with no `;` and none can be inserted. The engine throws; the recovery mode may record that and go
+     * on as if there were one, where the current token can begin a statement.
+     */
+    open fun semicolonFailed() {
+        unexpected()
     }
 
     fun isLineTerminatorBefore(): Boolean = lex.nlBefore
@@ -314,7 +344,8 @@ internal abstract class ParserBase(val src: String, val options: ParseOptions) {
     fun treatFunctionsAsVarInScope(s: PScope): Boolean =
         s.flags and SCOPE_FUNCTION != 0 || (!inModule && s.flags and SCOPE_TOP != 0) || s.flags and SCOPE_CLASS_STATIC_BLOCK != 0
 
-    fun declareName(name: String, bind: Bind, pos: Int, fromForOf: Boolean = false) {
+    /** (Open for the recovery mode, which keeps what each statement declared, to undo it when the statement fails.) */
+    open fun declareName(name: String, bind: Bind, pos: Int, fromForOf: Boolean = false) {
         var redeclared = false
         when (bind) {
             Bind.LEXICAL -> {
