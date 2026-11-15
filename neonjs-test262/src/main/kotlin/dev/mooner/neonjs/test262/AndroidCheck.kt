@@ -175,7 +175,7 @@ private fun callableMethodNames(cls: Class<*>): Set<String> {
  */
 private fun hostInterop(): String {
     val access = HostAccess.builder(HostAccess.Level.ALL).allowLookup { true }.build()
-    NeonEngine.builder().hostAccess(access).console(null).sandbox(SandboxPolicy.builder().exposeJavaGlobal(true).build()).build().newContext().use { ctx ->
+    NeonEngine.builder().hostAccess(access).console(null).sandbox(SandboxPolicy.builder().exposeJavaGlobal(true).exposeJavaPackages(true).build()).build().newContext().use { ctx ->
         fun js(src: String) = ctx.eval(src, "<check>").asString()
         val sb = js("var SB = Java.type('java.lang.StringBuilder'); var sb = new SB(); var r = sb.append('a').append(1).append(null); " +
             "[typeof sb, r === sb, String(sb), sb.length(), (sb.setLength(1), String(sb)), sb.charAt(0)].join()")
@@ -218,6 +218,11 @@ private fun hostInterop(): String {
             "new Date(Java.type('java.time.Instant').ofEpochMilli(5)).getTime()].join()")
         check(maps == "true,a-b,1,java.lang.NumberFormatException:true,5") { "maps, exceptions, dates: $maps" }
         check(hm["b"] == 2) { "hm.set on the host Map: $hm" }
+        // the package globals: classes through ART's class loader, Android's own packages under Packages
+        val pkgs = js("[new java.util.ArrayList().size(), java.util.HashMap === Java.type('java.util.HashMap'), String(java.util), " +
+            "typeof Packages.android.os.Build].join()")
+        val build = if (apiLevel > 0) "function" else "object"
+        check(pkgs == "0,true,[JavaPackage java.util],$build") { "package globals: $pkgs" }
         // a method naming a class missing at run time is left out; ART resolves signatures method by method, so the
         // class's other methods stay
         val definer = CodeDefiners.default
