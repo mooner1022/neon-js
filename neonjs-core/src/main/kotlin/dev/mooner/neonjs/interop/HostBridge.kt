@@ -135,6 +135,8 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
     private fun viewedBy(v: Any): JSObject? = when (v) {
         is JSListView -> if (v.bridge === this) v.arr else null
         is JSMapView -> if (v.bridge === this) v.obj else null
+        is JSMapEntriesView -> if (v.bridge === this) v.map else null
+        is JSSetView -> if (v.bridge === this) v.set else null
         else -> null
     }
 
@@ -390,6 +392,11 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
             is JSObject -> {
                 if ((v is dev.mooner.neonjs.builtins.JSDate || v is dev.mooner.neonjs.builtins.temporal.JSTemporalInstant) && isDateTimeType(t)) return 1
                 if (v.isCallable && t.isInterface && HostClassInfo.samOf(t) != null && access.allowImplementations) return 1
+                // a JS Map as a Map, a JS Set as a Set: views of their entries (before what any object converts to)
+                if (v is dev.mooner.neonjs.builtins.JSMapObject) {
+                    if (!v.isSet && t == Map::class.java) return 2
+                    if (v.isSet && (t == Set::class.java || t == Collection::class.java || t == Iterable::class.java)) return 2
+                }
                 if (Ops.isArray(v)) {
                     if (t.isArray) return 2
                     if (t == List::class.java || t == Collection::class.java || t == Iterable::class.java) return 2
@@ -470,6 +477,10 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
             return t.enumConstants.firstOrNull { (it as Enum<*>).name == n } ?: throw JSException.typeError("No enum constant ${t.name}.$n")
         }
         if (v is JSObject) {
+            if (v is dev.mooner.neonjs.builtins.JSMapObject) {
+                if (!v.isSet && t == Map::class.java) return JSMapEntriesView(this, v, elementType(gt, 0), elementType(gt, 1))
+                if (v.isSet && (t == Set::class.java || t == Collection::class.java || t == Iterable::class.java)) return JSSetView(this, v, elementType(gt, 0))
+            }
             if (t.isArray && Ops.isArray(v)) {
                 val ct = t.componentType
                 val n = Ops.lengthOfArrayLike(v).toInt()
@@ -965,5 +976,119 @@ class JSMapView(internal val bridge: HostBridge, internal val obj: JSObject, pri
         val old = obj.get(k, obj)
         obj.delete(k)
         bridge.toHost(old, vt)
+    }
+}
+
+/** The live entries of a JS Map's table, as JS values: each key and value with its cursor (a snapshot of the order). */
+private fun tableEntries(map: dev.mooner.neonjs.builtins.JSMapObject): List<Pair<Any?, Any?>> {
+    val out = ArrayList<Pair<Any?, Any?>>()
+    val c = map.table.cursor()
+    while (map.table.advance(c)) out.add(c.key to c.value)
+    return out
+}
+
+/**
+ * Live java.util.Map view of a JS `Map`'s entries (keys and values converted as parameters are, [kt] and [vt]), as
+ * GraalJS gives one; it comes back to its context as the same Map. Keys are looked up as the JS values they convert
+ * to (a Java `Integer` 1 finds the key `1`).
+ */
+class JSMapEntriesView(
+    internal val bridge: HostBridge,
+    internal val map: dev.mooner.neonjs.builtins.JSMapObject,
+    private val kt: Class<*>,
+    private val vt: Class<*>,
+) : java.util.AbstractMap<Any?, Any?>() {
+    override val size: Int get() = bridge.gate.enter { map.table.size }
+
+    override fun containsKey(key: Any?): Boolean = bridge.gate.enter { map.table.has(bridge.toJS(key)) }
+
+    override fun get(key: Any?): Any? = bridge.gate.enter {
+        val v = map.table.get(bridge.toJS(key))
+        if (v === Undefined) null else bridge.toHost(v, vt)
+    }
+
+    override fun put(key: Any?, value: Any?): Any? = bridge.gate.enter {
+        val k = bridge.toJS(key)
+        val old = map.table.get(k)
+        map.table.set(k, bridge.toJS(value))
+        if (old === Undefined) null else bridge.toHost(old, vt)
+    }
+
+    override fun remove(key: Any?): Any? = bridge.gate.enter {
+        val k = bridge.toJS(key)
+        val old = map.table.get(k)
+        map.table.delete(k)
+        if (old === Undefined) null else bridge.toHost(old, vt)
+    }
+
+    override fun clear() = bridge.gate.enter { map.table.clear() }
+
+    /** The entries as they are when asked for; an entry's setValue and the iterator's remove change the Map. */
+    override val entries: MutableSet<MutableMap.MutableEntry<Any?, Any?>>
+        get() {
+            val snapshot = bridge.gate.enter { tableEntries(map).map { (k, v) -> Entry(bridge.toHost(k, kt), bridge.toHost(v, vt), k) } }
+            return object : java.util.AbstractSet<MutableMap.MutableEntry<Any?, Any?>>() {
+                override val size: Int get() = snapshot.size
+
+                override fun iterator(): MutableIterator<MutableMap.MutableEntry<Any?, Any?>> = object : MutableIterator<MutableMap.MutableEntry<Any?, Any?>> {
+                    private var next = 0
+                    override fun hasNext() = next < snapshot.size
+                    override fun next(): MutableMap.MutableEntry<Any?, Any?> {
+                        if (next >= snapshot.size) throw NoSuchElementException()
+                        return snapshot[next++]
+                    }
+                    override fun remove() {
+                        check(next > 0) { "next() not called" }
+                        bridge.gate.enter { map.table.delete(snapshot[next - 1].jsKey) }
+                    }
+                }
+            }
+        }
+
+    private inner class Entry(key: Any?, value: Any?, val jsKey: Any?) : java.util.AbstractMap.SimpleEntry<Any?, Any?>(key, value) {
+        override fun setValue(value: Any?): Any? {
+            bridge.gate.enter { map.table.set(jsKey, bridge.toJS(value)) }
+            return super.setValue(value)
+        }
+    }
+}
+
+/** Live java.util.Set view of a JS `Set`'s values (converted as parameters are, [et]); it comes back as the same Set. */
+class JSSetView(
+    internal val bridge: HostBridge,
+    internal val set: dev.mooner.neonjs.builtins.JSMapObject,
+    private val et: Class<*>,
+) : java.util.AbstractSet<Any?>() {
+    override val size: Int get() = bridge.gate.enter { set.table.size }
+
+    override fun contains(element: Any?): Boolean = bridge.gate.enter { set.table.has(bridge.toJS(element)) }
+
+    override fun add(element: Any?): Boolean = bridge.gate.enter {
+        val v = bridge.toJS(element)
+        if (set.table.has(v)) false else {
+            set.table.set(v, v)
+            true
+        }
+    }
+
+    override fun remove(element: Any?): Boolean = bridge.gate.enter { set.table.delete(bridge.toJS(element)) }
+
+    override fun clear() = bridge.gate.enter { set.table.clear() }
+
+    /** The values as they are when asked for; the iterator's remove changes the Set. */
+    override fun iterator(): MutableIterator<Any?> {
+        val snapshot = bridge.gate.enter { tableEntries(set).map { it.first } }
+        return object : MutableIterator<Any?> {
+            private var next = 0
+            override fun hasNext() = next < snapshot.size
+            override fun next(): Any? {
+                if (next >= snapshot.size) throw NoSuchElementException()
+                return bridge.gate.enter { bridge.toHost(snapshot[next++], et) }
+            }
+            override fun remove() {
+                check(next > 0) { "next() not called" }
+                bridge.gate.enter { set.table.delete(snapshot[next - 1]) }
+            }
+        }
     }
 }
