@@ -319,6 +319,18 @@ class ForeignObjectsTest {
     }
 
     @Test
+    fun aLongParameterTakesAnyWholeNumberItHolds() {
+        // as in GraalJS: 2 ** 60 and -(2 ** 63) are whole numbers a long holds; 2 ** 63 is not
+        ctx().use { c ->
+            c["h"] = LongSink()
+            assertEquals("1152921504606846976,-9223372036854775808,9007199254740994", c.str("[h.take(2 ** 60), h.take(-(2 ** 63)), h.take(2 ** 53 + 2)].join()"))
+            assertEquals("TypeError,TypeError", c.str("[2 ** 63, 1.5].map(x => { try { h.take(x); return 'no' } catch (e) { return e.name } }).join()"))
+            // a choice made for one number beyond 2^53 is not remembered for another: 2 ** 64 fits no long
+            assertEquals("long 1152921504606846976,TypeError", c.str("[h.pick(2 ** 60), (() => { try { return h.pick(2 ** 64) } catch (e) { return e.name } })()].join()"))
+        }
+    }
+
+    @Test
     fun newDateOfAHostDateTimeTakesItsInstant() {
         // a ZonedDateTime's text does not parse ("...+09:00[Asia/Seoul]"): it was an Invalid Date
         ctx(sandbox = SandboxPolicy.builder().timeZone("Asia/Seoul").build()).use { c ->

@@ -378,7 +378,9 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
                 return when (t) {
                     java.lang.Double.TYPE, java.lang.Double::class.java -> if (integral) 2 else 1
                     java.lang.Float.TYPE, java.lang.Float::class.java -> 3
-                    java.lang.Long.TYPE, java.lang.Long::class.java -> if (integral && abs(v) <= 9.007199254740991E15) 1 else IMPOSSIBLE
+                    // any whole number a long holds, as in GraalJS: 2 ** 60 too, though past 2^53 - 1 the number may already
+                    // have been rounded in JS
+                    java.lang.Long.TYPE, java.lang.Long::class.java -> if (integral && v >= -9.223372036854775808E18 && v < 9.223372036854775808E18) 1 else IMPOSSIBLE
                     java.lang.Integer.TYPE, java.lang.Integer::class.java -> if (integral && v >= Int.MIN_VALUE && v <= Int.MAX_VALUE) 1 else IMPOSSIBLE
                     java.lang.Short.TYPE, java.lang.Short::class.java -> if (integral && v >= Short.MIN_VALUE && v <= Short.MAX_VALUE) 2 else IMPOSSIBLE
                     java.lang.Byte.TYPE, java.lang.Byte::class.java -> if (integral && v >= Byte.MIN_VALUE && v <= Byte.MAX_VALUE) 2 else IMPOSSIBLE
@@ -581,8 +583,8 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
     fun toObject(v: Any?): Any? = when (v) {
         Undefined, Null, null -> null
         is Boolean -> v
-        // an exact integer is an Integer or a Long; beyond 2^53 - 1 a number is not exact and stays a Double, as it
-        // does not convert to a long parameter either
+        // an exact integer is an Integer or a Long; beyond 2^53 - 1 a number may have been rounded and stays a Double,
+        // as in GraalJS (a long parameter takes it as the whole number it is)
         is Double -> if (v == round(v) && !v.isInfinite() && !(v == 0.0 && 1.0 / v < 0)) {
             if (v >= Int.MIN_VALUE && v <= Int.MAX_VALUE) v.toInt() else if (abs(v) <= MAX_SAFE_LONG) v.toLong() else v
         } else v
@@ -711,7 +713,8 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
             v >= Short.MIN_VALUE && v <= Short.MAX_VALUE -> 4
             v >= Int.MIN_VALUE && v <= Int.MAX_VALUE -> 5
             abs(v) <= MAX_SAFE_LONG -> 6
-            else -> 7
+            // beyond 2^53 - 1 a long takes it or not by its value (below 2^63 or not): no choice is remembered
+            else -> -1
         }
         is CharSequence -> if (v.length == 1) 8 else 9
         is BigInteger -> if (v.bitLength() < 64) 10 else 11
