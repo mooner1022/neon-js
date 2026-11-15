@@ -102,6 +102,78 @@ class HostArrayTest {
     }
 
     @Test
+    fun aListGrowsAndShrinks() {
+        ctx().use { c ->
+            val l = arrayListOf(10, 20, 30, 40)
+            c["l"] = l
+            fun step(code: String, result: String, after: List<Any?>) {
+                assertEquals(result, c.str("String($code)"), code)
+                assertEquals(after, l, code)
+            }
+            step("l.push(50, 60)", "6", listOf(10, 20, 30, 40, 50, 60))
+            step("l.pop()", "60", listOf(10, 20, 30, 40, 50))
+            step("l.shift()", "10", listOf(20, 30, 40, 50))
+            step("l.unshift(1, 2)", "6", listOf(1, 2, 20, 30, 40, 50))
+            step("l.splice(1, 2)", "2,20", listOf(1, 30, 40, 50))
+            step("l.splice(1, 0, 7, 8)", "", listOf(1, 7, 8, 30, 40, 50))
+            step("l.splice(-2, 1, 'x')", "40", listOf(1, 7, 8, 30, "x", 50))
+            step("l[l.length] = 9", "9", listOf(1, 7, 8, 30, "x", 50, 9))
+            step("l.length = 2", "2", listOf(1, 7))
+            step("l.length = '4'", "4", listOf(1, 7, null, null))
+            step("l[7] = 1", "1", listOf(1, 7, null, null))
+            assertTrue(c.eval("Array.isArray(l.splice(0, 0)) && Object.getOwnPropertyDescriptor(l, 'length').writable").asBoolean())
+            // as an array's: a length is a whole number below 2^32, or a RangeError (the List unchanged)
+            for (bad in listOf("-1", "1.5", "2 ** 32")) {
+                assertEquals("RangeError", c.str("try { l.length = $bad; 'no' } catch (e) { e.name }"), bad)
+            }
+            assertEquals(listOf(1, 7, null, null), l)
+            assertEquals("TypeError", c.str("(function () { 'use strict'; try { l[9] = 1; return 'no' } catch (e) { return e.name } })()"))
+            // iteration is by index, so elements pushed during a for-of are visited (an iterator of the List would throw
+            // ConcurrentModificationException)
+            c["g"] = arrayListOf(1, 2)
+            assertEquals(5, c.eval("var n = 0; for (const x of g) { if (n++ < 3) g.push(x) } n").asInt())
+            // Java's members come first
+            c["m"] = arrayListOf(3, 1, 2)
+            assertEquals("1,3,2,0", c.str("m.sort((x, y) => x - y); [m.indexOf(2), m[2], m.lastIndexOf(9) + m.size(), m.indexOf(1)].join()"))
+        }
+    }
+
+    @Test
+    fun aListThatCannotChangeItsLength() {
+        ctx().use { c ->
+            val ops = listOf("shift()", "splice(1, 2)", "unshift(1, 2)", "pop()", "push(50, 60)", "splice(1, 0, 7, 8)", "length = 2", "length = 6")
+            for ((name, make) in listOf<Pair<String, () -> List<Int>>>("Arrays.asList" to { java.util.Arrays.asList(10, 20, 30, 40) }, "List.of" to { java.util.List.of(10, 20, 30, 40) })) {
+                for (op in ops) {
+                    val l = make()
+                    c["l"] = l
+                    assertEquals("TypeError", c.str("(function () { 'use strict'; try { l.$op; return 'no' } catch (e) { return e.name } })()"), "$name $op")
+                    assertEquals(listOf(10, 20, 30, 40), l, "$name $op")
+                }
+            }
+            // Arrays.asList's elements can be set, List.of's cannot
+            val fixed = java.util.Arrays.asList(10, 20, 30)
+            c["f"] = fixed
+            assertEquals("20", c.str("String(f.splice(1, 1, 5))"))
+            assertEquals(listOf(10, 5, 30), fixed)
+            c["i"] = java.util.List.of(1, 2)
+            assertEquals("TypeError: Cannot assign to element 0 of java.util.ImmutableCollections\$List12", c.str("try { i.splice(0, 1, 5); 'no' } catch (e) { String(e) }"))
+        }
+    }
+
+    @Test
+    fun paddingAListIsUnderTheSandboxLimits() {
+        val engine = NeonEngine.builder().hostAccess(HostAccess.ALL).console(null)
+            .sandbox(SandboxPolicy.builder().maxAllocatedBytes(64L * 1024 * 1024).build()).build()
+        engine.newContext().use { c ->
+            val l = ArrayList<Any?>()
+            c["l"] = l
+            val e = org.junit.jupiter.api.assertThrows<NeonException> { c.eval("l.length = 2 ** 31 - 9") }
+            assertTrue("Memory allocation limit" in e.message!!, e.message)
+            assertEquals("RangeError", c.str("try { l.length = 2 ** 31; 'no' } catch (e) { e.name }"), "beyond what a List holds")
+        }
+    }
+
+    @Test
     fun thePolicyDecides() {
         // without array access (EXPLICIT's default) a Java array is no JS array; with it, it is one, as under ALL
         ctx(HostAccess.EXPLICIT).use { c ->
