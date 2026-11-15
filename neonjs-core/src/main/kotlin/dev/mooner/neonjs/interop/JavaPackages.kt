@@ -59,8 +59,11 @@ class JavaPackageObject(
     override fun toString(): String = "JavaPackage[$packageName]"
 
     companion object {
-        /** The top-level packages GraalJS makes globals, besides `Packages`. */
-        @JvmField val GLOBALS = listOf("java", "javax", "com", "org", "edu")
+        /**
+         * The top-level packages made globals, besides `Packages`: GraalJS's (`java`, `javax`, `com`, `org`, `edu`) and
+         * `android`, for Android hosts (`android.widget.Toast`).
+         */
+        @JvmField val GLOBALS = listOf("java", "javax", "com", "org", "edu", "android")
 
         /**
          * Installs `Packages` and [GLOBALS] in [realm], classes resolved through [resolve]. They are writable and

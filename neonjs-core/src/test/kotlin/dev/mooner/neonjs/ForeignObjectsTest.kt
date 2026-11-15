@@ -233,7 +233,8 @@ class ForeignObjectsTest {
         val lookup = HostAccess.builder(HostAccess.Level.ALL).allowLookup { true }.build()
         val packages = SandboxPolicy.builder().exposeJavaGlobal(true).exposeJavaPackages(true).build()
         ctx(lookup, packages).use { c ->
-            assertEquals("object,object,object,object,object,object", c.str("[Packages, java, javax, com, org, edu].map(x => typeof x).join()"))
+            assertEquals("object,object,object,object,object,object,object", c.str("[Packages, java, javax, com, org, edu, android].map(x => typeof x).join()"),
+                "android besides GraalJS's globals, for Android hosts")
             assertEquals("0,true,true,true", c.str("""[new java.util.ArrayList().size(), java.util.ArrayList === Java.type('java.util.ArrayList'),
                 Packages.java.util.HashMap === java.util.HashMap, java.util === java.util].join()"""))
             assertEquals("[JavaPackage java.util]|object|{}|0|true|function", c.str("""[String(java.util), typeof java.no.such.Thing, JSON.stringify(java.util),
@@ -299,6 +300,22 @@ class ForeignObjectsTest {
             c["instant"] = java.time.Instant.ofEpochMilli(5)
             assertEquals("false,undefined", c.str("[instant instanceof Date, typeof instant.getTime].join()"))
         }
+    }
+
+    @Test
+    fun javaTypeNameAndPrint() {
+        val lookup = HostAccess.builder(HostAccess.Level.ALL).allowLookup { true }.build()
+        val out = ArrayList<String>()
+        NeonEngine.builder().hostAccess(lookup).console { level, m -> out.add("$level $m") }
+            .sandbox(SandboxPolicy.builder().exposeJavaGlobal(true).exposePrint(true).build()).build().newContext().use { c ->
+                c["l"] = arrayListOf(1, 2)
+                assertEquals("java.lang.String,int[],undefined,undefined", c.str("""[Java.typeName(Java.type('java.lang.String')), Java.typeName(Java.type('int[]')),
+                    Java.typeName(l), Java.typeName('x')].map(String).join()"""))
+                c.eval("print('a', 1, [1, 2], { k: 1 }, l, null, undefined); printErr('e', 2)")
+            }
+        assertEquals(listOf("LOG a 1 1,2 [object Object] [1, 2] null undefined", "ERROR e 2"), out, "as GraalJS's print: String(x), spaces")
+        // off by default
+        ctx().use { c -> assertEquals("undefined,undefined", c.str("[typeof print, typeof printErr].join()")) }
     }
 
     @Test
