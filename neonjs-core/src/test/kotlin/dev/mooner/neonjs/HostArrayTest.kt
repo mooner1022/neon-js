@@ -192,6 +192,21 @@ class HostArrayTest {
     }
 
     @Test
+    fun theConsoleShowsTheElements() {
+        val out = ArrayList<String>()
+        NeonEngine.builder().hostAccess(HostAccess.ALL).console { _, m -> out.add(m) }.build().newContext().use { c ->
+            c["h"] = ArraySource()
+            c["l"] = arrayListOf(1, 2)
+            c["big"] = IntArray(1000) { it }
+            c["deep"] = arrayOf(arrayOf(arrayOf(arrayOf(1))))
+            c.eval("console.log(h.ints(), h.nested(), h.objects(), l); console.log(big); console.log(deep)")
+        }
+        assertEquals("[Host int[]: [3, 1, 2]] [Host int[][]: [[1, 2], [3]]] [Host Object[]: [1, x, null]] [Host ArrayList: [1, 2]]", out[0])
+        assertTrue(out[1].startsWith("[Host int[]: [0, 1, 2, ") && out[1].endsWith(" more]]") && out[1].length < 260, out[1])
+        assertEquals("[Host Integer[][][][]: [[[[...]]]]]", out[2])
+    }
+
+    @Test
     fun aSiteSeesJsArraysThenHostArrays() {
         // one function's property sites, calls and for-of first warmed by JS arrays, then given host arrays (and back)
         for (mode in ExecutionMode.entries) {

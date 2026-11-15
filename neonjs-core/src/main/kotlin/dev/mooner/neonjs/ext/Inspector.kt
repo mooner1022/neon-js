@@ -70,7 +70,7 @@ object Inspector {
             is CharSequence -> sb.append(quote(v.toString()))
             is BigInteger -> sb.append(v).append('n')
             is JSSymbol -> sb.append(v.toString())
-            is HostObject -> sb.append("[Host ").append(v.target.javaClass.simpleName).append(": ").append(safeToString(v.target)).append(']')
+            is HostObject -> sb.append("[Host ").append(v.target.javaClass.simpleName).append(": ").append(hostText(v.target)).append(']')
             is HostClassObject -> sb.append("[HostClass ").append(v.cls.name).append(']')
             is ProxyObject -> sb.append("Proxy {}")
             is JSObject -> formatObject(v, sb, depth, seen)
@@ -79,6 +79,28 @@ object Inspector {
     }
 
     private fun safeToString(o: Any): String = try { o.toString().take(200) } catch (_: Exception) { "?" }
+
+    /**
+     * A host object's text: a Java array's elements, as `Arrays.toString` gives them (its own toString() gives only
+     * its type and identity hash), about 200 characters of them and nested arrays three deep; anything else's
+     * toString().
+     */
+    private fun hostText(o: Any, depth: Int = 0): String {
+        if (!o.javaClass.isArray) return safeToString(o)
+        if (depth == 3) return "[...]"
+        val n = java.lang.reflect.Array.getLength(o)
+        val sb = StringBuilder("[")
+        for (i in 0 until n) {
+            if (sb.length > 200) {
+                sb.append("... ").append(n - i).append(" more")
+                break
+            }
+            if (i > 0) sb.append(", ")
+            val e = java.lang.reflect.Array.get(o, i)
+            sb.append(if (e == null) "null" else hostText(e, depth + 1))
+        }
+        return sb.append(']').toString()
+    }
 
     private fun formatObject(o: JSObject, sb: StringBuilder, depth: Int, seen: MutableSet<Any>) {
         if (!seen.add(o)) {
