@@ -52,7 +52,7 @@ class HostMethodFunction(
  * `push`, `pop`, `shift`, `unshift`, `splice`, a write just past its end and `length`; a Java array's length is fixed.
  */
 class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @JvmField val info: HostClassInfo) :
-    JSObject(if (info.arrayLike) bridge.realm.arrayPrototype else bridge.realm.objectPrototype), ForeignArray {
+    JSObject(prototypeFor(bridge, info)), ForeignArray, ForeignMap, ForeignDate {
 
     /** Bound methods by [HostClassInfo.methodIndex] (one function per name, as reading a method twice gives). */
     private var bound: Array<HostMethodFunction?>? = null
@@ -63,6 +63,7 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
         special = special or SPECIAL_ALL
         if (info.functionalMethod != null) special = special or CALLABLE
         if (info.arrayLike) special = special or FOREIGN_ARRAY
+        else if (info.mapLike) special = special or FOREIGN_MAP
         extensible = false
     }
 
@@ -153,7 +154,7 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
     private fun mapEntry(name: String): Any? {
         @Suppress("UNCHECKED_CAST") val m = target as Map<Any?, Any?>
         val v = try {
-            if (!m.containsKey(name)) return NotFound
+            if (!containsKey(m, name)) return NotFound
             m[name]
         } catch (e: RuntimeException) {
             throw bridge.hostError(e)
@@ -302,6 +303,88 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
         false
     }
 
+    /** As [ForeignDate] says; nothing for an object the policy shows nothing of. */
+    override fun foreignTimeValue(): Double? {
+        if (!info.instancesVisible) return null
+        return try {
+            when (target) {
+                is java.time.Instant -> target.toEpochMilli().toDouble()
+                is java.time.ZonedDateTime -> target.toInstant().toEpochMilli().toDouble()
+                is java.time.OffsetDateTime -> target.toInstant().toEpochMilli().toDouble()
+                is java.time.LocalDateTime -> target.atZone(dev.mooner.neonjs.builtins.DateTime.zone).toInstant().toEpochMilli().toDouble()
+                is java.time.LocalDate -> target.atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli().toDouble()
+                is java.util.Date -> target.time.toDouble()
+                else -> null
+            }
+        } catch (_: ArithmeticException) {
+            Double.NaN // beyond a long of milliseconds: far outside what a Date holds
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private val map get() = target as MutableMap<Any?, Any?>
+
+    /** [block] on the Map, its refusal to change a TypeError and its other failures host errors. */
+    private inline fun <R> onMap(what: String, block: (MutableMap<Any?, Any?>) -> R): R = try {
+        block(map)
+    } catch (_: UnsupportedOperationException) {
+        throw JSException.typeError("Cannot $what ${target.javaClass.name}")
+    } catch (e: JSException) {
+        throw e
+    } catch (e: RuntimeException) {
+        throw bridge.hostError(e)
+    }
+
+    /**
+     * Whether Map [m] has [key]; a key it refuses to look up (a ClassCastException from a TreeMap of other keys, a
+     * NullPointerException from `Map.of` given null) is no key of it. So `m.has` on a TreeMap of Integer keys is
+     * Map.prototype's method rather than a failed lookup of the entry "has" (GraalJS throws there).
+     */
+    private fun containsKey(m: Map<Any?, Any?>, key: Any?): Boolean = try {
+        m.containsKey(key)
+    } catch (_: ClassCastException) {
+        false
+    } catch (_: NullPointerException) {
+        false
+    }
+
+    override fun mapGet(key: Any?): Any? = onMap("read") { m ->
+        val k = bridge.toObject(key)
+        if (containsKey(m, k)) bridge.toJS(m[k]) else Undefined
+    }
+
+    override fun mapSet(key: Any?, value: Any?) {
+        onMap("add to") { m -> m[bridge.toObject(key)] = bridge.toObject(value) }
+    }
+
+    override fun mapHas(key: Any?): Boolean = onMap("read") { m -> containsKey(m, bridge.toObject(key)) }
+
+    override fun mapDelete(key: Any?): Boolean = onMap("remove from") { m ->
+        val k = bridge.toObject(key)
+        if (!containsKey(m, k)) false else {
+            m.remove(k)
+            true
+        }
+    }
+
+    override fun mapClear() = onMap("clear") { m -> m.clear() }
+
+    override fun mapSize(): Int = onMap("read") { m -> m.size }
+
+    override fun mapCursor(): () -> Array<Any?>? {
+        val keys = onMap("read") { m -> ArrayList(m.keys) }
+        var i = 0
+        return fun(): Array<Any?>? {
+            while (i < keys.size) {
+                if (i and 1023 == 1023) bridge.realm.agent.checkInterrupt()
+                val k = keys[i++]
+                val present = onMap("read") { m -> if (m.containsKey(k)) m[k] else NotFound }
+                if (present !== NotFound) return arrayOf(bridge.toJS(k), bridge.toJS(present))
+            }
+            return null
+        }
+    }
+
     /** "a Java array (int[])", or the List's class name, for messages. */
     private fun describeTarget(): String = if (target.javaClass.isArray) "a Java array (${target.javaClass.typeName})" else target.javaClass.name
 
@@ -409,6 +492,16 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
     override fun toString(): String = "HostObject[${target.javaClass.name}]"
 }
 
+/**
+ * The prototype a host object gets: `Array.prototype` for an array-like one, `Map.prototype` for a Map whose entries
+ * the policy shows, else `Object.prototype`. The policy decides first ([HostClassInfo.arrayLike], [HostClassInfo.mapLike]).
+ */
+private fun prototypeFor(bridge: HostBridge, info: HostClassInfo): JSObject = when {
+    info.arrayLike -> bridge.realm.arrayPrototype
+    info.mapLike -> bridge.realm.intrinsic("%Map.prototype%")
+    else -> bridge.realm.objectPrototype
+}
+
 /** JS view of a host class: static members, constructor (`new`), instanceof checks and nested classes. */
 class HostClassObject(@JvmField val bridge: HostBridge, @JvmField val cls: Class<*>) : JSObject(bridge.realm.functionPrototype) {
     @JvmField val info = bridge.classInfo(cls)
@@ -433,7 +526,8 @@ class HostClassObject(@JvmField val bridge: HostBridge, @JvmField val cls: Class
         if (key === JSSymbol.hasInstance) {
             return NativeFunction(bridge.realm, "[Symbol.hasInstance]", 1, { _, _, a, _ ->
                 val v = a.arg(0)
-                v is HostObject && cls.isInstance(v.target)
+                // a host object of the class, or a HostError whose exception is one (`e instanceof IOException`)
+                v is HostObject && cls.isInstance(v.target) || v is JSObject && bridge.hostCauseOf(v)?.let { cls.isInstance(it) } == true
             })
         }
         if (key !is String) return NotFound

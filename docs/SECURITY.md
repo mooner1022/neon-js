@@ -38,7 +38,8 @@ if host code swallowed the exception. Every entry into a context from the host (
 `NeonValue`, a callback proxy invoked by a host thread) starts a fresh limit window.
 
 **Host access.** Nothing of the host is visible unless the host puts it there (`ctx[...]`, `exposeClass`,
-`defineModule`, `setFunction`) or enables the `Java` global. `HostAccess` decides what is visible on those objects:
+`defineModule`, `setFunction`) or enables the `Java` global or the package globals (`exposeJavaPackages`: `java.x.Y`
+resolves only where `Java.type` would load it). `HostAccess` decides what is visible on those objects:
 
 - `NONE`: host objects are opaque: no members, not callable, not array-like.
 - `EXPLICIT`: only members annotated with `@HostExport` (or members of annotated classes).
@@ -50,6 +51,8 @@ The contents are views a level other than `ALL` shows only where the embedder en
 presets do; an enabled view shows the contents of collections even under `NONE`, whose members stay hidden. No view
 applies to an instance of a class denied by name. A `List` view lets scripts change the List's length as well
 (`push`, `splice`, `length = 0`), as in GraalJS, even where its methods are hidden; a Java array's length is fixed.
+A `Map` view is a JS Map: through `Map.prototype`'s methods scripts reach entries of any key type, not only the
+string-keyed ones that are properties.
 
 At every level a deny list blocks `java.lang.Class`, class loaders, `System`, `Runtime`, processes, threads,
 `SecurityManager`, modules, `StackWalker`, `Unsafe`, `MethodHandles`, object serialization streams, reflection
@@ -122,7 +125,9 @@ differences between the interpreter and compiled code. Classes used on error pat
   symbolic links). Custom loaders must do their own confinement.
 - **Futures.** A `CompletionStage` given to JS counts as pending work until it completes: `runEventLoop` and
   `NeonValue.await` wait for it (bounded by the time limit and `interrupt()`). Its completion value goes through
-  the normal host → JS conversion, and a failure becomes a `HostError` carrying only the exception's message.
+  the normal host → JS conversion, and a failure becomes an Error carrying only the exception's message and class name
+  (`HostError` under `NONE`), as any host exception does unless `HostAccess.Builder.allowExceptionAccess` gives
+  scripts its methods.
 - **Timers** (`webGlobals(true)`). One shared daemon thread schedules all timers; it only queues jobs, and the
   callbacks run on the context's thread under its limits. Timers are capped per context (`maxTimers`, which
   `AbortSignal.timeout` counts against too), take no string callbacks, and are cancelled when the context is closed.

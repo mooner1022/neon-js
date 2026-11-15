@@ -258,8 +258,8 @@ class InteropTest {
 
             // interfaces with default methods
             assertEquals("hi x/hi x", c.eval("var G = Java.extend(Java.type('dev.mooner.neonjs.Greeter'), { greet: w => 'hi ' + w }); new G().twice('x')").asString())
-            // an unimplemented abstract method surfaces as a host error
-            assertEquals("HostError", c.eval("try { new Adapter({}, 'empty').area() } catch (e) { e.name }").asString())
+            // an unimplemented abstract method surfaces as a host error, named after its Java class
+            assertEquals("java.lang.AbstractMethodError", c.eval("try { new Adapter({}, 'empty').area() } catch (e) { e.name }").asString())
             // policy: final, denied and non-type arguments are rejected
             assertThrows<NeonException> { c.eval("Java.extend(Java.type('java.lang.String'), {})") }
             assertThrows<NeonException> { c.eval("Java.extend({}, {})") }
@@ -291,7 +291,7 @@ class InteropTest {
             c["host"] = AsyncHost()
             c.eval("var out = []; host.later('x', 30).then(v => out.push('ok ' + v)); host.failing().catch(e => out.push(e.name + ': ' + e.message))")
             assertTrue(c.runEventLoop(10_000))
-            assertEquals("HostError: nope,ok x", c.eval("out.join()").asString())
+            assertEquals("java.lang.IllegalStateException: nope,ok x", c.eval("out.join()").asString())
             val p = c.eval("(async () => (await host.later('a', 20)) + (await host.later('b', 1)))()")
             assertEquals("ab", p.await().asString())
             // top-level await on a host future

@@ -81,6 +81,7 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
             realm.hostData = this
             agent.hostExceptionHandler = { e, rr -> hostErrorToJS(e, rr) }
             if (p.exposeJavaGlobal) realm.enter { installJavaGlobal(realm, br) }
+            if (p.exposeJavaPackages) realm.enter { dev.mooner.neonjs.interop.JavaPackageObject.install(realm, br) { n -> packageClass(n) } }
             engine.console?.let { c -> realm.enter { dev.mooner.neonjs.ext.ConsoleBuiltins.install(realm, c) } }
             if (engine.webGlobals) realm.enter { dev.mooner.neonjs.ext.WebGlobals.install(realm, p.maxTimers) }
             for (e in engine.extensions) realm.enter { e.install(realm) }
@@ -243,20 +244,36 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
 
     private fun isSyntaxError(v: JSErrorObject): Boolean = v.proto === realm.errorPrototypes[ErrorKind.SYNTAX]
 
-    private val hostCauseKey = JSSymbol("hostCause")
+    private fun hostCauseOf(o: JSObject): Throwable? = bridge.hostCauseOf(o)
 
-    private fun hostCauseOf(o: JSObject): Throwable? {
-        val pm = o.props ?: return null
-        val i = pm.find(hostCauseKey)
-        if (i < 0) return null
-        return ((pm.values[i] as? HostObject)?.target as? Throwable)
+    /**
+     * A host exception as JS catches it: an Error with its message, named after its Java class where the policy shows
+     * the class at all (`java.io.IOException`, as GraalJS names it; else `HostError`), which `instanceof` a host class
+     * tests ([HostClassObject]), with the exception's methods where the policy allows them
+     * ([HostAccess.allowExceptionAccess]).
+     */
+    /**
+     * A host exception's name in JS: its class's name where the policy lets JS use the class (its filter and denied
+     * packages included), else that of its nearest superclass JS may use (a non-public exception shows as its public
+     * superclass), else `HostError`.
+     */
+    private fun exceptionName(c: Class<*>, access: HostAccess): String {
+        var k: Class<*>? = c
+        while (k != null && k != Any::class.java) {
+            if (access.isClassAccessible(k)) return k.name
+            k = k.superclass
+        }
+        return "HostError"
     }
 
     private fun hostErrorToJS(e: HostException, r: Realm): Any? {
         val cause = e.hostCause
         val err = r.newError(ErrorKind.ERROR, cause.message ?: cause.javaClass.simpleName)
-        err.defineOwn("name", "HostError", Attr.WC)
-        err.defineOwn(hostCauseKey, HostObject(bridge, cause, dev.mooner.neonjs.interop.HostClassInfo.of(Any::class.java, HostAccess.NONE)), Attr.NONE)
+        val access = engine.hostAccess
+        val shown = access.isInstanceAccessible(cause.javaClass)
+        err.defineOwn("name", exceptionName(cause.javaClass, access), Attr.WC)
+        err.defineOwn(bridge.hostCauseKey, HostObject(bridge, cause, dev.mooner.neonjs.interop.HostClassInfo.of(Any::class.java, HostAccess.NONE)), Attr.NONE)
+        if (shown && access.allowExceptionAccess) bridge.exposeExceptionMembers(err, cause)
         return err
     }
 
@@ -593,6 +610,19 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
     private val adapterCache = HashMap<List<Class<*>>, dev.mooner.neonjs.interop.AdapterClass>()
 
     /** Resolves a class name for the Java global, applying the lookup filter and the class access policy. */
+    /** The class [n] names where JS may load it (as [lookupClass] decides), else null: a package's name, for `java.x`. */
+    private fun packageClass(n: String): Class<*>? {
+        if (!engine.hostAccess.isLookupAllowed(n)) return null
+        val c = try {
+            HostBridge.classForName(n, Thread.currentThread().contextClassLoader ?: javaClass.classLoader)
+        } catch (_: ClassNotFoundException) {
+            return null
+        } catch (_: LinkageError) {
+            return null
+        }
+        return c.takeIf { engine.hostAccess.isClassAccessible(it) }
+    }
+
     private fun lookupClass(n: String, loader: ClassLoader? = Thread.currentThread().contextClassLoader ?: javaClass.classLoader): Class<*> {
         if (!engine.hostAccess.isLookupAllowed(n)) throw JSException.typeError("Access to host class $n is not allowed")
         val c = try {
