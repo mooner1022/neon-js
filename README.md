@@ -220,7 +220,8 @@ JS → host conversions follow the declared parameter types of the called method
 types or `java.util.Date` from a JS `Date` or `Temporal.Instant` — local types in the context's time zone;
 `NeonValue.asInstant()` does the same). Host → JS:
 numbers, `String`s and `Character`s become primitives, `BigInteger`s become BigInts, `null` becomes `null`, everything
-else becomes a host object.
+else becomes a host object. `new Date(x)` of a host `Instant`, `ZonedDateTime`, `OffsetDateTime`, `LocalDateTime`
+(context time zone), `LocalDate` (UTC midnight, as GraalJS) or `java.util.Date` takes its instant.
 That includes the other `CharSequence`s (`StringBuilder`, `CharBuffer`, Android's `Spanned` and `Editable`), which
 may be mutable or carry more than text: JS reads their text with `String(x)` or `'' + x`, a `String` parameter
 receives their text, and `NeonValue.asString()` returns the text of a JS string or of a host `CharSequence`.
@@ -296,13 +297,21 @@ ctx.defineModule("host:db", mapOf("query" to queryFunction, "version" to 2))   /
     `length`.
   - A Java array's length is fixed, and so is that of `List.of(…)` or `Arrays.asList(…)`. Those methods throw a
     TypeError on them before changing anything.
-- Under `HostAccess.ALL`, `Iterable`s and `Iterator`s work with `for…of` and spread, and `Map` entries are readable and
-  writable as properties.
+- Under `HostAccess.ALL`, `Iterable`s and `Iterator`s work with `for…of` and spread.
+- A Java `Map` is a JS Map to scripts, as GraalJS's foreign hash maps are:
+  - `Map.prototype` is behind it, so `for (const [k, v] of m)`, `[...m]`, `new Map(m)`, `Object.fromEntries(m)`,
+    `m.has(k)`, `m.keys()`, `m.set(k, v)` and `m instanceof Map` work, and they change the host's Map.
+  - Its entries are readable and writable as properties (`m.key`), with string keys.
+  - Java's members come first: `m.size()` and `m.forEach((k, v) => …)` are Java's, and an entry named like a Map
+    method shadows it.
+  - Changing the Map during a `for…of` never throws: a removed key is skipped and an added one is not visited.
 - Under `EXPLICIT` and `NONE`, these views are off unless the policy allows them (`allowArrayAccess`,
   `allowListAccess`, `allowMapAccess`, `allowIterableAccess`), as in GraalVM. They never apply to a class denied by
   name.
 - A JS array or object passed as a `List` or `Map` is a live view at every level, changes through its entries
   included, and comes back to its context as the same array or object.
+- A JS `Map` passed as a `Map` is a live view of its entries in the same way, and so is a JS `Set` passed as a `Set`,
+  `Collection` or `Iterable`.
 - JS functions convert to any functional interface (`Runnable`, `Consumer`, Kotlin `fun interface`s, …) and JS
   objects to any interface. The proxies re-enter the context safely from any thread, and come back to the context
   that made them as the original JS function or object.

@@ -458,6 +458,14 @@ list access) is a foreign array as in GraalJS:
 - `Array.prototype`'s methods that change the length hand their work to `ForeignArray.spliceElements`. A `List`
   changes in one step, and a fixed length fails before any element changes.
 
+A Java `Map` under map access is a foreign hash map in the same way:
+- `Map.prototype` is its prototype (`JSObject.FOREIGN_MAP`).
+- `Map.prototype`'s methods reach its entries through `ForeignMap`. Iteration runs over a snapshot of the keys,
+  skipping removed ones.
+
+`new Date` reads a host date-time's instant through `ForeignDate`. A HostError keeps its exception under a symbol of
+the bridge (`HostBridge.hostCauseOf`); a host class's `Symbol.hasInstance` looks there too.
+
 Interface implementations are `java.lang.reflect.Proxy`s whose
 handler (`JSImplementation`) turns back into the JS object when the proxy returns to its context; `Java.extend`
 generates subclasses with ASM (`Adapters.kt`), each in its own class loader. All host→JS re-entry (callbacks,
