@@ -21,6 +21,12 @@ class SandboxPolicy private constructor(b: Builder) {
     val allowEval: Boolean = b.allowEval
     /** Whether the `Java` global (Java.type etc.) is installed. Requires [HostAccess] permitting class lookup. */
     val exposeJavaGlobal: Boolean = b.exposeJavaGlobal
+    /**
+     * Whether `Packages` and the package globals `java`, `javax`, `com`, `org` and `edu` are installed, as GraalJS has
+     * them: `java.util.ArrayList` is `Java.type('java.util.ArrayList')`. Classes resolve only where [HostAccess] allows
+     * their lookup (`allowLookup`); any other name is a package. Off by default.
+     */
+    val exposeJavaPackages: Boolean = b.exposeJavaPackages
     /** Makes Math.random deterministic (seeded) and Date.now return [fixedTimeMillis] when set. */
     val randomSeed: Long? = b.randomSeed
     val fixedTimeMillis: Long? = b.fixedTimeMillis
@@ -46,6 +52,7 @@ class SandboxPolicy private constructor(b: Builder) {
         var maxAllocatedBytes = 0L
         var allowEval = true
         var exposeJavaGlobal = false
+        var exposeJavaPackages = false
         var randomSeed: Long? = null
         var fixedTimeMillis: Long? = null
         var timeZone: java.time.ZoneId? = null
@@ -60,6 +67,8 @@ class SandboxPolicy private constructor(b: Builder) {
         fun maxAllocatedBytes(n: Long) = apply { maxAllocatedBytes = n }
         fun allowEval(b: Boolean) = apply { allowEval = b }
         fun exposeJavaGlobal(b: Boolean) = apply { exposeJavaGlobal = b }
+        /** See [SandboxPolicy.exposeJavaPackages]. */
+        fun exposeJavaPackages(b: Boolean) = apply { exposeJavaPackages = b }
         fun deterministic(seed: Long, fixedTime: Long?) = apply { randomSeed = seed; fixedTimeMillis = fixedTime }
         /** Local time zone for scripts (e.g. "UTC", "Asia/Seoul", "+09:00"); hides the host's zone. */
         fun timeZone(id: String) = apply { timeZone = java.time.ZoneId.of(id) }

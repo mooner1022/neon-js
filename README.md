@@ -324,6 +324,13 @@ With `SandboxPolicy.builder().exposeJavaGlobal(true)` and a `HostAccess` that al
 `Java.super(instance)` to subclass Java classes in JS (adapters are generated with ASM). Under
 `HostAccess.EXPLICIT`, an adapter's overrides are visible exactly when the method they override is exported.
 
+`SandboxPolicy.builder().exposeJavaPackages(true)` adds `Packages` and the package globals `java`, `javax`, `com`,
+`org` and `edu`, as GraalJS has them: `new java.util.ArrayList()`, `Packages.android.widget.Toast`.
+- A name resolves to a class only where the `HostAccess` would let `Java.type` load it, through its lookup filter and
+  class checks. Any other name is a package, so a class JS may not load (`java.lang.Runtime` under the default deny
+  list) is only a name.
+- Packages have no keys, take no writes and convert to `[JavaPackage java.util]`.
+
 ### Sandboxing
 
 ```kotlin

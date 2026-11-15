@@ -81,6 +81,7 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
             realm.hostData = this
             agent.hostExceptionHandler = { e, rr -> hostErrorToJS(e, rr) }
             if (p.exposeJavaGlobal) realm.enter { installJavaGlobal(realm, br) }
+            if (p.exposeJavaPackages) realm.enter { dev.mooner.neonjs.interop.JavaPackageObject.install(realm, br) { n -> packageClass(n) } }
             engine.console?.let { c -> realm.enter { dev.mooner.neonjs.ext.ConsoleBuiltins.install(realm, c) } }
             if (engine.webGlobals) realm.enter { dev.mooner.neonjs.ext.WebGlobals.install(realm, p.maxTimers) }
             for (e in engine.extensions) realm.enter { e.install(realm) }
@@ -595,6 +596,19 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
     private val adapterCache = HashMap<List<Class<*>>, dev.mooner.neonjs.interop.AdapterClass>()
 
     /** Resolves a class name for the Java global, applying the lookup filter and the class access policy. */
+    /** The class [n] names where JS may load it (as [lookupClass] decides), else null: a package's name, for `java.x`. */
+    private fun packageClass(n: String): Class<*>? {
+        if (!engine.hostAccess.isLookupAllowed(n)) return null
+        val c = try {
+            HostBridge.classForName(n, Thread.currentThread().contextClassLoader ?: javaClass.classLoader)
+        } catch (_: ClassNotFoundException) {
+            return null
+        } catch (_: LinkageError) {
+            return null
+        }
+        return c.takeIf { engine.hostAccess.isClassAccessible(it) }
+    }
+
     private fun lookupClass(n: String, loader: ClassLoader? = Thread.currentThread().contextClassLoader ?: javaClass.classLoader): Class<*> {
         if (!engine.hostAccess.isLookupAllowed(n)) throw JSException.typeError("Access to host class $n is not allowed")
         val c = try {

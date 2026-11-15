@@ -38,7 +38,8 @@ if host code swallowed the exception. Every entry into a context from the host (
 `NeonValue`, a callback proxy invoked by a host thread) starts a fresh limit window.
 
 **Host access.** Nothing of the host is visible unless the host puts it there (`ctx[...]`, `exposeClass`,
-`defineModule`, `setFunction`) or enables the `Java` global. `HostAccess` decides what is visible on those objects:
+`defineModule`, `setFunction`) or enables the `Java` global or the package globals (`exposeJavaPackages`: `java.x.Y`
+resolves only where `Java.type` would load it). `HostAccess` decides what is visible on those objects:
 
 - `NONE`: host objects are opaque: no members, not callable, not array-like.
 - `EXPLICIT`: only members annotated with `@HostExport` (or members of annotated classes).

@@ -152,6 +152,35 @@ class ForeignObjectsTest {
     }
 
     @Test
+    fun javaPackagesAsGlobals() {
+        // off by default
+        ctx().use { c -> assertEquals("undefined,undefined", c.str("[typeof Packages, typeof java].join()")) }
+        val lookup = HostAccess.builder(HostAccess.Level.ALL).allowLookup { true }.build()
+        val packages = SandboxPolicy.builder().exposeJavaGlobal(true).exposeJavaPackages(true).build()
+        ctx(lookup, packages).use { c ->
+            assertEquals("object,object,object,object,object,object", c.str("[Packages, java, javax, com, org, edu].map(x => typeof x).join()"))
+            assertEquals("0,true,true,true", c.str("""[new java.util.ArrayList().size(), java.util.ArrayList === Java.type('java.util.ArrayList'),
+                Packages.java.util.HashMap === java.util.HashMap, java.util === java.util].join()"""))
+            assertEquals("[JavaPackage java.util]|object|{}|0|true|function", c.str("""[String(java.util), typeof java.no.such.Thing, JSON.stringify(java.util),
+                Object.keys(java.util).length, 'util' in java, typeof java.util.Map.Entry].join('|')"""))
+            assertEquals("true,object", c.str("java.util.ArrayList2 = 1; java.lang = 2; [typeof java.lang === 'object', typeof java.util.ArrayList2].join()"),
+                "a package takes no writes")
+            // the policy first: a class denied by name (Runtime), or one the lookup filter refuses, is just a name
+            assertEquals("object,object", c.str("[typeof java.lang.Runtime, typeof java.lang.Runtime.getRuntime].join()"))
+            // a script's own globals of those names still work
+            assertEquals(5, c.eval("var com = 5; com").asInt())
+        }
+        // no lookup allowed: every name is a package
+        ctx(HostAccess.ALL, SandboxPolicy.builder().exposeJavaPackages(true).build()).use { c ->
+            assertEquals("object", c.str("typeof java.util.ArrayList"))
+        }
+        val narrow = HostAccess.builder(HostAccess.Level.ALL).allowLookup { it == "java.util.ArrayList" }.build()
+        ctx(narrow, SandboxPolicy.builder().exposeJavaPackages(true).build()).use { c ->
+            assertEquals("function,object", c.str("[typeof java.util.ArrayList, typeof java.util.HashMap].join()"))
+        }
+    }
+
+    @Test
     fun newDateOfAHostDateTimeTakesItsInstant() {
         // a ZonedDateTime's text does not parse ("...+09:00[Asia/Seoul]"): it was an Invalid Date
         ctx(sandbox = SandboxPolicy.builder().timeZone("Asia/Seoul").build()).use { c ->
