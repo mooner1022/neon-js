@@ -1,0 +1,2 @@
+# WASI testsuite programs (suite/name, the suite being c, rust or assemblyscript) expected to fail, with the reason.
+# WasiTestsuiteTest fails on any other failure, and reports a listed one that passes.

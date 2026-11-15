@@ -1,0 +1,2 @@
+# Spec test commands (file:line, as SpecTest names them) expected to fail, with the reason.
+# SpecTest fails on any other failure, and reports a listed one that passes.

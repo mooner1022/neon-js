@@ -614,6 +614,7 @@ their context).
 | `neonjs-lint` | linter: `NeonLint.lint` (the parser's recovery mode, the scope analysis, rules), `EngineGlobals`; see docs/LINT.md |
 | `neonjs-cli` | command-line runner and REPL |
 | `neonjs-test262` | Test262, web-platform-tests and Node.js test runners |
+| `neonwasm` `dev.mooner.neonwasm` | WebAssembly 2.0 without SIMD on `neon-vm` alone (experimental, not published): `WasmModule.decode`, the validator, the interpreter, instances; WASI preview 1 over an in-memory file system (`…wasi`); see docs/NEONWASM.md |
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the internals, and [docs/OPTIMIZING_TIER.md](docs/OPTIMIZING_TIER.md) for
 the optimizing compiler tier being built (off, and mostly not there yet).
