@@ -198,6 +198,16 @@ private fun hostInterop(): String {
         val longs = js("m.put('id', id); m.put('small', 5n); [typeof id, typeof Java.type('java.lang.Long').MIN_VALUE, Java.type('java.lang.Long').valueOf(id) === id, typeof m.get('small')].join()")
         check(longs == "bigint,bigint,true,number") { "longs: $longs" }
         check(ctx.eval("m.get('id')").asLong() == Long.MAX_VALUE) { "long round trip" }
+        // Java arrays and Lists are JS arrays (ART's reflective arrays and its List implementations): Array.prototype's
+        // methods, in place where they change elements; a List's length changes, an array's or Arrays.asList's not
+        val ints = intArrayOf(3, 1, 2)
+        ctx["ia"] = ints
+        ctx["sl"] = arrayListOf("b", "a")
+        ctx["fl"] = java.util.Arrays.asList(1, 2)
+        val arrays = js("[Array.isArray(ia), ia.map(x => x * 2).join('-'), JSON.stringify(ia), String(ia), (ia.sort(), ia[0]), " +
+            "sl.push('c'), sl.splice(0, 1)[0], sl.length, (() => { try { fl.pop() } catch (e) { return e.name } })(), fl.length].join()")
+        check(arrays == "true,6-2-4,[3,1,2],3,1,2,1,3,b,2,TypeError,2") { "host arrays: $arrays" }
+        check(ints.toList() == listOf(1, 2, 3)) { "ia.sort() in place: ${ints.toList()}" }
         // a method naming a class missing at run time is left out; ART resolves signatures method by method, so the
         // class's other methods stay
         val definer = CodeDefiners.default
@@ -219,7 +229,7 @@ private fun hostInterop(): String {
             }
         }
         check(missing.isEmpty()) { "not members: $missing" }
-        return "StringBuilder, functions, round trip, longs, missing classes; $methods methods of 5 classes are members"
+        return "StringBuilder, functions, round trip, longs, host arrays, missing classes; $methods methods of 5 classes are members"
     }
 }
 
