@@ -32,6 +32,8 @@ open class JSObject(@JvmField var proto: JSObject?) {
         const val FOREIGN_ARRAY = 512
         /** A host Map shown as a JS Map (a [ForeignMap]), as in GraalJS. */
         const val FOREIGN_MAP = 1024
+        /** A host date-time shown as a JS Date (a [ForeignDate] read by Date.prototype's getters), as in GraalJS. */
+        const val FOREIGN_DATE = 2048
         const val SPECIAL_ALL = EXOTIC_OWN or SPECIAL_GET or SPECIAL_SET or SPECIAL_HAS
     }
 

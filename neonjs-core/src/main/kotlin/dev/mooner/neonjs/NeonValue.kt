@@ -43,7 +43,8 @@ class NeonValue internal constructor(val context: NeonContext, @PublishedApi int
         }
         val d = asDouble()
         val l = d.toLong()
-        if (l.toDouble() != d) throw ArithmeticException("number $d does not fit in a long")
+        // (2 ** 63 converts to Long.MAX_VALUE, whose double is 2 ** 63 again: past a long, not a long)
+        if (d >= 9.223372036854775808E18 || l.toDouble() != d) throw ArithmeticException("number $d does not fit in a long")
         return l
     }
     /** A JS string, or the text of a host `CharSequence` (a StringBuilder, Android's Spanned...). */

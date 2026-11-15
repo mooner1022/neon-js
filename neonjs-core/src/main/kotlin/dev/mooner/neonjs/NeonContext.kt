@@ -83,6 +83,7 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
             if (p.exposeJavaGlobal) realm.enter { installJavaGlobal(realm, br) }
             if (p.exposeJavaPackages) realm.enter { dev.mooner.neonjs.interop.JavaPackageObject.install(realm, br) { n -> packageClass(n) } }
             engine.console?.let { c -> realm.enter { dev.mooner.neonjs.ext.ConsoleBuiltins.install(realm, c) } }
+            if (p.exposePrint) realm.enter { installPrint(realm) }
             if (engine.webGlobals) realm.enter { dev.mooner.neonjs.ext.WebGlobals.install(realm, p.maxTimers) }
             for (e in engine.extensions) realm.enter { e.install(realm) }
         }
@@ -397,7 +398,9 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
                 throw e
             } catch (e: TerminationException) {
                 throw e
-            } catch (e: RuntimeException) {
+            } catch (e: Exception) {
+                // a checked exception too (Kotlin and Java lambdas may throw an IOException): a host error, not an
+                // internal one
                 throw HostException(e)
             }
         })
@@ -540,6 +543,20 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
 
     // ------------------------------------------------------------------ Java global
 
+    /**
+     * `print` and `printErr`, as GraalJS has them: the arguments converted to strings (`String(x)`: an array's elements,
+     * a host object's toString()) and joined by spaces, to the console's log and error levels; nowhere without a console.
+     */
+    private fun installPrint(realm: Realm) {
+        for ((name, level) in listOf("print" to NeonConsole.Level.LOG, "printErr" to NeonConsole.Level.ERROR)) {
+            realm.globalObject.defineOwn(name, NativeFunction(realm, name, 0, { _, _, args, _ ->
+                val text = args.joinToString(" ") { Ops.toString(it) }
+                engine.console?.write(level, text)
+                Undefined
+            }), Attr.WC)
+        }
+    }
+
     private fun installJavaGlobal(realm: Realm, bridge: HostBridge) {
         val javaObj = JSObject(realm.objectPrototype)
         javaObj.defineOwn("type", NativeFunction(realm, "type", 1, { _, _, args, _ ->
@@ -597,6 +614,10 @@ class NeonContext internal constructor(val engine: NeonEngine) : AutoCloseable, 
         }), Attr.WC)
         javaObj.defineOwn("isJavaObject", NativeFunction(realm, "isJavaObject", 1, { _, _, args, _ -> args.arg(0) is HostObject }), Attr.WC)
         javaObj.defineOwn("isType", NativeFunction(realm, "isType", 1, { _, _, args, _ -> args.arg(0) is HostClassObject }), Attr.WC)
+        // the name of a host class (`int[]` for an array type), undefined for anything else, as in GraalJS
+        javaObj.defineOwn("typeName", NativeFunction(realm, "typeName", 1, { _, _, args, _ ->
+            (args.arg(0) as? HostClassObject)?.cls?.typeName ?: Undefined
+        }), Attr.WC)
         realm.globalObject.defineOwn("Java", javaObj, Attr.WC)
     }
 

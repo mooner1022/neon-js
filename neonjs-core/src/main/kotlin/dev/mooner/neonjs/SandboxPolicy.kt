@@ -27,6 +27,11 @@ class SandboxPolicy private constructor(b: Builder) {
      * their lookup (`allowLookup`); any other name is a package. Off by default.
      */
     val exposeJavaPackages: Boolean = b.exposeJavaPackages
+    /**
+     * Whether `print(...)` and `printErr(...)` are installed, as GraalJS has them: the arguments as strings, joined by
+     * spaces, written to the console's log and error levels (nowhere without a console). Off by default.
+     */
+    val exposePrint: Boolean = b.exposePrint
     /** Makes Math.random deterministic (seeded) and Date.now return [fixedTimeMillis] when set. */
     val randomSeed: Long? = b.randomSeed
     val fixedTimeMillis: Long? = b.fixedTimeMillis
@@ -53,6 +58,7 @@ class SandboxPolicy private constructor(b: Builder) {
         var allowEval = true
         var exposeJavaGlobal = false
         var exposeJavaPackages = false
+        var exposePrint = false
         var randomSeed: Long? = null
         var fixedTimeMillis: Long? = null
         var timeZone: java.time.ZoneId? = null
@@ -69,6 +75,8 @@ class SandboxPolicy private constructor(b: Builder) {
         fun exposeJavaGlobal(b: Boolean) = apply { exposeJavaGlobal = b }
         /** See [SandboxPolicy.exposeJavaPackages]. */
         fun exposeJavaPackages(b: Boolean) = apply { exposeJavaPackages = b }
+        /** See [SandboxPolicy.exposePrint]. */
+        fun exposePrint(b: Boolean) = apply { exposePrint = b }
         fun deterministic(seed: Long, fixedTime: Long?) = apply { randomSeed = seed; fixedTimeMillis = fixedTime }
         /** Local time zone for scripts (e.g. "UTC", "Asia/Seoul", "+09:00"); hides the host's zone. */
         fun timeZone(id: String) = apply { timeZone = java.time.ZoneId.of(id) }

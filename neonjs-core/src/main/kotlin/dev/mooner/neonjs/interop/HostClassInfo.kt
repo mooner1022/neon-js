@@ -32,6 +32,12 @@ class HostClassInfo private constructor(val cls: Class<*>, val access: HostAcces
         (cls.isArray && access.allowArrayAccess || List::class.java.isAssignableFrom(cls) && access.allowListAccess)
     /** Instances' Map entries are properties. */
     val mapLike: Boolean = viewable && Map::class.java.isAssignableFrom(cls) && access.allowMapAccess
+    /**
+     * Instances are JS Dates (Date.prototype's getters read their instant), as GraalJS shows the date-times that name an
+     * instant: `Instant`, `ZonedDateTime`, `OffsetDateTime`, `java.util.Date`. A `LocalDateTime` or `LocalDate` names
+     * none and is not one. Where the policy shows instances at all (not under NONE).
+     */
+    val dateLike: Boolean = access.isInstanceAccessible(cls) && DATE_TYPES.any { it.isAssignableFrom(cls) }
     /** Instances are JS-iterable. */
     val iterable: Boolean = arrayLike || viewable && access.allowIterableAccess &&
         (Iterable::class.java.isAssignableFrom(cls) || Iterator::class.java.isAssignableFrom(cls))
@@ -273,6 +279,9 @@ class HostClassInfo private constructor(val cls: Class<*>, val access: HostAcces
     }
 
     companion object {
+        private val DATE_TYPES = listOf(java.time.Instant::class.java, java.time.ZonedDateTime::class.java,
+            java.time.OffsetDateTime::class.java, java.util.Date::class.java)
+
         /** The (cached) view of [cls] under [access]. */
         fun of(cls: Class<*>, access: HostAccess): HostClassInfo = access.classInfos.getOrPut(cls) { HostClassInfo(cls, access) }
 

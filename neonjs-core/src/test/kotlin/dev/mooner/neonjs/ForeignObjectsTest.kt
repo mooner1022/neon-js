@@ -23,6 +23,15 @@ class Thrower {
 /** A non-public exception: JS sees it as its public superclass. */
 private class HiddenFailure : IllegalStateException("hidden")
 
+fun twice(x: Int) = x * 2
+
+class LongSink {
+    fun take(x: Long) = x.toString()
+    fun pick(x: Long) = "long $x"
+    fun pick(x: String) = "string $x"
+    fun fn(): java.util.function.Function<Int, Int> = java.util.function.Function { it + 1 }
+}
+
 class OverloadedSink {
     fun take(s: Set<Any?>) = "Set"
     fun take(o: Any?) = "Object"
@@ -226,7 +235,8 @@ class ForeignObjectsTest {
         val lookup = HostAccess.builder(HostAccess.Level.ALL).allowLookup { true }.build()
         val packages = SandboxPolicy.builder().exposeJavaGlobal(true).exposeJavaPackages(true).build()
         ctx(lookup, packages).use { c ->
-            assertEquals("object,object,object,object,object,object", c.str("[Packages, java, javax, com, org, edu].map(x => typeof x).join()"))
+            assertEquals("object,object,object,object,object,object,object", c.str("[Packages, java, javax, com, org, edu, android].map(x => typeof x).join()"),
+                "android besides GraalJS's globals, for Android hosts")
             assertEquals("0,true,true,true", c.str("""[new java.util.ArrayList().size(), java.util.ArrayList === Java.type('java.util.ArrayList'),
                 Packages.java.util.HashMap === java.util.HashMap, java.util === java.util].join()"""))
             assertEquals("[JavaPackage java.util]|object|{}|0|true|function", c.str("""[String(java.util), typeof java.no.such.Thing, JSON.stringify(java.util),
@@ -245,6 +255,131 @@ class ForeignObjectsTest {
         val narrow = HostAccess.builder(HostAccess.Level.ALL).allowLookup { it == "java.util.ArrayList" }.build()
         ctx(narrow, SandboxPolicy.builder().exposeJavaPackages(true).build()).use { c ->
             assertEquals("function,object", c.str("[typeof java.util.ArrayList, typeof java.util.HashMap].join()"))
+        }
+    }
+
+    @Test
+    fun hostFunctionsHaveFunctionPrototype() {
+        ctx().use { c ->
+            c["f"] = LongSink().fn()
+            assertEquals("true,true,2,3,4,0,", c.str("""[f instanceof Function, Object.getPrototypeOf(f) === Function.prototype, f.call(null, 1),
+                f.bind(null, 2)(), Function.prototype.apply.call(f, null, [3]), f.length, f.name].join()"""),
+                "f.apply is Java's Function.apply, as in GraalJS")
+            assertEquals("function", c.str("typeof f.apply"))
+        }
+    }
+
+    @Test
+    fun hostDateTimesThatNameAnInstantAreDates() {
+        val seoul = java.time.ZoneId.of("Asia/Seoul")
+        val values = linkedMapOf<String, Any>(
+            "instant" to java.time.Instant.ofEpochMilli(5),
+            "zoned" to java.time.ZonedDateTime.of(2026, 1, 2, 3, 4, 5, 0, seoul),
+            "offset" to java.time.OffsetDateTime.of(2026, 1, 2, 3, 4, 5, 0, java.time.ZoneOffset.ofHours(9)),
+            "legacy" to java.util.Date(86_400_000L),
+            "local" to java.time.LocalDateTime.of(2026, 1, 2, 3, 4, 5),
+            "day" to java.time.LocalDate.of(2026, 1, 2),
+        )
+        ctx().use { c ->
+            for ((k, v) in values) c[k] = v
+            assertEquals("true,true,true,true,false,false", c.str("[instant, zoned, offset, legacy, local, day].map(d => d instanceof Date).join()"),
+                "a LocalDateTime or LocalDate names no instant (as in GraalJS)")
+            assertEquals("5|1970-01-01T00:00:00.005Z|1970|\"1970-01-01T00:00:00.005Z\"|5|true|[object Date]|object", c.str("""[instant.getTime(), instant.toISOString(),
+                instant.getUTCFullYear(), JSON.stringify(instant), +instant, instant < new Date(10), Object.prototype.toString.call(instant), typeof instant].join('|')"""))
+            assertEquals("1767290645000,1767290645000,86400000", c.str("[zoned.getTime(), offset.getTime(), legacy.getTime()].join()"))
+            assertEquals("\"2026-01-01T18:04:05.000Z\"", c.str("JSON.stringify(zoned)"))
+            // Java's members come first: String(instant) is Instant.toString(); Date.prototype's setters are a TypeError
+            assertEquals("1970-01-01T00:00:00.005Z|TypeError|TypeError", c.str("""[String(instant),
+                (() => { try { instant.setTime(0) } catch (e) { return e.name } })(),
+                (() => { try { zoned.setFullYear(2000) } catch (e) { return e.name } })()].join('|')"""))
+            // ...but a java.util.Date's own setTime is Java's, and changes it; a ZonedDateTime's getMonth() is Java's
+            assertEquals("7,JANUARY,2026", c.str("[(legacy.setTime(7), legacy.getTime()), zoned.getMonth(), zoned.getYear()].join()"))
+            assertEquals(7L, (values["legacy"] as java.util.Date).time)
+            // Date.prototype.toTemporalInstant reads it too
+            assertEquals("1970-01-01T00:00:00.005Z", c.str("String(instant.toTemporalInstant())"))
+        }
+        // under EXPLICIT (members hidden) a Date still, as in GraalJS; under NONE nothing
+        ctx(HostAccess.EXPLICIT).use { c ->
+            c["instant"] = java.time.Instant.ofEpochMilli(5)
+            assertEquals("true,5,true", c.str("[instant instanceof Date, instant.getTime(), String(instant).startsWith('Thu Jan 01 1970')].join()"))
+        }
+        ctx(HostAccess.NONE).use { c ->
+            c["instant"] = java.time.Instant.ofEpochMilli(5)
+            assertEquals("false,undefined", c.str("[instant instanceof Date, typeof instant.getTime].join()"))
+        }
+    }
+
+    @Test
+    fun aSiteSeesJsFunctionsAndDatesThenHostOnes() {
+        // one function's sites (call, bind, apply.call; getTime, toISOString, +d) warmed by JS values, then given host ones
+        for (mode in ExecutionMode.entries) {
+            NeonEngine.builder().hostAccess(HostAccess.ALL).executionMode(mode).console(null).build().newContext().use { c ->
+                c["hf"] = LongSink().fn()
+                c["hd"] = java.time.Instant.ofEpochMilli(5)
+                c.eval("""
+                    function f(fn, d) {
+                        return fn.call(null, 1) + fn.bind(null, 2)() + Function.prototype.apply.call(fn, null, [3])
+                            + d.getTime() + d.toISOString().length + (+d) + (d instanceof Date ? 100 : 0);
+                    }
+                    var jf = x => x + 1, jd = new Date(5), sum = 0;
+                    for (var i = 0; i < 3000; i++) sum += f(jf, jd);
+                    for (var i = 0; i < 3000; i++) sum += f(hf, hd);
+                    for (var i = 0; i < 3000; i++) sum += f(i % 2 ? jf : hf, i % 3 ? jd : hd);
+                """)
+                // f gives 2 + 3 + 4 + 5 + 24 + 5 + 100 = 143 for both
+                assertEquals(143 * 9000, c.eval("sum").asInt(), mode.name)
+            }
+        }
+    }
+
+    @Test
+    fun aKotlinFunctionReferenceIsAFunction() {
+        ctx().use { c ->
+            c["kf"] = ::twice
+            c["out"] = null
+            assertEquals("function,6", c.str("[typeof kf, kf(3)].join()"))
+            // its call is Function.prototype.call (KCallable's reflective call is no member of the reference)
+            assertEquals("8,8", c.str("[kf.call(null, 4), Function.prototype.call.call(kf, null, 4)].join()"))
+        }
+    }
+
+    @Test
+    fun javaTypeNameAndPrint() {
+        val lookup = HostAccess.builder(HostAccess.Level.ALL).allowLookup { true }.build()
+        val out = ArrayList<String>()
+        NeonEngine.builder().hostAccess(lookup).console { level, m -> out.add("$level $m") }
+            .sandbox(SandboxPolicy.builder().exposeJavaGlobal(true).exposePrint(true).build()).build().newContext().use { c ->
+                c["l"] = arrayListOf(1, 2)
+                assertEquals("java.lang.String,int[],undefined,undefined", c.str("""[Java.typeName(Java.type('java.lang.String')), Java.typeName(Java.type('int[]')),
+                    Java.typeName(l), Java.typeName('x')].map(String).join()"""))
+                c.eval("print('a', 1, [1, 2], { k: 1 }, l, null, undefined); printErr('e', 2)")
+            }
+        assertEquals(listOf("LOG a 1 1,2 [object Object] [1, 2] null undefined", "ERROR e 2"), out, "as GraalJS's print: String(x), spaces")
+        // off by default
+        ctx().use { c -> assertEquals("undefined,undefined", c.str("[typeof print, typeof printErr].join()")) }
+    }
+
+    @Test
+    fun aLongParameterTakesAnyWholeNumberItHolds() {
+        // as in GraalJS: 2 ** 60 and -(2 ** 63) are whole numbers a long holds; 2 ** 63 is not
+        ctx().use { c ->
+            c["h"] = LongSink()
+            assertEquals("1152921504606846976,-9223372036854775808,9007199254740994", c.str("[h.take(2 ** 60), h.take(-(2 ** 63)), h.take(2 ** 53 + 2)].join()"))
+            assertEquals("TypeError,TypeError", c.str("[2 ** 63, 1.5].map(x => { try { h.take(x); return 'no' } catch (e) { return e.name } }).join()"))
+            // NeonValue.asLong: the same whole numbers (2 ** 63 converted to Long.MAX_VALUE before)
+            assertEquals(1L shl 60, c.eval("2 ** 60").asLong())
+            org.junit.jupiter.api.assertThrows<ArithmeticException> { c.eval("2 ** 63").asLong() }
+            // a choice made for one number beyond 2^53 is not remembered for another: 2 ** 64 fits no long
+            assertEquals("long 1152921504606846976,TypeError", c.str("[h.pick(2 ** 60), (() => { try { return h.pick(2 ** 64) } catch (e) { return e.name } })()].join()"))
+        }
+    }
+
+    @Test
+    fun aHostFunctionsCheckedExceptionIsAHostError() {
+        // a Kotlin or Java lambda may throw a checked exception: it was an InternalError
+        NeonEngine.builder().hostAccess(HostAccess.ALL).console(null).build().newContext().use { c ->
+            c.setFunction("read") { throw java.io.IOException("no file") }
+            assertEquals("java.io.IOException: no file", c.str("try { read() } catch (e) { String(e) }"))
         }
     }
 

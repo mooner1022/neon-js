@@ -463,7 +463,10 @@ A Java `Map` under map access is a foreign hash map in the same way:
 - `Map.prototype`'s methods reach its entries through `ForeignMap`. Iteration runs over a snapshot of the keys,
   skipping removed ones.
 
-`new Date` reads a host date-time's instant through `ForeignDate`. A HostError keeps its exception under a symbol of
+`new Date` reads a host date-time's instant through `ForeignDate`. One that names an instant (`Instant`,
+`ZonedDateTime`, `OffsetDateTime`, `java.util.Date`) is also a foreign date: `Date.prototype` is its prototype
+(`JSObject.FOREIGN_DATE`), and the getters read it through `DateBuiltins.thisTime`. A host function has
+`Function.prototype`; `prototypeFor` in HostObjects.kt picks the prototype: array, Map, date, function, object. A HostError keeps its exception under a symbol of
 the bridge (`HostBridge.hostCauseOf`); a host class's `Symbol.hasInstance` looks there too.
 
 Interface implementations are `java.lang.reflect.Proxy`s whose

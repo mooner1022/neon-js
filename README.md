@@ -235,7 +235,9 @@ throws on a BigInt, and mixing a BigInt with numbers in arithmetic is a TypeErro
 converts exactly to a `long`/`Long` parameter or field when it fits in 64 bits (beyond, a `long` overload does not
 apply and a field assignment is a TypeError), and to an `Object` parameter (`Map.put`, `List.add`) as a `Long` when
 it fits in 64 bits, else as a `BigInteger`; a number goes there as an `Integer` or `Long` while it is an exact integer,
-else as a `Double`. `NeonValue.asLong()` accepts both a number and a BigInt that is exactly a long.
+else as a `Double`. A `long`/`Long` parameter or field also takes any whole number below 2^63 in magnitude, as in
+GraalJS (`2 ** 60`, `-(2 ** 63)`), though beyond 2^53 - 1 the number may have been rounded in JS already.
+`NeonValue.asLong()` accepts both a number and a BigInt that is exactly a long.
 
 **Asynchronous host APIs.** A `CompletionStage` / `CompletableFuture` handed to JS becomes a promise, and a promise
 (or thenable) passed where a `CompletableFuture`, `CompletionStage` or `Future` is expected becomes a future:
@@ -283,7 +285,21 @@ ctx.defineModule("host:db", mapOf("query" to queryFunction, "version" to 2))   /
 - Host objects that are functions can be called: lambdas, method references and anonymous classes (through the one
   single-method interface they implement), and objects whose only role is a `@FunctionalInterface` interface or a
   Kotlin function type. Other objects are not functions even with a single-method interface (an `ArrayList` is
-  `Iterable`, a `LocalDate` a `TemporalAdjuster`): call their methods.
+  `Iterable`, a `LocalDate` a `TemporalAdjuster`): call their methods. A function has `Function.prototype` behind it,
+  as in GraalJS: `f.call(…)`, `f.bind(…)` and `f instanceof Function` work, while `f.apply` stays Java's
+  `Function.apply`.
+- A host date-time that names an instant is a JS Date to scripts, as in GraalJS. That covers an `Instant`, a
+  `ZonedDateTime`, an `OffsetDateTime` and a `java.util.Date`.
+  - `Date.prototype`'s getters read its instant: `d.getTime()`, `d.toISOString()`, `JSON.stringify(d)`, `+d`,
+    comparisons and `d instanceof Date`.
+  - `Date.prototype`'s setters are a TypeError on it.
+  - Java's members come first. `String(instant)` is `Instant.toString()`, and a `java.util.Date`'s own `setTime` is
+    Java's and changes it.
+  - A `ZonedDateTime`'s `getMonth()` and `getYear()` are Java's (`JANUARY`, 2026), while `getHours()` is
+    `Date.prototype`'s, in the context's time zone rather than the object's.
+  - `toLocale*String` (with neonjs-intl) and `toTemporalInstant` read it too.
+  - A `LocalDateTime` or `LocalDate` names no instant and is not a Date (as in GraalJS).
+  - This holds under `ALL` and `EXPLICIT`, not under `NONE`.
 - Under `HostAccess.ALL`, Java arrays and `List`s are JS arrays to scripts, as GraalJS's foreign arrays are, so an
   array a method returns needs no `Array.from`:
   - It is the same host object, a live view rather than a copy, with `Array.prototype` behind it: `h.ints().map(x =>
@@ -323,6 +339,8 @@ ctx.defineModule("host:db", mapOf("query" to queryFunction, "version" to 2))   /
   - Only the message and the class name reach JS unless `HostAccess.Builder.allowExceptionAccess(true)`. With it, the
     error also has the exception's methods (`e.getMessage()`, `e.getCause()`, `e.getStackTrace()`), as the policy
     shows them for its class.
+- A host function (`setFunction`, `createFunction`) that throws, a checked exception included, throws such an
+  Error too.
 - Uncaught JS errors surface in the host as `NeonException` with `guestValue`, the JS stack trace (`jsStack`) and where the error arose: `sourceName`, `line`
   and `column`. That is the parser's position for a syntax error (`NeonSyntaxException`), the innermost frame where
   an error object was created, and the `throw` for any other value. `line` is 0 when no JS code was running (a sandbox
@@ -335,7 +353,10 @@ With `SandboxPolicy.builder().exposeJavaGlobal(true)` and a `HostAccess` that al
 `HostAccess.EXPLICIT`, an adapter's overrides are visible exactly when the method they override is exported.
 
 `SandboxPolicy.builder().exposeJavaPackages(true)` adds `Packages` and the package globals `java`, `javax`, `com`,
-`org` and `edu`, as GraalJS has them: `new java.util.ArrayList()`, `Packages.android.widget.Toast`.
+`org` and `edu`, as GraalJS has them, and `android` for Android hosts: `new java.util.ArrayList()`,
+`android.widget.Toast`. `Java.typeName(cls)` gives a class's name (`int[]`), undefined for anything else.
+`SandboxPolicy.builder().exposePrint(true)` adds GraalJS's `print(…)` and `printErr(…)`: the arguments as strings
+(`String(x)`), joined by spaces, to the console's log and error levels.
 - A name resolves to a class only where the `HostAccess` would let `Java.type` load it, through its lookup filter and
   class checks. Any other name is a package, so a class JS may not load (`java.lang.Runtime` under the default deny
   list) is only a name.
