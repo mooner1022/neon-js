@@ -25,7 +25,7 @@ uncounted):
 | instruction budget | `maxStatements` | same as above |
 | call depth | `maxCallDepth` | every JS call (proper tail calls do not grow the depth but remain interruptible) |
 | string length | `maxStringLength` | every string a built-in or concatenation makes (a catchable `RangeError`, see below) |
-| allocated bytes | `maxAllocatedBytes` | sampled with the time checks; large allocations (buffers, Java arrays, long strings) are charged before they happen |
+| allocated bytes | `maxAllocatedBytes` | sampled with the time checks; large allocations (buffers, Java arrays, long strings) are charged before they happen; so is a host `List` padded through its `length`, which is also checked every 1,024 elements |
 | host interrupt | `NeonContext.interrupt()` | same as time; also ends an event loop waiting in the context |
 
 Termination exceptions are not JS exceptions: `catch`, `finally` and promise reactions cannot intercept them. The
@@ -48,7 +48,8 @@ if host code swallowed the exception. Every entry into a context from the host (
 The contents are views a level other than `ALL` shows only where the embedder enables them
 (`HostAccess.Builder.allowArrayAccess`, `allowListAccess`, `allowMapAccess`, `allowIterableAccess`), as GraalVM's
 presets do; an enabled view shows the contents of collections even under `NONE`, whose members stay hidden. No view
-applies to an instance of a class denied by name.
+applies to an instance of a class denied by name. A `List` view lets scripts change the List's length as well
+(`push`, `splice`, `length = 0`), as in GraalJS, even where its methods are hidden; a Java array's length is fixed.
 
 At every level a deny list blocks `java.lang.Class`, class loaders, `System`, `Runtime`, processes, threads,
 `SecurityManager`, modules, `StackWalker`, `Unsafe`, `MethodHandles`, object serialization streams, reflection

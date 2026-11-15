@@ -71,6 +71,12 @@ internal object ArrayBuiltins {
 
     fun setLen(o: JSObject, n: Long) = o.setOrThrow("length", n.toDouble())
 
+    /**
+     * Whether [o] is a host array or List shown as a JS array: push, pop, shift, unshift and splice then change it
+     * through [ForeignArray.spliceElements], all at once or not at all.
+     */
+    private fun isForeign(o: JSObject): Boolean = o.special and JSObject.FOREIGN_ARRAY != 0 && o is ForeignArray
+
     fun isConcatSpreadable(o: Any?): Boolean {
         if (o !is JSObject) return false
         val s = o.get(JSSymbol.isConcatSpreadable, o)
@@ -353,7 +359,9 @@ internal object ArrayBuiltins {
         proto.method(realm, "pop", 0) { _, t, _, _ ->
             val o = Ops.toObject(t)
             val n = len(o)
-            if (n == 0L) {
+            if (isForeign(o)) {
+                if (n == 0L) Undefined else (o as ForeignArray).spliceElements((n - 1).toInt(), 1, EMPTY_ARGS)[0]
+            } else if (n == 0L) {
                 setLen(o, 0)
                 Undefined
             } else {
@@ -368,7 +376,10 @@ internal object ArrayBuiltins {
             val o = Ops.toObject(t)
             var n = len(o)
             if (n + args.size > MAX_SAFE) typeErr("Pushing ${args.size} elements on an array-like of length $n is disallowed, as the total surpasses 2**53-1")
-            if (o is JSArray && o.lengthWritable && !o.sparse && o.extensible && o.length == o.denseLen.toLong() && o.protoChainClean()) {
+            if (isForeign(o)) {
+                if (args.isNotEmpty()) (o as ForeignArray).spliceElements(n.toInt(), 0, args)
+                (n + args.size).toDouble()
+            } else if (o is JSArray && o.lengthWritable && !o.sparse && o.extensible && o.length == o.denseLen.toLong() && o.protoChainClean()) {
                 for (a in args) o.pushInit(a)
                 o.length.toDouble()
             } else {
@@ -441,7 +452,9 @@ internal object ArrayBuiltins {
         proto.method(realm, "shift", 0) { _, t, _, _ ->
             val o = Ops.toObject(t)
             val n = len(o)
-            if (n == 0L) {
+            if (isForeign(o)) {
+                if (n == 0L) Undefined else (o as ForeignArray).spliceElements(0, 1, EMPTY_ARGS)[0]
+            } else if (n == 0L) {
                 setLen(o, 0)
                 Undefined
             } else {
@@ -525,6 +538,12 @@ internal object ArrayBuiltins {
             }
             if (n + itemCount - delCount > MAX_SAFE) typeErr("Invalid array length")
             val a = speciesCreate(f.realm, o, delCount)
+            if (isForeign(o)) {
+                val removed = (o as ForeignArray).spliceElements(start.toInt(), delCount.toInt(), if (itemCount == 0) EMPTY_ARGS else args.copyOfRange(2, args.size))
+                for (i in removed.indices) a.createDataPropertyOrThrow(key(i.toLong()), removed[i])
+                setLen(a, delCount)
+                return@method a
+            }
             var k = 0L
             while (k < delCount) {
                 val from = key(start + k)
@@ -636,6 +655,10 @@ internal object ArrayBuiltins {
             val o = Ops.toObject(t)
             val n = len(o)
             val c = args.size
+            if (isForeign(o)) {
+                if (c > 0) (o as ForeignArray).spliceElements(0, 0, args)
+                return@method (n + c).toDouble()
+            }
             if (c > 0) {
                 if (n + c > MAX_SAFE) typeErr("Invalid array length")
                 var k = n

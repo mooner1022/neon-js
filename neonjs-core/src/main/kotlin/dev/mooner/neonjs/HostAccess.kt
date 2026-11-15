@@ -282,7 +282,10 @@ class HostAccess private constructor(b: Builder) {
          * contents of objects JS sees nothing else of, and never those of a class denied by name.
          */
         fun allowArrayAccess(b: Boolean) = apply { allowArrayAccess = b }
-        /** `List`s are array-like; on by default for [Level.ALL] only (see [allowArrayAccess]). */
+        /**
+         * `List`s are array-like: elements read and written by index, and the length changed too (`push`, `splice`,
+         * `length = 0`), as in GraalJS. On by default for [Level.ALL] only (see [allowArrayAccess]).
+         */
         fun allowListAccess(b: Boolean) = apply { allowListAccess = b }
         /** `Map` entries are properties, read, written and deleted; on by default for [Level.ALL] only (see [allowArrayAccess]). */
         fun allowMapAccess(b: Boolean) = apply { allowMapAccess = b }

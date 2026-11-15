@@ -282,12 +282,27 @@ ctx.defineModule("host:db", mapOf("query" to queryFunction, "version" to 2))   /
   single-method interface they implement), and objects whose only role is a `@FunctionalInterface` interface or a
   Kotlin function type. Other objects are not functions even with a single-method interface (an `ArrayList` is
   `Iterable`, a `LocalDate` a `TemporalAdjuster`): call their methods.
-- Under `HostAccess.ALL`, Java arrays and `List`s behave like JS arrays; `Iterable`s and `Iterator`s work with
-  `for…of` and spread; `Map` entries are readable and writable as properties. Under `EXPLICIT` and `NONE` these
-  views are off unless the policy allows them (`allowArrayAccess`, `allowListAccess`, `allowMapAccess`,
-  `allowIterableAccess`), as in GraalVM, and they never apply to a class denied by name. A JS array or object passed
-  as a `List` or `Map` is a live view (changes through its entries included), at every level, and comes back to its
-  context as the same array or object.
+- Under `HostAccess.ALL`, Java arrays and `List`s are JS arrays to scripts, as GraalJS's foreign arrays are, so an
+  array a method returns needs no `Array.from`:
+  - It is the same host object, a live view rather than a copy, with `Array.prototype` behind it: `h.ints().map(x =>
+    x * 2)`, `filter`, `join`, `includes`, spread and `for…of` work on it, and the methods that make arrays make JS
+    arrays.
+  - `Array.isArray` is true of it. `JSON.stringify` writes it as an array, `concat` and `flat` spread it, and
+    `String(a)` joins its elements.
+  - `a.toString()` joins the elements too, where GraalJS calls Java's (`[I@1b6d3586`).
+  - Methods that change elements change the host's array: `a.sort()` sorts the Java array.
+  - A `List`'s Java members come first: `list.indexOf`, `list.forEach` and `list.sort(cmp)` are Java's.
+  - A `List` grows and shrinks with `push`, `pop`, `shift`, `unshift`, `splice`, a write just past its end and
+    `length`.
+  - A Java array's length is fixed, and so is that of `List.of(…)` or `Arrays.asList(…)`. Those methods throw a
+    TypeError on them before changing anything.
+- Under `HostAccess.ALL`, `Iterable`s and `Iterator`s work with `for…of` and spread, and `Map` entries are readable and
+  writable as properties.
+- Under `EXPLICIT` and `NONE`, these views are off unless the policy allows them (`allowArrayAccess`,
+  `allowListAccess`, `allowMapAccess`, `allowIterableAccess`), as in GraalVM. They never apply to a class denied by
+  name.
+- A JS array or object passed as a `List` or `Map` is a live view at every level, changes through its entries
+  included, and comes back to its context as the same array or object.
 - JS functions convert to any functional interface (`Runnable`, `Consumer`, Kotlin `fun interface`s, …) and JS
   objects to any interface. The proxies re-enter the context safely from any thread, and come back to the context
   that made them as the original JS function or object.
