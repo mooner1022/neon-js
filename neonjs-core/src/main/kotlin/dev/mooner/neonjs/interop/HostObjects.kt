@@ -64,10 +64,11 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
         if (info.functionalMethod != null) special = special or CALLABLE
         if (info.arrayLike) special = special or FOREIGN_ARRAY
         else if (info.mapLike) special = special or FOREIGN_MAP
+        else if (info.dateLike) special = special or FOREIGN_DATE
         extensible = false
     }
 
-    override val className: String get() = if (info.arrayLike) "Array" else "Object"
+    override val className: String get() = if (info.arrayLike) "Array" else if (info.dateLike && !info.mapLike) "Date" else "Object"
 
     private fun isArrayLike() = info.arrayLike
 
@@ -493,12 +494,16 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
 }
 
 /**
- * The prototype a host object gets: `Array.prototype` for an array-like one, `Map.prototype` for a Map whose entries
- * the policy shows, else `Object.prototype`. The policy decides first ([HostClassInfo.arrayLike], [HostClassInfo.mapLike]).
+ * The prototype a host object gets, as GraalJS gives foreign objects one: `Array.prototype` for an array-like one,
+ * `Map.prototype` for a Map whose entries the policy shows, `Date.prototype` for a date-time naming an instant,
+ * `Function.prototype` for a function (a lambda: `f.call`, `f.bind`), else `Object.prototype`. The policy decides first
+ * ([HostClassInfo.arrayLike], [HostClassInfo.mapLike], [HostClassInfo.dateLike], [HostClassInfo.functionalMethod]).
  */
 private fun prototypeFor(bridge: HostBridge, info: HostClassInfo): JSObject = when {
     info.arrayLike -> bridge.realm.arrayPrototype
     info.mapLike -> bridge.realm.intrinsic("%Map.prototype%")
+    info.dateLike -> bridge.realm.intrinsic("%Date.prototype%")
+    info.functionalMethod != null -> bridge.realm.functionPrototype
     else -> bridge.realm.objectPrototype
 }
 

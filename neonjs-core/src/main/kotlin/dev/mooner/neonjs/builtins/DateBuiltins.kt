@@ -11,7 +11,17 @@ internal object DateBuiltins {
     private fun thisDate(t: Any?, method: String): JSDate =
         t as? JSDate ?: typeErr("Date.prototype.$method called on incompatible receiver ${Ops.toDisplayString(t)}")
 
-    private fun thisTime(t: Any?, method: String): Double = thisDate(t, method).timeValue
+    /**
+     * The time value of a Date, or of a host date-time shown as one ([JSObject.FOREIGN_DATE]: an `Instant`, a
+     * `ZonedDateTime`...), which the getters read as GraalJS's do; the setters take Dates only ([thisDate]).
+     */
+    private fun thisTime(t: Any?, method: String): Double {
+        if (t is JSDate) return t.timeValue
+        if (t is JSObject && t.special and JSObject.FOREIGN_DATE != 0 && t is ForeignDate) {
+            return DateTime.timeClip(t.foreignTimeValue() ?: Double.NaN)
+        }
+        return thisDate(t, method).timeValue
+    }
 
     fun install(realm: Realm) {
         val proto = JSObject(realm.objectPrototype)

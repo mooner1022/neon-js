@@ -23,6 +23,13 @@ class Thrower {
 /** A non-public exception: JS sees it as its public superclass. */
 private class HiddenFailure : IllegalStateException("hidden")
 
+class LongSink {
+    fun take(x: Long) = x.toString()
+    fun pick(x: Long) = "long $x"
+    fun pick(x: String) = "string $x"
+    fun fn(): java.util.function.Function<Int, Int> = java.util.function.Function { it + 1 }
+}
+
 class OverloadedSink {
     fun take(s: Set<Any?>) = "Set"
     fun take(o: Any?) = "Object"
@@ -245,6 +252,52 @@ class ForeignObjectsTest {
         val narrow = HostAccess.builder(HostAccess.Level.ALL).allowLookup { it == "java.util.ArrayList" }.build()
         ctx(narrow, SandboxPolicy.builder().exposeJavaPackages(true).build()).use { c ->
             assertEquals("function,object", c.str("[typeof java.util.ArrayList, typeof java.util.HashMap].join()"))
+        }
+    }
+
+    @Test
+    fun hostFunctionsHaveFunctionPrototype() {
+        ctx().use { c ->
+            c["f"] = LongSink().fn()
+            assertEquals("true,true,2,3,4,0,", c.str("""[f instanceof Function, Object.getPrototypeOf(f) === Function.prototype, f.call(null, 1),
+                f.bind(null, 2)(), Function.prototype.apply.call(f, null, [3]), f.length, f.name].join()"""),
+                "f.apply is Java's Function.apply, as in GraalJS")
+            assertEquals("function", c.str("typeof f.apply"))
+        }
+    }
+
+    @Test
+    fun hostDateTimesThatNameAnInstantAreDates() {
+        val seoul = java.time.ZoneId.of("Asia/Seoul")
+        val values = linkedMapOf<String, Any>(
+            "instant" to java.time.Instant.ofEpochMilli(5),
+            "zoned" to java.time.ZonedDateTime.of(2026, 1, 2, 3, 4, 5, 0, seoul),
+            "offset" to java.time.OffsetDateTime.of(2026, 1, 2, 3, 4, 5, 0, java.time.ZoneOffset.ofHours(9)),
+            "legacy" to java.util.Date(86_400_000L),
+            "local" to java.time.LocalDateTime.of(2026, 1, 2, 3, 4, 5),
+            "day" to java.time.LocalDate.of(2026, 1, 2),
+        )
+        ctx().use { c ->
+            for ((k, v) in values) c[k] = v
+            assertEquals("true,true,true,true,false,false", c.str("[instant, zoned, offset, legacy, local, day].map(d => d instanceof Date).join()"),
+                "a LocalDateTime or LocalDate names no instant (as in GraalJS)")
+            assertEquals("5|1970-01-01T00:00:00.005Z|1970|\"1970-01-01T00:00:00.005Z\"|5|true|[object Date]|object", c.str("""[instant.getTime(), instant.toISOString(),
+                instant.getUTCFullYear(), JSON.stringify(instant), +instant, instant < new Date(10), Object.prototype.toString.call(instant), typeof instant].join('|')"""))
+            assertEquals("1767290645000,1767290645000,86400000", c.str("[zoned.getTime(), offset.getTime(), legacy.getTime()].join()"))
+            assertEquals("\"2026-01-01T18:04:05.000Z\"", c.str("JSON.stringify(zoned)"))
+            // Java's members come first: String(instant) is Instant.toString(); a host date-time is read only
+            assertEquals("1970-01-01T00:00:00.005Z|TypeError|TypeError", c.str("""[String(instant),
+                (() => { try { instant.setTime(0) } catch (e) { return e.name } })(),
+                (() => { try { zoned.setFullYear(2000) } catch (e) { return e.name } })()].join('|')"""))
+        }
+        // under EXPLICIT (members hidden) a Date still, as in GraalJS; under NONE nothing
+        ctx(HostAccess.EXPLICIT).use { c ->
+            c["instant"] = java.time.Instant.ofEpochMilli(5)
+            assertEquals("true,5,true", c.str("[instant instanceof Date, instant.getTime(), String(instant).startsWith('Thu Jan 01 1970')].join()"))
+        }
+        ctx(HostAccess.NONE).use { c ->
+            c["instant"] = java.time.Instant.ofEpochMilli(5)
+            assertEquals("false,undefined", c.str("[instant instanceof Date, typeof instant.getTime].join()"))
         }
     }
 
