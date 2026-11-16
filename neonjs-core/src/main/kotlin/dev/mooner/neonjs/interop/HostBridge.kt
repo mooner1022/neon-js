@@ -422,6 +422,10 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
                     if (!v.isSet && t == Map::class.java) return 2
                     if (v.isSet && (t == Set::class.java || t == Collection::class.java || t == Iterable::class.java)) return 2
                 }
+                // a JS buffer as a ByteBuffer sharing its bytes (HostAccess.allowBufferAccess); a typed array as a Java
+                // array, element by element as a JS array
+                if (t == java.nio.ByteBuffer::class.java && access.allowBufferAccess && byteRange(v) != null) return 2
+                if (v is dev.mooner.neonjs.builtins.JSTypedArray && t.isArray) return 2
                 if (Ops.isArray(v)) {
                     if (t.isArray) return 2
                     if (t == List::class.java || t == Collection::class.java || t == Iterable::class.java) return 2
@@ -502,6 +506,8 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
             return t.enumConstants.firstOrNull { (it as Enum<*>).name == n } ?: throw JSException.typeError("No enum constant ${t.name}.$n")
         }
         if (v is JSObject) {
+            if (t == java.nio.ByteBuffer::class.java && access.allowBufferAccess) byteBufferOf(v)?.let { return it }
+            if (t.isArray && v is dev.mooner.neonjs.builtins.JSTypedArray) return javaArrayOf(v, t.componentType)
             if (v is dev.mooner.neonjs.builtins.JSMapObject) {
                 if (!v.isSet && t == Map::class.java) return JSMapEntriesView(this, v, elementType(gt, 0), elementType(gt, 1))
                 if (v.isSet && (t == Set::class.java || t == Collection::class.java || t == Iterable::class.java)) return JSSetView(this, v, elementType(gt, 0))
@@ -595,6 +601,42 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         is HostClassObject -> v.cls
         is JSObject -> if (access.allowObjectViews) objectView(v) else gate.wrapValue(v)
         else -> gate.wrapValue(v)
+    }
+
+    /** The bytes an ArrayBuffer, TypedArray or DataView [v] covers: its buffer, offset and length; null for anything else. */
+    private fun byteRange(v: Any?): Triple<dev.mooner.neonjs.builtins.JSArrayBuffer, Int, Int>? = when (v) {
+        is dev.mooner.neonjs.builtins.JSArrayBuffer -> Triple(v, 0, v.byteLength())
+        is dev.mooner.neonjs.builtins.JSTypedArray -> Triple(v.buffer, v.byteOffset, v.byteLengthOrZero())
+        is dev.mooner.neonjs.builtins.JSDataView -> Triple(v.buffer, v.byteOffset, maxOf(v.byteLengthOrOOB(), 0))
+        else -> null
+    }
+
+    /**
+     * A ByteBuffer sharing the bytes of JS buffer or view [v] ([HostAccess.allowBufferAccess]), little-endian as typed
+     * arrays store values, read-only for an immutable ArrayBuffer; null if [v] is none. A detached buffer is a TypeError.
+     * Growing a resizable buffer later gives it new bytes this ByteBuffer does not see.
+     */
+    private fun byteBufferOf(v: Any?): java.nio.ByteBuffer? {
+        val (buf, offset, length) = byteRange(v) ?: return null
+        if (buf.detached) throw JSException.typeError("Cannot convert a detached ArrayBuffer to a ByteBuffer")
+        val bb = java.nio.ByteBuffer.wrap(buf.data, offset, length).slice().order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        return if (buf.immutable) bb.asReadOnlyBuffer().order(java.nio.ByteOrder.LITTLE_ENDIAN) else bb
+    }
+
+    /** A Java array of [ct] holding typed array [ta]'s elements (a byte[] of an 8-bit one: its bytes as they are). */
+    private fun javaArrayOf(ta: dev.mooner.neonjs.builtins.JSTypedArray, ct: Class<*>): Any {
+        val n = ta.typedLength().toInt()
+        if (ct == java.lang.Byte.TYPE && ta.type.size == 1) {
+            val out = ByteArray(n)
+            if (n > 0) System.arraycopy(ta.buffer.data, ta.byteOffset, out, 0, n)
+            return out
+        }
+        val arr = java.lang.reflect.Array.newInstance(ct, n)
+        for (i in 0 until n) {
+            java.lang.reflect.Array.set(arr, i, toHost(ta.getIndex(i), ct))
+            if (i and 1023 == 1023) realm.agent.checkInterrupt()
+        }
+        return arr
     }
 
     /**
@@ -736,6 +778,8 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         // a JS Map or Set converts where a plain object does not (cost: a Map or Set view), so a choice remembered for
         // objects must not decide for them
         is dev.mooner.neonjs.builtins.JSMapObject -> -1
+        // buffers and typed arrays convert where a plain object does not (a ByteBuffer, a Java array) as well
+        is dev.mooner.neonjs.builtins.JSArrayBuffer, is dev.mooner.neonjs.builtins.JSTypedArray, is dev.mooner.neonjs.builtins.JSDataView -> -1
         is JSObject -> when {
             v is dev.mooner.neonjs.builtins.JSDate || v is dev.mooner.neonjs.builtins.temporal.JSTemporalInstant -> 12
             v.isCallable -> 13

@@ -50,6 +50,15 @@ class ObjectSink {
     fun write(o: Any?) { (o as MutableMap<String, Any?>)["fromJava"] = 1 }
 }
 
+class BufferSink {
+    fun take(b: java.nio.ByteBuffer) = "rem=${b.remaining()} first=${if (b.remaining() > 0) b.get(b.position()) else -1} ro=${b.isReadOnly} int=${if (b.remaining() >= 4) b.getInt(b.position()) else -1}"
+    fun poke(b: java.nio.ByteBuffer) { b.put(0, 42) }
+    fun bytes(b: ByteArray) = b.joinToString(",")
+    fun ints(a: IntArray) = a.joinToString(",")
+    fun pick(b: java.nio.ByteBuffer) = "ByteBuffer"
+    fun pick(o: Any?) = "Object"
+}
+
 class OverloadedSink {
     fun take(s: Set<Any?>) = "Set"
     fun take(o: Any?) = "Object"
@@ -383,6 +392,61 @@ class ForeignObjectsTest {
             c["jl"] = java.util.ArrayList<Any?>()
             c.eval("jl.add({ y: 3 })")
             assertEquals("Map{y=Integer:3}", h.describe((c.eval("jl").asHostObject<List<Any?>>())[0]))
+        }
+    }
+
+    @Test
+    fun hostByteBuffersUnderTypedArrays() {
+        ctx().use { c ->
+            val heap = java.nio.ByteBuffer.wrap(byteArrayOf(1, 2, 3, 4))
+            c["hb"] = heap
+            c["h"] = BufferSink()
+            // a heap buffer: its bytes shared, both ways, up to its limit
+            assertEquals("4:1,2,3,4|2,3|2|99|42", c.str("""[(() => { const u = new Uint8Array(hb); return u.length + ':' + u.join() })(),
+                new Uint8Array(hb, 1, 2).join(), new DataView(hb).getUint8(1),
+                (() => { new Uint8Array(hb)[0] = 99; return hb.get(0) })(),
+                (() => { const u = new Uint8Array(hb); h.poke(hb); return u[0] })()].join('|')"""))
+            assertEquals(42, heap.get(0).toInt())
+            c["le"] = java.nio.ByteBuffer.wrap(byteArrayOf(1, 0, 0, 0))
+            assertEquals("1,1", c.str("[new Int32Array(le)[0], new DataView(le).getInt32(0, true)].join()"), "typed arrays read their bytes little-endian")
+            val limited = java.nio.ByteBuffer.wrap(byteArrayOf(1, 2, 3, 4)).also { it.position(1); it.limit(3) }
+            c["pl"] = limited
+            assertEquals("3:1,2,3", c.str("(() => { const u = new Uint8Array(pl); return u.length + ':' + u.join() })()"), "0 until the limit, as in GraalJS")
+            // a direct buffer, a slice and a read-only buffer: copies (a read-only one's immutable)
+            val direct = java.nio.ByteBuffer.allocateDirect(4).also { it.put(0, 5); it.put(1, 6) }
+            c["db"] = direct
+            assertEquals("4:5,6,0,0|0", c.str("(() => { const u = new Uint8Array(db); const s = u.length + ':' + u.join(); u[2] = 77; return s })() + '|' + 0"))
+            assertEquals(0, direct.get(2).toInt(), "a copy: JS writes stay in JS")
+            c["sl"] = java.nio.ByteBuffer.wrap(byteArrayOf(9, 1, 2)).also { it.position(1) }.slice()
+            assertEquals("1,2", c.str("new Uint8Array(sl).join()"))
+            c["ro"] = java.nio.ByteBuffer.wrap(byteArrayOf(7, 8)).asReadOnlyBuffer()
+            assertEquals("7,8|TypeError", c.str("""[new Uint8Array(ro).join(),
+                (function () { 'use strict'; try { new Uint8Array(ro)[0] = 1; return 'no' } catch (e) { return e.name } })()].join('|')"""))
+        }
+        // the policy first: without buffer access a ByteBuffer is no buffer (an object with no length: an empty array)
+        ctx(HostAccess.EXPLICIT).use { c ->
+            c["hb"] = java.nio.ByteBuffer.wrap(byteArrayOf(1, 2))
+            assertEquals(0, c.eval("new Uint8Array(hb).length").asInt())
+        }
+        ctx(HostAccess.builder(HostAccess.Level.EXPLICIT).allowBufferAccess(true).build()).use { c ->
+            c["hb"] = java.nio.ByteBuffer.wrap(byteArrayOf(1, 2))
+            assertEquals("1,2", c.str("new Uint8Array(hb).join()"))
+        }
+    }
+
+    @Test
+    fun jsBuffersAsJavaParameters() {
+        ctx().use { c ->
+            c["h"] = BufferSink()
+            // a ByteBuffer parameter shares the bytes (little-endian), read-only for an immutable buffer
+            assertEquals("rem=4 first=1 ro=false int=1|rem=2 first=7 ro=false int=-1|rem=2 first=3 ro=false int=-1", c.str("""[
+                h.take(new Int32Array([1]).buffer), h.take(new Uint8Array([7, 8])), h.take(new DataView(new Uint8Array([9, 3, 4]).buffer, 1))].join('|')"""))
+            assertEquals(42, c.eval("var u = new Uint8Array(2); h.poke(u.buffer); u[0]").asInt(), "Java's writes show in JS")
+            assertEquals("ro=true", c.str("h.take(new Uint8Array([1, 2]).buffer.transferToImmutable()).split(' ')[2]"))
+            // a typed array as a Java array: a copy, an 8-bit one byte for byte
+            assertEquals("1,-1|5,-6", c.str("[h.bytes(new Uint8Array([1, 255])), h.ints(new Int32Array([5, -6]))].join('|')"))
+            // overload choices are not shared between plain objects and buffers
+            assertEquals("Object,ByteBuffer,Object", c.str("[h.pick({}), h.pick(new Uint8Array(1)), h.pick({})].join()"))
         }
     }
 

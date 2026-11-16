@@ -49,6 +49,7 @@ class HostAccess private constructor(b: Builder) {
     val allowIterableAccess: Boolean = b.allowIterableAccess
     val allowExceptionAccess: Boolean = b.allowExceptionAccess
     val allowObjectViews: Boolean = b.allowObjectViews
+    val allowBufferAccess: Boolean = b.allowBufferAccess
     /** Allow JS objects/functions to be converted to host interfaces (callbacks, listeners). */
     val allowImplementations: Boolean = b.allowImplementations
 
@@ -242,6 +243,7 @@ class HostAccess private constructor(b: Builder) {
         var allowIterableAccess = level == Level.ALL
         var allowExceptionAccess = false
         var allowObjectViews = false
+        var allowBufferAccess = level == Level.ALL
         var allowImplementations = true
 
         fun classFilter(f: (Class<*>) -> Boolean) = apply { classFilter = f }
@@ -319,6 +321,16 @@ class HostAccess private constructor(b: Builder) {
          * the same way, re-enter the context safely from any thread, and come back to it as the same JS object.
          */
         fun allowObjectViews(b: Boolean) = apply { allowObjectViews = b }
+        /**
+         * Buffers cross between JS and Java, as in GraalJS. On by default for [Level.ALL] only (see [allowArrayAccess]).
+         * - **Java to JS.** A `java.nio.ByteBuffer` is what a TypedArray or DataView can be made over
+         *   (`new Uint8Array(bb)`), with bytes 0 until its limit. A writable heap buffer starting its array
+         *   (`ByteBuffer.wrap`, `allocate`) shares its bytes, so writes on either side show on the other. A direct
+         *   buffer, a read-only one or a slice into a larger array is copied, and a read-only copy cannot be written.
+         * - **JS to Java.** An ArrayBuffer, TypedArray or DataView given as a `ByteBuffer` parameter shares its bytes,
+         *   in little-endian order as typed arrays store values. It is read-only for an immutable ArrayBuffer.
+         */
+        fun allowBufferAccess(b: Boolean) = apply { allowBufferAccess = b }
         fun allowImplementations(b: Boolean) = apply { allowImplementations = b }
         fun build() = HostAccess(this)
     }

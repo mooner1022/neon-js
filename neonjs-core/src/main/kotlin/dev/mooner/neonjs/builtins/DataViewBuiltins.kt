@@ -28,7 +28,10 @@ internal object DataViewBuiltins {
         realm.intrinsics["%DataView.prototype%"] = proto
         val ctor = makeCtor(realm, "DataView", 1, proto) { _, _, args, nt ->
             if (nt == null) typeErr("Constructor DataView requires 'new'")
-            val buffer = args.arg(0) as? JSArrayBuffer ?: typeErr("First argument to DataView constructor must be an ArrayBuffer")
+            val buffer = args.arg(0) as? JSArrayBuffer
+                // a host ByteBuffer, made into an ArrayBuffer over its bytes (HostAccess.allowBufferAccess)
+                ?: (args.arg(0) as? ForeignBuffer)?.foreignArrayBuffer() as? JSArrayBuffer
+                ?: typeErr("First argument to DataView constructor must be an ArrayBuffer")
             val offset = Ops.toIndex(args.arg(1))
             if (buffer.detached) typeErr("Cannot construct a DataView on a detached ArrayBuffer")
             var bufLen = buffer.byteLength().toLong()
