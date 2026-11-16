@@ -278,6 +278,8 @@ internal object TypedArrayBuiltins {
             return allocate(realm, t, proto, len)
         }
         val proto = Ops.getPrototypeFromConstructor(nt) { it.intrinsic(protoKeys[t.ordinal]) }
+        // a host ByteBuffer is made into an ArrayBuffer over its bytes (HostAccess.allowBufferAccess, as GraalJS's foreign buffers)
+        (first as? ForeignBuffer)?.foreignArrayBuffer()?.let { return fromArrayBuffer(t, proto, it as JSArrayBuffer, args.arg(1), args.arg(2)) }
         return when (first) {
             is JSTypedArray -> fromTypedArray(realm, t, proto, first)
             is JSArrayBuffer -> fromArrayBuffer(t, proto, first, args.arg(1), args.arg(2))

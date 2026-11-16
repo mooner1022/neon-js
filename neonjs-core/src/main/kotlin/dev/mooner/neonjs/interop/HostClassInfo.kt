@@ -38,6 +38,8 @@ class HostClassInfo private constructor(val cls: Class<*>, val access: HostAcces
      * none and is not one. Where the policy shows instances at all (not under NONE).
      */
     val dateLike: Boolean = access.isInstanceAccessible(cls) && DATE_TYPES.any { it.isAssignableFrom(cls) }
+    /** Instances are host buffers a TypedArray or DataView can be made over ([HostAccess.allowBufferAccess]). */
+    val bufferLike: Boolean = viewable && access.allowBufferAccess && java.nio.ByteBuffer::class.java.isAssignableFrom(cls)
     /** Instances are JS-iterable. */
     val iterable: Boolean = arrayLike || viewable && access.allowIterableAccess &&
         (Iterable::class.java.isAssignableFrom(cls) || Iterator::class.java.isAssignableFrom(cls))

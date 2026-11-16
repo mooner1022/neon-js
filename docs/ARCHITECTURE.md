@@ -463,7 +463,11 @@ A Java `Map` under map access is a foreign hash map in the same way:
 - `Map.prototype`'s methods reach its entries through `ForeignMap`. Iteration runs over a snapshot of the keys,
   skipping removed ones.
 
-`new Date` reads a host date-time's instant through `ForeignDate`. One that names an instant (`Instant`,
+A host `ByteBuffer` under buffer access is a `ForeignBuffer`: the TypedArray and DataView constructors take the
+ArrayBuffer it gives (`ArrayBufferBuiltins.overHostBuffer`). That ArrayBuffer shares a writable heap buffer's array
+and copies anything else, since `JSArrayBuffer.data` is a byte array that the JIT reads directly. `HostBridge.cost`
+and `toHost` run the policy's `TargetMapping`s around NeonJS's own conversions (`defaultCost`, `convert`); overloads
+with mapped parameter types remember no choice. `new Date` reads a host date-time's instant through `ForeignDate`. One that names an instant (`Instant`,
 `ZonedDateTime`, `OffsetDateTime`, `java.util.Date`) is also a foreign date: `Date.prototype` is its prototype
 (`JSObject.FOREIGN_DATE`), and the getters read it through `DateBuiltins.thisTime`. A host function has
 `Function.prototype`; `prototypeFor` in HostObjects.kt picks the prototype: array, Map, date, function, object. A HostError keeps its exception under a symbol of

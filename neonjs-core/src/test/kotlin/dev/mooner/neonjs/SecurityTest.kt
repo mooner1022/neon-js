@@ -360,7 +360,7 @@ class SecurityTest {
         val harmless = setOf(
             "HostExport", "HostName", "HostFunction", "UncaughtErrorHandler", "NeonExtension", "NeonConsole", "NeonModuleLoader", "ExecutionMode", "NeonException",
             "NeonSyntaxException", "NeonTerminatedException", "NeonTimeoutException", "NeonResourceLimitException",
-            "NeonInterruptedException",
+            "NeonInterruptedException", "TargetMappingPrecedence",
         )
         val names = engineClassNames()
         val loader = NeonEngine::class.java.classLoader
