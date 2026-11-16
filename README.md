@@ -344,6 +344,8 @@ ctx.defineModule("host:db", mapOf("query" to queryFunction, "version" to 2))   /
     other.
   - A direct buffer, a read-only one or a slice into a larger array is copied, and a read-only copy cannot be
     written. JS writes to a copy of a direct buffer stay in JS, where GraalJS shares the buffer.
+  - To write JS bytes into a direct buffer, `db.position(0); db.put(u8)` copies them in one call (`put(byte[])`).
+    A new `new Uint8Array(db)` reads what the host has written since.
   - In the other direction, an ArrayBuffer, typed array or DataView given as a `ByteBuffer` shares its bytes
     (little-endian, as typed arrays store values).
   - A typed array given as a Java array is copied: a `Uint8Array` as a `byte[]` byte for byte.
