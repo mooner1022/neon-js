@@ -593,7 +593,21 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         is BigInteger -> if (v.bitLength() < 64) v.toLong() else v
         is HostObject -> v.target
         is HostClassObject -> v.cls
+        is JSObject -> if (access.allowObjectViews) objectView(v) else gate.wrapValue(v)
         else -> gate.wrapValue(v)
+    }
+
+    /**
+     * A JS object as plain Java, for a host `Object` ([HostAccess.allowObjectViews]): a List, Map or Set view, a
+     * Function, an Instant, else a Map of its properties. Views come back to this context as [o] itself.
+     */
+    private fun objectView(o: JSObject): Any = when {
+        o is dev.mooner.neonjs.builtins.JSMapObject -> if (o.isSet) JSSetView(this, o, Any::class.java) else JSMapEntriesView(this, o, Any::class.java, Any::class.java)
+        o is dev.mooner.neonjs.builtins.JSDate ->
+            if (o.timeValue.isNaN()) gate.wrapValue(o) else java.time.Instant.ofEpochMilli(o.timeValue.toLong())
+        Ops.isArray(o) -> JSListView(this, o, Any::class.java)
+        o.isCallable -> implement(o, java.util.function.Function::class.java)
+        else -> JSMapView(this, o, Any::class.java)
     }
 
     /** Creates a host implementation of interface [iface] backed by a JS function or object. */

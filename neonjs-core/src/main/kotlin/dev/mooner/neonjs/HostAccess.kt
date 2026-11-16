@@ -48,6 +48,7 @@ class HostAccess private constructor(b: Builder) {
     val allowMapAccess: Boolean = b.allowMapAccess
     val allowIterableAccess: Boolean = b.allowIterableAccess
     val allowExceptionAccess: Boolean = b.allowExceptionAccess
+    val allowObjectViews: Boolean = b.allowObjectViews
     /** Allow JS objects/functions to be converted to host interfaces (callbacks, listeners). */
     val allowImplementations: Boolean = b.allowImplementations
 
@@ -240,6 +241,7 @@ class HostAccess private constructor(b: Builder) {
         var allowMapAccess = level == Level.ALL
         var allowIterableAccess = level == Level.ALL
         var allowExceptionAccess = false
+        var allowObjectViews = false
         var allowImplementations = true
 
         fun classFilter(f: (Class<*>) -> Boolean) = apply { classFilter = f }
@@ -304,6 +306,19 @@ class HostAccess private constructor(b: Builder) {
          * name are all JS learns of a host exception otherwise.
          */
         fun allowExceptionAccess(b: Boolean) = apply { allowExceptionAccess = b }
+        /**
+         * A JS object given where Java takes an `Object` (a parameter or field of type Object, an element put in a
+         * Java List or Map) arrives as plain Java, as GraalJS gives it:
+         * - a JS array as a live `List`;
+         * - a JS `Map` as a live `Map` of its entries, and a JS `Set` as a live `Set`;
+         * - a function as a `java.util.function.Function`;
+         * - a `Date` as a `java.time.Instant` (GraalJS gives a Map view, which has no entries);
+         * - any other object as a live `Map` of its properties.
+         *
+         * Without it (the default at every level) such a value arrives as a [NeonValue]. The views convert what they hold
+         * the same way, re-enter the context safely from any thread, and come back to it as the same JS object.
+         */
+        fun allowObjectViews(b: Boolean) = apply { allowObjectViews = b }
         fun allowImplementations(b: Boolean) = apply { allowImplementations = b }
         fun build() = HostAccess(this)
     }

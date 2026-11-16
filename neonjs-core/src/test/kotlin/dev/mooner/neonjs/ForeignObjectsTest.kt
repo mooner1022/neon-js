@@ -32,6 +32,24 @@ class LongSink {
     fun fn(): java.util.function.Function<Int, Int> = java.util.function.Function { it + 1 }
 }
 
+class ObjectSink {
+    var kept: Any? = null
+    fun describe(o: Any?): String = when (o) {
+        null -> "null"
+        is java.util.function.Function<*, *> -> "Function"
+        is Map<*, *> -> "Map" + o.entries.joinToString(",", "{", "}") { "${it.key}=${describe(it.value)}" }
+        is Set<*> -> "Set" + o.joinToString(",", "[", "]") { describe(it) }
+        is List<*> -> "List" + o.joinToString(",", "[", "]") { describe(it) }
+        is NeonValue -> "NeonValue"
+        else -> o.javaClass.simpleName + ":" + o
+    }
+    fun keep(o: Any?): Any? { kept = o; return o }
+    @Suppress("UNCHECKED_CAST")
+    fun apply(f: Any?, x: Any?): Any? = (f as java.util.function.Function<Any?, Any?>).apply(x)
+    @Suppress("UNCHECKED_CAST")
+    fun write(o: Any?) { (o as MutableMap<String, Any?>)["fromJava"] = 1 }
+}
+
 class OverloadedSink {
     fun take(s: Set<Any?>) = "Set"
     fun take(o: Any?) = "Object"
@@ -340,6 +358,31 @@ class ForeignObjectsTest {
             assertEquals("function,6", c.str("[typeof kf, kf(3)].join()"))
             // its call is Function.prototype.call (KCallable's reflective call is no member of the reference)
             assertEquals("8,8", c.str("[kf.call(null, 4), Function.prototype.call.call(kf, null, 4)].join()"))
+        }
+    }
+
+    @Test
+    fun jsObjectsAsJavaViewsByPermission() {
+        val script = "[h.describe({ a: 1 }), h.describe([1, 'x']), h.describe(new Map([['k', [2]]])), h.describe(new Set([3])), " +
+            "h.describe(x => x * 2), h.describe(new Date(5)), h.describe(1), h.describe('s')].join(' | ')"
+        // off by default: a NeonValue, as before
+        ctx().use { c ->
+            c["h"] = ObjectSink()
+            assertEquals("NeonValue | NeonValue | NeonValue | NeonValue | NeonValue | NeonValue | Integer:1 | String:s", c.str(script))
+        }
+        ctx(HostAccess.builder(HostAccess.Level.ALL).allowObjectViews(true).build()).use { c ->
+            val h = ObjectSink()
+            c["h"] = h
+            assertEquals("Map{a=Integer:1} | List[Integer:1,String:x] | Map{k=List[Integer:2]} | Set[Integer:3] | Function | " +
+                "Instant:1970-01-01T00:00:00.005Z | Integer:1 | String:s", c.str(script))
+            // nested views, a Function that calls back into JS, live writes, and the same object back
+            assertEquals("Map{list=List[Integer:1,Map{x=Integer:2}]}", c.str("h.describe({ list: [1, { x: 2 }] })"))
+            assertEquals(10, c.eval("h.apply(x => x * 2, 5)").asInt())
+            assertEquals("1,true,true", c.str("var o = {}; h.write(o); var f = () => 1; [o.fromJava, h.keep(o) === o, h.keep(f) === f].join()"))
+            // a Java collection given a JS object holds the view
+            c["jl"] = java.util.ArrayList<Any?>()
+            c.eval("jl.add({ y: 3 })")
+            assertEquals("Map{y=Integer:3}", h.describe((c.eval("jl").asHostObject<List<Any?>>())[0]))
         }
     }
 
