@@ -342,8 +342,11 @@ class HostAccess private constructor(b: Builder) {
          * for any value...) and that [accepts] (null: any) becomes what [converter] makes of it, wherever a
          * [targetType] is wanted: a parameter (a primitive one too, for its boxed type), a field, an element of a
          * `List` or `Map` view, `NeonValue.as`. [precedence] ranks it among NeonJS's own conversions
-         * ([TargetMappingPrecedence.HIGH] by default). [accepts] should be quick and answer false rather than throw;
-         * a `ClassCastException` from [converter] is a TypeError in JS. Types are boxed types: a primitive one is an
+         * ([TargetMappingPrecedence.HIGH] by default). [accepts] may run more than once for one value (as overloads
+         * are weighed, then for the call); it should be quick and answer false rather than throw. A
+         * `ClassCastException` from [converter] is a TypeError in JS. At HIGH and HIGHEST a mapping applies to a value
+         * that already is a [targetType] too (a host object): as in GraalJS, the converter makes a new one; [accepts]
+         * can refuse those (`!it.isHostObject` for a NeonValue source). Types are boxed types: a primitive one is an
          * IllegalArgumentException, as in GraalJS.
          *
          * ```kotlin
@@ -397,7 +400,7 @@ class HostAccess private constructor(b: Builder) {
          */
         val defaultDeniedEngineClasses = setOf(
             "NeonEngine", "NeonContext", "NeonValue", "NeonScript", "HostAccess", "SandboxPolicy", "FileSystemModuleLoader",
-            "MapModuleLoader",
+            "MapModuleLoader", "TargetMapping",
         )
         /** java.lang.Object methods never exposed (`getClass` only while `java.lang.Class` is denied). */
         val deniedMethods = setOf("getClass", "wait", "notify", "notifyAll", "finalize")

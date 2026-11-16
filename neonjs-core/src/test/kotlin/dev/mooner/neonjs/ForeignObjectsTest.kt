@@ -74,6 +74,15 @@ class MappedSink {
     fun first(l: List<Int?>): String { val e = l[0]; return (e?.javaClass?.simpleName ?: "null") + ":" + e }
 }
 
+class RankSink {
+    fun b64(b: ByteArray) = "byte[]"
+    fun b64(b: java.nio.ByteBuffer) = "ByteBuffer"
+    fun nums(a: IntArray) = "int[]"
+    fun nums(a: ByteArray) = "byte[]"
+    var keptPoint = MappedPoint(1, 2)
+    fun isKept(p: MappedPoint) = p === keptPoint
+}
+
 class OverloadedSink {
     fun take(s: Set<Any?>) = "Set"
     fun take(o: Any?) = "Object"
@@ -504,6 +513,69 @@ class ForeignObjectsTest {
         // boxed types only, as in GraalJS
         org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
             HostAccess.builder(HostAccess.Level.ALL).targetTypeMapping(String::class.java, Integer.TYPE, null, { it.length })
+        }
+    }
+
+    @Test
+    fun whatAReviewOfViewsBuffersAndMappingsFound() {
+        val lookup = HostAccess.builder(HostAccess.Level.ALL).allowLookup { true }.allowObjectViews(true).build()
+        ctx(lookup, SandboxPolicy.builder().exposeJavaGlobal(true).build()).use { c ->
+            c["r"] = RankSink()
+            // a typed array goes to the Java array of its own element type before a ByteBuffer or another array type
+            // (GraalJS calls int[]/byte[] ambiguous)
+            assertEquals("byte[],ByteBuffer,int[],byte[]", c.str("[r.b64(new Uint8Array(2)), r.b64(new Uint8Array(2).buffer), r.nums(new Int32Array(1)), r.nums(new Uint8Array(1))].join()"))
+            // the JDK's own pairs: Base64.Encoder.encode(byte[]) returns a byte[]; CRC32.update(byte[]) over (ByteBuffer) and (int)
+            assertEquals("true,AQI=,true", c.str("""(() => {
+                const enc = Java.type('java.util.Base64').getEncoder(), CRC = Java.type('java.util.zip.CRC32');
+                const a = new CRC(), b = new CRC();
+                a.update(new Uint8Array([1, 2])); b.update(Java.to([1, 2], 'byte[]'));
+                return [Array.isArray(enc.encode(new Uint8Array([1, 2]))), enc.encodeToString(new Uint8Array([1, 2])), a.getValue() === b.getValue()].join()
+            })()"""))
+            // object views: a typed array is a List, an Error shows as JS shows it, a function's proxies are equal
+            c["jl"] = java.util.ArrayList<Any?>()
+            assertEquals("List[Integer:1,Integer:2]", ObjectSink().describe(c.eval("({ t: new Uint8Array([1, 2]) })").`as`(Map::class.java)["t"]))
+            assertTrue(c.eval("[new Error('boom')]").`as`(List::class.java)[0].toString().startsWith("Error: boom"))
+            assertEquals("1,true,0", c.str("var fn = () => 1; jl.add(fn); [jl.size(), jl.remove(fn), jl.size()].join()"))
+        }
+        // a mapping's accepts can keep a host object as it is (at HIGH it would make a new one, as in GraalJS)
+        val keep = HostAccess.builder(HostAccess.Level.ALL)
+            .targetTypeMapping(NeonValue::class.java, MappedPoint::class.java, { !it.isHostObject && it.hasMember("x") }, { MappedPoint(it.getMember("x").asInt(), 0) })
+            .build()
+        ctx(keep).use { c ->
+            val r = RankSink()
+            c["r"] = r
+            c["p"] = r.keptPoint
+            assertEquals("true,false", c.str("[r.isKept(p), r.isKept({ x: 1 })].join()"))
+        }
+        // an ArrayBuffer over a host buffer reaches nothing past the limit, and transferring it leaves the host's bytes
+        ctx().use { c ->
+            val bytes = byteArrayOf(1, 2, 3, 4)
+            c["bb"] = java.nio.ByteBuffer.wrap(bytes).limit(2)
+            assertEquals("2|1,2,0,0,0,0,0,0|true|1,2", c.str("""(() => {
+                const u = new Uint8Array(bb), t = new Uint8Array(bb).buffer.transfer(8);
+                return [u.buffer.byteLength, new Uint8Array(t).join(), (new Uint8Array(bb).buffer.transferToImmutable(), true), new Uint8Array(bb).join()].join('|')
+            })()"""))
+            assertEquals(listOf<Byte>(1, 2, 3, 4), bytes.toList(), "the host array as it was, bytes past the limit included")
+        }
+    }
+
+    @Test
+    fun aSiteSeesJsBuffersThenHostBuffers() {
+        // the JIT reads a typed array's bytes directly: here they are the host's array
+        for (mode in ExecutionMode.entries) {
+            NeonEngine.builder().hostAccess(HostAccess.ALL).executionMode(mode).console(null).build().newContext().use { c ->
+                val host = java.nio.ByteBuffer.wrap(ByteArray(16))
+                c["hb"] = host
+                c.eval("""
+                    function f(u, i) { u[i & 15] = (u[(i + 1) & 15] + 1) & 255; return u[i & 15] + u.length; }
+                    var js = new Uint8Array(16), hu = new Uint8Array(hb), sum = 0;
+                    for (var i = 0; i < 4000; i++) sum += f(js, i);
+                    for (var i = 0; i < 4000; i++) sum += f(hu, i);
+                    for (var i = 0; i < 4000; i++) sum += f(i % 2 ? js : hu, i);
+                """)
+                assertEquals(c.eval("Array.from(hu).join()").asString(), host.array().map { it.toInt() and 255 }.joinToString(","), mode.name)
+                assertTrue(c.eval("sum").asDouble() > 0, mode.name)
+            }
         }
     }
 
