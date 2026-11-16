@@ -359,7 +359,66 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
     }
 
     /** Cost of converting JS value [v] to [t]; lower is better, IMPOSSIBLE if not convertible. */
+    /**
+     * The cost of converting JS [v] to host type [t] (IMPOSSIBLE if it cannot be), with the policy's
+     * [TargetMapping]s ranked among NeonJS's own conversions by their precedence: HIGHEST before everything (-1, so it
+     * wins even over an exact match), HIGH before all but an exact match, LOW where only a lossy conversion (above 2)
+     * or none applies, LOWEST where none applies.
+     */
     fun cost(v: Any?, t: Class<*>): Int {
+        val ms = mappingsFor(t)
+        if (ms.isEmpty()) return defaultCost(v, t)
+        val d = defaultCost(v, t)
+        val m = applicableMapping(v, ms) ?: return d
+        return when (m.first.precedence) {
+            dev.mooner.neonjs.TargetMappingPrecedence.HIGHEST -> -1
+            dev.mooner.neonjs.TargetMappingPrecedence.HIGH -> minOf(d, 1)
+            dev.mooner.neonjs.TargetMappingPrecedence.LOW -> if (d <= 2) d else 3
+            dev.mooner.neonjs.TargetMappingPrecedence.LOWEST -> if (d != IMPOSSIBLE) d else 7
+        }
+    }
+
+    /** The policy's mappings to [t] (to its boxed type for a primitive one), in precedence order. */
+    private fun mappingsFor(t: Class<*>): List<dev.mooner.neonjs.TargetMapping> =
+        if (access.mappings.isEmpty()) emptyList() else access.mappings[boxed(t) ?: t] ?: emptyList()
+
+    /** The first of [ms] that applies to [v], with [v] converted to its source type; null if none does. */
+    private fun applicableMapping(v: Any?, ms: List<dev.mooner.neonjs.TargetMapping>): Pair<dev.mooner.neonjs.TargetMapping, Any?>? {
+        for (m in ms) {
+            if (defaultCost(v, m.sourceType) == IMPOSSIBLE) continue
+            val s = convert(v, m.sourceType, null)
+            val ok = try {
+                m.accepts?.test(s) ?: true
+            } catch (e: RuntimeException) {
+                throw hostError(e)
+            }
+            if (ok) return m to s
+        }
+        return null
+    }
+
+    /** What a mapping to [t] makes of [v] where it applies ahead of NeonJS's own conversion, else [NotFound]. */
+    private fun mapped(v: Any?, t: Class<*>): Any? {
+        val ms = mappingsFor(t)
+        if (ms.isEmpty()) return NotFound
+        val (m, s) = applicableMapping(v, ms) ?: return NotFound
+        val use = when (m.precedence) {
+            dev.mooner.neonjs.TargetMappingPrecedence.HIGHEST, dev.mooner.neonjs.TargetMappingPrecedence.HIGH -> true
+            dev.mooner.neonjs.TargetMappingPrecedence.LOW -> defaultCost(v, t) > 2
+            dev.mooner.neonjs.TargetMappingPrecedence.LOWEST -> defaultCost(v, t) == IMPOSSIBLE
+        }
+        if (!use) return NotFound
+        return try {
+            m.converter.apply(s)
+        } catch (e: ClassCastException) {
+            throw JSException.typeError("Cannot convert ${Ops.describe(v)} to ${t.name}: ${e.message}")
+        } catch (e: RuntimeException) {
+            throw hostError(e)
+        }
+    }
+
+    /** [cost] by NeonJS's own conversions alone. */
+    private fun defaultCost(v: Any?, t: Class<*>): Int {
         if (t == gate.valueClass) return 1
         if (v !is HostObject && isFutureType(t)) return when (v) {
             Undefined, Null, null -> 1
@@ -467,6 +526,12 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
 
     /** Converts JS value [v] to host type [t] (generic type [gt] used for collections/functions). */
     fun toHost(v: Any?, t: Class<*>, gt: Type? = null): Any? {
+        val m = mapped(v, t)
+        return if (m !== NotFound) m else convert(v, t, gt)
+    }
+
+    /** [toHost] by NeonJS's own conversions alone. */
+    private fun convert(v: Any?, t: Class<*>, gt: Type?): Any? {
         if (t == gate.valueClass) return gate.wrapValue(v)
         when (v) {
             Undefined, Null, null -> {
@@ -713,12 +778,13 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
      * The overloads of a method (or the constructors of a class) as calls choose among them: their Sigs, and the
      * choices made so far, by the kinds of the arguments ([kindOf]).
      */
-    internal class Overloads(@JvmField val sigs: Array<Sig>) {
+    internal class Overloads(@JvmField val sigs: Array<Sig>, mapped: Boolean = false) {
         /**
          * Whether choices depend on the kinds of the arguments alone: not where a string may name an enum constant (an
-         * enum parameter, or the enum elements of a varargs parameter).
+         * enum parameter, or the enum elements of a varargs parameter), nor where a target type mapping's `accepts`
+         * decides by the value ([mapped]).
          */
-        @JvmField val memoizable: Boolean = sigs.size > 1 && sigs.none { s -> s.params.any { it.isEnum || it.isArray && it.componentType.isEnum } }
+        @JvmField val memoizable: Boolean = !mapped && sigs.size > 1 && sigs.none { s -> s.params.any { it.isEnum || it.isArray && it.componentType.isEnum } }
         @JvmField val keys = LongArray(MEMO_SIZE)
         @JvmField val choices = IntArray(MEMO_SIZE)
         @JvmField var size = 0
@@ -729,7 +795,9 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
     /** The [Overloads] of [cands], a list as long-lived as the [HostClassInfo] holding it. */
     internal fun overloads(cands: List<Executable>): Overloads =
         if (cands.size == 1) Overloads(arrayOf(sig(cands[0])))
-        else overloadsByList[cands] ?: Overloads(sigs(cands)).also { overloadsByList[cands] = it }
+        else overloadsByList[cands] ?: sigs(cands).let { s ->
+            Overloads(s, access.mappings.isNotEmpty() && s.any { sig -> sig.params.any { mappingsFor(it).isNotEmpty() || it.isArray && mappingsFor(it.componentType).isNotEmpty() } })
+        }.also { overloadsByList[cands] = it }
 
     /** [select] among [cands], a list as long-lived as the [HostClassInfo] holding it, remembering choices. */
     internal fun <E : Executable> choose(cands: List<E>, args: Array<Any?>): E? {

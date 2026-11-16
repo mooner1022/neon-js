@@ -50,6 +50,9 @@ class HostAccess private constructor(b: Builder) {
     val allowExceptionAccess: Boolean = b.allowExceptionAccess
     val allowObjectViews: Boolean = b.allowObjectViews
     val allowBufferAccess: Boolean = b.allowBufferAccess
+    /** The [TargetMapping]s by target type (boxed), each list in precedence order, then in the order they were added. */
+    internal val mappings: Map<Class<*>, List<TargetMapping>> =
+        b.mappingList.sortedBy { it.precedence.ordinal }.groupBy { it.targetType }
     /** Allow JS objects/functions to be converted to host interfaces (callbacks, listeners). */
     val allowImplementations: Boolean = b.allowImplementations
 
@@ -244,6 +247,7 @@ class HostAccess private constructor(b: Builder) {
         var allowExceptionAccess = false
         var allowObjectViews = false
         var allowBufferAccess = level == Level.ALL
+        internal val mappingList = ArrayList<TargetMapping>()
         var allowImplementations = true
 
         fun classFilter(f: (Class<*>) -> Boolean) = apply { classFilter = f }
@@ -331,6 +335,36 @@ class HostAccess private constructor(b: Builder) {
          *   in little-endian order as typed arrays store values. It is read-only for an immutable ArrayBuffer.
          */
         fun allowBufferAccess(b: Boolean) = apply { allowBufferAccess = b }
+
+        /**
+         * Adds a conversion of JS values to host type [targetType], as GraalJS's `targetTypeMapping`: a JS value that
+         * converts to [sourceType] (as for a parameter of that type: `String`, `Integer`, `Map`, `List`, [NeonValue]
+         * for any value...) and that [accepts] (null: any) becomes what [converter] makes of it, wherever a
+         * [targetType] is wanted: a parameter (a primitive one too, for its boxed type), a field, an element of a
+         * `List` or `Map` view, `NeonValue.as`. [precedence] ranks it among NeonJS's own conversions
+         * ([TargetMappingPrecedence.HIGH] by default). [accepts] should be quick and answer false rather than throw;
+         * a `ClassCastException` from [converter] is a TypeError in JS. Types are boxed types: a primitive one is an
+         * IllegalArgumentException, as in GraalJS.
+         *
+         * ```kotlin
+         * HostAccess.builder(HostAccess.Level.ALL)
+         *     .targetTypeMapping(String::class.java, java.util.UUID::class.java, { it.length == 36 }, { java.util.UUID.fromString(it) })
+         *     .targetTypeMapping(NeonValue::class.java, Point::class.java, { it.hasMember("x") }, { Point(it.getMember("x").asInt(), it.getMember("y").asInt()) })
+         * ```
+         */
+        @JvmOverloads
+        fun <S, T> targetTypeMapping(
+            sourceType: Class<S>,
+            targetType: Class<T>,
+            accepts: java.util.function.Predicate<S>?,
+            converter: java.util.function.Function<S, T>,
+            precedence: TargetMappingPrecedence = TargetMappingPrecedence.HIGH,
+        ) = apply {
+            require(!sourceType.isPrimitive && !targetType.isPrimitive) { "A target type mapping takes boxed types, not ${sourceType.name} to ${targetType.name}" }
+            @Suppress("UNCHECKED_CAST")
+            mappingList.add(TargetMapping(sourceType, targetType, accepts as java.util.function.Predicate<Any?>?,
+                converter as java.util.function.Function<Any?, Any?>, precedence))
+        }
         fun allowImplementations(b: Boolean) = apply { allowImplementations = b }
         fun build() = HostAccess(this)
     }

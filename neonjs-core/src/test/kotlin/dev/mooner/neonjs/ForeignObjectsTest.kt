@@ -59,6 +59,21 @@ class BufferSink {
     fun pick(o: Any?) = "Object"
 }
 
+data class MappedPoint(val x: Int, val y: Int)
+
+class MappedSink {
+    @JvmField var where: MappedPoint? = null
+    fun takeInteger(i: Int?) = "Integer:$i"
+    fun takeInt(i: Int) = "int:$i"
+    fun over(i: Int?) = "over(Integer):$i"
+    fun over(s: String) = "over(String):$s"
+    fun overD(d: Double) = "overD(double):$d"
+    fun overD(i: Int?) = "overD(Integer):$i"
+    fun takePoint(p: MappedPoint) = "Point:$p"
+    fun takeObj(o: Any?) = if (o == null) "null" else o.javaClass.simpleName + ":" + o
+    fun first(l: List<Int?>): String { val e = l[0]; return (e?.javaClass?.simpleName ?: "null") + ":" + e }
+}
+
 class OverloadedSink {
     fun take(s: Set<Any?>) = "Set"
     fun take(o: Any?) = "Object"
@@ -447,6 +462,48 @@ class ForeignObjectsTest {
             assertEquals("1,-1|5,-6", c.str("[h.bytes(new Uint8Array([1, 255])), h.ints(new Int32Array([5, -6]))].join('|')"))
             // overload choices are not shared between plain objects and buffers
             assertEquals("Object,ByteBuffer,Object", c.str("[h.pick({}), h.pick(new Uint8Array(1)), h.pick({})].join()"))
+        }
+    }
+
+    @Test
+    fun targetTypeMappings() {
+        fun access(p: TargetMappingPrecedence) = HostAccess.builder(HostAccess.Level.ALL)
+            // a string of digits as an Integer; "13" the converter refuses (ClassCastException: a TypeError)
+            .targetTypeMapping(String::class.java, Int::class.javaObjectType, { it.matches(Regex("\\d+")) }, { s ->
+                if (s == "13") throw ClassCastException("thirteen")
+                s.toInt()
+            }, p)
+            // an object with x and y, or an "x,y" string, as a Point
+            .targetTypeMapping(NeonValue::class.java, MappedPoint::class.java, { it.hasMember("x") && it.hasMember("y") },
+                { MappedPoint(it.getMember("x").asInt(), it.getMember("y").asInt()) }, p)
+            .targetTypeMapping(String::class.java, MappedPoint::class.java, { "," in it }, { s -> s.split(",").map { it.trim().toInt() }.let { MappedPoint(it[0], it[1]) } }, p)
+            .build()
+        // as GraalJS 25.5 answers the same calls, but for the tie at HIGH, which GraalJS reports as ambiguous
+        val overloadAt = mapOf(TargetMappingPrecedence.HIGHEST to "over(Integer):42", TargetMappingPrecedence.HIGH to "over(String):42",
+            TargetMappingPrecedence.LOW to "over(String):42", TargetMappingPrecedence.LOWEST to "over(String):42")
+        for ((p, over) in overloadAt) {
+            ctx(access(p)).use { c ->
+                val h = MappedSink()
+                c["h"] = h
+                assertEquals("Integer:42|int:42|Integer:7|$over|over(Integer):42|overD(Integer):42|overD(double):1.5|String:42", c.str("""[h.takeInteger('42'),
+                    h.takeInt('42'), h.takeInteger(7), h.over('42'), h.over(42), h.overD('42'), h.overD(1.5), h.takeObj('42')].join('|')"""), p.name)
+                assertEquals("TypeError|TypeError: Cannot convert \"13\" to java.lang.Integer: thirteen", c.str("""[
+                    (() => { try { h.takeInteger('x') } catch (e) { return e.name } })(),
+                    (() => { try { h.takeInteger('13') } catch (e) { return String(e) } })()].join('|')"""), p.name)
+                assertEquals("Point:MappedPoint(x=1, y=2)|Point:MappedPoint(x=3, y=4)|TypeError", c.str("""[h.takePoint({ x: 1, y: 2 }), h.takePoint('3, 4'),
+                    (() => { try { h.takePoint({ x: 1 }) } catch (e) { return e.name } })()].join('|')"""), p.name)
+                // a field, an element of a List view, NeonValue.as
+                c.eval("h.where = { x: 5, y: 6 }")
+                assertEquals(MappedPoint(5, 6), h.where)
+                assertEquals("Integer:1", c.str("h.first(['1', 2])"))
+                assertEquals(MappedPoint(7, 8), c.eval("({ x: 7, y: 8 })").`as`(MappedPoint::class.java))
+                // choices are not remembered by kind: the next string decides anew
+                assertEquals("over(String):x,$over,over(String):y", c.str("[h.over('x'), h.over('42'), h.over('y')].join()"), p.name)
+            }
+        }
+        // boxed types only, as in GraalJS
+        org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
+            HostAccess.builder(HostAccess.Level.ALL).targetTypeMapping(String::class.java, Integer.TYPE, null, { it.length })
         }
     }
 
