@@ -54,6 +54,15 @@ applies to an instance of a class denied by name. A `List` view lets scripts cha
 A `Map` view is a JS Map: through `Map.prototype`'s methods scripts reach entries of any key type, not only the
 string-keyed ones that are properties.
 
+`allowBufferAccess` (on under `ALL`) shares memory between JS and the host, both ways:
+- A heap `ByteBuffer` a script makes a typed array over is written by the script.
+- A JS buffer passed as a `ByteBuffer` is readable and writable by the host while it holds it. A JS buffer that is
+  later detached, transferred or resized is no longer what that `ByteBuffer` sees.
+- Direct and read-only host buffers are copied; a read-only one stays read-only.
+
+`allowObjectViews` and `targetTypeMapping` change only what host code receives. The mappings' functions run on the
+context's thread as host code, under no sandbox limits of their own.
+
 At every level a deny list blocks `java.lang.Class`, class loaders, `System`, `Runtime`, processes, threads,
 `SecurityManager`, modules, `StackWalker`, `Unsafe`, `MethodHandles`, object serialization streams, reflection
 and `java.lang.invoke` packages, `sun.*`/`com.sun.*`/`jdk.internal.*`, `java.security.*`, management and

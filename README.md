@@ -329,6 +329,37 @@ ctx.defineModule("host:db", mapOf("query" to queryFunction, "version" to 2))   /
   included, and comes back to its context as the same array or object.
 - A JS `Map` passed as a `Map` is a live view of its entries in the same way, and so is a JS `Set` passed as a `Set`,
   `Collection` or `Iterable`.
+- Where Java takes an `Object`, a JS object arrives as a `NeonValue`: a parameter or field of type Object, or an
+  element put in a Java collection. With `HostAccess.Builder.allowObjectViews(true)` it arrives as plain Java instead,
+  as in GraalJS:
+  - a JS array as a live `List`;
+  - a JS `Map` or `Set` as a live `Map` or `Set`;
+  - a function as a `java.util.function.Function`;
+  - a `Date` as an `Instant`;
+  - any other object as a live `Map` of its properties.
+- Binary data crosses as in GraalJS (`HostAccess.Builder.allowBufferAccess`, on under `ALL`):
+  - A `ByteBuffer` is what a typed array or DataView can be made over: `new Uint8Array(bb)` covers bytes 0 until
+    its limit.
+  - A writable heap buffer (`ByteBuffer.wrap`, `allocate`) shares its bytes, so writes on either side show on the
+    other.
+  - A direct buffer, a read-only one or a slice into a larger array is copied, and a read-only copy cannot be
+    written. JS writes to a copy of a direct buffer stay in JS, where GraalJS shares the buffer.
+  - In the other direction, an ArrayBuffer, typed array or DataView given as a `ByteBuffer` shares its bytes
+    (little-endian, as typed arrays store values).
+  - A typed array given as a Java array is copied: a `Uint8Array` as a `byte[]` byte for byte.
+- `HostAccess.Builder.targetTypeMapping(sourceType, targetType, accepts, converter[, precedence])` adds conversions
+  of JS values to host types, as in GraalJS:
+  ```kotlin
+  .targetTypeMapping(String::class.java, UUID::class.java, { it.length == 36 }, { UUID.fromString(it) })
+  .targetTypeMapping(NeonValue::class.java, Point::class.java, { it.hasMember("x") }, { Point(it.getMember("x").asInt(), it.getMember("y").asInt()) })
+  ```
+  - A mapping applies wherever its target type is wanted: parameters, fields, elements of `List` and `Map` views,
+    and `NeonValue.as`.
+  - Its `TargetMappingPrecedence` ranks it among NeonJS's own conversions:
+    - `HIGHEST` comes before all of them.
+    - `HIGH`, the default, comes before all but an exact match. GraalJS calls that tie ambiguous.
+    - `LOW` applies only where a lossy conversion or none would.
+    - `LOWEST` applies only where none would.
 - JS functions convert to any functional interface (`Runnable`, `Consumer`, Kotlin `fun interface`s, …) and JS
   objects to any interface. The proxies re-enter the context safely from any thread, and come back to the context
   that made them as the original JS function or object.
