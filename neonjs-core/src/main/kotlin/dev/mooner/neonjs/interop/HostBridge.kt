@@ -366,6 +366,7 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
      * or none applies, LOWEST where none applies.
      */
     fun cost(v: Any?, t: Class<*>): Int {
+        if (!mapping) return defaultCost(v, t)
         val ms = mappingsFor(t)
         if (ms.isEmpty()) return defaultCost(v, t)
         val d = defaultCost(v, t)
@@ -377,6 +378,9 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
             dev.mooner.neonjs.TargetMappingPrecedence.LOWEST -> if (d != IMPOSSIBLE) d else 7
         }
     }
+
+    /** Whether the policy has any [dev.mooner.neonjs.TargetMapping] (most have none: every call skips them). */
+    private val mapping = access.mappings.isNotEmpty()
 
     /** The policy's mappings to [t] (to its boxed type for a primitive one), in precedence order. */
     private fun mappingsFor(t: Class<*>): List<dev.mooner.neonjs.TargetMapping> =
@@ -528,8 +532,11 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
 
     /** Converts JS value [v] to host type [t] (generic type [gt] used for collections/functions). */
     fun toHost(v: Any?, t: Class<*>, gt: Type? = null): Any? {
-        val m = mapped(v, t)
-        return if (m !== NotFound) m else convert(v, t, gt)
+        if (mapping) {
+            val m = mapped(v, t)
+            if (m !== NotFound) return m
+        }
+        return convert(v, t, gt)
     }
 
     /** [toHost] by NeonJS's own conversions alone. */
