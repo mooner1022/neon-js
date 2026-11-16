@@ -230,6 +230,12 @@ private fun hostInterop(): String {
             "Java.type('java.time.Instant').ofEpochMilli(5) instanceof Date, Java.type('java.time.Instant').ofEpochMilli(5).getTime(), " +
             "Java.typeName(Java.type('int[]')), String(Java.type('java.lang.Long').valueOf(2 ** 60))].join()")
         check(more == "true,2,3,true,5,int[],1152921504606846976") { "functions, dates, typeName, long: $more" }
+        // buffers on ART's own ByteBuffers: a heap one shared, a direct one copied, JS bytes as a ByteBuffer and a byte[]
+        val bufs = js("(() => { const BB = Java.type('java.nio.ByteBuffer'); const hb = BB.wrap(Java.to([1, 2], 'byte[]')); " +
+            "new Uint8Array(hb)[0] = 9; const db = BB.allocateDirect(2); db.put(0, 7); " +
+            "return [hb.get(0), new Uint8Array(db)[0], String(Java.type('java.nio.charset.StandardCharsets').UTF_8.decode(new Uint8Array([104, 105]).buffer)), " +
+            "BB.wrap(new Uint8Array([1, 255])).get(1)].join() })()")
+        check(bufs == "9,7,hi,-1") { "buffers: $bufs" }
         // a method naming a class missing at run time is left out; ART resolves signatures method by method, so the
         // class's other methods stay
         val definer = CodeDefiners.default
@@ -251,7 +257,7 @@ private fun hostInterop(): String {
             }
         }
         check(missing.isEmpty()) { "not members: $missing" }
-        return "StringBuilder, functions, round trip, longs, host arrays, maps, exceptions, dates, packages, missing classes; $methods methods of 5 classes are members"
+        return "StringBuilder, functions, round trip, longs, host arrays, maps, exceptions, dates, packages, buffers, missing classes; $methods methods of 5 classes are members"
     }
 }
 
