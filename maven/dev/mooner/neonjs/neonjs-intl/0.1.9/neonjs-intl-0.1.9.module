@@ -1,0 +1,123 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "dev.mooner.neonjs",
+    "module": "neonjs-intl",
+    "version": "0.1.9",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.8.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.environment": "standard-jvm",
+        "org.gradle.jvm.version": 21,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api",
+        "org.jetbrains.kotlin.platform.type": "jvm"
+      },
+      "dependencies": [
+        {
+          "group": "dev.mooner.neonjs",
+          "module": "neonjs-core",
+          "version": {
+            "requires": "0.1.9"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.4.20"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "neonjs-intl-0.1.9.jar",
+          "url": "neonjs-intl-0.1.9.jar",
+          "size": 284362,
+          "sha512": "cd7c09282744f206cfcf23769eaa608237954b769e9a3bdb68db507a10b51d316e15ee89b278287e9bf81e8534cec20237671427c6c87e3ea28171f030a81c63",
+          "sha256": "ad069661ac5e65fcde4bdc32c63c1755c58bb74ce8f8211767be0c85bb4aa8f2",
+          "sha1": "31931eb682d2d10e4e4d44d842e37e655432695c",
+          "md5": "71721fac017cce95dd40fe849bb622ad"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.environment": "standard-jvm",
+        "org.gradle.jvm.version": 21,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime",
+        "org.jetbrains.kotlin.platform.type": "jvm"
+      },
+      "dependencies": [
+        {
+          "group": "com.ibm.icu",
+          "module": "icu4j",
+          "version": {
+            "requires": "78.3"
+          }
+        },
+        {
+          "group": "dev.mooner.neonjs",
+          "module": "neonjs-core",
+          "version": {
+            "requires": "0.1.9"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.4.20"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "neonjs-intl-0.1.9.jar",
+          "url": "neonjs-intl-0.1.9.jar",
+          "size": 284362,
+          "sha512": "cd7c09282744f206cfcf23769eaa608237954b769e9a3bdb68db507a10b51d316e15ee89b278287e9bf81e8534cec20237671427c6c87e3ea28171f030a81c63",
+          "sha256": "ad069661ac5e65fcde4bdc32c63c1755c58bb74ce8f8211767be0c85bb4aa8f2",
+          "sha1": "31931eb682d2d10e4e4d44d842e37e655432695c",
+          "md5": "71721fac017cce95dd40fe849bb622ad"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "neonjs-intl-0.1.9-sources.jar",
+          "url": "neonjs-intl-0.1.9-sources.jar",
+          "size": 76247,
+          "sha512": "d77b3b08422cf52c14c4cebdfffd8a5bbc10fb92e4d670c87168fa4f00454304b65bf20d809d071d4cc0420212abb9570e2baeee706e4cd2c9ccf8d089d74ea5",
+          "sha256": "d0b91204298cd30b888bf85b60bb22d53e9a4a9d0fc131f4e25b8c54427f0d92",
+          "sha1": "60190aeeae51a4e27af4681a487c9dfbc1542198",
+          "md5": "f5e30e7c0440efec98335f730b417e9a"
+        }
+      ]
+    }
+  ]
+}

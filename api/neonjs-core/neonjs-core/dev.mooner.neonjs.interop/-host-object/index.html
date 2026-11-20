@@ -43,7 +43,7 @@
         </button>
         <div class="navigation-controls--break ui-kit_mobile-only"></div>
         <div class="library-version" id="library-version">
-0.1.8        </div>
+0.1.9        </div>
         <div class="navigation-controls">
         <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
                 <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
@@ -107,7 +107,7 @@
   <div class="breadcrumbs"><a href="../../../index.html">neonjs-core</a><span class="delimiter">/</span><a href="../index.html">dev.mooner.neonjs.interop</a><span class="delimiter">/</span><span class="current">HostObject</span></div>
   <div class="cover ">
     <h1 class="cover"><span>Host</span><wbr></wbr><span><span>Object</span></span></h1>
-    <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="index.html">HostObject</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>bridge<span class="token operator">: </span><a href="../-host-bridge/index.html">HostBridge</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>target<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>info<span class="token operator">: </span><a href="../-host-class-info/index.html">HostClassInfo</a></span></span><span class="token punctuation">)</span> : <a href="../../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a></div><p class="paragraph">Exotic object exposing a host (Java/Kotlin) object's public members as properties: fields, methods, and bean-style properties (getX/isX/setX, i.e. Kotlin properties). Where the policy allows the views (<a href="../-host-class-info/array-like.html">HostClassInfo.arrayLike</a>, <a href="../-host-class-info/map-like.html">HostClassInfo.mapLike</a>, <a href="../-host-class-info/iterable.html">HostClassInfo.iterable</a>), Java arrays and Lists are array-like, Maps expose entries through get/set and Iterables are JS-iterable. Functions (lambdas, <code class="lang-kotlin">@FunctionalInterface</code> and Kotlin function type implementations, see <a href="../-host-class-info/-companion/find-functional-method.html">HostClassInfo.findFunctionalMethod</a>) are callable. A signature key such as <code class="lang-kotlin">append(java.lang.String)</code> names one overload (<a href="../-host-class-info/overload.html">HostClassInfo.overload</a>).</p></div></div>
+    <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">class </span><a href="index.html">HostObject</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>bridge<span class="token operator">: </span><a href="../-host-bridge/index.html">HostBridge</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>target<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>info<span class="token operator">: </span><a href="../-host-class-info/index.html">HostClassInfo</a></span></span><span class="token punctuation">)</span> : <a href="../../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a>, <a href="../../dev.mooner.neonjs.runtime/-foreign-array/index.html">ForeignArray</a>, <a href="../../dev.mooner.neonjs.runtime/-foreign-map/index.html">ForeignMap</a>, <a href="../../dev.mooner.neonjs.runtime/-foreign-date/index.html">ForeignDate</a></div><p class="paragraph">Exotic object exposing a host (Java/Kotlin) object's public members as properties: fields, methods, and bean-style properties (getX/isX/setX, i.e. Kotlin properties). Where the policy allows the views (<a href="../-host-class-info/array-like.html">HostClassInfo.arrayLike</a>, <a href="../-host-class-info/map-like.html">HostClassInfo.mapLike</a>, <a href="../-host-class-info/iterable.html">HostClassInfo.iterable</a>), Java arrays and Lists are array-like, Maps expose entries through get/set and Iterables are JS-iterable. Functions (lambdas, <code class="lang-kotlin">@FunctionalInterface</code> and Kotlin function type implementations, see <a href="../-host-class-info/-companion/find-functional-method.html">HostClassInfo.findFunctionalMethod</a>) are callable. A signature key such as <code class="lang-kotlin">append(java.lang.String)</code> names one overload (<a href="../-host-class-info/overload.html">HostClassInfo.overload</a>).</p><p class="paragraph">An array-like one is a JS array to scripts, as GraalJS's foreign arrays are: <code class="lang-kotlin">Array.prototype</code> is its prototype (<code class="lang-kotlin">map</code>, <code class="lang-kotlin">filter</code>, <code class="lang-kotlin">join</code>, <code class="lang-kotlin">sort</code>, iteration by index...) and <code class="lang-kotlin">Array.isArray</code> is true of it (<a href="../../dev.mooner.neonjs.runtime/-foreign-array/index.html">ForeignArray</a>). Its Java members still come first (a List's <code class="lang-kotlin">indexOf</code>, <code class="lang-kotlin">forEach</code> and <code class="lang-kotlin">sort</code> are Java's). A List grows and shrinks with <code class="lang-kotlin">push</code>, <code class="lang-kotlin">pop</code>, <code class="lang-kotlin">shift</code>, <code class="lang-kotlin">unshift</code>, <code class="lang-kotlin">splice</code>, a write just past its end and <code class="lang-kotlin">length</code>; a Java array's length is fixed.</p></div></div>
   </div>
   <div class="tabbedcontent">
     <div class="tabs-section" tabs-section="tabs-section"><button class="section-tab" data-active="" data-togglable="CONSTRUCTOR,TYPE,PROPERTY,FUNCTION">Members</button></div>
@@ -497,6 +497,21 @@
               </div>
             </div>
           </div>
+<a data-name="512807583%2FFunctions%2F-941727813" anchor-label="foreignTimeValue" id="512807583%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="foreign-time-value.html"><span>foreign</span><wbr></wbr><span>Time</span><wbr></wbr><span><span>Value</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="512807583%2FFunctions%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">open </span><span class="token keyword">override </span><span class="token keyword">fun </span><a href="foreign-time-value.html"><span class="token function">foreignTimeValue</span></a><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-double/index.html">Double</a><span class="token operator">?</span></div><div class="brief "><p class="paragraph">As <a href="../../dev.mooner.neonjs.runtime/-foreign-date/index.html">ForeignDate</a> says; nothing for an object the policy shows nothing of.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
 <a data-name="-1541377533%2FFunctions%2F-941727813" anchor-label="get" id="-1541377533%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
           <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
             <div class="main-subrow keyValue ">
@@ -632,6 +647,111 @@
               </div>
             </div>
           </div>
+<a data-name="-186600034%2FFunctions%2F-941727813" anchor-label="mapClear" id="-186600034%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="map-clear.html"><span>map</span><wbr></wbr><span><span>Clear</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-186600034%2FFunctions%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">open </span><span class="token keyword">override </span><span class="token keyword">fun </span><a href="map-clear.html"><span class="token function">mapClear</span></a><span class="token punctuation">(</span><span class="token punctuation">)</span></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1687668569%2FFunctions%2F-941727813" anchor-label="mapCursor" id="1687668569%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="map-cursor.html"><span>map</span><wbr></wbr><span><span>Cursor</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1687668569%2FFunctions%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">open </span><span class="token keyword">override </span><span class="token keyword">fun </span><a href="map-cursor.html"><span class="token function">mapCursor</span></a><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">: </span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator"> -&gt; </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-array/index.html">Array</a><span class="token operator">&lt;</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span><span class="token operator">&gt;</span><span class="token operator">?</span></div><div class="brief "><p class="paragraph">A cursor over the keys as they are now: each call gives the next <code class="lang-kotlin">[key, value]</code> whose key is still there, or null at the end. A key removed meanwhile is skipped and one added meanwhile is not visited, where a JS Map's iteration would visit it; changing the Map during the loop never throws (GraalJS throws Java's ConcurrentModificationException).</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1264824610%2FFunctions%2F-941727813" anchor-label="mapDelete" id="-1264824610%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="map-delete.html"><span>map</span><wbr></wbr><span><span>Delete</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1264824610%2FFunctions%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">open </span><span class="token keyword">override </span><span class="token keyword">fun </span><a href="map-delete.html"><span class="token function">mapDelete</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">key<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-16083795%2FFunctions%2F-941727813" anchor-label="mapGet" id="-16083795%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="map-get.html"><span>map</span><wbr></wbr><span><span>Get</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-16083795%2FFunctions%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">open </span><span class="token keyword">override </span><span class="token keyword">fun </span><a href="map-get.html"><span class="token function">mapGet</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">key<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span></div><div class="brief "><p class="paragraph">The value of <a href="../../dev.mooner.neonjs.runtime/-foreign-map/map-get.html">key</a>, or <a href="../../dev.mooner.neonjs.runtime/-undefined/index.html">Undefined</a> when there is no such entry.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="790185457%2FFunctions%2F-941727813" anchor-label="mapHas" id="790185457%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="map-has.html"><span>map</span><wbr></wbr><span><span>Has</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="790185457%2FFunctions%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">open </span><span class="token keyword">override </span><span class="token keyword">fun </span><a href="map-has.html"><span class="token function">mapHas</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">key<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="4619868%2FFunctions%2F-941727813" anchor-label="mapSet" id="4619868%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="map-set.html"><span>map</span><wbr></wbr><span><span>Set</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="4619868%2FFunctions%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">open </span><span class="token keyword">override </span><span class="token keyword">fun </span><a href="map-set.html"><span class="token function">mapSet</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">key<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span><span class="token punctuation">, </span></span><span class="parameter ">value<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span></span></span><span class="token punctuation">)</span></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1081664910%2FFunctions%2F-941727813" anchor-label="mapSize" id="1081664910%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="map-size.html"><span>map</span><wbr></wbr><span><span>Size</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1081664910%2FFunctions%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">open </span><span class="token keyword">override </span><span class="token keyword">fun </span><a href="map-size.html"><span class="token function">mapSize</span></a><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
 <a data-name="-287098219%2FFunctions%2F-941727813" anchor-label="ordinaryDefineOwnProperty" id="-287098219%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
           <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
             <div class="main-subrow keyValue ">
@@ -763,6 +883,21 @@
               <div>
                 <div class="title">
                   <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">open </span><span class="token keyword">override </span><span class="token keyword">fun </span><a href="set-prototype-of.html"><span class="token function">setPrototypeOf</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">p<span class="token operator">: </span><a href="../../dev.mooner.neonjs.runtime/-j-s-object/index.html">JSObject</a><span class="token operator">?</span></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="-1792499814%2FFunctions%2F-941727813" anchor-label="spliceElements" id="-1792499814%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="splice-elements.html"><span>splice</span><wbr></wbr><span><span>Elements</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1792499814%2FFunctions%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">open </span><span class="token keyword">override </span><span class="token keyword">fun </span><a href="splice-elements.html"><span class="token function">spliceElements</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">start<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token punctuation">, </span></span><span class="parameter ">deleteCount<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token punctuation">, </span></span><span class="parameter ">items<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-array/index.html">Array</a><span class="token operator">&lt;</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span><span class="token operator">&gt;</span></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-array/index.html">Array</a><span class="token operator">&lt;</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-any/index.html">Any</a><span class="token operator">?</span><span class="token operator">&gt;</span></div><div class="brief "><p class="paragraph">As <a href="../../dev.mooner.neonjs.runtime/-foreign-array/index.html">ForeignArray</a> says. A replacement (as many items as removed elements) sets elements in place; otherwise a List removes and inserts in one step each (<code class="lang-kotlin">subList(...).clear()</code>, <code class="lang-kotlin">addAll</code>), and a Java array, whose length is fixed, refuses. So does a List that cannot change its length (<code class="lang-kotlin">List.of</code>, <code class="lang-kotlin">Arrays.asList</code>): its own UnsupportedOperationException comes before any change.</p></div></div></div>
                 </div>
               </div>
             </div>

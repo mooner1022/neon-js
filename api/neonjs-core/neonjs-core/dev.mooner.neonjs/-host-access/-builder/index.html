@@ -43,7 +43,7 @@
         </button>
         <div class="navigation-controls--break ui-kit_mobile-only"></div>
         <div class="library-version" id="library-version">
-0.1.8        </div>
+0.1.9        </div>
         <div class="navigation-controls">
         <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
                 <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
@@ -174,6 +174,21 @@
               <div>
                 <div class="title">
                   <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">val </span><a href="allowed-prefixes.html">allowedPrefixes</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.collections/-array-list/index.html">ArrayList</a><span class="token operator">&lt;</span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a><span class="token operator">&gt;</span></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+<a data-name="1264239398%2FProperties%2F-941727813" anchor-label="allowExceptionAccess" id="1264239398%2FProperties%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="allow-exception-access.html"><span>allow</span><wbr></wbr><span>Exception</span><wbr></wbr><span><span>Access</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1264239398%2FProperties%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">var </span><a href="allow-exception-access.html">allowExceptionAccess</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></div></div></div>
                 </div>
               </div>
             </div>
@@ -377,6 +392,21 @@
               </div>
             </div>
           </div>
+<a data-name="-2109263893%2FFunctions%2F-941727813" anchor-label="allowExceptionAccess" id="-2109263893%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
+          <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
+            <div class="main-subrow keyValue ">
+              <div class=""><span class="inline-flex">
+                  <div><a href="allow-exception-access.html"><span>allow</span><wbr></wbr><span>Exception</span><wbr></wbr><span><span>Access</span></span></a></div>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-2109263893%2FFunctions%2F-941727813"></span>
+                    <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
+                  </span></span></div>
+              <div>
+                <div class="title">
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">fun </span><a href="allow-exception-access.html"><span class="token function">allowExceptionAccess</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">b<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="index.html">HostAccess.Builder</a></div><div class="brief "><p class="paragraph">A host exception JS catches (a <code class="lang-kotlin">HostError</code>, named after its Java class) also has the exception's methods: <code class="lang-kotlin">e.getMessage()</code>, <code class="lang-kotlin">e.getCause()</code>, <code class="lang-kotlin">e.getStackTrace()</code>, as this policy shows them for its class (under <a href="../-level/-e-x-p-l-i-c-i-t/index.html">Level.EXPLICIT</a>, the exported ones), as in GraalJS. Off by default at every level: the message and the class name are all JS learns of a host exception otherwise.</p></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
 <a data-name="-750805059%2FFunctions%2F-941727813" anchor-label="allowImplementations" id="-750805059%2FFunctions%2F-941727813" data-filterable-set=":neonjs-core/main"></a>
           <div class="table-row table-row_content" data-filterable-current=":neonjs-core/main" data-filterable-set=":neonjs-core/main">
             <div class="main-subrow keyValue ">
@@ -417,7 +447,7 @@
                   </span></span></div>
               <div>
                 <div class="title">
-                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">fun </span><a href="allow-list-access.html"><span class="token function">allowListAccess</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">b<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="index.html">HostAccess.Builder</a></div><div class="brief "><p class="paragraph"><code class="lang-kotlin">List</code>s are array-like; on by default for <a href="../-level/-a-l-l/index.html">Level.ALL</a> only (see <a href="allow-array-access.html">allowArrayAccess</a>).</p></div></div></div>
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">fun </span><a href="allow-list-access.html"><span class="token function">allowListAccess</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">b<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="index.html">HostAccess.Builder</a></div><div class="brief "><p class="paragraph"><code class="lang-kotlin">List</code>s are array-like: elements read and written by index, and the length changed too (<code class="lang-kotlin">push</code>, <code class="lang-kotlin">splice</code>, <code class="lang-kotlin">length = 0</code>), as in GraalJS. On by default for <a href="../-level/-a-l-l/index.html">Level.ALL</a> only (see <a href="allow-array-access.html">allowArrayAccess</a>).</p></div></div></div>
                 </div>
               </div>
             </div>
@@ -447,7 +477,7 @@
                   </span></span></div>
               <div>
                 <div class="title">
-                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">fun </span><a href="allow-map-access.html"><span class="token function">allowMapAccess</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">b<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="index.html">HostAccess.Builder</a></div><div class="brief "><p class="paragraph"><code class="lang-kotlin">Map</code> entries are properties, read, written and deleted; on by default for <a href="../-level/-a-l-l/index.html">Level.ALL</a> only (see <a href="allow-array-access.html">allowArrayAccess</a>).</p></div></div></div>
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">fun </span><a href="allow-map-access.html"><span class="token function">allowMapAccess</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">b<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="index.html">HostAccess.Builder</a></div><div class="brief "><p class="paragraph"><code class="lang-kotlin">Map</code> entries are properties, read, written and deleted, and the Map is a JS Map: <code class="lang-kotlin">Map.prototype</code>'s methods reach its entries of any key type (<code class="lang-kotlin">m.get(1)</code>, <code class="lang-kotlin">[...m]</code>), as in GraalJS. On by default for <a href="../-level/-a-l-l/index.html">Level.ALL</a> only (see <a href="allow-array-access.html">allowArrayAccess</a>).</p></div></div></div>
                 </div>
               </div>
             </div>

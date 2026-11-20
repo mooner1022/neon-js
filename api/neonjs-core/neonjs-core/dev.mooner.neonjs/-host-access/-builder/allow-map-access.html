@@ -43,7 +43,7 @@
         </button>
         <div class="navigation-controls--break ui-kit_mobile-only"></div>
         <div class="library-version" id="library-version">
-0.1.8        </div>
+0.1.9        </div>
         <div class="navigation-controls">
         <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
                 <button class="platform-tag platform-selector jvm-like" data-active="" aria-pressed="true"
@@ -108,7 +108,7 @@
   <div class="cover ">
     <h1 class="cover"><span>allow</span><wbr></wbr><span>Map</span><wbr></wbr><span><span>Access</span></span></h1>
   </div>
-  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">fun </span><a href="allow-map-access.html"><span class="token function">allowMapAccess</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">b<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="index.html">HostAccess.Builder</a></div><p class="paragraph"><code class="lang-kotlin">Map</code> entries are properties, read, written and deleted; on by default for <a href="../-level/-a-l-l/index.html">Level.ALL</a> only (see <a href="allow-array-access.html">allowArrayAccess</a>).</p><hr><div class="symbol monospace"><span class="token keyword">var </span><a href="allow-map-access.html">allowMapAccess</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></div></div></div>
+  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":neonjs-core/main"><div class="symbol monospace"><span class="token keyword">fun </span><a href="allow-map-access.html"><span class="token function">allowMapAccess</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">b<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="index.html">HostAccess.Builder</a></div><p class="paragraph"><code class="lang-kotlin">Map</code> entries are properties, read, written and deleted, and the Map is a JS Map: <code class="lang-kotlin">Map.prototype</code>'s methods reach its entries of any key type (<code class="lang-kotlin">m.get(1)</code>, <code class="lang-kotlin">[...m]</code>), as in GraalJS. On by default for <a href="../-level/-a-l-l/index.html">Level.ALL</a> only (see <a href="allow-array-access.html">allowArrayAccess</a>).</p><hr><div class="symbol monospace"><span class="token keyword">var </span><a href="allow-map-access.html">allowMapAccess</a><span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a></div></div></div>
 </div>
     <div class="footer">
         <div class="footer--container">
