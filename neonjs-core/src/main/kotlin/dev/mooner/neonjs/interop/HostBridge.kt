@@ -359,7 +359,70 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
     }
 
     /** Cost of converting JS value [v] to [t]; lower is better, IMPOSSIBLE if not convertible. */
+    /**
+     * The cost of converting JS [v] to host type [t] (IMPOSSIBLE if it cannot be), with the policy's
+     * [TargetMapping]s ranked among NeonJS's own conversions by their precedence: HIGHEST before everything (-1, so it
+     * wins even over an exact match), HIGH before all but an exact match, LOW where only a lossy conversion (above 2)
+     * or none applies, LOWEST where none applies.
+     */
     fun cost(v: Any?, t: Class<*>): Int {
+        if (!mapping) return defaultCost(v, t)
+        val ms = mappingsFor(t)
+        if (ms.isEmpty()) return defaultCost(v, t)
+        val d = defaultCost(v, t)
+        val m = applicableMapping(v, ms) ?: return d
+        return when (m.first.precedence) {
+            dev.mooner.neonjs.TargetMappingPrecedence.HIGHEST -> -1
+            dev.mooner.neonjs.TargetMappingPrecedence.HIGH -> minOf(d, 1)
+            dev.mooner.neonjs.TargetMappingPrecedence.LOW -> if (d <= 2) d else 3
+            dev.mooner.neonjs.TargetMappingPrecedence.LOWEST -> if (d != IMPOSSIBLE) d else 7
+        }
+    }
+
+    /** Whether the policy has any [dev.mooner.neonjs.TargetMapping] (most have none: every call skips them). */
+    private val mapping = access.mappings.isNotEmpty()
+
+    /** The policy's mappings to [t] (to its boxed type for a primitive one), in precedence order. */
+    private fun mappingsFor(t: Class<*>): List<dev.mooner.neonjs.TargetMapping> =
+        if (access.mappings.isEmpty()) emptyList() else access.mappings[boxed(t) ?: t] ?: emptyList()
+
+    /** The first of [ms] that applies to [v], with [v] converted to its source type; null if none does. */
+    private fun applicableMapping(v: Any?, ms: List<dev.mooner.neonjs.TargetMapping>): Pair<dev.mooner.neonjs.TargetMapping, Any?>? {
+        for (m in ms) {
+            if (defaultCost(v, m.sourceType) == IMPOSSIBLE) continue
+            val s = convert(v, m.sourceType, null)
+            val ok = try {
+                m.accepts?.test(s) ?: true
+            } catch (e: RuntimeException) {
+                throw hostError(e)
+            }
+            if (ok) return m to s
+        }
+        return null
+    }
+
+    /** What a mapping to [t] makes of [v] where it applies ahead of NeonJS's own conversion, else [NotFound]. */
+    private fun mapped(v: Any?, t: Class<*>): Any? {
+        val ms = mappingsFor(t)
+        if (ms.isEmpty()) return NotFound
+        val (m, s) = applicableMapping(v, ms) ?: return NotFound
+        val use = when (m.precedence) {
+            dev.mooner.neonjs.TargetMappingPrecedence.HIGHEST, dev.mooner.neonjs.TargetMappingPrecedence.HIGH -> true
+            dev.mooner.neonjs.TargetMappingPrecedence.LOW -> defaultCost(v, t) > 2
+            dev.mooner.neonjs.TargetMappingPrecedence.LOWEST -> defaultCost(v, t) == IMPOSSIBLE
+        }
+        if (!use) return NotFound
+        return try {
+            m.converter.apply(s)
+        } catch (e: ClassCastException) {
+            throw JSException.typeError("Cannot convert ${Ops.describe(v)} to ${t.name}: ${e.message}")
+        } catch (e: RuntimeException) {
+            throw hostError(e)
+        }
+    }
+
+    /** [cost] by NeonJS's own conversions alone. */
+    private fun defaultCost(v: Any?, t: Class<*>): Int {
         if (t == gate.valueClass) return 1
         if (v !is HostObject && isFutureType(t)) return when (v) {
             Undefined, Null, null -> 1
@@ -422,6 +485,12 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
                     if (!v.isSet && t == Map::class.java) return 2
                     if (v.isSet && (t == Set::class.java || t == Collection::class.java || t == Iterable::class.java)) return 2
                 }
+                // a JS buffer as a ByteBuffer sharing its bytes (HostAccess.allowBufferAccess); a typed array as a Java
+                // array, element by element as a JS array
+                if (t == java.nio.ByteBuffer::class.java && access.allowBufferAccess && byteRange(v) != null) return 2
+                // (the Java array of its own element type first: a Uint8Array is a byte[] before an int[] or a
+                // ByteBuffer, an Int32Array an int[])
+                if (v is dev.mooner.neonjs.builtins.JSTypedArray && t.isArray) return if (ownElementType(v.type) == t.componentType) 1 else 3
                 if (Ops.isArray(v)) {
                     if (t.isArray) return 2
                     if (t == List::class.java || t == Collection::class.java || t == Iterable::class.java) return 2
@@ -463,6 +532,15 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
 
     /** Converts JS value [v] to host type [t] (generic type [gt] used for collections/functions). */
     fun toHost(v: Any?, t: Class<*>, gt: Type? = null): Any? {
+        if (mapping) {
+            val m = mapped(v, t)
+            if (m !== NotFound) return m
+        }
+        return convert(v, t, gt)
+    }
+
+    /** [toHost] by NeonJS's own conversions alone. */
+    private fun convert(v: Any?, t: Class<*>, gt: Type?): Any? {
         if (t == gate.valueClass) return gate.wrapValue(v)
         when (v) {
             Undefined, Null, null -> {
@@ -502,6 +580,8 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
             return t.enumConstants.firstOrNull { (it as Enum<*>).name == n } ?: throw JSException.typeError("No enum constant ${t.name}.$n")
         }
         if (v is JSObject) {
+            if (t == java.nio.ByteBuffer::class.java && access.allowBufferAccess) byteBufferOf(v)?.let { return it }
+            if (t.isArray && v is dev.mooner.neonjs.builtins.JSTypedArray) return javaArrayOf(v, t.componentType)
             if (v is dev.mooner.neonjs.builtins.JSMapObject) {
                 if (!v.isSet && t == Map::class.java) return JSMapEntriesView(this, v, elementType(gt, 0), elementType(gt, 1))
                 if (v.isSet && (t == Set::class.java || t == Collection::class.java || t == Iterable::class.java)) return JSSetView(this, v, elementType(gt, 0))
@@ -593,7 +673,70 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         is BigInteger -> if (v.bitLength() < 64) v.toLong() else v
         is HostObject -> v.target
         is HostClassObject -> v.cls
+        is JSObject -> if (access.allowObjectViews) objectView(v) else gate.wrapValue(v)
         else -> gate.wrapValue(v)
+    }
+
+    /** The Java element type a typed array of [t] holds as it is: byte for 8-bit ones, int for Int32... */
+    private fun ownElementType(t: dev.mooner.neonjs.builtins.ElementType): Class<*> = when (t) {
+        dev.mooner.neonjs.builtins.ElementType.INT8, dev.mooner.neonjs.builtins.ElementType.UINT8, dev.mooner.neonjs.builtins.ElementType.UINT8C -> java.lang.Byte.TYPE
+        dev.mooner.neonjs.builtins.ElementType.INT16 -> java.lang.Short.TYPE
+        dev.mooner.neonjs.builtins.ElementType.UINT16 -> Character.TYPE
+        dev.mooner.neonjs.builtins.ElementType.INT32 -> Integer.TYPE
+        dev.mooner.neonjs.builtins.ElementType.FLOAT16, dev.mooner.neonjs.builtins.ElementType.FLOAT32 -> java.lang.Float.TYPE
+        dev.mooner.neonjs.builtins.ElementType.FLOAT64 -> java.lang.Double.TYPE
+        dev.mooner.neonjs.builtins.ElementType.UINT32, dev.mooner.neonjs.builtins.ElementType.BIGINT64, dev.mooner.neonjs.builtins.ElementType.BIGUINT64 -> java.lang.Long.TYPE
+    }
+
+    /** The bytes an ArrayBuffer, TypedArray or DataView [v] covers: its buffer, offset and length; null for anything else. */
+    private fun byteRange(v: Any?): Triple<dev.mooner.neonjs.builtins.JSArrayBuffer, Int, Int>? = when (v) {
+        is dev.mooner.neonjs.builtins.JSArrayBuffer -> Triple(v, 0, v.byteLength())
+        is dev.mooner.neonjs.builtins.JSTypedArray -> Triple(v.buffer, v.byteOffset, v.byteLengthOrZero())
+        is dev.mooner.neonjs.builtins.JSDataView -> Triple(v.buffer, v.byteOffset, maxOf(v.byteLengthOrOOB(), 0))
+        else -> null
+    }
+
+    /**
+     * A ByteBuffer sharing the bytes of JS buffer or view [v] ([HostAccess.allowBufferAccess]), little-endian as typed
+     * arrays store values, read-only for an immutable ArrayBuffer; null if [v] is none. A detached buffer is a TypeError.
+     * Growing a resizable buffer later gives it new bytes this ByteBuffer does not see.
+     */
+    private fun byteBufferOf(v: Any?): java.nio.ByteBuffer? {
+        val (buf, offset, length) = byteRange(v) ?: return null
+        if (buf.detached) throw JSException.typeError("Cannot convert a detached ArrayBuffer to a ByteBuffer")
+        val bb = java.nio.ByteBuffer.wrap(buf.data, offset, length).slice().order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        return if (buf.immutable) bb.asReadOnlyBuffer().order(java.nio.ByteOrder.LITTLE_ENDIAN) else bb
+    }
+
+    /** A Java array of [ct] holding typed array [ta]'s elements (a byte[] of an 8-bit one: its bytes as they are). */
+    private fun javaArrayOf(ta: dev.mooner.neonjs.builtins.JSTypedArray, ct: Class<*>): Any {
+        val n = ta.typedLength().toInt()
+        if (ct == java.lang.Byte.TYPE && ta.type.size == 1) {
+            val out = ByteArray(n)
+            if (n > 0) System.arraycopy(ta.buffer.data, ta.byteOffset, out, 0, n)
+            return out
+        }
+        val arr = java.lang.reflect.Array.newInstance(ct, n)
+        for (i in 0 until n) {
+            java.lang.reflect.Array.set(arr, i, toHost(ta.getIndex(i), ct))
+            if (i and 1023 == 1023) realm.agent.checkInterrupt()
+        }
+        return arr
+    }
+
+    /**
+     * A JS object as plain Java, for a host `Object` ([HostAccess.allowObjectViews]): a List, Map or Set view, a
+     * Function, an Instant, else a Map of its properties. Views come back to this context as [o] itself.
+     */
+    private fun objectView(o: JSObject): Any = when {
+        o is dev.mooner.neonjs.builtins.JSMapObject ->
+            if (o.isSet) JSSetView(this, o, Any::class.java, jsText = true) else JSMapEntriesView(this, o, Any::class.java, Any::class.java, jsText = true)
+        o is dev.mooner.neonjs.builtins.JSDate ->
+            if (o.timeValue.isNaN()) gate.wrapValue(o) else java.time.Instant.ofEpochMilli(o.timeValue.toLong())
+        // a typed array is a List of its elements too (GraalJS: array elements)
+        Ops.isArray(o) || o is dev.mooner.neonjs.builtins.JSTypedArray -> JSListView(this, o, Any::class.java, jsText = true)
+        o.isCallable -> implement(o, java.util.function.Function::class.java)
+        else -> JSMapView(this, o, Any::class.java, jsText = true)
     }
 
     /** Creates a host implementation of interface [iface] backed by a JS function or object. */
@@ -611,8 +754,11 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         override fun invoke(proxy: Any, method: Method, args: Array<Any?>?): Any? = when {
             method.declaringClass == Any::class.java -> when (method.name) {
                 "toString" -> "JSProxy[${iface.simpleName}]"
-                "hashCode" -> System.identityHashCode(proxy)
-                "equals" -> proxy === args?.get(0)
+                // two proxies of one JS function or object are equal, as GraalJS's wrappers of one value are
+                "hashCode" -> System.identityHashCode(target)
+                "equals" -> args?.get(0).let { o ->
+                    o === proxy || o != null && Proxy.isProxyClass(o.javaClass) && (Proxy.getInvocationHandler(o) as? JSImplementation)?.target === target
+                }
                 else -> null
             }
             else -> gate.enter {
@@ -657,12 +803,13 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
      * The overloads of a method (or the constructors of a class) as calls choose among them: their Sigs, and the
      * choices made so far, by the kinds of the arguments ([kindOf]).
      */
-    internal class Overloads(@JvmField val sigs: Array<Sig>) {
+    internal class Overloads(@JvmField val sigs: Array<Sig>, mapped: Boolean = false) {
         /**
          * Whether choices depend on the kinds of the arguments alone: not where a string may name an enum constant (an
-         * enum parameter, or the enum elements of a varargs parameter).
+         * enum parameter, or the enum elements of a varargs parameter), nor where a target type mapping's `accepts`
+         * decides by the value ([mapped]).
          */
-        @JvmField val memoizable: Boolean = sigs.size > 1 && sigs.none { s -> s.params.any { it.isEnum || it.isArray && it.componentType.isEnum } }
+        @JvmField val memoizable: Boolean = !mapped && sigs.size > 1 && sigs.none { s -> s.params.any { it.isEnum || it.isArray && it.componentType.isEnum } }
         @JvmField val keys = LongArray(MEMO_SIZE)
         @JvmField val choices = IntArray(MEMO_SIZE)
         @JvmField var size = 0
@@ -673,7 +820,9 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
     /** The [Overloads] of [cands], a list as long-lived as the [HostClassInfo] holding it. */
     internal fun overloads(cands: List<Executable>): Overloads =
         if (cands.size == 1) Overloads(arrayOf(sig(cands[0])))
-        else overloadsByList[cands] ?: Overloads(sigs(cands)).also { overloadsByList[cands] = it }
+        else overloadsByList[cands] ?: sigs(cands).let { s ->
+            Overloads(s, access.mappings.isNotEmpty() && s.any { sig -> sig.params.any { mappingsFor(it).isNotEmpty() || it.isArray && mappingsFor(it.componentType).isNotEmpty() } })
+        }.also { overloadsByList[cands] = it }
 
     /** [select] among [cands], a list as long-lived as the [HostClassInfo] holding it, remembering choices. */
     internal fun <E : Executable> choose(cands: List<E>, args: Array<Any?>): E? {
@@ -722,6 +871,8 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
         // a JS Map or Set converts where a plain object does not (cost: a Map or Set view), so a choice remembered for
         // objects must not decide for them
         is dev.mooner.neonjs.builtins.JSMapObject -> -1
+        // buffers and typed arrays convert where a plain object does not (a ByteBuffer, a Java array) as well
+        is dev.mooner.neonjs.builtins.JSArrayBuffer, is dev.mooner.neonjs.builtins.JSTypedArray, is dev.mooner.neonjs.builtins.JSDataView -> -1
         is JSObject -> when {
             v is dev.mooner.neonjs.builtins.JSDate || v is dev.mooner.neonjs.builtins.temporal.JSTemporalInstant -> 12
             v.isCallable -> 13
@@ -929,7 +1080,10 @@ class HostBridge(val realm: Realm, val access: HostAccess, val gate: ContextGate
 }
 
 /** Live java.util.List view of a JS array. */
-class JSListView(internal val bridge: HostBridge, internal val arr: JSObject, private val et: Class<*>) : java.util.AbstractList<Any?>() {
+class JSListView(internal val bridge: HostBridge, internal val arr: JSObject, private val et: Class<*>, private val jsText: Boolean = false) : java.util.AbstractList<Any?>() {
+    /** As JS shows the array, for an object view ([HostAccess.allowObjectViews]); else List's own text. */
+    override fun toString(): String = if (jsText) bridge.gate.enter { dev.mooner.neonjs.ext.Inspector.inspect(arr) } else super.toString()
+
     override val size: Int get() = bridge.gate.enter { Ops.lengthOfArrayLike(arr).toInt() }
     override fun get(index: Int): Any? = bridge.gate.enter {
         if (index < 0 || index >= Ops.lengthOfArrayLike(arr)) throw IndexOutOfBoundsException("$index")
@@ -950,7 +1104,10 @@ class JSListView(internal val bridge: HostBridge, internal val arr: JSObject, pr
 }
 
 /** Live java.util.Map view of a JS object's own enumerable string-keyed properties. */
-class JSMapView(internal val bridge: HostBridge, internal val obj: JSObject, private val vt: Class<*>) : java.util.AbstractMap<String, Any?>() {
+class JSMapView(internal val bridge: HostBridge, internal val obj: JSObject, private val vt: Class<*>, private val jsText: Boolean = false) : java.util.AbstractMap<String, Any?>() {
+    /** As JS shows the object (an Error its message and stack), for an object view; else Map's own text. */
+    override fun toString(): String = if (jsText) bridge.gate.enter { dev.mooner.neonjs.ext.Inspector.inspect(obj) } else super.toString()
+
     /**
      * The entries as they are when asked for; an entry's setValue and the iterator's remove change the JS object, as
      * they change a map.
@@ -1026,7 +1183,10 @@ class JSMapEntriesView(
     internal val map: dev.mooner.neonjs.builtins.JSMapObject,
     private val kt: Class<*>,
     private val vt: Class<*>,
+    private val jsText: Boolean = false,
 ) : java.util.AbstractMap<Any?, Any?>() {
+    override fun toString(): String = if (jsText) bridge.gate.enter { dev.mooner.neonjs.ext.Inspector.inspect(map) } else super.toString()
+
     override val size: Int get() = bridge.gate.enter { map.table.size }
 
     override fun containsKey(key: Any?): Boolean = bridge.gate.enter { map.table.has(bridge.toJS(key)) }
@@ -1087,7 +1247,10 @@ class JSSetView(
     internal val bridge: HostBridge,
     internal val set: dev.mooner.neonjs.builtins.JSMapObject,
     private val et: Class<*>,
+    private val jsText: Boolean = false,
 ) : java.util.AbstractSet<Any?>() {
+    override fun toString(): String = if (jsText) bridge.gate.enter { dev.mooner.neonjs.ext.Inspector.inspect(set) } else super.toString()
+
     override val size: Int get() = bridge.gate.enter { set.table.size }
 
     override fun contains(element: Any?): Boolean = bridge.gate.enter { set.table.has(bridge.toJS(element)) }

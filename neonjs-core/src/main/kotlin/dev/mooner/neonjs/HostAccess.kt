@@ -48,6 +48,11 @@ class HostAccess private constructor(b: Builder) {
     val allowMapAccess: Boolean = b.allowMapAccess
     val allowIterableAccess: Boolean = b.allowIterableAccess
     val allowExceptionAccess: Boolean = b.allowExceptionAccess
+    val allowObjectViews: Boolean = b.allowObjectViews
+    val allowBufferAccess: Boolean = b.allowBufferAccess
+    /** The [TargetMapping]s by target type (boxed), each list in precedence order, then in the order they were added. */
+    internal val mappings: Map<Class<*>, List<TargetMapping>> =
+        b.mappingList.sortedBy { it.precedence.ordinal }.groupBy { it.targetType }
     /** Allow JS objects/functions to be converted to host interfaces (callbacks, listeners). */
     val allowImplementations: Boolean = b.allowImplementations
 
@@ -240,6 +245,9 @@ class HostAccess private constructor(b: Builder) {
         var allowMapAccess = level == Level.ALL
         var allowIterableAccess = level == Level.ALL
         var allowExceptionAccess = false
+        var allowObjectViews = false
+        var allowBufferAccess = level == Level.ALL
+        internal val mappingList = ArrayList<TargetMapping>()
         var allowImplementations = true
 
         fun classFilter(f: (Class<*>) -> Boolean) = apply { classFilter = f }
@@ -304,6 +312,62 @@ class HostAccess private constructor(b: Builder) {
          * name are all JS learns of a host exception otherwise.
          */
         fun allowExceptionAccess(b: Boolean) = apply { allowExceptionAccess = b }
+        /**
+         * A JS object given where Java takes an `Object` (a parameter or field of type Object, an element put in a
+         * Java List or Map) arrives as plain Java, as GraalJS gives it:
+         * - a JS array as a live `List`;
+         * - a JS `Map` as a live `Map` of its entries, and a JS `Set` as a live `Set`;
+         * - a function as a `java.util.function.Function`;
+         * - a `Date` as a `java.time.Instant` (GraalJS gives a Map view, which has no entries);
+         * - any other object as a live `Map` of its properties.
+         *
+         * Without it (the default at every level) such a value arrives as a [NeonValue]. The views convert what they hold
+         * the same way, re-enter the context safely from any thread, and come back to it as the same JS object.
+         */
+        fun allowObjectViews(b: Boolean) = apply { allowObjectViews = b }
+        /**
+         * Buffers cross between JS and Java, as in GraalJS. On by default for [Level.ALL] only (see [allowArrayAccess]).
+         * - **Java to JS.** A `java.nio.ByteBuffer` is what a TypedArray or DataView can be made over
+         *   (`new Uint8Array(bb)`), with bytes 0 until its limit. A writable heap buffer starting its array
+         *   (`ByteBuffer.wrap`, `allocate`) shares its bytes, so writes on either side show on the other. A direct
+         *   buffer, a read-only one or a slice into a larger array is copied, and a read-only copy cannot be written.
+         * - **JS to Java.** An ArrayBuffer, TypedArray or DataView given as a `ByteBuffer` parameter shares its bytes,
+         *   in little-endian order as typed arrays store values. It is read-only for an immutable ArrayBuffer.
+         */
+        fun allowBufferAccess(b: Boolean) = apply { allowBufferAccess = b }
+
+        /**
+         * Adds a conversion of JS values to host type [targetType], as GraalJS's `targetTypeMapping`: a JS value that
+         * converts to [sourceType] (as for a parameter of that type: `String`, `Integer`, `Map`, `List`, [NeonValue]
+         * for any value...) and that [accepts] (null: any) becomes what [converter] makes of it, wherever a
+         * [targetType] is wanted: a parameter (a primitive one too, for its boxed type), a field, an element of a
+         * `List` or `Map` view, `NeonValue.as`. [precedence] ranks it among NeonJS's own conversions
+         * ([TargetMappingPrecedence.HIGH] by default). [accepts] may run more than once for one value (as overloads
+         * are weighed, then for the call); it should be quick and answer false rather than throw. A
+         * `ClassCastException` from [converter] is a TypeError in JS. At HIGH and HIGHEST a mapping applies to a value
+         * that already is a [targetType] too (a host object): as in GraalJS, the converter makes a new one; [accepts]
+         * can refuse those (`!it.isHostObject` for a NeonValue source). Types are boxed types: a primitive one is an
+         * IllegalArgumentException, as in GraalJS.
+         *
+         * ```kotlin
+         * HostAccess.builder(HostAccess.Level.ALL)
+         *     .targetTypeMapping(String::class.java, java.util.UUID::class.java, { it.length == 36 }, { java.util.UUID.fromString(it) })
+         *     .targetTypeMapping(NeonValue::class.java, Point::class.java, { it.hasMember("x") }, { Point(it.getMember("x").asInt(), it.getMember("y").asInt()) })
+         * ```
+         */
+        @JvmOverloads
+        fun <S, T> targetTypeMapping(
+            sourceType: Class<S>,
+            targetType: Class<T>,
+            accepts: java.util.function.Predicate<S>?,
+            converter: java.util.function.Function<S, T>,
+            precedence: TargetMappingPrecedence = TargetMappingPrecedence.HIGH,
+        ) = apply {
+            require(!sourceType.isPrimitive && !targetType.isPrimitive) { "A target type mapping takes boxed types, not ${sourceType.name} to ${targetType.name}" }
+            @Suppress("UNCHECKED_CAST")
+            mappingList.add(TargetMapping(sourceType, targetType, accepts as java.util.function.Predicate<Any?>?,
+                converter as java.util.function.Function<Any?, Any?>, precedence))
+        }
         fun allowImplementations(b: Boolean) = apply { allowImplementations = b }
         fun build() = HostAccess(this)
     }
@@ -336,7 +400,7 @@ class HostAccess private constructor(b: Builder) {
          */
         val defaultDeniedEngineClasses = setOf(
             "NeonEngine", "NeonContext", "NeonValue", "NeonScript", "HostAccess", "SandboxPolicy", "FileSystemModuleLoader",
-            "MapModuleLoader",
+            "MapModuleLoader", "TargetMapping",
         )
         /** java.lang.Object methods never exposed (`getClass` only while `java.lang.Class` is denied). */
         val deniedMethods = setOf("getClass", "wait", "notify", "notifyAll", "finalize")

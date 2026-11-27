@@ -288,6 +288,26 @@ internal object BufferOps {
 }
 
 internal object ArrayBufferBuiltins {
+    /**
+     * An ArrayBuffer over host buffer [bb]'s bytes 0 until its limit, as GraalJS makes one of a foreign buffer:
+     * - the same bytes where [bb] is a writable heap buffer starting its array (ByteBuffer.wrap, allocate), so writes
+     *   on either side show on the other;
+     * - otherwise a copy, made now: a direct buffer (its memory is no byte array this engine's code can read), a
+     *   read-only one (whose array is hidden), a slice into a larger array (whose other bytes stay unseen). A read-only
+     *   buffer's copy is immutable.
+     */
+    fun overHostBuffer(realm: Realm, bb: java.nio.ByteBuffer): JSArrayBuffer {
+        val len = bb.limit()
+        val proto = realm.intrinsic("%ArrayBuffer.prototype%")
+        if (bb.hasArray() && !bb.isReadOnly && bb.arrayOffset() == 0) return JSArrayBuffer(proto, bb.array(), len, -1, null)
+        val copy = BufferOps.allocate(len.toLong())
+        val d = bb.duplicate()
+        d.clear()
+        d.limit(len)
+        d.get(copy, 0, len)
+        return JSArrayBuffer(proto, copy, len, -1, null).also { it.immutable = bb.isReadOnly }
+    }
+
     fun install(realm: Realm) {
         installArrayBuffer(realm)
         installSharedArrayBuffer(realm)

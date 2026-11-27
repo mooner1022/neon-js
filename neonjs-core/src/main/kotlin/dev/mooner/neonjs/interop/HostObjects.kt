@@ -52,7 +52,7 @@ class HostMethodFunction(
  * `push`, `pop`, `shift`, `unshift`, `splice`, a write just past its end and `length`; a Java array's length is fixed.
  */
 class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @JvmField val info: HostClassInfo) :
-    JSObject(prototypeFor(bridge, info)), ForeignArray, ForeignMap, ForeignDate {
+    JSObject(prototypeFor(bridge, info)), ForeignArray, ForeignMap, ForeignDate, ForeignBuffer {
 
     /** Bound methods by [HostClassInfo.methodIndex] (one function per name, as reading a method twice gives). */
     private var bound: Array<HostMethodFunction?>? = null
@@ -303,6 +303,10 @@ class HostObject(@JvmField val bridge: HostBridge, @JvmField val target: Any, @J
     } catch (_: UnsupportedOperationException) {
         false
     }
+
+    /** As [ForeignBuffer] says: [ArrayBufferBuiltins.overHostBuffer] of a ByteBuffer the policy shows as a buffer. */
+    override fun foreignArrayBuffer(): JSObject? =
+        if (info.bufferLike) dev.mooner.neonjs.builtins.ArrayBufferBuiltins.overHostBuffer(bridge.realm, target as java.nio.ByteBuffer) else null
 
     /** As [ForeignDate] says; nothing for an object the policy shows nothing of. */
     override fun foreignTimeValue(): Double? {
